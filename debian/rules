@@ -35,6 +35,7 @@ build-stamp: configure-stamp
 
 	# Add here commands to compile the package.
 	$(MAKE)
+	chmod u+x testo
 	-$(MAKE) check
 	#cd doc && make doc.dvi
 	#cd doc && dvips -o doc.ps doc.dvi
