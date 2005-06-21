@@ -43,6 +43,7 @@ typedef struct {
 	int whitespaceok;
 	unsigned int target_len;
 	char *badchars;
+	char *goodchars;
 	int must_uniq;
 	queue namelist[PRIME];
 	int depth[PRIME];
@@ -149,18 +150,25 @@ mkshort_del_handle(void *h)
 	mkshort_handle *hdr = h;
 	int i;
 
-	if (hdr) {
-		for (i = 0; i < PRIME; i++) {
-			queue *e, *t;
-			QUEUE_FOR_EACH(&hdr->namelist[i], e, t) {
-				uniq_shortname *s = (uniq_shortname *) e;
-				dequeue(e);
-				xfree(s->orig_shortname);
-				xfree(s);
+	if (!hdr)
+		return;
+
+	for (i = 0; i < PRIME; i++) {
+		queue *e, *t;
+		QUEUE_FOR_EACH(&hdr->namelist[i], e, t) {
+			uniq_shortname *s = (uniq_shortname *) e;
+#if 0
+			if (global_opts.verbose_status >= 2 && s->conflictctr) {
+				fprintf(stderr, "%d Output name conflicts: '%s'\n",  
+					s->conflictctr, s->orig_shortname);
 			}
+#endif
+			dequeue(e);
+			xfree(s->orig_shortname);
+			xfree(s);
 		}
-		xfree(hdr);
 	}
+	xfree(hdr);
 }
 
 /*
@@ -179,8 +187,10 @@ delete_last_vowel(int start, char *istring, int *replaced)
 	*replaced = 0;
 	for (l = strlen(istring); l > start; l--) {
 		if (strchr(vowels, istring[l-1])) {
-			char *ostring = xstrdup(istring);
-
+			char *ostring;
+			/* If vowel is the first letter of a word, keep it.*/
+			if (istring[l-2] == ' ') continue;
+			ostring = xstrdup(istring);
 			strncpy(&ostring[l-1], &istring[l], 1+strlen(istring)-l);
 			ostring[strlen(istring)-1] = 0;
 			*replaced = 1;
@@ -230,6 +240,13 @@ setshort_badchars(void *h, const char *s)
 		hdl->badchars = xstrdup(s);
 	}
 }
+void
+setshort_goodchars(void *h, const char *s)
+{
+	mkshort_handle *hdl = h;
+
+	hdl->goodchars = xstrdup(s);
+}
 
 void
 setshort_mustupper(void *h, int i)
@@ -244,7 +261,6 @@ setshort_mustuniq(void *h, int i)
 	mkshort_handle *hdl = h;
 	hdl->must_uniq = i;
 }
-
 
 char *
 #ifdef DEBUG_MEM
@@ -272,21 +288,14 @@ mkshort(void *h, const char *istring)
 		ostring = nstring;
 	}
 
-	/*
-	 * Look at the back of the string for " by BLAH" and whack 
-	 * it there.
-	 */
-	nstring = xxstrdup(ostring, file, line);
-	l = strlen (nstring);
-	while (l > 0) {
-		if (strncmp(&nstring[l], " by ",4) == 0)  {
-			nstring[l] = 0;
-			break;
-		}
-		l --;
+	/* Eliminate leading whitespace in all cases */
+	while (ostring[0] && isspace(ostring[0])) {
+		/* If orig string has N bytes, we want to copy N-1 bytes
+		 * of the string itself plus the string terminator (which 
+		 * matters if the string consists of nothing but spaces) 
+		 */
+		memmove(&ostring[0], &ostring[1], strlen(ostring));
 	}
-	xfree(ostring);
-	ostring = nstring;
 
 	if (!hdl->whitespaceok) {
 		/* 
@@ -319,11 +328,23 @@ mkshort(void *h, const char *istring)
 	for (i=0;i<l;i++) {
 		if (strchr(hdl->badchars, tstring[i]) || !isascii(tstring[i]))
 			continue;
+		if (hdl->goodchars && (!strchr(hdl->goodchars, tstring[i])))
+			continue;
 		*cp++ = tstring[i];
 	}
 	*cp = 0;
 	xfree(tstring);
 
+	/* 
+	 * Eliminate repeated whitespace.  This can only shorten the string
+ 	 * so we do it in place.
+	 */
+	for (i = 0; i < l-1; i++) {
+		if (ostring[i] == ' ' && ostring[i+1] == ' ') {
+			memmove(&ostring[i], &ostring[i+1], l-i);
+		}
+	}
+	
 	/*
 	 * Toss vowels to approach target length, but don't toss them 	
 	 * if we don't have to.  We always keep the leading two letters
@@ -351,7 +372,7 @@ mkshort(void *h, const char *istring)
 	 * Walk in the Woods 2.
 	 */
 	np = ostring + strlen(ostring);
-	while (isdigit(*(np-1) )) {
+	while (*(np-1) && isdigit(*(np-1) )) {
 		np--;
 	}
 	if (np) {
@@ -366,11 +387,46 @@ mkshort(void *h, const char *istring)
 		strcpy(&ostring[hdl->target_len] - strlen(np), np);
 	}
 
+	/* 
+	 * If, after all that, we have an empty string, punt and
+	 * let the must_uniq code handle it.
+	 */
+	if (ostring[0] == '\0') {
+		xfree(ostring);
+		ostring = xstrdup("WPT");
+	}
+
 	if (hdl->must_uniq) {
 		return mkshort_add_to_list(hdl, ostring);
 	}
 	return ostring;
 }
+
+/*
+ * As above, but arg list is a waypoint so we can centralize
+ * the code that considers the alternate sources.
+ */
+char *
+mkshort_from_wpt(void *h, const waypoint *wpt)
+{
+	/* This probably came from a Groundspeak Pocket Query
+	 * so use the 'cache name' instead of the description field
+	 * which contains placer name, diff, terr, and generally way
+	 * more stuff than should be in any one field...
+ 	 */
+	if (wpt->gc_data.diff && wpt->gc_data.terr && wpt->notes) {
+		return mkshort(h, wpt->notes);
+	}
+
+	if (wpt->description) {
+		return mkshort(h, wpt->description);
+	}
+
+	if (wpt->notes) {
+		return mkshort(h, wpt->notes);
+	}
+}
+
 
 #if 0
 char *foo[] =  {

@@ -25,7 +25,7 @@
 static FILE *file_in;
 static FILE *file_out;
 static void *mkshort_handle;
-static char *deficon = NULL;
+/* static char *deficon = NULL; */
 
 #define MYNAME "EasyGPS"
 
@@ -263,6 +263,7 @@ data_write(void)
 
 ff_vecs_t easygps_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,

@@ -95,6 +95,7 @@ arglist_t mps_args[] = {
  * A wrapper to ensure the doubles we fwrite are in correct endianness.
  */
 
+void
 le_fwrite64(void *ptr, int sz, int ct, FILE *stream)
 {
 	unsigned char cbuf[8];
@@ -107,6 +108,7 @@ le_fwrite64(void *ptr, int sz, int ct, FILE *stream)
 	fwrite(cbuf, 8, 1, stream);
 }
 
+void
 le_fread64(void *ptr, int sz, int ct, FILE *stream)
 {
 	unsigned char cbuf[8];
@@ -411,7 +413,7 @@ mps_fileHeader_r(FILE *mps_file, int *mps_ver)
 static void
 mps_fileHeader_w(FILE *mps_file, int mps_ver)
 {
-	char hdr[100];
+	unsigned char hdr[100];
 	int reclen;
 
 	strcpy (hdr, "MsRc");
@@ -467,10 +469,10 @@ mps_fileHeader_w(FILE *mps_file, int mps_ver)
 static void
 mps_mapsegment_r(FILE *mps_file, int mps_ver)
 {
-	char hdr[100];
 	int reclen;
 
 	/* At the moment we're not doing anything with map segments, but here's the template code as if we were
+	char hdr[100];
 	fread(&CDid, 4, 1, mps_file);
 	reclen = le_read32(&CDid);
 
@@ -499,10 +501,10 @@ mps_mapsegment_r(FILE *mps_file, int mps_ver)
 static void
 mps_mapsetname_r(FILE *mps_file, int mps_ver)
 {
-	char hdr[100];
 	int reclen;
 
 	/* At the moment we're not doing anything with mapsetnames, but here's the template code as if we were
+	char hdr[100];
 	mps_readstr(mps_file, hdr, sizeof(hdr));
 	char mapsetnamename[very large number?];
 	strcpy(mapsetnamename,hdr);
@@ -857,7 +859,7 @@ mps_route_wpt_w_unique_wrapper(const waypoint *wpt)
 		}
 	}
 }
-
+#if 0
 /*
  * wrapper to include the mps_ver_out information
  * This one always writes a waypoint. If it has been written before
@@ -869,7 +871,6 @@ mps_waypoint_w_uniqloc_wrapper(waypoint *wpt)
 {
 	waypoint *wptfound = NULL;
 	char			*newName;
-	unsigned int	uniqueNum = 0;
 
 	/* Search for this waypoint in the ones already written */
 	wptfound = mps_find_wpt_q_by_name(&written_wpt_head, wpt->shortname);
@@ -901,6 +902,7 @@ mps_waypoint_w_uniqloc_wrapper(waypoint *wpt)
 		mps_wpt_q_add(&written_wpt_head, wpt);
 	}
 }
+#endif
 
 /*
  * read in from file a route record
@@ -918,9 +920,7 @@ mps_route_r(FILE *mps_file, int mps_ver, route_head **rte)
 	int	interlinkStepCount;
 	int	thisInterlinkStep;
 	unsigned int	mpsclass;
-	int	FFsRead;
 
-	time_t	dateTime = 0;
 	route_head *rte_head;
 	int rte_count;
 
@@ -1177,7 +1177,6 @@ mps_routehdr_w(FILE *mps_file, int mps_ver, const route_head *rte)
 {
 	unsigned int reclen;
 	unsigned int rte_datapoints;
-	unsigned int colour = 0;		/* unknown colour */
 	int			rname_len;
 	char		*rname;
 	char		hdr[20];
@@ -1317,7 +1316,6 @@ mps_routehdr_w(FILE *mps_file, int mps_ver, const route_head *rte)
 			fwrite(zbuf, 9, 1, mps_file);
 		}
 		else {
-			unsigned char cbuf[8];
 			hdr[0] = 1;
 
 			fwrite(hdr, 1 , 1, mps_file);
@@ -1346,7 +1344,6 @@ mps_routedatapoint_w(FILE *mps_file, int mps_ver, const waypoint *rtewpt)
 	unsigned char hdr[10];
 	int			lat;
 	int			lon;
-	time_t		t = rtewpt->creation_time;
 	char		zbuf[20];
 	char		ffbuf[20];
 	char		*src;
@@ -1912,6 +1909,8 @@ mps_write(void)
 	int				reclen;
 	int				reclen2;
 	unsigned int	tocopy;
+	unsigned int	block;
+	
 	long			tempFilePos;
 	unsigned int	mpsWptClass;
 
@@ -1988,9 +1987,10 @@ mps_write(void)
 				fseek(mps_file_temp, tempFilePos, SEEK_SET);
 
 				/* copy the data using a "reasonably" sized buffer */
-				for(tocopy = reclen2; tocopy > 0; tocopy -= sizeof(copybuf)) {
-					fread(copybuf, (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy), 1, mps_file_temp);
-					fwrite(copybuf, (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy), 1, mps_file_out);
+				for(tocopy = reclen2; tocopy > 0; tocopy -= block) {
+				  block = (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy);
+				  fread(copybuf, block, 1, mps_file_temp);
+				  fwrite(copybuf, block, 1, mps_file_out);
 				}
 			}
 			else break;
@@ -2026,6 +2026,7 @@ mps_write(void)
 	/* prior to writing any tracks as requested, if we're doing a merge, read in the rtes
 	   from the original file and then write them out, ready for tracks to follow
 	*/
+
 	/* if ((mpsmergeout) && (global_opts.objective != rtedata)) { */
 	if ((mpsmergeout) && (! doing_rtes)) {
 		while (!feof(mps_file_temp)) {
@@ -2035,9 +2036,11 @@ mps_write(void)
 				fwrite(&reclen, 4, 1, mps_file_out);	/* write out untouched */
 				fwrite(&recType, 1, 1, mps_file_out);
 
-				for(tocopy = reclen2; tocopy > 0; tocopy -= sizeof(copybuf)) {
-					fread(copybuf, (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy), 1, mps_file_temp);
-					fwrite(copybuf, (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy), 1, mps_file_out);
+				/* copy the data using a "reasonably" sized buffer */
+				for(tocopy = reclen2; tocopy > 0; tocopy -= block) {
+				  block = (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy);
+				  fread(copybuf, block, 1, mps_file_temp);
+				  fwrite(copybuf, block, 1, mps_file_out);
 				}
 			}
 			else break;
@@ -2095,9 +2098,11 @@ mps_write(void)
 				fwrite(&reclen, 4, 1, mps_file_out);	/* write out untouched */
 				fwrite(&recType, 1, 1, mps_file_out);
 
-				for(tocopy = reclen2; tocopy > 0; tocopy -= sizeof(copybuf)) {
-					fread(copybuf, (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy), 1, mps_file_temp);
-					fwrite(copybuf, (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy), 1, mps_file_out);
+				/* copy the data using a "reasonably" sized buffer */
+				for(tocopy = reclen2; tocopy > 0; tocopy -= block) {
+				  block = (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy);
+				  fread(copybuf, block, 1, mps_file_temp);
+				  fwrite(copybuf, block, 1, mps_file_out);
 				}
 			}
 			else break;
@@ -2140,10 +2145,13 @@ mps_write(void)
 			fwrite(&reclen, 4, 1, mps_file_out);	/* write out untouched */
 			fwrite(&recType, 1, 1, mps_file_out);
 
-			for(tocopy = reclen2; tocopy > 0; tocopy -= sizeof(copybuf)) {
-				fread(copybuf, (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy), 1, mps_file_temp);
-				fwrite(copybuf, (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy), 1, mps_file_out);
+			/* copy the data using a "reasonably" sized buffer */
+			for(tocopy = reclen2; tocopy > 0; tocopy -= block) {
+			  block = (tocopy > sizeof(copybuf) ? sizeof(copybuf) : tocopy);
+			  fread(copybuf, block, 1, mps_file_temp);
+			  fwrite(copybuf, block, 1, mps_file_out);
 			}
+			
 			if (recType != 'V') {
 				fread(&reclen, 4, 1, mps_file_temp);
 				reclen2 = le_read32(&reclen);
@@ -2163,6 +2171,7 @@ mps_write(void)
 
 ff_vecs_t mps_vecs = {
 	ff_type_file,
+	FF_CAP_RW_ALL,
 	mps_rd_init,
 	mps_wr_init,
 	mps_rd_deinit,

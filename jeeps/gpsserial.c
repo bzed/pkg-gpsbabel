@@ -23,6 +23,7 @@
 ** Boston, MA  02111-1307, USA.
 ********************************************************************/
 #include "gps.h"
+#include "garminusb.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -61,6 +62,11 @@ char *rxdata[] = {
  *  internal.   This means we ignore that 'fd' number that gets passed in.
  */
 
+static HANDLE comport;
+
+/*
+ * Display an error from the serial subsystem.
+ */
 void GPS_Serial_Error(char *hdr)
 {
 	char msg[200];
@@ -75,8 +81,6 @@ void GPS_Serial_Error(char *hdr)
 			GetLastError(), 0, s, sizeof(msg) - strlen(hdr) - 2, 0 );
 	GPS_Error(msg);
 }
-
-static HANDLE comport;
 
 int32 GPS_Serial_On(const char *port, int32 *fd)
 {
@@ -135,6 +139,7 @@ int32 GPS_Serial_On(const char *port, int32 *fd)
 	 * (i.e. cable unplugged, unit not turned on) values.
 	 */
 	GetCommTimeouts (comport, &timeout);
+
 	timeout.ReadIntervalTimeout = 1000; /*like vtime.  In MS. */
 	timeout.ReadTotalTimeoutMultiplier = 1000;
 	timeout.ReadTotalTimeoutConstant = 1000;
@@ -164,12 +169,27 @@ int32 GPS_Serial_Off(const char *port, int32 fd)
 
 int32 GPS_Serial_Chars_Ready(int32 fd)
 {
-	return 1;
+	COMSTAT lpStat;
+	DWORD lpErrors;
+
+	ClearCommError(comport, &lpErrors, &lpStat);
+	return (lpStat.cbInQue > 0);
 }
 
 int32 GPS_Serial_Wait(int32 fd)
 {
-	return 1;
+
+	if (gps_is_usb) return 1;
+
+	/* Wait a short time before testing if data is ready.
+	 * The GPS II, in particular, has a noticable time responding
+	 * with a response to the device inquiry and if we give up on this
+	 * too soon, we fail to read the response to the A001 packet and
+	 * blow our state machines when it starts streaming the capabiilties
+	 * response packet.
+	 */
+	Sleep(usecDELAY / 1000);
+	return GPS_Serial_Chars_Ready(fd);
 }
 
 int32 GPS_Serial_Flush(int32 fd)
@@ -180,8 +200,19 @@ int32 GPS_Serial_Flush(int32 fd)
 int32 GPS_Serial_Write(int32 ignored, const void *obuf, int size)
 {
 	DWORD len;
+
+	/* 
+	 * Unbelievably, the Keyspan PDA serial driver 3.2, a "Windows 
+	 * Certified driver", will crash the OS on a write of zero bytes.
+	 * We get such writes from upstream when there are zero payload
+	 * bytes.  SO we trap those here to stop Keyspan & Windows from
+	 * nuking the system.
+	 */
+	if (size == 0) {
+		return 0;
+	}
 	WriteFile (comport, obuf, size, &len, NULL);
-	if (len != size) {
+	if (len != (DWORD) size) {
 		fatal ("Write error.   Wrote %d of %d bytes.", len, size);
 	}
 	return len;
@@ -221,8 +252,10 @@ static struct termios gps_ttysave;
 int32 GPS_Serial_Savetty(const char *port)
 {
     int32 fd;
+
+    if (gps_is_usb) return 1;
     
-    if((fd = open(port, O_RDWR|O_NDELAY))==-1)
+    if((fd = open(port, O_RDWR))==-1)
     {
 	perror("open");
 	gps_errno = SERIAL_ERROR;
@@ -237,7 +270,6 @@ int32 GPS_Serial_Savetty(const char *port)
 	GPS_Error("SERIAL: tcgetattr error");
 	return 0;
     }
-
 
     if(!GPS_Serial_Close(fd,port))
     {
@@ -262,8 +294,10 @@ int32 GPS_Serial_Savetty(const char *port)
 int32 GPS_Serial_Restoretty(const char *port)
 {
     int32 fd;
+
+    if (gps_is_usb) return 1;
     
-    if((fd = open(port, O_RDWR|O_NDELAY))==-1)
+    if((fd = open(port, O_RDWR))==-1)
     {
 	perror("open");
 	gps_errno = HARDWARE_ERROR;
@@ -311,7 +345,6 @@ int32 GPS_Serial_Open(int32 *fd, const char *port)
 	gps_errno = SERIAL_ERROR;
 	return 0;
     }
-
 
     if(tcgetattr(*fd,&tty)==-1)
     {
@@ -385,6 +418,7 @@ int32 GPS_Serial_Write(int32 handle, const void *obuf, int size)
 ************************************************************************/
 int32 GPS_Serial_Flush(int32 fd)
 {
+    if (gps_is_usb) return 1;
     
     if(tcflush(fd,TCIOFLUSH))
     {
@@ -411,6 +445,8 @@ int32 GPS_Serial_Flush(int32 fd)
 
 int32 GPS_Serial_Close(int32 fd, const char *port)
 {
+    if (gps_is_usb)  return 1;
+
     if(close(fd)==-1)
     {
 	perror("close");
@@ -449,7 +485,7 @@ int32 GPS_Serial_Chars_Ready(int32 fd)
     FD_SET(fd,&rec);
 
     t.tv_sec  = 0;
-    t.tv_usec = 0;
+    t.tv_usec = 1000;
     (void) select(fd+1,&rec,NULL,NULL,&t);
     if(FD_ISSET(fd,&rec))
 	return 1;

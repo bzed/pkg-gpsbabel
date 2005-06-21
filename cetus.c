@@ -60,7 +60,7 @@ struct record {
 	unsigned char sec;
 	
 	/* accuracy and precision information for use where applicable */
-	char  sat; /* ff if averaged or unknown */
+	unsigned char  sat; /* ff if averaged or unknown */
 	pdb_16 pdop; /* pdop * 100 */
 	pdb_16 hdop;
 	pdb_16 vdop;
@@ -165,7 +165,7 @@ data_read(void)
 	for(pdb_rec = pdb->rec_index.rec; pdb_rec; pdb_rec=pdb_rec->next) {
 		waypoint *wpt_tmp;
 
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+		wpt_tmp = waypt_new();
 
 		rec = (struct record *) pdb_rec->data;
 		if ( be_read32(&rec->elevation) == -100000000 ) {
@@ -238,13 +238,13 @@ cetus_writewpt(const waypoint *wpt)
 		be_write16(&rec->year, 0xff);
 	}
 
-	be_write32(&rec->longitude, wpt->longitude * 10000000.0);
-	be_write32(&rec->latitude, wpt->latitude * 10000000.0);
+	be_write32(&rec->longitude, (unsigned int) (wpt->longitude * 10000000.0));
+	be_write32(&rec->latitude, (unsigned int) (wpt->latitude * 10000000.0));
 	if ( wpt->altitude == unknown_alt ) {
-		be_write32(&rec->elevation, -100000000U);
+		be_write32(&rec->elevation, -100000000);
 	}
 	else {
-		be_write32(&rec->elevation, wpt->altitude * 100.0);
+		be_write32(&rec->elevation, (unsigned int) (wpt->altitude * 100.0));
 	}
 	
 	be_write16( &rec->pdop, 0xffff );
@@ -327,7 +327,7 @@ cetus_writewpt(const waypoint *wpt)
 	}
 	vdata += strlen( vdata ) + 1;
 	
-	opdb_rec = new_Record (0, 2, ct++, vdata-(char *)rec, (const ubyte *)rec);
+	opdb_rec = new_Record (0, 2, ct++, (uword) (vdata-(char *)rec), (const ubyte *)rec);
 	
 	if (opdb_rec == NULL) {
 		fatal(MYNAME ": libpdb couldn't create record\n");
@@ -397,7 +397,7 @@ data_write(void)
 	    if (global_opts.synthesize_shortnames && waypointp->description) {
 		if (waypointp->shortname)
 		    xfree(waypointp->shortname);
-		waypointp->shortname = mkshort(mkshort_wr_handle, waypointp->description);
+		waypointp->shortname = mkshort_from_wpt(mkshort_wr_handle, waypointp);
 	    }
 	    bh->wpt_name = waypointp->shortname;
 	    bh ++;
@@ -416,6 +416,7 @@ data_write(void)
 
 ff_vecs_t cetus_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,

@@ -1,6 +1,6 @@
 # gpsbabel XCSV style file
 #
-# Format: Delorme SA 9.0 CSV
+# Format: DeLorme SA 9.0 CSV
 # Author: Alex Mottram
 #   Date: 12/09/2002
 #
@@ -18,6 +18,10 @@ BADCHARS		COMMA
 #
 # INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:
 #
-IFIELD	LAT_DECIMAL, "", "%08.5f"
-IFIELD	LON_DECIMAL, "", "%08.5f"
+IFIELD	LAT_HUMAN_READABLE, "", "%08.5f"
+IFIELD	LON_HUMAN_READABLE, "", "%08.5f"
 IFIELD	DESCRIPTION, "", "%s"
+
+OFIELD	LAT_DECIMAL, "", "%08.5f"
+OFIELD	LON_DECIMAL, "", "%08.5f"
+OFIELD	DESCRIPTION, "", "%s"

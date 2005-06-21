@@ -2,6 +2,7 @@
     Utilities for parsing Character Separated Value files (CSV)
 
     Copyright (C) 2002 Alex Mottram (geo_alexm at cox-internet.com)
+    Copyright (C) 2002-2005 Robert Lipe
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -38,6 +39,11 @@
 
 extern char *xcsv_urlbase;
 extern char *prefer_shortnames;
+
+extern const char *gs_get_container(geocache_container t);
+extern geocache_container gs_mktype(const char *t);
+extern geocache_container gs_mkcont(const char *t);
+extern const char *gs_get_cachetype(geocache_type t);
 
 static double pathdist = 0;
 static double oldlon = 999;
@@ -77,14 +83,13 @@ csv_stringclean(const char *string, const char *chararray)
         while (*p1) {
             if (*cp == *p1) {
                 /* we don't want this character! */
-                strncpy(p1, p1 + 1, (p2 - p1));
+		memmove(p1, p1 + 1, (p2 - p1));
                 p1[p2 - p1] = '\0';
             }
             p1++;
         }
         cp++;
     }
-    
     return (tmp);
 }
 
@@ -146,7 +151,8 @@ csv_stringtrim(const char *string, const char *enclosure, int strip_max)
     }
 
     /* copy what's left over back into tmp. */
-    strncpy(tmp, p1, (p2 - p1) + 1);
+    memmove(tmp, p1, (p2 - p1) + 1);
+
     tmp[(p2 - p1) + 1] = '\0';
 
     return (tmp);
@@ -322,16 +328,19 @@ decdir_to_dec(const char * decdir)
  * human_to_dec() - convert a "human-readable" lat and/or lon to decimal
  * usage: human_to_dec( "N 41° 09.12' W 085° 09.36'", &lat, &lon );
  *        human_to_dec( "41 9 5.652 N", &lat, &lon );
+ *        
+ *        which: 0-no preference    1-prefer lat    2-prefer lon
  *****************************************************************************/
 
 static void
-human_to_dec( const char *instr, double *outlat, double *outlon )
+human_to_dec( const char *instr, double *outlat, double *outlon, int which )
 {
     double unk[3] = {999,999,999};
     double lat[3] = {999,999,999};
     double lon[3] = {999,999,999};
     int    latsign = 0;
     int    lonsign = 0;
+    int    unksign = 1;
    
     const char *cur;
     double *numres = unk;
@@ -388,6 +397,10 @@ human_to_dec( const char *instr, double *outlat, double *outlon )
 		numres[numind] = atof(cur);
 		while (cur && *cur && strchr("1234567890.",*cur)) cur++;
 		break;
+	    case '-':
+		unksign = -1;
+		cur++;
+		break;
 	    default:
 		if (numres[numind] != 999) {
     		    numind++;
@@ -398,6 +411,17 @@ human_to_dec( const char *instr, double *outlat, double *outlon )
 		}
 		cur++;
 		break;      
+	}
+    }
+    
+    if ( lat[0] == 999 && lon[0] == 999 ) {
+	if ( which == 1 ) {
+	    lat[0] = unk[0]; lat[1] = unk[1]; lat[2] = unk[2];
+	    latsign = unksign;
+	}
+	else if ( which == 2 ) {
+	    lon[0] = unk[0]; lon[1] = unk[1]; lon[2] = unk[2];
+	    lonsign = unksign;
 	}
     }
     
@@ -580,6 +604,37 @@ xcsv_epilogue_add(char *epilogue)
     xcsv_file.epilogue_lines++;
 }
 
+static
+time_t
+yyyymmdd_to_time(const char *s)
+{
+	int t = atol(s);
+	struct tm tm;
+
+	memset(&tm, 0, sizeof(tm));
+
+	tm.tm_mday = t % 100;
+	t = t / 100;
+	tm.tm_mon = t % 100 - 1;
+	t = t / 100;
+	tm.tm_year = t - 1900;
+	return mktime(&tm);
+}
+
+static 
+long 
+time_to_yyyymmdd(time_t t)
+{
+	long b;
+	struct tm *tm = gmtime(&t);
+
+	b = (1900 + tm->tm_year) * 10000 + 
+		(1 + tm->tm_mon) * 100 + 
+		tm->tm_mday;
+
+	return b;
+}
+
 /*****************************************************************************/
 /* xcsv_parse_val() - parse incoming data into the waypt structure.          */
 /* usage: xcsv_parse_val("-123.34", *waypt, *field_map)                      */
@@ -616,7 +671,7 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     } else
     if (strcmp(fmp->key, "ICON_DESCR") == 0) {
        wpt->icon_descr = csv_stringtrim(s, "", 0);
-       wpt->icon_descr_is_dynamic = 1;
+       wpt->wpt_flags.icon_descr_is_dynamic = 1;
     } else
 
     /* LATITUDE CONVERSIONS**************************************************/
@@ -631,10 +686,10 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     } else
     if (strcmp(fmp->key, "LAT_INT32DEG") == 0) {
        /* latitude as a 32 bit integer offset */
-       wpt->latitude = intdeg_to_dec(atof(s), 1);
+       wpt->latitude = intdeg_to_dec((int) atof(s), 1);
     } else
     if ( strcmp(fmp->key, "LAT_HUMAN_READABLE") == 0) {
-       human_to_dec( s, &wpt->latitude, &wpt->longitude );
+       human_to_dec( s, &wpt->latitude, &wpt->longitude, 1 );
     } else
     if ( strcmp(fmp->key, "LAT_NMEA") == 0) {
 	wpt->latitude = ddmm2degrees(wpt->latitude);
@@ -651,17 +706,17 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     } else
     if (strcmp(fmp->key, "LON_INT32DEG") == 0) {
        /* longitude as a 32 bit integer offset  */
-       wpt->longitude = intdeg_to_dec(atof(s), 0);
+       wpt->longitude = intdeg_to_dec((int) atof(s), 0);
     } else
     if ( strcmp(fmp->key, "LON_HUMAN_READABLE") == 0) {
-       human_to_dec( s, &wpt->latitude, &wpt->longitude );
+       human_to_dec( s, &wpt->latitude, &wpt->longitude, 2 );
     } else
     if ( strcmp(fmp->key, "LON_NMEA") == 0) {
 	wpt->latitude = ddmm2degrees(wpt->longitude);
     } else
     /* LAT AND LON CONVERSIONS ********************************************/
     if ( strcmp(fmp->key, "LATLON_HUMAN_READABLE") == 0) {
-       human_to_dec( s, &wpt->latitude, &wpt->longitude );
+       human_to_dec( s, &wpt->latitude, &wpt->longitude, 0 );
     } else
     /* DIRECTIONS **********************************************************/
     if (strcmp(fmp->key, "LAT_DIR") == 0) {
@@ -690,6 +745,12 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
        /* Time as time_t */
        wpt->creation_time = atol(s);
      } else
+    if (strcmp(fmp->key, "YYYYMMDD_TIME") == 0) {
+	wpt->creation_time = yyyymmdd_to_time(s);
+    } else
+    if (strcmp(fmp->key, "GEOCACHE_LAST_FOUND") == 0) {
+	wpt->gc_data.last_found = yyyymmdd_to_time(s);
+    } else
 
     /* GEOCACHING STUFF ***************************************************/
     if (strcmp(fmp->key, "GEOCACHE_DIFF") == 0) {
@@ -707,6 +768,14 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     if (strcmp(fmp->key, "GEOCACHE_CONTAINER") == 0) {
        wpt->gc_data.container = gs_mkcont(s);
     } else
+    if (strcmp(fmp->key, "GEOCACHE_HINT") == 0) {
+       wpt->gc_data.hint = csv_stringtrim(s, "", 0);
+    } else
+    if (strcmp(fmp->key, "GEOCACHE_PLACER") == 0) {
+       wpt->gc_data.placer = csv_stringtrim(s, "", 0);
+    } else
+	
+    /* OTHER STUFF ***************************************************/
     if ( strcmp( fmp->key, "PATH_DISTANCE_MILES") == 0) {
        /* Ignored on input */
     } else
@@ -759,7 +828,7 @@ xcsv_data_read(void)
         }
 
         if (strlen(buff)) {
-            wpt_tmp = xcalloc(sizeof(*wpt_tmp), 1);
+            wpt_tmp = waypt_new();
 
             s = buff;
             s = csv_lineparse(s, xcsv_file.field_delimiter, "", linecount);
@@ -794,7 +863,7 @@ xcsv_data_read(void)
 }
 
 static void
-xcsv_resetpathlen()
+xcsv_resetpathlen(const route_head *head)
 {
     pathdist = 0;
     oldlat = 999;
@@ -824,15 +893,15 @@ xcsv_waypt_pr(const waypoint *wpt)
     oldlon = wpt->longitude;
     oldlat = wpt->latitude;
 
-    if (strcmp(xcsv_file.field_delimiter, "\\w") == 0)
+    if (xcsv_file.field_delimiter && strcmp(xcsv_file.field_delimiter, "\\w") == 0)
         write_delimiter = " ";
     else
         write_delimiter = xcsv_file.field_delimiter;
     
     if ((! wpt->shortname) || (global_opts.synthesize_shortnames)) {
         if (wpt->description) {
-            if (global_opts.synthesize_shortnames)
-                shortname = mkshort(xcsv_file.mkshort_handle, wpt->description);
+            if (global_opts.synthesize_shortnames) 
+		shortname = mkshort_from_wpt(xcsv_file.mkshort_handle, wpt);
             else
                 shortname = csv_stringclean(wpt->description, xcsv_file.badchars);
         } else {
@@ -856,10 +925,8 @@ xcsv_waypt_pr(const waypoint *wpt)
 	    if (description) {
 		    xfree(description);
 	    }
-	    description = shortname;
-    }
-
-    if (description) {
+ 	    description = shortname;
+    } else if (description) {
 	    char *odesc = description;
 	    description = str_utf8_to_ascii(odesc);
 	    xfree(odesc);
@@ -882,7 +949,12 @@ xcsv_waypt_pr(const waypoint *wpt)
             sprintf(buff, fmp->printfc, waypt_out_count + atoi(fmp->val));
         } else
         if (strcmp(fmp->key, "CONSTANT") == 0) {
-            sprintf(buff, fmp->printfc, fmp->val);
+	    const char *cp = xcsv_get_char_from_constant_table(fmp->val);
+	    if (cp) {
+                sprintf(buff, fmp->printfc, cp);
+	    } else {
+		sprintf(buff, fmp->printfc, fmp->val);
+	    }
         } else
         if (strcmp(fmp->key, "SHORTNAME") == 0) {
             sprintf(buff, fmp->printfc, 
@@ -1043,6 +1115,12 @@ xcsv_waypt_pr(const waypoint *wpt)
             /* time as a time_t variable */
             sprintf(buff, fmp->printfc, wpt->creation_time);
         } else
+        if (strcmp(fmp->key, "YYYYMMDD_TIME") == 0) {
+	    sprintf(buff, fmp->printfc, time_to_yyyymmdd(wpt->creation_time));
+	} else
+        if (strcmp(fmp->key, "GEOCACHE_LAST_FOUND") == 0) {
+	    sprintf(buff, fmp->printfc, time_to_yyyymmdd(wpt->gc_data.last_found));
+	} else
 
         /* GEOCACHE STUFF **************************************************/
         if (strcmp(fmp->key, "GEOCACHE_DIFF") == 0) {
@@ -1060,6 +1138,12 @@ xcsv_waypt_pr(const waypoint *wpt)
 	if (strcmp(fmp->key, "GEOCACHE_TYPE") == 0) {
             /* Geocache Type */
             sprintf(buff, fmp->printfc, gs_get_cachetype(wpt->gc_data.type));
+        } else 
+	if (strcmp(fmp->key, "GEOCACHE_HINT") == 0) {
+	    sprintf(buff, fmp->printfc, NONULL(wpt->gc_data.hint));
+        } else 
+	if (strcmp(fmp->key, "GEOCACHE_PLACER") == 0) {
+	    sprintf(buff, fmp->printfc, NONULL(wpt->gc_data.placer));
         } else {
            /* this should probably never happen */
         }
@@ -1070,11 +1154,11 @@ xcsv_waypt_pr(const waypoint *wpt)
 
     fprintf (xcsv_file.xcsvfp, "%s", xcsv_file.record_delimiter);
 
-    if (shortname)
-        xfree(shortname);
-
     if (description && description != shortname)
         xfree(description);
+
+    if (shortname)
+        xfree(shortname);
 
     /* increment the index counter */
     waypt_out_count++;

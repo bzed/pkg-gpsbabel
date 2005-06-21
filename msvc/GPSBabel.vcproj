@@ -33,6 +33,7 @@
 				ObjectFile=".\Release/"
 				ProgramDataBaseFileName=".\Release/"
 				WarningLevel="3"
+				WarnAsError="TRUE"
 				SuppressStartupBanner="TRUE"
 				DebugInformationFormat="3"
 				CompileAs="0"/>
@@ -40,6 +41,7 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="setupapi.lib"
 				OutputFile=".\Release/GPSBabel.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="TRUE"
@@ -95,13 +97,15 @@
 				ProgramDataBaseFileName=".\Debug/"
 				BrowseInformation="1"
 				WarningLevel="3"
+				WarnAsError="TRUE"
 				SuppressStartupBanner="TRUE"
-				DebugInformationFormat="4"
+				DebugInformationFormat="3"
 				CompileAs="0"/>
 			<Tool
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="setupapi.lib"
 				OutputFile=".\Debug/GPSBabel.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="TRUE"
@@ -185,6 +189,9 @@
 						BasicRuntimeChecks="3"
 						BrowseInformation="1"/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\coastexp.c">
 			</File>
 			<File
 				RelativePath="..\copilot.c">
@@ -400,6 +407,12 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\glogbook.c">
+			</File>
+			<File
+				RelativePath="..\google.c">
+			</File>
+			<File
 				RelativePath="..\gpilots.c">
 				<FileConfiguration
 					Name="Release|Win32">
@@ -505,6 +518,9 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\hiketech.c">
+			</File>
+			<File
 				RelativePath="..\holux.c">
 				<FileConfiguration
 					Name="Release|Win32">
@@ -574,7 +590,13 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\kml.c">
+			</File>
+			<File
 				RelativePath="Expat\libexpat.lib">
+			</File>
+			<File
+				RelativePath="..\lowranceusr.c">
 			</File>
 			<File
 				RelativePath="..\magnav.c">
@@ -785,6 +807,9 @@
 						BasicRuntimeChecks="3"
 						BrowseInformation="1"/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\overlay.c">
 			</File>
 			<File
 				RelativePath="..\ozi.c">
@@ -1039,6 +1064,9 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\shape.c">
+			</File>
+			<File
 				RelativePath="..\smplrout.c">
 				<FileConfiguration
 					Name="Release|Win32">
@@ -1079,6 +1107,9 @@
 						BasicRuntimeChecks="3"
 						BrowseInformation="1"/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\stackfilter.c">
 			</File>
 			<File
 				RelativePath="..\text.c">
@@ -1207,6 +1238,12 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\uuid.c">
+			</File>
+			<File
+				RelativePath="..\vcf.c">
+			</File>
+			<File
 				RelativePath="..\vecs.c">
 				<FileConfiguration
 					Name="Release|Win32">
@@ -1289,6 +1326,9 @@
 						BasicRuntimeChecks="3"
 						BrowseInformation="1"/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\xmlgeneric.c">
 			</File>
 			<Filter
 				Name="Jeeps"
@@ -1519,6 +1559,18 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\jeeps\gpsusbread.c">
+				</File>
+				<File
+					RelativePath="..\jeeps\gpsusbsend.c">
+				</File>
+				<File
+					RelativePath="..\jeeps\gpsusbstub.c">
+				</File>
+				<File
+					RelativePath="..\jeeps\gpsusbwin.c">
+				</File>
+				<File
 					RelativePath="..\jeeps\gpsutil.c">
 					<FileConfiguration
 						Name="Release|Win32">
@@ -1596,6 +1648,16 @@
 							ProgramDataBaseFileName="Debug\Coldsync/"
 							BrowseInformation="1"/>
 					</FileConfiguration>
+				</File>
+			</Filter>
+			<Filter
+				Name="shapelib"
+				Filter="">
+				<File
+					RelativePath="..\shapelib\dbfopen.c">
+				</File>
+				<File
+					RelativePath="..\shapelib\shpopen.c">
 				</File>
 			</Filter>
 		</Filter>
@@ -1701,6 +1763,9 @@
 				</File>
 				<File
 					RelativePath="..\jeeps\gpsserial.h">
+				</File>
+				<File
+					RelativePath="..\jeeps\gpsusbint.h">
 				</File>
 				<File
 					RelativePath="..\jeeps\gpsutil.h">

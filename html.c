@@ -66,12 +66,12 @@ html_disp(const waypoint *wpt)
 	int latint, lonint;
 	char tbuf[1024];
 	time_t tm = wpt->creation_time;
-	long utmz;
+	int32 utmz;
 	double utme, utmn;
 	char utmzc;
 	
-	lonint = abs(wpt->longitude);
-	latint = abs(wpt->latitude);
+	lonint = abs((int) wpt->longitude);
+	latint = abs((int) wpt->latitude);
 	GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude, 
 		&utme, &utmn, &utmz, &utmzc);
 
@@ -83,7 +83,7 @@ html_disp(const waypoint *wpt)
 	fprintf(file_out, "<hr>\n");
 	fprintf(file_out, "<a name=\"%s\"></a><table width=\"100%%\"><tr><td>\n", wpt->shortname);
 	fprintf(file_out, "<h3 class=\"waypoint\">%s - %c%d&deg;%06.3f %c%d&deg;%06.3f (%ld%c %6.0f %7.0f)",
-		(global_opts.synthesize_shortnames) ? mkshort(mkshort_handle, wpt->description) : wpt->shortname,
+		(global_opts.synthesize_shortnames) ? mkshort_from_wpt(mkshort_handle, wpt) : wpt->shortname,
 		wpt->latitude < 0 ? 'S' : 'N',  latint, 60.0 * (fabs(wpt->latitude) - latint), 
 		wpt->longitude < 0 ? 'W' : 'E', lonint, 60.0 * (fabs(wpt->longitude) - lonint),
 		utmz, utmzc, utme, utmn);
@@ -104,10 +104,14 @@ html_disp(const waypoint *wpt)
 	}
 	if (wpt->gc_data.terr) {
 	        if (wpt->gc_data.desc_short.utfstring) {
-			fprintf (file_out, "<p class=\"descshort\">%s</p>\n", strip_nastyhtml(wpt->gc_data.desc_short.utfstring));
+			char *tmpstr = strip_nastyhtml(wpt->gc_data.desc_short.utfstring);
+			fprintf (file_out, "<p class=\"descshort\">%s</p>\n", tmpstr );
+			xfree( tmpstr );
        		}
 	        if (wpt->gc_data.desc_long.utfstring) {
-			fprintf (file_out, "<p class=\"desclong\">%s</p>\n", strip_nastyhtml(wpt->gc_data.desc_long.utfstring));
+			char *tmpstr = strip_nastyhtml(wpt->gc_data.desc_long.utfstring);
+			fprintf (file_out, "<p class=\"desclong\">%s</p>\n", tmpstr );
+			xfree( tmpstr );
        		}
 		if (wpt->gc_data.hint) {
 			char *hint = NULL;
@@ -254,6 +258,7 @@ data_write(void)
 
 ff_vecs_t html_vecs = {
 	ff_type_file,
+	{ ff_cap_write, ff_cap_none, ff_cap_none },
 	NULL,
 	wr_init,
 	NULL,

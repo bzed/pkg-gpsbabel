@@ -84,7 +84,7 @@ data_read(void)
 		sscanf(&ibuf[70], "%2c", icon);
 		rtrim(desc);
 		rtrim(icon);
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+		wpt_tmp = waypt_new();
 		wpt_tmp->altitude = alt;
 		wpt_tmp->shortname = xstrdup(name);
 		wpt_tmp->description = xstrdup(desc);
@@ -118,7 +118,7 @@ gpsutil_disp(const waypoint *wpt)
 
 	fprintf(file_out, "%-8s %08.3f%c %09.3f%c %07.0f%c %-30.30s %s\n",
                 global_opts.synthesize_shortnames ?
-                        mkshort(mkshort_handle, wpt->description) : 
+                        mkshort_from_wpt(mkshort_handle, wpt) : 
 			wpt->shortname,
 		fabs(lat),
 		lat < 0.0 ? 'S' : 'N',
@@ -141,6 +141,7 @@ data_write(void)
 
 ff_vecs_t gpsutil_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,

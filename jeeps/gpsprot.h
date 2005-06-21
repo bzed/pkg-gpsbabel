@@ -141,6 +141,7 @@ int32 gps_pvt_transfer;
 #define pD107 107
 #define pD108 108
 #define pD109 109
+#define pD110 110
 #define pD150 150
 #define pD151 151
 #define pD152 152
@@ -246,7 +247,7 @@ int32 gps_link_type;
 
 struct GPS_MODEL_PROTOCOL
 {
-    int32 id;
+    US    id;
     int32 link;
     int32 command;
     int32 wayptt;

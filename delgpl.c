@@ -46,7 +46,7 @@ gpl_rd_init(const char *fname)
 {
 	gplfile_in = xfopen(fname, "rb", MYNAME);
 	if (sizeof(struct gpl_point) != 56) {
-		fatal(MYNAME, ": gpl_point is %d instead of 56.\n", 
+		fatal(MYNAME ": gpl_point is %d instead of 56.\n", 
 				sizeof(struct gpl_point));
 	}
 }
@@ -56,7 +56,6 @@ gpl_read(void)
 {
 	waypoint *wpt_tmp;
 	route_head *track_head;
-	int br;
 	gpl_point_t gp;
 	double alt_feet;
 
@@ -114,6 +113,7 @@ gpl_write(void)
 
 ff_vecs_t gpl_vecs = {
 	ff_type_file,
+	{ ff_cap_none, ff_cap_read | ff_cap_write, ff_cap_none },
 	gpl_rd_init,	
 	gpl_wr_init,	
 	gpl_rd_deinit,	

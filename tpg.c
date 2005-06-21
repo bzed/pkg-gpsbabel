@@ -22,6 +22,7 @@
 
 #include "defs.h"
 #include <string.h>
+#include <ctype.h>
 #include "jeeps/gpsmath.h" /* for datum conversions */
 
 #define MYNAME	"TPG"
@@ -134,7 +135,7 @@ tpg_read(void)
         
         
 	while (pointcount--) {
-	    wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+	    wpt_tmp = waypt_new();
 
             /* 1 bytes at start of record - string size for shortname */
     	    tpg_fread(&buff[0], 1, 1, tpg_file_in);
@@ -224,7 +225,7 @@ tpg_waypt_pr(const waypoint *wpt)
         if ((! wpt->shortname) || (global_opts.synthesize_shortnames)) {
             if (wpt->description) {
                 if (global_opts.synthesize_shortnames)
-                    shortname = mkshort(mkshort_handle, wpt->description);
+                    shortname = mkshort_from_wpt(mkshort_handle, wpt);
                 else
                     shortname = xstrdup(wpt->description);
             } else {
@@ -355,6 +356,7 @@ tpg_write(void)
 
 ff_vecs_t tpg_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	tpg_rd_init,
 	tpg_wr_init,
 	tpg_rd_deinit,

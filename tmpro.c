@@ -84,7 +84,7 @@ data_read(void)
 	/* skip the line if it contains "sHyperLink" as it is a header (I hope :) */
 	if ((strlen(buff)) && (strstr(buff, "sHyperLink") == NULL)) {
 
-	    wpt_tmp = xcalloc(sizeof(*wpt_tmp), 1);
+	    wpt_tmp = waypt_new();
 
 	    /* data delimited by tabs, not enclosed in quotes.  */
 	    s = buff;
@@ -180,7 +180,7 @@ tmpro_waypt_pr(const waypoint * wpt)
  	if ((! wpt->shortname) || (global_opts.synthesize_shortnames)) {
         if (wpt->description) {
             if (global_opts.synthesize_shortnames)
-                shortname = mkshort(mkshort_handle, wpt->description);
+                shortname = mkshort_from_wpt(mkshort_handle, wpt);
             else
                 shortname = csv_stringclean(wpt->description, ",\"");
         } else {
@@ -244,6 +244,7 @@ data_write(void)
 
 ff_vecs_t tmpro_vecs = {
     ff_type_file,
+    FF_CAP_RW_WPT,
     rd_init,
     wr_init,
     rd_deinit,

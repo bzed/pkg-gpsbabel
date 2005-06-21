@@ -158,7 +158,7 @@ buffer_washer(char * buff, int buffer_len)
 
     for (i = 0 ; i < buffer_len - 1; i++) {
 	if (buff[i] == '\0') {
-	    memcpy(&buff[i], &buff[i+1], buffer_len - i);
+	    memmove(&buff[i], &buff[i+1], buffer_len - i);
 	    buffer_len--;
 	    buff[buffer_len] = '\0';
 	}
@@ -215,7 +215,7 @@ psp_read(void)
 	pincount = le_read16(&buff[12]);
 
 	while (pincount--) {
-	    wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+	    wpt_tmp = waypt_new();
 
             wpt_tmp->altitude = unknown_alt;
             
@@ -327,7 +327,7 @@ psp_waypt_pr(const waypoint *wpt)
         if ((! wpt->shortname) || (global_opts.synthesize_shortnames)) {
             if (wpt->description) {
                 if (global_opts.synthesize_shortnames)
-                    shortname = mkshort(mkshort_handle, wpt->description);
+                    shortname = mkshort_from_wpt(mkshort_handle, wpt);
                 else
                     shortname = xstrdup(wpt->description);
             } else {
@@ -459,6 +459,7 @@ psp_write(void)
 
 ff_vecs_t psp_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	psp_rd_init,
 	psp_wr_init,
 	psp_rd_deinit,

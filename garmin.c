@@ -36,6 +36,9 @@ static char *getposn = NULL;
 static char *poweroff = NULL;
 static char *snlen = NULL;
 static char *snwhiteopt = NULL;
+static char *deficon = NULL;
+/* Technically, even this is a little loose as spaces arent allowed */
+static char valid_waypt_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789";
 
 static
 arglist_t garmin_args[] = {
@@ -43,6 +46,7 @@ arglist_t garmin_args[] = {
 		ARGTYPE_INT },
 	{ "snwhite", &snwhiteopt, "(0/1) Allow whitespace synth. shortnames",
 		NULL, ARGTYPE_BOOL},
+	{ "deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING },
 	{ "get_posn", &getposn, "Return current position as a waypoint", 
 		NULL, ARGTYPE_BOOL},
 	{ "power_off", &poweroff, "Command unit to power itself down", 
@@ -125,6 +129,11 @@ rw_init(const char *fname)
 			break;
 			
 	}
+	if (global_opts.debug_level > 0)  {
+		fprintf(stderr, "Waypoint type: %d\n"
+			"Chosen waypoint length %d\n",
+			 gps_waypt_type, short_length);
+	}
 	/*
 	 * If the user provided a short_length, override the calculated value.
 	 */
@@ -136,6 +145,7 @@ rw_init(const char *fname)
 	if (snwhiteopt)
 		setshort_whitespace_ok(mkshort_handle, atoi(snwhiteopt));
 
+	setshort_goodchars(mkshort_handle, valid_waypt_chars);
 	setshort_mustupper(mkshort_handle, 1);
 
 }
@@ -158,6 +168,7 @@ waypt_read_cb(int total_ct, GPS_PWay *way)
 		i++;
 		waypt_status_disp(total_ct, i);
 	}
+	return 0;
 }
 
 static void
@@ -212,6 +223,8 @@ waypt_read(void)
 		} else {
 			wpt_tmp->altitude = way[i]->alt;
 		}
+		if (way[i]->Time_populated)
+			wpt_tmp->creation_time = way[i]->Time;
 		
 		waypt_add(wpt_tmp);
 		GPS_Way_Del(&way[i]);
@@ -233,7 +246,7 @@ track_read(void)
 
 	ntracks = GPS_Command_Get_Track(portname, &array);
 
-	if ( ntracks == 0 )
+	if ( ntracks <= 0 )
 		return;
 
 	for(i = 0; i < ntracks; i++) {
@@ -265,7 +278,6 @@ track_read(void)
 				sprintf(trk_head->rte_name, "%s #%s", trk_name, trk_seg_num_buf);
 			}
 			trk_seg_num++;
-			trk_head->rte_num = trk_num;
 			trk_num++;
 			track_add_head(trk_head);
 		}
@@ -281,8 +293,8 @@ track_read(void)
 		route_add_wpt(trk_head, wpt);
 	}
 
-	while(--ntracks) {
-		GPS_Track_Del(&array[ntracks]);
+	while(ntracks) {
+		GPS_Track_Del(&array[--ntracks]);
 	}
 	xfree(array);
 }
@@ -294,15 +306,13 @@ route_read(void)
 	int32 nroutepts;
 	int i;
 	GPS_PWay *array;
+  route_head *rte_head;
 
 	nroutepts = GPS_Command_Get_Route(portname, &array);
 
-	fprintf(stderr, "Routes %d\n", (int) nroutepts);
+//	fprintf(stderr, "Routes %d\n", (int) nroutepts);
 #if 1
 	for (i = 0; i < nroutepts; i++) {
-		route_head *rte_head;
-		waypoint * wpt_tmp;
-
 		if (array[i]->isrte) {
 			char *csrc = NULL;
 			/* What a horrible API has libjeeps for making this
@@ -313,18 +323,16 @@ route_read(void)
 				case 202: csrc = array[i]->rte_ident; break;
 				default: break;
 			}
-		rte_head = route_head_alloc();
-		route_add_head(rte_head);
-		if (csrc) {
-			rte_head->rte_name = xstrdup(csrc);
-		}
-		;
-		
+      rte_head = route_head_alloc();
+      route_add_head(rte_head);
+      if (csrc) {
+        rte_head->rte_name = xstrdup(csrc);
+      }
 		} else { 
 			if (array[i]->islink)  {
 				continue; 
 			} else {
-				wpt_tmp = xcalloc(sizeof (*wpt_tmp), 1);
+				waypoint *wpt_tmp = xcalloc(sizeof (*wpt_tmp), 1);
 				wpt_tmp->latitude = array[i]->lat;
 				wpt_tmp->longitude = array[i]->lon;
 				wpt_tmp->shortname = array[i]->ident;
@@ -378,7 +386,7 @@ sane_GPS_Way_New(void)
 	way->addr[0] = 0;
 	way->cross_road[0] = 0;
 	way->cross_road[0] = 0;
-	way->dpth = 1.0e25;
+	way->dpth = 1.0e25f;
 	way->wpt_class = 0;
 
 	return way;
@@ -397,6 +405,23 @@ waypt_write_cb(GPS_PWay *way)
 	return 0;
 }
 
+/* 
+ * If we're not using smart icons, try to put the cache info in the
+ * description.
+ */
+const char *
+get_gc_info(waypoint *wpt)
+{
+	if (global_opts.no_smart_icons) {
+		if (wpt->gc_data.type == gt_virtual) return  "V ";
+		if (wpt->gc_data.type == gt_unknown) return  "? ";
+		if (wpt->gc_data.type == gt_multi) return  "Mlt ";
+		if (wpt->gc_data.container == gc_micro) return  "M ";
+		if (wpt->gc_data.container == gc_small) return  "S ";
+	}
+	return "";
+}
+
 static void
 waypoint_write(void)
 {
@@ -406,7 +431,6 @@ waypoint_write(void)
 	queue *elem, *tmp;
 	extern queue waypt_head;
 	GPS_PWay *way;
-	extern int32 gps_save_id;
 	int icon;
 
 	way = xcalloc(n,sizeof(*way));
@@ -428,21 +452,28 @@ waypoint_write(void)
 		if(wpt->description) src = wpt->description;
 		if(wpt->notes) src = wpt->notes;
 
-		ident = global_opts.synthesize_shortnames ? 
-				mkshort(mkshort_handle, src) : 
-				wpt->shortname;
+		/* 
+		 * mkshort will do collision detection and namespace 
+		 * cleaning 
+		 */
+		ident = mkshort(mkshort_handle, 
+			global_opts.synthesize_shortnames ? src : 
+			wpt->shortname);
 		/* Should not be a strcpy as 'ident' isn't really a C string,
 		 * but rather a garmin "fixed length" buffer that's padded
 		 * to the end with spaces.  So this is NOT (strlen+1).
 		 */
 		memcpy(way[i]->ident, ident, strlen(ident));
+
 		if (global_opts.synthesize_shortnames) { 
 			xfree(ident);
 		}
 		way[i]->ident[sizeof(way[i]->ident)-1] = 0;
 
-		if (wpt->gc_data.diff && wpt->gc_data.terr) {
-	                snprintf(obuf, sizeof(obuf), "%d/%d %s", 
+		if (!global_opts.no_smart_icons && 
+		     wpt->gc_data.diff && wpt->gc_data.terr) {
+	                snprintf(obuf, sizeof(obuf), "%s%d/%d %s", 
+					get_gc_info(wpt),
 					wpt->gc_data.diff, wpt->gc_data.terr, 
 					src);
 			memcpy(way[i]->cmnt, obuf, strlen(obuf));
@@ -452,10 +483,14 @@ waypoint_write(void)
 		way[i]->lon = wpt->longitude;
 		way[i]->lat = wpt->latitude;
 
-		if (get_cache_icon(wpt)) {
-			icon = mps_find_icon_number_from_desc(get_cache_icon(wpt), PCX);
+		if (deficon) {
+			icon = mps_find_icon_number_from_desc(deficon, PCX);
 		} else {
-			icon = mps_find_icon_number_from_desc(wpt->icon_descr, PCX);
+			if (get_cache_icon(wpt)) {
+				icon = mps_find_icon_number_from_desc(get_cache_icon(wpt), PCX);
+			} else {
+				icon = mps_find_icon_number_from_desc(wpt->icon_descr, PCX);
+			}
 		}
 
 		/* For units that support tiny numbers of waypoints, just
@@ -470,6 +505,7 @@ waypoint_write(void)
 		} else {
 			way[i]->alt = wpt->altitude;
 		}
+		way[i]->Time = wpt->creation_time;
 		i++;
 	}
 
@@ -586,7 +622,6 @@ track_write(void)
 
 	tx_tracklist = xcalloc(n, sizeof(GPS_PTrack));
 	cur_tx_tracklist_entry = tx_tracklist;
-
 	for (i = 0; i < n; i++) {
 		tx_tracklist[i] = GPS_Track_New();
 	}
@@ -602,7 +637,7 @@ track_write(void)
 }
 
 static void
-data_write()
+data_write(void)
 {
 	if (poweroff) {
 		return;
@@ -619,6 +654,7 @@ data_write()
 
 ff_vecs_t garmin_vecs = {
 	ff_type_serial,
+	FF_CAP_RW_ALL,
 	rw_init,
 	rw_init,
 	rw_deinit,

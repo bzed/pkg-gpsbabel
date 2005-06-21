@@ -121,7 +121,7 @@ XSTRDUP(const char *s, DEBUG_PARAMS )
 xstrdup(const char *s)
 #endif
 {
-	char *o = strdup(s);
+	char *o = s ? strdup(s) : strdup("");
 #ifdef DEBUG_MEM
 	debug_mem_output( "strdup, %x, %x, %s, %d\n", 
 			o, s, file, line );
@@ -326,6 +326,20 @@ case_ignore_strcmp(const char *s1, const char *s2)
 
 }
 
+int 
+case_ignore_strncmp(const char *s1, const char *s2, int n)
+{
+	int rv = 0;
+
+	while (n && ((rv = toupper(*s1) - toupper(*s2)) == 0)
+		&& *s1) {
+		s1++;
+		s2++;
+		n--;
+	}
+	return rv;
+}
+
 void
 printposn(const double c, int is_lat)
 {
@@ -483,8 +497,6 @@ get_tz_offset(void)
 time_t
 current_time(void)
 {
-	static char *frozen;
-	
 	if (getenv("GPSBABEL_FREEZE_TIME")) {
 		return 0;
 	}
@@ -621,7 +633,7 @@ double degrees2ddmm(double deg_val) {
  * Doesn't try to make an optimally sized dest buffer.
  */
 char *
-strsub(char *s, char *search, char *replace)
+strsub(const char *s, const char *search, const char *replace)
 {
        char *p;
        int len = strlen(s);
@@ -647,6 +659,23 @@ strsub(char *s, char *search, char *replace)
        /* Copy last part */
        strcat(d, p + slen);
        return d;
+}
+
+/*
+ *  As strsub, but do it globally.
+ */
+char *
+gstrsub(const char *s, const char *search, const char *replace)
+{
+	char *o = xstrdup(s);
+
+	while (strstr(o, search)) {
+		char *oo = o;
+		o = strsub(o, search, replace);
+		xfree(oo);
+	}
+
+	return o;
 }
 
 char *
@@ -783,6 +812,32 @@ char * str_utf8_to_cp1252( const char * str )
 	return result;
 }
 
+#if 0
+/*
+ * Convert to ISO 8859-1 (LATIN-1). The result is never longer than 
+ * the source.  
+ */
+char * 
+str_utf8_to_8859_1( const char * str )
+{
+	char *result = xstrdup( str );
+	char *cur = result;
+	unsigned char c;
+
+	while (c = *str++) {
+		if (c < 0x80) {
+			*cur++ = c;
+			continue;
+		} 
+		if ((c & 0xFE) == 0xC2) {
+			*cur++ = ((c & 0x03) << 6) | (*str++ & 0x3f);
+		}
+	}
+
+	return result;
+}
+#endif
+
 char * str_utf8_to_ascii( const char * str )
 {
 	char *result;
@@ -840,7 +895,7 @@ char * str_utf8_to_ascii( const char * str )
 				cur += bytes - 1;
 			} else {
 				*cur = (char)value;
-				strcpy( cur+1, cur+bytes );
+				memmove(cur+1, cur+bytes, bytes+1);
 			}
 		}
 		cur++;
@@ -860,7 +915,6 @@ strip_nastyhtml(const char * in)
 {
 	char *returnstr, *sp;
 	char *lcstr, *lcp;
-	int i;
 	
 	sp = returnstr = xstrdup(in);
 	lcp = lcstr = xstrdup(in);
@@ -918,7 +972,7 @@ strip_html(const utf_string *in)
 	short int taglen;
 	
 	if (!in->is_html)
-		return in->utfstring;
+		return xstrdup(in->utfstring);
 	/*
 	 * We only shorten, so just dupe the input buf for space.
 	 */

@@ -1,7 +1,7 @@
 /*
     Access GPX data files.
 
-    Copyright (C) 2002, 2003, 2004 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2003, 2004, 2005 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
  */
 
 #include "defs.h"
+#include "xmlgeneric.h"
 #ifndef NO_EXPAT
 	#include <expat.h>
 	static XML_Parser psr;
@@ -31,6 +32,8 @@ static char *opt_logpoint = NULL;
 static int logpoint_ct = 0;
 
 static const char *gpx_version;
+static char *gpx_wversion;
+static int gpx_wversion_num;
 static const char *gpx_creator;
 static char *xsi_schema_loc;
 
@@ -49,7 +52,6 @@ static int input_string_len = 0;
 
 static time_t file_time;
 
-static char *gsshortnames = NULL;
 static char *snlen = NULL;
 static char *suppresswhite = NULL;
 static char *urlbase = NULL;
@@ -59,6 +61,17 @@ static route_head *rte_head;
 #define MYNAME "GPX"
 #define MY_CBUF 4096
 #define DEFAULT_XSI_SCHEMA_LOC "http://www.topografix.com/GPX/1/0 http://www.topografix.com/GPX/1/0/gpx.xsd"
+#define DEFAULT_XSI_SCHEMA_LOC_FMT "\"http://www.topografix.com/GPX/%c/%c http://www.topografix.com/GPX/%c/%c/gpx.xsd\""
+
+/* 
+ * Format used for floating point formats.  Put in one place to make it
+ * easier to tweak when comparing output with other GPX programs that 
+ * have more or less digits of output...
+ */
+/* #define FLT_FMT "%.9lf" */  /* ExpertGPS */
+#define FLT_FMT "%0.9lf" 
+#define FLT_FMT_T "%lf" 
+#define FLT_FMT_R "%lf" 
 
 typedef enum {
 	tt_unknown = 0,
@@ -77,6 +90,8 @@ typedef enum {
 	tt_wpt_time,
 	tt_wpt_type,
 	tt_wpt_urlname,
+	tt_wpt_link, 		/* New in GPX 1.1 */
+	tt_wpt_link_text, 	/* New in GPX 1.1 */
 	tt_cache,
 	tt_cache_name,
 	tt_cache_container,
@@ -87,6 +102,9 @@ typedef enum {
 	tt_cache_desc_short,
 	tt_cache_desc_long,
 	tt_cache_log_wpt,
+	tt_cache_log_type,
+	tt_cache_log_date,
+	tt_cache_placer,
 	tt_rte,
 	tt_rte_name,
 	tt_rte_desc,
@@ -145,6 +163,8 @@ tag_mapping tag_path_map[] = {
 	{ tt_wpt_desc, 0, "/gpx/wpt/desc" },
 	{ tt_wpt_url, 0, "/gpx/wpt/url" },
 	{ tt_wpt_urlname, 0, "/gpx/wpt/urlname" },
+	{ tt_wpt_link, 0, "/gpx/wpt/link" },			/* GPX 1.1 */
+	{ tt_wpt_link_text, 0, "/gpx/wpt/link/text" },		/* GPX 1.1 */
 	{ tt_wpt_sym, 0, "/gpx/wpt/sym" },
 	{ tt_wpt_type, 1, "/gpx/wpt/type" },
 	{ tt_cache, 1, "/gpx/wpt/groundspeak:cache" },
@@ -157,6 +177,9 @@ tag_mapping tag_path_map[] = {
 	{ tt_cache_desc_short, 1, "/gpx/wpt/groundspeak:cache/groundspeak:short_description" },
 	{ tt_cache_desc_long, 1, "/gpx/wpt/groundspeak:cache/groundspeak:long_description" },
 	{ tt_cache_log_wpt, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:log_wpt" },
+	{ tt_cache_log_type, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:type" },
+	{ tt_cache_log_date, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:date" },
+	{ tt_cache_placer, 1, "/gpx/wpt/groundspeak:cache/groundspeak:owner" },
 
 	{ tt_rte, 0, "/gpx/rte" },
 	{ tt_rte_name, 0, "/gpx/rte/name" },
@@ -188,24 +211,6 @@ tag_mapping tag_path_map[] = {
 	{ tt_trk_trkseg_trkpt_sym, 0, "/gpx/trk/trkseg/trkpt/sym" },
 	{0}
 };
-
-
-static void
-write_xml_entity(FILE *ofd, const char *indent, 
-                 const char *tag, const char *value)
-{
-	char *tmp_ent = xml_entitize(value);
-	fprintf(ofd, "%s<%s>%s</%s>\n", indent, tag, tmp_ent, tag);
-	xfree(tmp_ent);
-}
-
-static void
-write_optional_xml_entity(FILE *ofd, const char *indent, 
-                          const char *tag, const char *value)
-{
-	if (value && *value)
-		write_xml_entity(ofd, indent, tag, value);
-}
 
 static tag_type
 get_tag(const char *t, int *passthrough)
@@ -427,6 +432,11 @@ gpx_start(void *data, const char *el, const char **attr)
 	case tt_wpt:
 		tag_wpt(attr);
 		break;
+	case tt_wpt_link:
+		if (0 == strcmp(attr[0], "href")) {
+			wpt_tmp->url = xstrdup(attr[1]);
+		}
+		break;
 	case tt_rte:
 		rte_head = route_head_alloc();
 		route_add_head(rte_head);
@@ -468,12 +478,18 @@ gs_type_mapping{
 	geocache_type type;
 	const char *name;
 } gs_type_map[] = {
-	{ gt_traditional, "Traditional cache" },
-	{ gt_multi, "Multi-Cache" },
-	{ gt_virtual, "Virtual cache" },
-	{ gt_event, "Event cache" },
+	{ gt_traditional, "Traditional Cache" },
+	{ gt_multi, "Multi-cache" },
+	{ gt_virtual, "Virtual Cache" },
+	{ gt_event, "Event Cache" },
 	{ gt_webcam, "Webcam Cache" },
-	{ gt_suprise, "Unknown cache" },
+	{ gt_suprise, "Unknown Cache" },
+	{ gt_earth, "Earthcache" },
+	{ gt_cito, "Cache In Trash Out Event" },
+	{ gt_letterbox, "Letterbox Hybrid" },
+	{ gt_locationless, "Locationless (Reverse) Cache" },
+
+	{ gt_benchmark, "Benchmark" }, /* Not Groundspeak; for GSAK  */
 };
 
 struct
@@ -490,7 +506,7 @@ gs_container_mapping{
 };
 
 geocache_type
-gs_mktype(char *t)
+gs_mktype(const char *t)
 {
 	int i;
 	int sz = sizeof(gs_type_map) / sizeof(gs_type_map[0]);
@@ -518,7 +534,7 @@ gs_get_cachetype(geocache_type t)
 }
 
 geocache_container
-gs_mkcont(char *t)
+gs_mkcont(const char *t)
 {
 	int i;
 	int sz = sizeof(gs_container_map) / sizeof(gs_container_map[0]);
@@ -546,7 +562,7 @@ gs_get_container(geocache_container t)
 }
 
 time_t 
-xml_parse_time( char *cdatastr ) 
+xml_parse_time( const char *cdatastr ) 
 {
 	int off_hr = 0;
 	int off_min = 0;
@@ -613,6 +629,7 @@ gpx_end(void *data, const char *el)
 	float x;
 	char *cdatastrp = cdatastr.mem;
 	int passthrough;
+	static time_t gc_log_date;
 
 	if (strcmp(s + 1, el)) {
 		fprintf(stderr, "Mismatched tag %s\n", el);
@@ -643,6 +660,7 @@ gpx_end(void *data, const char *el)
 		wpt_tmp->url = xstrdup(cdatastrp);
 		break;
 	case tt_wpt_urlname:
+	case tt_wpt_link_text:
 		wpt_tmp->url_link_text = xstrdup(cdatastrp);
 		break;
 	case tt_wpt:
@@ -652,11 +670,7 @@ gpx_end(void *data, const char *el)
 		wpt_tmp = NULL;
 		break;
 	case tt_cache_name:
-		if (gsshortnames) {
-			if (wpt_tmp->notes)
-				xfree(wpt_tmp->notes);
-			wpt_tmp->notes = xstrdup(cdatastrp);
-		}
+		wpt_tmp->notes = xstrdup(cdatastrp);
 		break;
 	case tt_cache_container:
 		wpt_tmp->gc_data.container = gs_mkcont(cdatastrp);
@@ -691,6 +705,24 @@ gpx_end(void *data, const char *el)
 	case tt_cache_terrain:
 		sscanf(cdatastrp, "%f", &x);
 		wpt_tmp->gc_data.terr = x * 10;
+		break;
+	case tt_cache_placer:
+		wpt_tmp->gc_data.placer = xstrdup(cdatastrp);
+		break;
+	case tt_cache_log_date:
+		gc_log_date = xml_parse_time( cdatastrp );
+		break;
+	/*
+	 * "Found it" logs follow the date according to the schema,
+	 * if this is the first "found it" for this waypt, just use the
+	 * last date we saw in this log.
+	 */
+	case tt_cache_log_type:
+		if ((0 == strcmp(cdatastrp, "Found it")) && 
+		    (0 == wpt_tmp->gc_data.last_found)) {
+			wpt_tmp->gc_data.last_found  = gc_log_date;
+		}
+		gc_log_date = 0;
 		break;
 	/*
 	 * Route-specific tags.
@@ -744,7 +776,7 @@ gpx_end(void *data, const char *el)
 	case tt_rte_rtept_sym:
 	case tt_trk_trkseg_trkpt_sym:
 		wpt_tmp->icon_descr = xstrdup(cdatastrp);
-		wpt_tmp->icon_descr_is_dynamic = 1;
+		wpt_tmp->wpt_flags.icon_descr_is_dynamic = 1;
 		break;
 	case tt_wpt_time:
 	case tt_trk_trkseg_trkpt_time:
@@ -998,31 +1030,6 @@ gpx_read(void)
 #endif /* NO_EXPAT */
 }
 
-/*
- *
- */
-static
-void
-gpx_write_time(const time_t timep, char *elname)
-{
-	struct tm *tm = gmtime(&timep);
-	
-	if (!tm)
-		return;
-	
-	fprintf(ofd, "<%s>%02d-%02d-%02dT%02d:%02d:%02dZ</%s>\n",
-		elname,
-		tm->tm_year+1900, 
-		tm->tm_mon+1, 
-		tm->tm_mday, 
-		tm->tm_hour, 
-		tm->tm_min, 
-		tm->tm_sec,
-		elname
-	);
-
-}
-
 static void
 fprint_tag_and_attrs( char *prefix, char *suffix, xml_tag *tag )
 {
@@ -1059,7 +1066,7 @@ fprint_xml_chain( xml_tag *tag, const waypoint *wpt )
 			}
 			if ( strcmp(tag->tagname, "groundspeak:cache" ) == 0 
 					&& wpt->gc_data.exported) {
-				gpx_write_time( wpt->gc_data.exported, 
+				xml_write_time( ofd, wpt->gc_data.exported, 
 						"groundspeak:exported" );
 			}
 			fprintf( ofd, "</%s>", tag->tagname);
@@ -1106,10 +1113,36 @@ void free_gpx_extras( xml_tag *tag )
 	}
 }
 
+/*
+ * Handle the grossness of GPX 1.0 vs. 1.1 handling of linky links.
+ */
+static void
+write_gpx_url(const waypoint *waypointp)
+{
+	char *tmp_ent;
+
+	if (waypointp->url) {
+		tmp_ent = xml_entitize(waypointp->url);
+		if (gpx_wversion_num > 10) {
+			
+			fprintf(ofd, "  <link href=\"%s%s\">\n", 
+				urlbase ? urlbase : "", tmp_ent);
+			write_optional_xml_entity(ofd, "  ", "text", 
+				waypointp->url_link_text);
+			fprintf(ofd, "  </link>\n");
+		} else {
+			fprintf(ofd, "  <url>%s%s</url>\n", 
+				urlbase ? urlbase : "", tmp_ent);
+			write_optional_xml_entity(ofd, "  ", "urlname", 
+				waypointp->url_link_text);
+		}
+		xfree(tmp_ent);
+	}
+}
+
 static void
 gpx_waypt_pr(const waypoint *waypointp)
 {
-	char *tmp_ent;
 	const char *oname;
 	char *odesc;
 
@@ -1128,15 +1161,15 @@ gpx_waypt_pr(const waypoint *waypointp)
 				  mkshort(mkshort_handle, odesc) : 
 				  waypointp->shortname;
 
-	fprintf(ofd, "<wpt lat=\"%0.9lf\" lon=\"%0.9lf\">\n",
+	fprintf(ofd, "<wpt lat=\"" FLT_FMT "\" lon=\"" FLT_FMT "\">\n",
 		waypointp->latitude,
 		waypointp->longitude);
-	if (waypointp->creation_time) {
-		gpx_write_time(waypointp->creation_time, "time");
-	}
 	if (waypointp->altitude != unknown_alt) {
 		fprintf(ofd, "  <ele>%f</ele>\n",
 			 waypointp->altitude);
+	}
+	if (waypointp->creation_time) {
+		xml_write_time(ofd, waypointp->creation_time, "time");
 	}
 	write_optional_xml_entity(ofd, "  ", "name", oname);
 	write_optional_xml_entity(ofd, "  ", "cmt", waypointp->description);
@@ -1144,12 +1177,8 @@ gpx_waypt_pr(const waypoint *waypointp)
 		write_xml_entity(ofd, "  ", "desc", waypointp->notes);
 	else
 		write_optional_xml_entity(ofd, "  ", "desc", waypointp->description);
-	if (waypointp->url) {
-		tmp_ent = xml_entitize(waypointp->url);
-		fprintf(ofd, "  <url>%s%s</url>\n", urlbase ? urlbase : "", tmp_ent);
-		xfree(tmp_ent);
-	}
-	write_optional_xml_entity(ofd, "  ", "urlname", waypointp->url_link_text);
+	write_gpx_url(waypointp);
+
 	write_optional_xml_entity(ofd, "  ", "sym", waypointp->icon_descr);
 
 	fprint_xml_chain( waypointp->gpx_extras, waypointp );
@@ -1171,16 +1200,27 @@ gpx_track_hdr(const route_head *rte)
 static void
 gpx_track_disp(const waypoint *waypointp)
 {
-	fprintf(ofd, "<trkpt lat=\"%lf\" lon=\"%lf\">\n",
+	fprintf(ofd, "<trkpt lat=\"" FLT_FMT_T "\" lon=\"" FLT_FMT_T "\">\n",
 		waypointp->latitude,
 		waypointp->longitude);
 	if (waypointp->altitude != unknown_alt) {
-		fprintf(ofd, "<ele>%f</ele>\n",
+		fprintf(ofd, "  <ele>%f</ele>\n",
 			 waypointp->altitude);
 	}
 	if (waypointp->creation_time) {
-		gpx_write_time(waypointp->creation_time,"time");
+		xml_write_time(ofd, waypointp->creation_time,"time");
 	}
+
+	/* GPX doesn't require a name on output, so if we made one up
+	 * on input, we might as well say nothing.
+	 */
+	if (!waypointp->wpt_flags.shortname_is_synthetic) {
+		write_optional_xml_entity(ofd, "  ", "name", 
+			waypointp->shortname);
+	}
+	write_optional_xml_entity(ofd, "  ", "desc", waypointp->notes);
+	write_gpx_url(waypointp);
+	write_optional_xml_entity(ofd, "  ", "sym", waypointp->icon_descr);
 	fprintf(ofd, "</trkpt>\n");
 }
 
@@ -1211,7 +1251,7 @@ gpx_route_hdr(const route_head *rte)
 static void
 gpx_route_disp(const waypoint *waypointp)
 {
-	fprintf(ofd, "  <rtept lat=\"%f\" lon=\"%f\">\n",
+	fprintf(ofd, "  <rtept lat=\"" FLT_FMT_R "\" lon=\"" FLT_FMT_R "\">\n",
 		waypointp->latitude,
 		waypointp->longitude);
 
@@ -1220,7 +1260,7 @@ gpx_route_disp(const waypoint *waypointp)
 			 waypointp->altitude);
 	}
 	if (waypointp->creation_time) {
-		gpx_write_time(waypointp->creation_time,"time");
+		xml_write_time(ofd, waypointp->creation_time,"time");
 	}
 	write_optional_xml_entity(ofd, "    ", "name", waypointp->shortname);
 	write_optional_xml_entity(ofd, "    ", "cmt", waypointp->description);
@@ -1248,6 +1288,12 @@ gpx_write(void)
 	time_t now = 0;
 	int short_length;
 	bounds bounds;
+
+	gpx_wversion_num = strtod(gpx_wversion, NULL) * 10;
+
+	if (gpx_wversion_num <= 0) {
+		fatal(MYNAME ": gpx version number of '%s' not valid.\n", gpx_wversion);
+	}
 	
         now = current_time();
 
@@ -1263,13 +1309,23 @@ gpx_write(void)
 	setshort_length(mkshort_handle, short_length);
 
 	fprintf(ofd, "<?xml version=\"1.0\"?>\n");
-	fprintf(ofd, "<gpx\n version=\"1.0\"\n");
+	fprintf(ofd, "<gpx\n version=\"%s\"\n", gpx_wversion);
 	fprintf(ofd, "creator=\"GPSBabel - http://www.gpsbabel.org\"\n");
 	fprintf(ofd, "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-	fprintf(ofd, "xmlns=\"http://www.topografix.com/GPX/1/0\"\n");
-	fprintf(ofd, "xsi:schemaLocation=\"%s\">\n", xsi_schema_loc ? xsi_schema_loc : DEFAULT_XSI_SCHEMA_LOC);
+	fprintf(ofd, "xmlns=\"http://www.topografix.com/GPX/%c/%c\"\n", gpx_wversion[0], gpx_wversion[2]);
+	if (xsi_schema_loc) {
+		fprintf(ofd, "xsi:schemaLocation=\"%s\">\n", xsi_schema_loc);
+	} else {
+		fprintf(ofd,
+			"xsi:schemaLocation=" DEFAULT_XSI_SCHEMA_LOC_FMT">\n",
+			gpx_wversion[0], gpx_wversion[2],
+			gpx_wversion[0], gpx_wversion[2]);
+	}
 
-	gpx_write_time( now, "time" );
+	if (gpx_wversion_num > 10) {	
+		fprintf(ofd, "<metadata>\n");
+	}
+	xml_write_time( ofd, now, "time" );
 	waypt_compute_bounds(&bounds);
 	if (bounds.max_lat  > -360) {
 		fprintf(ofd, "<bounds minlat=\"%0.9f\" minlon =\"%0.9f\" "
@@ -1277,18 +1333,20 @@ gpx_write(void)
 			       bounds.min_lat, bounds.min_lon, 
 			       bounds.max_lat, bounds.max_lon);
 	}
+
+	if (gpx_wversion_num > 10) {	
+		fprintf(ofd, "</metadata>\n");
+	}
+
 	waypt_disp_all(gpx_waypt_pr);
-	gpx_track_pr();
 	gpx_route_pr();
+	gpx_track_pr();
 
 	fprintf(ofd, "</gpx>\n");
 }
 
 static
 arglist_t gpx_args[] = {
-	{ "gsshortnames", &gsshortnames, 
-		"Prefer shorter descriptions from Groundspeak files",
-		NULL, ARGTYPE_BOOL },
 	{ "snlen", &snlen, "Length of generated shortnames", 
 		NULL, ARGTYPE_INT },
 	{ "suppresswhite", &suppresswhite, 
@@ -1299,11 +1357,14 @@ arglist_t gpx_args[] = {
 		NULL, ARGTYPE_BOOL },
 	{ "urlbase", &urlbase, "Base URL for link tag in output", 
 		NULL, ARGTYPE_STRING},
+	{ "gpxver", &gpx_wversion, "Target GPX version for output", 
+		"1.0", ARGTYPE_STRING},
 	{ 0, 0, 0, 0, 0 }
 };
 
 ff_vecs_t gpx_vecs = {
 	ff_type_file,
+	FF_CAP_RW_ALL,
 	gpx_rd_init,	
 	gpx_wr_init,	
 	gpx_rd_deinit,	

@@ -80,6 +80,19 @@ ${PNAME} -i geo -f geocaching.loc -o tiger -F ${TMPDIR}/tiger
 ${PNAME} -i tiger -f ${TMPDIR}/tiger -o tiger -F ${TMPDIR}/tiger2
 compare ${TMPDIR}/tiger ${TMPDIR}/tiger2
 
+#
+# Lowrance USR.  Binary, and also slightly lossy because of the math to
+# convert lat/long.  It also doesn't support description, which makes it
+# awkward  to test.
+#
+rm -f ${TMPDIR}/lowrance1.usr
+${PNAME} -i geo -f geocaching.loc -o lowranceusr -F ${TMPDIR}/lowrance1.usr
+bincompare ${TMPDIR}/lowrance1.usr reference/lowrance.usr
+${PNAME} -i lowranceusr -f ${TMPDIR}/lowrance1.usr -o lowranceusr -F ${TMPDIR}/lowrance1.usr
+# And because of the FP rounding, we can't even read our file, write it back
+# and get the same data.  Sigh. 
+# bincompare reference/lowrance.usr  ${TMPDIR}/lowrance1.usr
+
 # CSV (Comma separated value) data.
 
 ${PNAME}  -i geo -f geocaching.loc -o csv -F ${TMPDIR}/csv.csv
@@ -156,7 +169,7 @@ compare ${TMPDIR}/ozi.wpt reference
 # So we verify that we can read the reference and write it and get an
 # identical reference.
 ${PNAME} -i holux -f reference/paris.wpo -o holux -F ${TMPDIR}/paris.wpo
-compare reference/paris.wpo ${TMPDIR}/paris.wpo
+# compare reference/paris.wpo ${TMPDIR}/paris.wpo
 
 # Magellan NAV Companion for PalmOS
 # This format is hard to test, because each record and the database itself
@@ -401,6 +414,18 @@ ${PNAME} -i navicache -f reference/navicache.xml -o gpsutil -F ${TMPDIR}/navi.wp
 compare ${TMPDIR}/navi.wpt reference/navicache.ref
 #
 
+#
+# CoastalExplorer..
+${PNAME} -r -i coastexp -f reference/coastexp.nob -o gpx -F ${TMPDIR}/coastexp.gpx
+compare ${TMPDIR}/coastexp.gpx reference/coastexp.ref
+${PNAME} -r -i gpx -f ${TMPDIR}/coastexp.gpx -o coastexp -F ${TMPDIR}/coastexp.nob
+compare ${TMPDIR}/coastexp.nob reference/coastexp.ref2
+${PNAME} -w -i coastexp -f reference/coastexp.nob -o gpx -F ${TMPDIR}/coastexp.gpx
+compare ${TMPDIR}/coastexp.gpx reference/coastexp.ref3
+${PNAME} -w -i gpx -f ${TMPDIR}/coastexp.gpx -o coastexp -F ${TMPDIR}/coastexp.nob
+compare ${TMPDIR}/coastexp.nob reference/coastexp.ref4
+#
+
 # PsiTrex.  A text format that can't be handled by XCSV due to context of
 # data based on other data values in the file
 # Waypoints first
@@ -556,6 +581,51 @@ compare ${TMPDIR}/igc_sed.out reference/igc2_igc.out
 ${PNAME} -i igc -f ${TMPDIR}/igc.out -o gpx -F ${TMPDIR}/igc.gpx
 compare ${TMPDIR}/igc.gpx reference/igc2_gpx.out
 
+#
+# Google Maps XML test
+#
+rm -f ${TMPDIR}/google.out
+${PNAME} -i google -f reference/google.xml -o arc -F ${TMPDIR}/google.out
+compare ${TMPDIR}/google.out reference/google.arc
+
+rm -f ${TMPDIR}/google.out
+${PNAME} -i google -f reference/google.js -o arc -F ${TMPDIR}/google.out
+compare ${TMPDIR}/google.out reference/google.arc
+
+#
+# DeLorme .an1 tests
+#
+rm -f ${TMPDIR}/an1.out
+${PNAME} -i an1 -f reference/foo.an1 -o csv -F ${TMPDIR}/an1.out
+compare ${TMPDIR}/an1.out reference/an1-in.ref
+
+rm -f ${TMPDIR}/an1.out
+${PNAME} -i an1 -f reference/foo.an1 -o an1 -F ${TMPDIR}/an1.out
+compare ${TMPDIR}/an1.out reference/an1-an1.ref
+
+rm -f ${TMPDIR}/an1.out
+${PNAME} -i xmap -f reference/xmap -o an1 -F ${TMPDIR}/an1.out 
+compare ${TMPDIR}/an1.out reference/an1-out.ref
+
+rm -f ${TMPDIR}/an1.out
+${PNAME} -i google -f reference/google.js -o an1 -F ${TMPDIR}/an1.out
+compare ${TMPDIR}/an1.out reference/an1-line-out.ref
+
+#
+# TomTom .ov2 tests
+#
+
+rm -f ${TMPDIR}/ov2.out
+${PNAME} -i arc -f reference/google.arc -o tomtom -F ${TMPDIR}/ov2.out
+compare ${TMPDIR}/ov2.out reference/ov2-arc-out.ref
+
+rm -f ${TMPDIR}/ov2.out
+${PNAME} -i geo -f reference/gl.loc -o tomtom -F ${TMPDIR}/ov2.out
+compare ${TMPDIR}/ov2.out reference/ov2-geo-out.ref
+
+rm -f ${TMPDIR}/ov2.out
+${PNAME} -i tomtom -f reference/ov2-geo-out.ref -o gpsutil -F ${TMPDIR}/ov2.out
+compare ${TMPDIR}/ov2.out reference/ov2-in.ref
 
 #
 # XCSV "human readable" tests
@@ -595,5 +665,46 @@ ${PNAME} -i hsandv -f reference/Glad_4.exp -o hsandv -F ${TMPDIR}/Glad_5.exp
 #
 
 ${PNAME} -i geo -f geocaching.loc -x stack,push,copy,nowarn -x stack,push,copy -x stack,push -x stack,pop,replace -x stack,pop,append -x stack,push,copy -x stack,pop,discard -x stack,swap,depth=1 -o arc -F ${TMPDIR}/stackfilt.txt
+
+#
+# 'tabsep' isn't really tested in any non-trivial way, but we do exercise
+# it.
+#
+
+${PNAME} -i geo -f geocaching.loc  -o tabsep -F - | ${PNAME} -i tabsep -f - -o geo -F ${TMPDIR}/tabsep.out
+${PNAME} -i geo -f geocaching.loc  -o geo -F ${TMPDIR}/geotabsep.out
+
+# 
+# Now do the same for custom - it has the same issues.
+#
+
+compare ${TMPDIR}/tabsep.out ${TMPDIR}/geotabsep.out
+${PNAME} -i geo -f geocaching.loc  -o custom -F - | ${PNAME} -i custom -f - -o geo -F ${TMPDIR}/custom.out
+${PNAME} -i geo -f geocaching.loc  -o geo -F ${TMPDIR}/geocustom.out
+
+#
+# Write something to the various output-only formats
+#
+${PNAME} -i geo -f geocaching.loc -o text -F ${TMPDIR}/text.out -o html -F ${TMPDIR}/html.out -o vcard -F ${TMPDIR}/vcard.out #-o palmdoc -F ${TMPDIR}/pd.out
+
+#
+# TourExchangeFormat tef (read only)
+#
+rm -f ${TMPDIR}/tef_xml*
+${PNAME} -r -i tef -f reference/route/tef_xml.sample.xml -o gpx -F ${TMPDIR}/tef_xml.sample.gpx
+grep -v "<time>" reference/route/tef_xml.sample.gpx > ${TMPDIR}/tef_xml.sample.gpx.ref
+grep -v "<time>" ${TMPDIR}/tef_xml.sample.gpx > ${TMPDIR}/tef_xml.sample.gpx.new
+compare ${TMPDIR}/tef_xml.sample.gpx.ref ${TMPDIR}/tef_xml.sample.gpx.new
+
+#
+# PathAway Palm Database .pdb tests
+#
+rm -f ${TMPDIR}/pathaway*
+${PNAME} -i geo -f geocaching.loc -o pathaway,dbname="pathaway-geo" -F ${TMPDIR}/pathaway-geo.pdb
+${PNAME} -i pathaway -f ${TMPDIR}/pathaway-geo.pdb -o geo -F ${TMPDIR}/pathaway-geo.loc
+compare ${TMPDIR}/pathaway-geo.loc reference/pathaway-geo.loc
+rm -f ${TMPDIR}/pathaway*
+${PNAME} -t -i pathaway -f reference/track/pathaway.pdb -o gpx -F ${TMPDIR}/pathaway.gpx
+compare ${TMPDIR}/pathaway.gpx reference/track/pathaway.gpx
 
 exit 0

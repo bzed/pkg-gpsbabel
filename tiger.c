@@ -136,7 +136,7 @@ data_read(void)
 	while (fgets(ibuf, sizeof(ibuf), file_in)) {
 		if( sscanf(ibuf, "%lf,%lf:%100[^:]:%100[^\n]", 
 				&lon, &lat, icon, desc)) {
-			wpt_tmp = xcalloc(sizeof (*wpt_tmp), 1);
+			wpt_tmp = waypt_new();
 
 			wpt_tmp->longitude = lon;
 			wpt_tmp->latitude = lat;
@@ -277,6 +277,7 @@ data_write(void)
 
 ff_vecs_t tiger_vecs = {
 	ff_type_file, 
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,

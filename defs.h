@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2003, 2004, 2005  Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include "queue.h"
+#include "gbtypes.h"
 
 
 /*
@@ -42,6 +43,11 @@
  */
 #if __WIN32__
 #  define snprintf _snprintf
+#endif
+
+/* Turn off numeric conversion warning */
+#if __WIN32__
+#pragma warning(disable:4244)
 #endif
 
 /*
@@ -81,10 +87,15 @@ typedef struct {
 	unsigned int	masked_objective;
 	int verbose_status;	/* set by GUI wrappers for status */
 	int no_smart_icons;	
+	int no_smart_names;	
 } global_options;
 
 extern global_options global_opts;
 extern const char gpsbabel_version[];
+
+/* Short or Long XML Times */
+#define XML_SHORT_TIME 1
+#define XML_LONG_TIME 2
 
 /*
  * Extended data if waypoint happens to represent a geocache.  This is 
@@ -99,7 +110,11 @@ typedef enum {
 	gt_letterbox,
 	gt_event,
 	gt_suprise,
-	gt_webcam
+	gt_webcam,
+	gt_earth,
+	gt_locationless,
+	gt_benchmark, /* Extension to Groundspeak for GSAK */
+	gt_cito
 } geocache_type;
 
 typedef enum {
@@ -124,6 +139,8 @@ typedef struct {
 	int diff; /* (multiplied by ten internally) */
 	int terr; /* (likewise) */
 	time_t exported;
+	time_t last_found;
+	char *placer; /* Placer name */
 	char *hint; /* all these UTF8, XML entities removed, May be not HTML. */
 	utf_string desc_short;
 	utf_string desc_long; 
@@ -141,12 +158,28 @@ typedef struct xml_tag {
 	struct xml_tag *child;
 } xml_tag ;
 
+typedef void (*an1_destroy)(void *);
+typedef void (*an1_copy)(void **, void *);
+typedef struct {
+	an1_destroy destroy;
+	an1_copy copy;
+} an1_base;
+
+/*
+ * Misc bitfields inside struct waypoint;
+ */
+typedef struct {
+	unsigned int icon_descr_is_dynamic:1; 
+	unsigned int shortname_is_synthetic:1;
+} wp_flags;
+
 /*
  * This is a waypoint, as stored in the GPSR.   It tries to not 
  * cater to any specific model or protocol.  Anything that needs to
  * be truncated, edited, or otherwise trimmed should be done on the
  * way to the target.
  */
+
 typedef struct {
 	queue Q;			/* Master waypoint q.  Not for use
 					   by modules. */
@@ -191,7 +224,8 @@ typedef struct {
 	char *notes;
 	char *url;
 	char *url_link_text;
-	int icon_descr_is_dynamic;
+
+	wp_flags wpt_flags;
 	const char *icon_descr;
 	time_t creation_time;	/* standardized in UTC/GMT */
 	int centiseconds;	/* Optional hundredths of a second. */
@@ -203,11 +237,14 @@ typedef struct {
 	 * This causes it to be removed last.
 	 * This is currently used by the saroute input filter to give named
 	 * waypoints (representing turns) a higher priority.
+	 * This is also used by the google input filter because they were
+	 * nice enough to use exactly the same priority scheme.
 	 */
 	int route_priority;
 	
 	geocache_data gc_data;
 	xml_tag *gpx_extras;
+	an1_base *an1_extras;
 	void *extra_data;	/* Extra data added by, say, a filter. */
 } waypoint;
 
@@ -218,6 +255,7 @@ typedef struct {
 	char *rte_desc;
 	int rte_num;
 	int rte_waypt_ct;		/* # waypoints in waypoint list */
+	an1_base *an1_extras;
 } route_head;
 
 /*
@@ -262,6 +300,7 @@ void waypt_compute_bounds(bounds *);
 void waypt_flush(queue *);
 void waypt_flush_all(void);
 unsigned int waypt_count(void);
+void set_waypt_count(unsigned int nc);
 void free_gpx_extras (xml_tag * tag);
 void xcsv_setup_internal_style(const char *style_buf);
 void xcsv_read_internal_style(const char *style_buf);
@@ -298,9 +337,11 @@ void *MKSHORT_NEW_HANDLE(DEBUG_PARAMS);
 #define mkshort( a, b) MKSHORT(a,b,__FILE__, __LINE__)
 #define mkshort_new_handle() MKSHORT_NEW_HANDLE(__FILE__,__LINE__)
 #endif
+char *mkshort_from_wpt(void *h, const waypoint *wpt);
 void mkshort_del_handle(void *h);
 void setshort_length(void *, int n);
 void setshort_badchars(void *, const char *);
+void setshort_goodchars(void *, const char *);
 void setshort_mustupper(void *, int n);
 void setshort_mustuniq(void *, int n);
 void setshort_whitespace_ok(void *, int n);
@@ -318,15 +359,36 @@ void 	vmem_free(vmem_t*);
 void 	vmem_realloc(vmem_t*, size_t);
 
 
-#define ARGTYPE_UNKNOWN  0
-#define ARGTYPE_INT      0x00000001
-#define ARGTYPE_FLOAT    0x00000002
-#define ARGTYPE_STRING   0x00000003
-#define ARGTYPE_BOOL     0x00000004
-#define ARGTYPE_FILE     0x00000005
-#define ARGTYPE_OUTFILE  0x00000006
-#define ARGTYPE_REQUIRED 0x40000000
-#define ARGTYPE_HIDDEN   0x20000000
+#define ARGTYPE_UNKNOWN    0x00000000
+#define ARGTYPE_INT        0x00000001
+#define ARGTYPE_FLOAT      0x00000002
+#define ARGTYPE_STRING     0x00000003
+#define ARGTYPE_BOOL       0x00000004
+#define ARGTYPE_FILE       0x00000005
+#define ARGTYPE_OUTFILE    0x00000006
+
+/* REQUIRED means that the option is required to be set. 
+ * See also BEGIN/END_REQ */
+#define ARGTYPE_REQUIRED   0x40000000
+
+/* HIDDEN means that the option does not appear in help texts.  Useful
+ * for debugging or testing options */
+#define ARGTYPE_HIDDEN     0x20000000
+
+/* BEGIN/END_EXCL mark the beginning and end of an exclusive range of
+ * options. No more than one of the options in the range may be selected 
+ * or set. If exactly one must be set, use with BEGIN/END_REQ
+ * Both of these flags set is just like neither set, so avoid doing that. */
+#define ARGTYPE_BEGIN_EXCL 0x10000000
+#define ARGTYPE_END_EXCL   0x08000000
+
+/* BEGIN/END_REQ mark the beginning and end of a required range of 
+ * options.  One or more of the options in the range MUST be selected or set.
+ * If exactly one must be set, use with BEGIN/END_EXCL 
+ * Both of these flags set is synonymous with REQUIRED, so use that instead
+ * for "groups" of exactly one option. */
+#define ARGTYPE_BEGIN_REQ  0x04000000
+#define ARGTYPE_END_REQ    0x02000000 
 
 #define ARGTYPE_TYPEMASK 0x00000fff
 #define ARGTYPE_FLAGMASK 0xfffff000
@@ -345,11 +407,29 @@ typedef enum {
 	ff_type_serial,		/* format describes a serial protoco (GUI can display port names) */
 } ff_type;
 
+typedef enum {
+	ff_cap_rw_wpt,
+	ff_cap_rw_trk,
+	ff_cap_rw_rte
+} ff_cap_array;
+
+typedef enum {
+	ff_cap_none,
+	ff_cap_read = 1,
+	ff_cap_write = 2
+} ff_cap;
+#define FF_CAP_RW_ALL \
+	{ ff_cap_read | ff_cap_write, ff_cap_read | ff_cap_write, ff_cap_read | ff_cap_write }
+
+#define FF_CAP_RW_WPT \
+	{ ff_cap_read | ff_cap_write, ff_cap_none, ff_cap_none}
+
 /*
  *  Describe the file format to the caller.
  */
 typedef struct ff_vecs {
 	ff_type type;
+	ff_cap cap[3];
 	ff_init rd_init;
 	ff_init wr_init;
 	ff_deinit rd_deinit;
@@ -377,6 +457,7 @@ typedef struct filter_vecs {
 void waypt_init(void);
 void route_init(void);
 void waypt_disp(const waypoint *);
+void waypt_status_disp(int total_ct, int myct);
 void fatal(const char *, ...)
 #if __GNUC__
 	__attribute__ ((__format__ (__printf__, 1, 2)))
@@ -387,13 +468,13 @@ void warning(const char *, ...)
 	__attribute__ ((__format__ (__printf__, 1, 2)))
 #endif
 	;
-ff_vecs_t *find_vec(char *, char **);
+ff_vecs_t *find_vec(char * const, char **);
 void disp_vecs(void);
 void exit_vecs(void);
 void disp_formats(int version);
-void printposn(double c, int is_lat);
+void printposn(const double c, int is_lat);
 
-filter_vecs_t * find_filter_vec(char *, char **);
+filter_vecs_t * find_filter_vec(char * const, char **);
 void free_filter_vec(filter_vecs_t *);
 void disp_filters(int version);
 void disp_filter_vecs(void);
@@ -448,8 +529,10 @@ void xfprintf(const char *errtxt, FILE *stream, const char *format, ...);
 void xfputs(const char *errtxt, const char *s, FILE *stream);
 
 int case_ignore_strcmp(const char *s1, const char *s2);
+int case_ignore_strncmp(const char *s1, const char *s2, int n);
 
-char *strsub(char *s, char *search, char *replace);
+char *strsub(const char *s, const char *search, const char *replace);
+char *gstrsub(const char *s, const char *search, const char *replace);
 void rtrim(char *s);
 signed int get_tz_offset(void);
 time_t current_time(void);
@@ -463,7 +546,7 @@ char * str_utf8_to_cp1252( const char * str );
 char * str_utf8_to_ascii( const char * str );
 
 /* this lives in gpx.c */
-time_t xml_parse_time( char *cdatastr );
+time_t xml_parse_time( const char *cdatastr );
 	
 xml_tag *xml_findfirst( xml_tag *root, char *tagname );
 xml_tag *xml_findnext( xml_tag *root, xml_tag *cur, char *tagname );

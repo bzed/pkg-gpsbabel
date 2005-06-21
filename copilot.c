@@ -88,7 +88,7 @@ data_read(void)
 		waypoint *wpt_tmp;
 		char *vdata;
 
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+		wpt_tmp = waypt_new();
 
 		rec = (struct record *) pdb_rec->data;
 		wpt_tmp->longitude =
@@ -158,7 +158,7 @@ copilot_writewpt(const waypoint *wpt)
 	}
 	vdata += strlen( vdata ) + 1;
 
-	opdb_rec = new_Record (0, 2, ct++, vdata-(char *)rec, (const ubyte *)rec);	       
+	opdb_rec = new_Record (0, 2, ct++, (uword) (vdata-(char *)rec), (const ubyte *)rec);	       
 
 	if (opdb_rec == NULL) {
 		fatal(MYNAME ": libpdb couldn't create record\n");
@@ -193,6 +193,7 @@ data_write(void)
 
 ff_vecs_t copilot_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,

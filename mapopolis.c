@@ -149,7 +149,7 @@ decode(char *buf)
 //	for(pdb_rec = pdb->rec_index.rec; pdb_rec; pdb_rec=pdb_rec->next) {
 	for(pdb_rec=pdb_rec->next; pdb_rec; pdb_rec=pdb_rec->next) {
 		waypoint *wpt_tmp;
-		char *vdata;
+		char *vdata = 0;
 		char *edata;
 		struct tm tm = {0};
 
@@ -157,7 +157,7 @@ decode(char *buf)
 		edata = (char *) rec + pdb_rec->data_len;
 
 		for (; vdata < edata; rec = (struct record *) vdata) {
-			wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+			wpt_tmp = waypt_new();
 			wpt_tmp->latitude = Lat1 + 
 				be_read16(&rec->lat1d) / LATDIV2; 
 			wpt_tmp->longitude = Lon1 + 
@@ -266,8 +266,6 @@ my_writewpt(const waypoint *wpt)
 static void
 data_write(void)
 {
-	queue *elem, *tmp;
-
 	static char *appinfo = 
 		"\0\x01"
 		"User\0\0\0\0\0\0\0\0\0\0\0\0"
@@ -311,6 +309,7 @@ data_write(void)
 
 ff_vecs_t mapopolis_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,

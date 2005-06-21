@@ -50,7 +50,7 @@ waypt_dupe(const waypoint *wpt)
 		tmp->url = xstrdup(wpt->url);
 	if (wpt->url_link_text)
 		tmp->url_link_text = xstrdup(wpt->url_link_text);
-	if (wpt->icon_descr && wpt->icon_descr_is_dynamic)
+	if (wpt->icon_descr && wpt->wpt_flags.icon_descr_is_dynamic)
 		tmp->icon_descr = xstrdup(wpt->icon_descr);
 	if (wpt->gc_data.desc_short.utfstring) {
 		tmp->gc_data.desc_short.utfstring = 
@@ -66,6 +66,10 @@ waypt_dupe(const waypoint *wpt)
 	 */
 	tmp->Q.next = tmp->Q.prev = NULL;
 	tmp->gpx_extras = NULL;
+	if ( wpt->an1_extras ) {
+		wpt->an1_extras->copy((void **)(&tmp->an1_extras), 
+			 (void *)wpt->an1_extras );
+	}
 
 	return tmp;
 }
@@ -133,6 +137,12 @@ unsigned int
 waypt_count(void)
 {
 	return waypt_ct;
+}
+
+void
+set_waypt_count(unsigned int nc)
+{
+	waypt_ct = nc;
 }
 
 void
@@ -252,7 +262,7 @@ waypt_free( waypoint *wpt )
 	if (wpt->url_link_text) {
 		xfree(wpt->url_link_text);
 	}
-	if (wpt->icon_descr && wpt->icon_descr_is_dynamic) {
+	if (wpt->icon_descr && wpt->wpt_flags.icon_descr_is_dynamic) {
 		xfree((char *)(void *)wpt->icon_descr);
 	}
 	if (wpt->gpx_extras) {
@@ -263,6 +273,13 @@ waypt_free( waypoint *wpt )
 	}
 	if (wpt->gc_data.desc_long.utfstring) {
 		xfree(wpt->gc_data.desc_long.utfstring);
+	}
+	if (wpt->gc_data.placer) {
+		xfree(wpt->gc_data.placer);
+	}
+	if ( wpt->an1_extras ) {
+		(*(wpt->an1_extras->destroy))((void *)wpt->an1_extras );
+		xfree( wpt->an1_extras );
 	}
 	xfree(wpt);	
 }

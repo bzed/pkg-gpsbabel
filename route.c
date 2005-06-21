@@ -100,6 +100,12 @@ route_add_wpt(route_head *rte, waypoint *wpt)
 	ENQUEUE_TAIL(&rte->waypoint_list, &wpt->Q);
 	rte->rte_waypt_ct++;	/* waypoints in this route */
 	rte_waypts++;		/* total waypoints in all routes */
+	if (wpt->shortname == NULL) {
+		char tmpnam[10];
+		snprintf(tmpnam, sizeof(tmpnam), "RPT%03d",rte_waypts);
+		wpt->shortname = xstrdup(tmpnam);
+		wpt->wpt_flags.shortname_is_synthetic = 1;
+	}
 }
 
 void 
@@ -122,6 +128,10 @@ route_free(route_head *rte)
 	}
 	rte_waypts -= rte->rte_waypt_ct;
 	waypt_flush(&rte->waypoint_list);
+        if ( rte->an1_extras ) {
+                (*(rte->an1_extras->destroy))((void *)rte->an1_extras );
+                xfree( rte->an1_extras );
+        }
 	xfree(rte);
 }
 

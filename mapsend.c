@@ -125,7 +125,7 @@ mapsend_wpt_read(void)
 	my_fread4(&wpt_count, mapsend_file_in);
 	
 	while (wpt_count--) {
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp), 1);
+		wpt_tmp = waypt_new();
 
 		if (fread(&scount, sizeof(scount), 1, mapsend_file_in) < 1) {
 			fatal(MYNAME ": out of data reading %d waypoints\n",
@@ -183,7 +183,7 @@ mapsend_wpt_read(void)
 		my_fread4(&wpt_count, mapsend_file_in);
 		
 		while (wpt_count--) {
-			wpt_tmp = xcalloc(sizeof(*wpt_tmp), 1);
+			wpt_tmp = waypt_new();
 
 			/* waypoint name */
 			fread(&scount, sizeof(scount), 1, mapsend_file_in);
@@ -259,7 +259,7 @@ mapsend_track_read(void)
 			centisecs = 0;
 		}
 
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp), 1);
+		wpt_tmp = waypt_new();
 		wpt_tmp->latitude = -wpt_lat;
 		wpt_tmp->longitude = wpt_long;
 		wpt_tmp->creation_time = time;
@@ -316,21 +316,43 @@ mapsend_waypt_pr(const waypoint *waypointp)
 	static int cnt = 0;
 	const char *iconp = NULL;
 	const char *sn = global_opts.synthesize_shortnames ? 
-		mkshort(mkshort_handle, waypointp->description) :
+		mkshort_from_wpt(mkshort_handle, waypointp) :
 	       	waypointp->shortname;
+	char *tmp;
 
-	c = sn ? strlen(sn) : 0;
+	/*
+	 * The format spec doesn't call out the character set of waypoint
+	 * name and description.  Empirically, we can see that it's 8859-1,
+	 * but if we create mapsend files containing those, Mapsend becomes
+	 * grumpy uploading the resulting waypoints and being unable to deal
+	 * with the resulting comm errors.
+ 	 * 
+	 * Ironically, our own Magellan serial module strips the "naughty"
+	 * characters, keeping it more in definition with their own serial
+	 * spec. :-)
+	 * 
+	 * So we just decompose the utf8 strings to ascii before stuffing
+	 * them into the Mapsend file.
+	 */
+
+	tmp = str_utf8_to_ascii(sn);
+	c = tmp ? strlen(tmp) : 0;
 	fwrite(&c, 1, 1, mapsend_file_out);
-	fwrite(sn, c, 1, mapsend_file_out);
+	fwrite(tmp, c, 1, mapsend_file_out);
+	if (tmp)
+		xfree(tmp);
 
-	if (waypointp->description) 
-		c = strlen(waypointp->description);
+	tmp = str_utf8_to_ascii(waypointp->description);
+	if (tmp)
+		c = strlen(tmp);
 	else
 		c = 0;
 
 	if (c > 30) c = 30;
 	fwrite(&c, 1, 1, mapsend_file_out);
-	fwrite(waypointp->description, c, 1, mapsend_file_out);
+	fwrite(tmp, c, 1, mapsend_file_out);
+	if (tmp)
+		xfree(tmp);
 
 	/* #, icon, status */
 	n = ++cnt;
@@ -522,7 +544,7 @@ void mapsend_track_disp(const waypoint * wpt)
 	my_fwrite8(&dbl, mapsend_file_out);
 
 	/* altitude */
-	i = wpt->altitude;
+	i = (int) wpt->altitude;
 	my_fwrite4(&i, mapsend_file_out);
 	
 	/* time */
@@ -584,6 +606,7 @@ mapsend_wpt_write(void)
 
 ff_vecs_t mapsend_vecs = {
 	ff_type_file,
+	FF_CAP_RW_ALL,
 	mapsend_rd_init,
 	mapsend_wr_init,
 	mapsend_rd_deinit,

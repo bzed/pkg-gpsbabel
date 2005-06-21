@@ -4,7 +4,7 @@
 
     As described in OziExplorer Help File
 
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -548,6 +548,13 @@ data_read(void)
                 ozi_objective = wptdata;
             }
         }
+
+        if (linecount == 2) {
+	    if (case_ignore_strncmp(buff, "WGS 84", 6)) {
+		warning(MYNAME "Only supports reading WGS 84 datum, not '%s'\n", buff);
+	    }
+	}
+
         if ((strlen(buff)) && (strstr(buff, ",") != NULL)) {
 
             wpt_tmp = waypt_new();
@@ -626,7 +633,7 @@ ozi_waypt_pr(const waypoint * wpt)
     if ((!wpt->shortname) || (global_opts.synthesize_shortnames)) {
         if (wpt->description) {
             if (global_opts.synthesize_shortnames)
-                shortname = mkshort(mkshort_handle, wpt->description);
+                shortname = mkshort_from_wpt(mkshort_handle, wpt);
             else
                 shortname = csv_stringclean(wpt->description, ",");
         } else {
@@ -692,6 +699,7 @@ data_write(void)
 
 ff_vecs_t ozi_vecs = {
     ff_type_file,
+    FF_CAP_RW_ALL,
     rd_init,
     wr_init,
     rd_deinit,

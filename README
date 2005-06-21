@@ -1,12 +1,12 @@
 
 THE PROBLEM
 
-        There are simply too many gratituosuly different file formats to
+        There are simply too many gratuitously different file formats to
         hold waypoint, track, and route information in various programs
         used by computers.  GPX (http://www.topografix.com/gpx.asp)
-        attempts to define a standard in XML to contain all the data,
-        but there are too many programs that don't understand it yet and
-        too much data that are in an alternate format.
+        defines a standard in XML to contain all the data, but there
+        are too many programs that don't understand it yet and
+        too much data that are in an alternate formats.
 
 THE SOLUTION
 
@@ -36,6 +36,79 @@ GETTING IT / BUILDING IT
         the compiler where it is or install it in a sensible place.
         Exapt can be downloaded from http://expat.sourceforge.net and is
         part of Apache so it's very portable.
+
+COMMON USAGE
+
+	Invocation was meant to be flexible.   Unfortunately, that can
+	sometimes lead to unwieldy command lines.
+
+		gpsbabel -? 
+
+	will always show you the supported file types.   To use this
+	program, just tell it what you're reading, where to read it from,
+	what you're writing, and what to write it to.  For example:
+
+	gpsbabel -i geo -f /tmp/geocaching.loc -o gpx -F /tmp/geocaching.gpx
+
+	tells it to read the first file in geocaching.com format and create
+	a new file in GPX format.
+
+	This command will read from a Magellan unit attached to the first
+	serial port on a Linux system (device names will vary on other OSes)
+	and write them as a geocaching loc file.  The second command does 
+	the same for windows.
+
+	gpsbabel -i magellan -f /dev/ttyS0 -o geo -F mag.loc
+	gpsbabel -i magellan -f com1 -o geo -F mag.loc
+	
+    PathAway (Palm) database
+    
+	PathAway is a Palm software designed for handling "most" GPS devices 
+	(including BlueTooth). In this time (i mean 2005) a free tool 
+	to convert this database is located on the homepage 
+	of PathAway (www.pathaway.com). But i've read there ... for windows and
+	the output format was also very limited. 
+
+	Optionally, you may specify "-s" in any command line.  This causes
+	the program to ignore any "short" names that may be present in the
+	source data format and synthesize one from the long name.  This
+	is particularly useful if you're writing to a target format that 
+	isn't the lowest common denominator but the source data was written
+	for the lowest common denominator.   I use this for writing data
+	from geocaching.com to my Magellan so my waypoints have "real" names
+	instead of the 'GC1234' ones that are optimized for NMEA-only 
+	receivers.   A geocacher with a Magellan receiver may thus find
+	commands like this useful.
+
+	gpsbabel -s -i geo -f geocaching.loc -o magellan -F /dev/ttyS0 
+	gpsbabel -s -i geo -f geocaching.loc -o magellan -F com1
+
+ADVANCED USAGE
+
+	Argument are processed in the order they appear on the command line.
+	Input is cumulative.  The input file type remains unchanged until a 
+	new -i argument is seen.  Files are read in the order they appear.  
+	So you could merge three input files into one output file with:
+	
+	gpsbabel -i geo -f 1.loc -f 2.loc -f 3.loc -o geo -F big.loc
+
+	You can merge files of different types:
+
+	gpsbabel  -i geo -f 1.loc -i gpx -f 2.gpx -i pcx 3.pcx -o gpsutil -F big.gps
+
+	You can write the same data in different output formats:
+
+	gpsbabel -i geo -f 1.loc -o gpx -F 1.gpx -o pcx 1.wpt
+
+ROUTE AND TRACK MODES
+
+        The presence of "-t" on the command line tells us to work with
+        tracks.  The presence of "-r" tells us to work with routes.
+        Tracks and routes are advanced features and don't try to
+        handle every possible hazard that can be encountered during a
+        conversion.  If you're merging or converting files of similar
+        limitations, things work very well.  The presence of "-s" on
+        the command line tends to creat havoc because tracks and routes.
 
 THE FORMATS
 
@@ -67,6 +140,15 @@ THE FORMATS
 
 	Additional sub options:
 	baud: may be 1200, 2400, 4800, 9600, 19200, but must match receiver.
+
+    MAGELLANX
+
+ 	The SD card format used by the Magellan Explorist 300, 400, and 500.
+	It's identical to the Magellan SD format used by Meridian, but allows
+	longer waypoint names.
+	
+	You should name any file created with this format with a ".upt"
+	extension so the firmware can read it.
 
     GARMIN
 
@@ -102,8 +184,6 @@ THE FORMATS
 	dumps by adding "-D9" to the command line, like:
 
 		gpsbabel -D9 -i garmin -f usb: -o gpx -F blah.gpx
-	
-
 
     GPSMAN
 
@@ -131,10 +211,18 @@ THE FORMATS
 	is the one that makes Delorme S&A Deluxe 9 happy.   It's also a very
 	simple program and useful for many other programs like spreadsheets.
 
-        CSV is also the correct format for Lowrance MapCreate, their
-        commercial mapping program, or GDM6 (their free waypoint
-        manager) for iFinder which is available at 
-	http://www.lowrance.com/Software/GDM6/Default.asp
+        CSV is also the correct format for Lowrance MapCreate,
+        their commercial mapping program, or GDM6 (their free
+        waypoint manager) for iFinder which is available at
+        http://www.lowrance.com/Software/GDM6/Default.asp
+
+    LowranceUSR
+
+	The Lowrance iFinder GPS series has the unique capability to
+	output its data to an MMC card.  The data is saved to the card
+	as a .USR file and can be read by your computer using a card
+	reader.  Currently only reading and writing of waypoints (no
+	routes or tracks) is supported.
 
     XMap
 
@@ -473,6 +561,13 @@ THE FORMATS
 
 	http://www.navicache.com/cgi-bin/ib312a/ikonboard.cgi?act=ST;f=23;t=334
 
+    coastexp
+
+	This is the format used by CoastalExplorer (tm). The format is
+	XML with items uniquely identified by Windows-style UUIDs.
+
+	http://www.rosepointnav.com
+
     PsiTrex
 	
 	This is a text format created by KuDaTa's PsiTrex program for the Psion
@@ -640,7 +735,109 @@ THE FORMATS
 
         HSA Systems Endeavour Navigator format - will import both the old
         version 4.x binary files, and the newer XML based ones. 
-        Only writes the new XML (5.0 and above) format. (use the .exp extension)
+        Only writes the new XML (5.0 and above) format. (use the .exp 
+	extension)
+
+    vCARD
+
+        The vCard output is intended to be in a format that enables
+        waypoints to be viewed with an Apple iPod. This is achieved by
+        mapping waypoint fields into vCard fields that can be displayed
+        as 'Contacts' on the iPod. With the iPod mounted as a hard disk
+        (see your iPod manual for instructions), the resulting VCF
+        file should be moved into the iPod 'Contacts' folder. As an
+        alternative, Mac OS X users may prefer to drag the VCF file into
+        their address book and synchronize with the iPod using iSync. By
+	default hints are unencrypted; use the 'encrypt' option to
+        encrypt the hints.
+
+    Hiketech
+
+        This is the .gps format used by the Mac OS X applications
+        written by HikeTech. These include TopoDraw, Link2GPS, and
+        GPSWrite. More information about these products can be found at
+        http://www.hiketech.com
+
+    glogbook
+
+        This is the XML format used by the Garmin Logbook product that
+        ships with Forerunner and Foretrex.
+
+	http://www.garmin.com
+
+    KML
+
+	We have sketchy support for KML, the Keyhole Markup Language.
+	There are many features in this file format that we don't yet
+	support, but simple waypoint lists convert fine.
+
+    GOOGLE
+        
+        This format is designed to read the XML emitted when you tack
+        "&output=js" onto the end of a Google Maps route URL (use the 
+        "link to this page" option to get a usable URL.)  This allows 
+        you to plan a route using Google Maps, then download it and use 
+        it in your own mapping program or GPS receiver.  If you use a 
+        Unix-compatible operating system, this shell script might be 
+        useful:
+
+        #!/bin/sh
+        FROM="233 S. Wacker, Chicago, IL"
+        TO="1060 W. Addison, Chicago, IL"
+        wget -O - "http://maps.google.com/maps?q=$FROM to $TO&output=js" \
+           2>/dev/null >google_map.js
+
+        gpsbabel -i google -f google_map.js -o gpx -F google_map.gpx
+	
+    TourExchangeFormat
+    
+	XML based export format, used by Map&Guide
+	"Motorrad-Routenplaner". This software can only export routing data.
+	So we don't support writing.
+	
+    PathAway
+    
+	PathAway is a Palm software designed for handling "most" GPS devices 
+	(including BlueTooth). In this time (i mean 2005) a free tool 
+	to convert this database is located on the homepage 
+	of PathAway (www.pathaway.com). But i've read there ... for windows and
+	the output formats are also very limited. 
+
+    AN1
+
+        This format supports the DeLorme ".an1" drawing file format.  It
+        can currently be used to either read or write drawing files.  If
+        you use this format to create drawing files with routes or waypoints
+        from another source, it will currently create "Red Flag" symbols 
+        for waypoints, and thick red lines for routes or tracks.  It is
+        possible to merge two drawing layers by doing something like this:
+
+        gpsbabel -i an1 -f one.an1 -f two.an1 -o an1 -F merged.an1
+
+        In this case, the merged data will contain all of the properties
+        of the original data.
+
+        Currently, GPSBabel only writes drawing layers, as opposed to road, 
+        track, and other specialized layers.  If your input file is a road, 
+        track, trail, or waypoint layer, you should not attempt to write to 
+        an .an1 file as the results may be unpredictable.  Note that this 
+        also applies to merging files, so you can't currently merge two road
+        layers with GPSBabel (officially; there is an unsupported "type" 
+        option that works in limited cases.)
+
+    TomTom
+
+	This format can read and write TomTom .ov2 (POI) files, as used by the 
+        TomTom GO and TomTom Navigator.  It has been tested with an original
+        TomTom GO running version 5.00 of the TomTom software.  There may be
+        some records that confuse the input module - if you have an example
+        of such a record "in the wild", and you aren't restricted from sharing
+        it, we encourage you to post to the gpsbabel-misc mailing list to 
+        contact a developer.
+
+        Note that in addition to the .ov2 file, you will need a .bmp file for
+        the icon.  It should be 22x22 and 16 colors, and have the same name
+        (not including the extension) as the .ov2 file.
 
 DATA FILTERS
 
@@ -744,6 +941,11 @@ DATA FILTERS
 	  41.146631241    -85.164384842
 	  41.144270897    -85.163655281
 	  41.141953468    -85.162882805
+
+        An arc file may optionally contain gaps in the arc.  You can 
+        specify such a gap by inserting a line containing "#break" 
+        either on a line by itself or after the coordinates of the
+        starting point of the new arc segment.
 
         In addition to the file containing the arc, you should also
         specify the maximum distance from the arc that will be accepted;
@@ -915,69 +1117,3 @@ DATA FILTERS
                     -x stack,pop,append \
                     -o magellan -F fwaind.wpt
  
-COMMON USAGE
-
-	Invocation was meant to be flexible.   Unfortunately, that can
-	sometimes lead to unwieldy command lines.
-
-		gpsbabel -? 
-
-	will always show you the supported file types.   To use this
-	program, just tell it what you're reading, where to read it from,
-	what you're writing, and what to write it to.  For example:
-
-	gpsbabel -i geo -f /tmp/geocaching.loc -o gpx -F /tmp/geocaching.gpx
-
-	tells it to read the first file in geocaching.com format and create
-	a new file in GPX format.
-
-	This command will read from a Magellan unit attached to the first
-	serial port on a Linux system (device names will vary on other OSes)
-	and write them as a geocaching loc file.  The second command does 
-	the same for windows.
-
-	gpsbabel -i magellan -f /dev/ttyS0 -o geo -F mag.loc
-	gpsbabel -i magellan -f com1 -o geo -F mag.loc
-	
-
-	Optionally, you may specify "-s" in any command line.  This causes
-	the program to ignore any "short" names that may be present in the
-	source data format and synthesize one from the long name.  This
-	is particularly useful if you're writing to a target format that 
-	isn't the lowest common denominator but the source data was written
-	for the lowest common denominator.   I use this for writing data
-	from geocaching.com to my Magellan so my waypoints have "real" names
-	instead of the 'GC1234' ones that are optimized for NMEA-only 
-	receivers.   A geocacher with a Magellan receiver may thus find
-	commands like this useful.
-
-	gpsbabel -s -i geo -f geocaching.loc -o magellan -F /dev/ttyS0 
-	gpsbabel -s -i geo -f geocaching.loc -o magellan -F com1
-
-ADVANCED USAGE
-
-	Argument are processed in the order they appear on the command line.
-	Input is cumulative.  The input file type remains unchanged until a 
-	new -i argument is seen.  Files are read in the order they appear.  
-	So you could merge three input files into one output file with:
-	
-	gpsbabel -i geo -f 1.loc -f 2.loc -f 3.loc -o geo -F big.loc
-
-	You can merge files of different types:
-
-	gpsbabel  -i geo -f 1.loc -i gpx -f 2.gpx -i pcx 3.pcx -o gpsutil -F big.gps
-
-	You can write the same data in different output formats:
-
-	gpsbabel -i geo -f 1.loc -o gpx -F 1.gpx -o pcx 1.wpt
-
-ROUTE AND TRACK MODES
-
-        The presence of "-t" on the command line tells us to work with
-        tracks.  The presence of "-r" tells us to work with routes.
-        Tracks and routes are advanced features and don't try to
-        handle every possible hazard that can be encountered during a
-        conversion.  If you're merging or converting files of similar
-        limitations, things work very well.  The presence of "-s" on
-        the command line tends to creat havoc because tracks and routes.
-

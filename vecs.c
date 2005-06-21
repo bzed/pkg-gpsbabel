@@ -1,7 +1,7 @@
 /*
     Describe vectors containing file operations.
  
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2004, 2005  Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,11 +34,13 @@ extern ff_vecs_t geo_vecs;
 extern ff_vecs_t gpx_vecs;
 extern ff_vecs_t mag_svecs;
 extern ff_vecs_t mag_fvecs;
+extern ff_vecs_t magX_fvecs;
 extern ff_vecs_t mapsend_vecs;
 extern ff_vecs_t mps_vecs;
 extern ff_vecs_t gpsutil_vecs;
 extern ff_vecs_t tiger_vecs;
 extern ff_vecs_t pcx_vecs;
+extern ff_vecs_t lowranceusr_vecs;
 extern ff_vecs_t cetus_vecs;
 extern ff_vecs_t gpspilot_vecs;
 extern ff_vecs_t copilot_vecs;
@@ -55,6 +57,7 @@ extern ff_vecs_t quovadis_vecs;
 extern ff_vecs_t gpilots_vecs;
 extern ff_vecs_t saroute_vecs;
 extern ff_vecs_t navicache_vecs;
+extern ff_vecs_t coastexp_vecs;
 extern ff_vecs_t psit_vecs;             /* MRCB */
 extern ff_vecs_t shape_vecs;
 extern ff_vecs_t geoniche_vecs;
@@ -68,6 +71,17 @@ extern ff_vecs_t netstumbler_vecs;
 extern ff_vecs_t HsaEndeavourNavigator_vecs;
 extern ff_vecs_t igc_vecs;
 extern ff_vecs_t brauniger_iq_vecs;
+extern ff_vecs_t hiketech_vecs;
+extern ff_vecs_t glogbook_vecs;
+extern ff_vecs_t vcf_vecs;
+extern ff_vecs_t overlay_vecs;
+extern ff_vecs_t kml_vecs;
+extern ff_vecs_t google_vecs;
+extern ff_vecs_t maggeo_vecs;
+extern ff_vecs_t an1_vecs;
+extern ff_vecs_t tomtom_vecs;
+extern ff_vecs_t tef_xml_vecs;
+extern ff_vecs_t ppdb_vecs;
 
 static
 vecs_t vec_list[] = {
@@ -99,8 +113,14 @@ vecs_t vec_list[] = {
 	{
 		&mag_fvecs,
 		"magellan",
-		"Magellan SD files (as for Meridians)", 
+		"Magellan SD files (as for Meridian)", 
 		NULL
+	},
+	{
+		&magX_fvecs,
+		"magellanx",
+		"Magellan SD files (as for eXplorist)", 
+		"upt"
 	},
 	{
 		&mapsend_vecs,
@@ -131,6 +151,12 @@ vecs_t vec_list[] = {
 		"psp",
 		"MS PocketStreets 2002 Pushpin",
 		"psp"
+	},
+	{
+		&lowranceusr_vecs,
+		"lowranceusr",
+		"Lowrance USR",
+		NULL
 	},
 	{
 		&cetus_vecs,
@@ -183,7 +209,7 @@ vecs_t vec_list[] = {
 	{
 		&gcdb_vecs,
 		"gcdb",
-		"Geocaching Database", 
+		"GeocachingDB for Palm/OS", 
 		NULL
 	},
 	{
@@ -213,13 +239,19 @@ vecs_t vec_list[] = {
 	{
 		&saroute_vecs,
 		"saroute",
-		"Delorme Street Atlas Route",
-		".anr"
+		"DeLorme Street Atlas Route",
+		"anr"
 	},
 	{
 		&navicache_vecs,
 		"navicache",
 		"Navicache.com XML",
+		NULL
+	},
+	{
+		&coastexp_vecs,
+		"coastexp",
+		"CoastalExplorer XML",
 		NULL
 	},
 	{	/* MRCB */
@@ -243,7 +275,7 @@ vecs_t vec_list[] = {
 	{
 		&gpl_vecs,
 		"gpl",
-		"Delorme GPL",
+		"DeLorme GPL",
 		NULL
 	},
 	{
@@ -300,6 +332,72 @@ vecs_t vec_list[] = {
                 "Brauniger IQ Series Barograph Download",
                 NULL
         },
+        {
+                &hiketech_vecs,
+                "hiketech",
+                "HikeTech",
+                "gps"
+        },
+        {
+                &glogbook_vecs,
+                "glogbook",
+                "Garmin Logbook XML",
+                NULL
+        },
+        {
+                &kml_vecs,
+                "kml",
+                "Keyhole Markup Language",
+                NULL
+	},
+	{
+                &vcf_vecs,
+                "vcard",
+                "Vcard Output (for iPod)",
+                "vcf",
+        },
+	{
+		&overlay_vecs,
+		"overlay",
+		"GeoGrid-Viewer",
+		"ovl"
+	},
+	{
+		&google_vecs,
+		"google",
+		"Google Maps XML",
+		"xml"
+	},
+	{
+		&maggeo_vecs,
+		"maggeo",
+		"Magellan Explorist Geocaching",
+		"gs"
+	},
+	{
+		&an1_vecs,
+		"an1",
+		"DeLorme .an1 (drawing) file",
+		"an1"
+	},
+	{
+		&tomtom_vecs,
+		"tomtom",
+		"TomTom POI file",
+		"ov2"
+	},
+	{
+		&tef_xml_vecs,
+		"tef",
+		"Map&Guide 'TourExchangeFormat' XML",
+		"xml"
+	},
+	{
+		&ppdb_vecs,
+		"pathaway",
+		"PathAway Palm Database",
+		"pdb"
+	},
 	{
 		NULL,
 		NULL,
@@ -490,45 +588,72 @@ alpha (const void *a, const void *b)
 	const vecs_t *const *ap = a;
 	const vecs_t *const *bp = b;
 	
-	return strcmp((*ap)->name , (*bp)->name);
+	return strcasecmp((*ap)->desc , (*bp)->desc);
 }
 
-void
-disp_vecs(void)
+/*
+ * Smoosh the vecs list and style lists together and sort them
+ * alphabetically.  Returns an allocated copy of a style_vecs_array
+ * that's populated and sorted.
+ */
+vecs_t **
+sort_and_unify_vecs(int *ctp)
 {
-	vecs_t *vec;
-	style_vecs_t *svec;
-	arglist_t *ap;
 	int vc;
 	vecs_t **svp;
+	vecs_t *vec;
+	style_vecs_t *svec;
 	int i = 0;
-
-#define VEC_FMT "	%-20.20s  %-.50s\n"
 
 	/* Get a count from both the vec (normal) and the svec (csv) lists */
 
 	extern size_t nstyles;
 	vc = sizeof vec_list / sizeof vec_list[0] -1 + nstyles;
 
-	svp = xcalloc(vc, sizeof(style_vecs_t *));
 
+	svp = xcalloc(vc, sizeof(style_vecs_t *));
 	/* Normal vecs are easy; populate the first part of the array. */
 	for (vec = vec_list; vec->vec; vec++, i++) {
-			svp[i] = vec;
+		svp[i] = vec;
 	}
+
 	/* Walk the style list, parse the entries, dummy up a "normal" vec */
 	for (svec = style_list; svec->name; svec++, i++)  {
 		xcsv_read_internal_style(svec->style_buf);
 		svp[i] = xcalloc(1, sizeof **svp);
 		svp[i]->name = svec->name;
-		svp[i]->vec = svp[0]->vec; /* Interits xcsv opts */
+		svp[i]->vec = xmalloc(sizeof(*svp[i]->vec));
+		*svp[i]->vec = *vec_list[0].vec; /* Interits xcsv opts */
+		/* Reset file type to inherit ff_type from xcsv for everything
+		 * except the xcsv format itself, which we leave as "internal"
+		 */
+		if (strcmp(svec->name, "xcsv"))
+			svp[i]->vec->type = xcsv_file.type;
+		
 		svp[i]->desc = xcsv_file.description;
 	}
-
 	/* Now that we have everything in an array, alphabetize them */
 	qsort(svp, vc, sizeof(*svp), alpha);
 
+	*ctp = i;
+	return svp;
+}
+
+
+void
+disp_vecs(void)
+{
+	vecs_t **svp;
+	arglist_t *ap;
+	int vc;
+	int i = 0;
+
+	svp = sort_and_unify_vecs(&vc);
+#define VEC_FMT "	%-20.20s  %-.50s\n"
 	for (i=0;i<vc;i++) {
+		if ( svp[i]->vec->type == ff_type_internal )  {
+			continue;
+		}
 		printf(VEC_FMT, svp[i]->name, svp[i]->desc);
 		for (ap = svp[i]->vec->args; ap && ap->argstring; ap++) {
 			if ( !(ap->argtype & ARGTYPE_HIDDEN)) 
@@ -537,7 +662,7 @@ disp_vecs(void)
 				(ap->argtype & ARGTYPE_REQUIRED)?"(required)":"");
 		}
 	}
-		
+	xfree (svp);	
 	return;
 }
 
@@ -558,6 +683,18 @@ disp_v1(ff_type t)
 	}
 	printf("%s\t", tstring);
 }
+
+static void
+disp_v2(ff_vecs_t *v)
+{
+	int i;
+	for (i = 0; i < 3; i++) {
+		putchar(v->cap[i] & ff_cap_read  ? 'r' : '-');
+		putchar(v->cap[i] & ff_cap_write  ? 'w' : '-');
+	}
+	putchar('\t');
+}
+
 /*
  *  Display the available formats in a format that's easy to machine
  *  parse.   Typically invoked by programs like graphical wrappers to
@@ -566,30 +703,38 @@ disp_v1(ff_type t)
 void
 disp_formats(int version)
 {
+	vecs_t **svp;
 	vecs_t *vec;
 	style_vecs_t *svec;
+	int i, vc = 0;
 
 	switch(version) {
 	case 0:
 	case 1:
-		for (vec = vec_list; vec->vec; vec++) {
-			if (version > 0)
+	case 2:
+		svp = sort_and_unify_vecs(&vc);
+		for (i=0;i<vc;i++,vec++) {
+			vec = svp[i];
+
+			/* Version 1 displays type at front of all types.
+			 * Version 0 skips internal types.
+			 */
+			if (version > 0) {
 				disp_v1(vec->vec->type);
-			if (vec->vec->type == ff_type_internal)
-				continue;
+			} else {
+				if (vec->vec->type == ff_type_internal)
+					continue;
+			}
+			if (version >= 2) {
+				disp_v2(vec->vec);
+			}
 			printf("%s\t%s\t%s\n", vec->name, 
 				vec->extension? vec->extension : "", 
 				vec->desc);
-		}
-		for (svec = style_list; svec->name; svec++) {
-			xcsv_read_internal_style(svec->style_buf);
-			if (version > 0)
-				disp_v1(xcsv_file.type);
-			printf("%s\t%s\t%s\n", svec->name, xcsv_file.extension ? 
-				xcsv_file.extension : "", xcsv_file.description);
 		}
 		break;
 	default:
 		;
 	}
+	xfree (svp);	
 }

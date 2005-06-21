@@ -439,7 +439,7 @@ nmea_trackpt_pr(const waypoint *wpt)
 }
 
 static void
-nmea_write()
+nmea_write(void)
 {
 	waypt_disp_all(nmea_wayptpr);
 	track_disp_all(NULL, NULL, nmea_trackpt_pr);
@@ -447,11 +447,13 @@ nmea_write()
 
 ff_vecs_t nmea_vecs = {
 	ff_type_file,
+	{ ff_cap_read | ff_cap_write, ff_cap_read | ff_cap_write, ff_cap_none},
 	nmea_rd_init,	
 	nmea_wr_init,	
 	nmea_rd_deinit,	
 	nmea_wr_deinit,	
 	nmea_read,
 	nmea_write,
+	NULL,
 	NULL
 };

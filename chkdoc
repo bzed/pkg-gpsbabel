@@ -16,11 +16,12 @@ checkit() {
 		ECODE=1
 	fi
 	
-	if ! grep -qi "^    $TYPE$" README 
+	if ! grep -qi "^    $TYPE$" ~/src/babelweb/README 
 	then
 		echo $STY $TYPE is not documented in README.
 		ECODE=1
 	fi
+
 }
 
 ./gpsbabel -^ |
@@ -38,6 +39,26 @@ do
 	TYPE=$1
 	checkit $TYPE filter
 done
+
+#
+# See if they're in testo.
+#
+./gpsbabel -^2 | 
+while read FMT
+do
+	set -- $FMT
+	case $1 in
+	file) 
+	TYPE=$3
+	if ! grep -qi "$TYPE" testo
+	then
+		echo $STY $TYPE is not in testo.
+		ECODE=1
+	fi
+
+	esac
+done
+
 
 
 exit $ECODE

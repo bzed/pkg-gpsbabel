@@ -43,7 +43,7 @@ arglist_t Args[] = {
 	    "Database name (filename)", NULL, ARGTYPE_STRING },
 	{"category", &Arg_category,
 	    "Category name (Cache)", NULL, ARGTYPE_STRING },
-	{0, 0, 0, 0 }
+	{0, 0, 0, 0, 0 }
 };
 
 #define	ARG_FREE(X) do { if (X) { xfree(X); X = NULL; } } while (0)
@@ -216,7 +216,7 @@ data_read(void)
 	char		gid[6+1];
 	struct tm	tm;
 
-	wpt = xcalloc(sizeof(*wpt), 1);
+	wpt = waypt_new();
 	if (!wpt)
 	    fatal(MYNAME ": Couldn't allocate waypoint.\n");
 	vdata = (char *) pdb_rec->data;
@@ -335,7 +335,7 @@ data_read(void)
 	wpt->longitude = lon;
 	wpt->altitude = alt;
 	wpt->icon_descr = category;
-	wpt->icon_descr_is_dynamic = 1;
+	wpt->wpt_flags.icon_descr_is_dynamic = 1;
 
 	if (gid[0])
 	{
@@ -484,7 +484,7 @@ copilot_writewpt(const waypoint *wpt)
 	    fatal(MYNAME ": libpdb couldn't get record memory\n");
     }
 
-    opdb_rec = new_Record (0, 0, ct++, vlen+1, vdata);	       
+    opdb_rec = new_Record (0, 0, ct++, (uword) (vlen+1), vdata);	       
 
     if (opdb_rec == NULL)
 	fatal(MYNAME ": libpdb couldn't create record\n");
@@ -526,6 +526,7 @@ data_write(void)
 ff_vecs_t geoniche_vecs =
 {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,

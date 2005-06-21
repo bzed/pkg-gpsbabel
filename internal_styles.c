@@ -27,7 +27,7 @@ static char arc[] =
 static char csv[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
-"# Format: Delorme SA 9.0 CSV\n"
+"# Format: DeLorme SA 9.0 CSV\n"
 "# Author: Alex Mottram\n"
 "#   Date: 12/09/2002\n"
 "#\n"
@@ -45,9 +45,13 @@ static char csv[] =
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
 "#\n"
-"IFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
-"IFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"IFIELD	LAT_HUMAN_READABLE, \"\", \"%08.5f\"\n"
+"IFIELD	LON_HUMAN_READABLE, \"\", \"%08.5f\"\n"
 "IFIELD	DESCRIPTION, \"\", \"%s\"\n"
+
+"OFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	DESCRIPTION, \"\", \"%s\"\n"
 ;
 static char custom[] = 
 "# gpsbabel XCSV style file\n"
@@ -384,16 +388,16 @@ static char s_and_t[] =
 "# GC171C,44.70605,-85.62265,The Michigan Frog by RealDcoy & LRB,http://www.geocaching.com/seek/cache_details.aspx?ID=5916,Traditional Cache\n"
 "#\n"
 
-"DESCRIPTION 		Microsoft Streets and Trips 2002/2003\n"
+"DESCRIPTION 		Microsoft Streets and Trips 2002-2005\n"
 
 "#\n"
 "# FILE LAYOUT DEFINITIIONS:\n"
 "#\n"
-"FIELD_DELIMITER		COMMA\n"
+"FIELD_DELIMITER		TAB\n"
 "RECORD_DELIMITER	NEWLINE\n"
 "BADCHARS		,\"\n"
 
-"PROLOGUE	Name,Latitude,Longitude,Name 2,URL,Type\n"
+"PROLOGUE	Name	Latitude	Longitude	Description	URL	Type	Container	Diff	Terr\n"
 
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
@@ -405,7 +409,10 @@ static char s_and_t[] =
 "IFIELD	LON_DECIMAL, \"\", \"%f\"		# Longitude\n"
 "IFIELD	DESCRIPTION, \"\", \"%s\"		# Name 2 (Big Description)\n"
 "IFIELD	URL, \"\", \"%s\"			# URL\n"
-"IFIELD	IGNORE, \"\", \"\"			# Holder for Geocache Type\n"
+"IFIELD	GEOCACHE_TYPE, \"\", \"%s\"		# Geocache Type\n"
+"IFIELD	GEOCACHE_CONTAINER, \"\", \"%s\"	# Geocache Type\n"
+"IFIELD	GEOCACHE_DIFF, \"\", \"%3.1f\"	# Geocache Type\n"
+"IFIELD	GEOCACHE_TERR, \"\", \"%3.1f\"	# Geocache Type\n"
 ;
 static char saplus[] = 
 "# gpsbabel XCSV style file\n"
@@ -415,7 +422,7 @@ static char saplus[] =
 "#   Date: 02/22/04\n"
 "#\n"
 
-"DESCRIPTION             Delorme Street Atlas Plus\n"
+"DESCRIPTION             DeLorme Street Atlas Plus\n"
 
 "#\n"
 "# FILE LAYOUT DEFINITIIONS:\n"
@@ -491,11 +498,13 @@ static char tabsep[] =
 "IFIELD  GEOCACHE_TYPE,\"\",\"%s\"\n"
 "IFIELD  PATH_DISTANCE_MILES,\"\",\"%f\"\n"
 "IFIELD  PATH_DISTANCE_KM, \"\", \"%f\"\n"
+"IFIELD  GEOCACHE_PLACER,\"\",\"%s\"\n"
+"IFIELD  YYYYMMDD_TIME,\"\",\"%ld\"\n"
 ;
 static char xmap[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
-"# Format: Delorme Xmap Conduit\n"
+"# Format: DeLorme Xmap Conduit\n"
 "# Author: Alex Mottram\n"
 "#   Date: 12/09/2002\n"
 "#\n"
@@ -503,7 +512,7 @@ static char xmap[] =
 "# As defined in csv.c/xmap\n"
 "#\n"
 
-"DESCRIPTION		Delorme XMap HH Native .WPT\n"
+"DESCRIPTION		DeLorme XMap HH Native .WPT\n"
 "EXTENSION		wpt\n"
 
 "#\n"
@@ -518,19 +527,23 @@ static char xmap[] =
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
 "#\n"
-"IFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
-"IFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"IFIELD	LAT_HUMAN_READABLE, \"\", \"%08.5f\"\n"
+"IFIELD	LON_HUMAN_READABLE, \"\", \"%08.5f\"\n"
 "IFIELD	DESCRIPTION, \"\", \"%s\"\n"
+
+"OFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	DESCRIPTION, \"\", \"%s\"\n"
 ;
 static char xmapwpt[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
-"# Format: Delorme Xmap HH Street Atlas USA .WPT (PocketPC)\n"
+"# Format: DeLorme Xmap HH Street Atlas USA .WPT (PocketPC)\n"
 "# Author: Alex Mottram\n"
 "#   Date: 12/09/2002\n"
 "#\n"
 "# \n"
-"DESCRIPTION 		Delorme XMat HH Street Atlas USA .WPT (PPC)\n"
+"DESCRIPTION 		DeLorme XMat HH Street Atlas USA .WPT (PPC)\n"
 "SHORTLEN		32\n"
 "SHORTWHITE		0\n"
 

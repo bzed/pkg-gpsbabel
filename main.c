@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@ usage(const char *pname, int shorter)
 "    The input type and filename are specified with the -i INTYPE\n"
 "    and -f INFILE options. The output type and filename are specified\n"
 "    with the -o OUTTYPE and -F OUTFILE options.\n"
+"    If '-' is used for INFILE or OUTFILE, stdin or stdout will be used.\n"
 "\n"
 "    In the second form of the command, INFILE and OUTFILE are the\n"
 "    first and second positional (non-option) arguments.\n"
@@ -202,7 +203,19 @@ main(int argc, char *argv[])
 				global_opts.masked_objective |= RTEDATAMASK;
 				break;
 			case 'N':
-				global_opts.no_smart_icons = 1;
+				switch(argv[argn][2]) {
+					case 'i':
+						global_opts.no_smart_icons = 1;
+						break;
+					case 'n':
+						global_opts.no_smart_names = 1;
+						break;
+					default:
+						global_opts.no_smart_names = 1;
+						global_opts.no_smart_icons = 1;
+						break;
+				}
+				
 				break;
  			case 'x':
 				optarg = argv[argn][2]
@@ -236,6 +249,7 @@ main(int argc, char *argv[])
 			case 'v':
 				switch(argv[argn][2]) {
 				case 's': global_opts.verbose_status = 1; break;
+				case 'S': global_opts.verbose_status = 2; break;
 				}
 				break;
 

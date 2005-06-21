@@ -1,7 +1,7 @@
 /*
     Communicate Thales/Magellan serial protocol.
 
-    Copyright (C) 2002, 2003, 2004 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2003, 2004, 2005 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,7 +26,10 @@
 #include "magellan.h"
 
 int bitrate = 4800;
+int wptcmtcnt;
+int wptcmtcnt_max;
 #define MYNAME "MAGPROTO"
+#define MAXCMTCT 200
 
 #define debug_serial  (global_opts.debug_level > 1)
 
@@ -38,10 +41,12 @@ static void mag_handoff(void);
 static void *mkshort_handle = NULL;
 static char *deficon = NULL;
 static char *bs = NULL;
+static char *cmts = NULL;
 static char *noack = NULL;
 static char *nukewpt = NULL;
 static int route_out_count;
 static int waypoint_read_count;
+static int wpt_len = 8;
 
 typedef enum {
 	mrs_handoff = 0,
@@ -171,7 +176,9 @@ pid_to_model_t pid_to_model[] =
 	{ mm_meridian, 35, "ProMark 2" },
 	{ mm_sportrak, 36, "SporTrak Map/Pro" },
 	{ mm_sportrak, 37, "SporTrak" },
+	{ mm_meridian, 38, "FX324 Plotter" },
 	{ mm_meridian, 39, "Meridian Color" },
+	{ mm_meridian, 40, "FX324C Plotter" },
 	{ mm_sportrak, 41, "Sportrak Color" },
 	{ mm_sportrak, 42, "Sportrak Marine" },
 	{ mm_meridian, 43, "Meridian Marine" },
@@ -207,7 +214,7 @@ m315_cleanse(char *istring)
 /*
  * Do same for 330, Meridian, and SportTrak.
  */
-static char *
+char *
 m330_cleanse(char *istring)
 {
 	static char m330_valid_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ "
@@ -229,7 +236,7 @@ m330_cleanse(char *istring)
  * Given a protocol message, compute the checksum as needed by 
  * the Magellan protocol.
  */
-static unsigned int 
+unsigned int 
 mag_checksum(const char * const buf)
 {
 	int csum = 0;
@@ -359,7 +366,7 @@ mag_verparse(char *ibuf)
 		case mm_meridian:
 		case mm_sportrak:
 			icon_mapping = map330_icon_table;
-			setshort_length(mkshort_handle, 8);
+			setshort_length(mkshort_handle, wpt_len);
 			setshort_mustupper(mkshort_handle, 0);
 			mag_cleanse = m330_cleanse;
 			break;
@@ -611,7 +618,7 @@ termwrite(char *obuf, int size)
 		return;
 	}
 	WriteFile (comport, obuf, size, &len, NULL);
-	if (len != size) {
+	if ((int) len != size) {
 		fatal(MYNAME ":.  Wrote %d of %d bytes.\n", len, size);
 	}
 }
@@ -711,6 +718,8 @@ static
 arglist_t mag_sargs[] = {
 	{"baud", &bs, "Numeric value of bitrate (baud=4800)", NULL,
 		ARGTYPE_INT },
+	{"maxcmts", &cmts, "Max number of comments to write (maxcmts=200)", 
+		NULL, ARGTYPE_INT },
 	{"noack", &noack, "Suppress use of handshaking in name of speed",
 		NULL, ARGTYPE_BOOL},
 	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING },
@@ -786,8 +795,18 @@ mag_rd_init(const char *portname)
 }
 
 static void
-mag_wr_init(const char *portname)
+mag_wr_init_common(const char *portname)
 {
+	if (bs) {
+		bitrate=atoi(bs);
+	}
+
+	if (cmts) {
+		wptcmtcnt_max = atoi(cmts);
+	} else {
+		wptcmtcnt_max = MAXCMTCT ;
+	}
+
 #if __WIN32__
 	if (!terminit(portname, 1)) {
 		is_file = 1;
@@ -821,6 +840,24 @@ mag_wr_init(const char *portname)
 		mag_rd_init(portname);
 	}
 	QUEUE_INIT(&rte_wpt_tmp);
+}
+
+/*
+ * Entry point for extended (explorist) points.
+ */
+static void
+magX_wr_init(const char *portname)
+{
+	wpt_len = 20;
+	mag_wr_init_common(portname);
+	setshort_length(mkshort_handle, wpt_len);
+}
+
+static void
+mag_wr_init(const char *portname)
+{
+	wpt_len = 8;
+	mag_wr_init_common(portname);
 }
 
 static void
@@ -1150,7 +1187,7 @@ mag_waypt_pr(const waypoint *waypointp)
 	const char *icon_token=NULL;
 	char *owpt;
 	char *odesc;
-	char *isrc;
+	char *isrc = NULL;
 
 	ilat = waypointp->latitude;
 	ilon = waypointp->longitude;
@@ -1179,11 +1216,12 @@ mag_waypt_pr(const waypoint *waypointp)
 
 	isrc = waypointp->notes ? waypointp->notes : waypointp->description;
 	owpt = global_opts.synthesize_shortnames ?
-                        mkshort(mkshort_handle, isrc) : waypointp->shortname;
+                        mkshort_from_wpt(mkshort_handle, waypointp) : waypointp->shortname;
 	odesc = isrc ? isrc : "";
 	owpt = mag_cleanse(owpt);
 
-	if (waypointp->gc_data.diff && waypointp->gc_data.terr) {
+	if (!global_opts.no_smart_icons &&
+	    waypointp->gc_data.diff && waypointp->gc_data.terr) {
 		sprintf(ofmtdesc, "%d/%d %s", waypointp->gc_data.diff, 
 			waypointp->gc_data.terr, odesc);
 		odesc = mag_cleanse(ofmtdesc);
@@ -1191,11 +1229,20 @@ mag_waypt_pr(const waypoint *waypointp)
 		odesc = mag_cleanse(odesc);
 	}
 
-	sprintf(obuf, "PMGNWPL,%4.3f,%c,%09.3f,%c,%07.lf,M,%-.8s,%-.30s,%s",
+	/*
+	 * For the benefit of DirectRoute (which uses waypoint comments
+	 * to deliver turn-by-turn popups for street routing) allow a 
+	 * cap on the comments delivered so we leave space for it to route.
+	 */
+	if (odesc && /* !is_file && */ (wptcmtcnt++ >= wptcmtcnt_max))
+		odesc[0] = 0;
+
+	sprintf(obuf, "PMGNWPL,%4.3f,%c,%09.3f,%c,%07.lf,M,%-.*s,%-.46s,%s",
 		lat, ilat < 0 ? 'S' : 'N',
 		lon, ilon < 0 ? 'W' : 'E',
 		waypointp->altitude == unknown_alt ?
 			0 : waypointp->altitude,
+		wpt_len,
 		owpt,
 		odesc,
 		icon_token);
@@ -1332,7 +1379,8 @@ mag_route_trl(const route_head * rte)
 			thisline++;
 
 			sprintf(obuff, "PMGNRTE,%d,%d,c,%d,%s,%s", 
-				numlines, thisline, route_out_count,
+				numlines, thisline, 
+				rte->rte_num ? rte->rte_num : route_out_count,
 				buff1, buff2);
 
 			mag_writemsg(obuff);
@@ -1363,7 +1411,11 @@ mag_write(void)
 	 * Whitespace is actually legal, but since waypoint name length is
 	 * only 8 bytes, we'll conserve them.
 	 */
+
 	setshort_whitespace_ok(mkshort_handle, 0);
+
+	wptcmtcnt = 0;
+
 	switch (global_opts.objective)
 	{
 		case trkdata:
@@ -1386,6 +1438,7 @@ mag_write(void)
  */
 ff_vecs_t mag_svecs = {
 	ff_type_serial,
+	FF_CAP_RW_ALL,
 	mag_rd_init,	
 	mag_wr_init,	
 	mag_deinit,	
@@ -1398,6 +1451,7 @@ ff_vecs_t mag_svecs = {
 
 ff_vecs_t mag_fvecs = {
 	ff_type_file,
+	FF_CAP_RW_ALL,
 	mag_rd_init,	
 	mag_wr_init,	
 	mag_deinit,	
@@ -1406,4 +1460,19 @@ ff_vecs_t mag_fvecs = {
 	mag_write,
 	NULL, 
 	mag_fargs
+};
+
+/*
+ * Extended (Explorist) entry tables.
+ */
+ff_vecs_t magX_fvecs = {
+	ff_type_file,
+	FF_CAP_RW_ALL,
+	mag_rd_init,	
+	magX_wr_init,	
+	mag_deinit,	
+	mag_deinit,	
+	mag_read,
+	mag_write,
+	NULL, 
 };

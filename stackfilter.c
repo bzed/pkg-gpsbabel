@@ -40,27 +40,29 @@ static int  swapdepth = 0;
 static
 arglist_t stackfilt_args[] = {
 	{"push", &opt_push, "Push waypoint list onto stack", NULL, 
-		ARGTYPE_BOOL},
-	{"copy", &opt_copy, "Copy waypoint list when pushing", NULL,
-		ARGTYPE_BOOL},
+		ARGTYPE_BEGIN_EXCL | ARGTYPE_BEGIN_REQ | ARGTYPE_BOOL},
 	{"pop", &opt_pop, "Pop waypoint list from stack", NULL,
 		ARGTYPE_BOOL},
-	{"append", &opt_append, "Append list when popping", NULL,
-		ARGTYPE_BOOL},
-	{"discard", &opt_discard, "Discard top of stack when popping", 
-		NULL, ARGTYPE_BOOL},
-	{"replace", &opt_replace, "Replace list with top of stack (default)", 
-		NULL, ARGTYPE_BOOL},
 	{"swap", &opt_swap, "Swap waypoint list with <depth> item on stack", 
+		NULL, ARGTYPE_END_EXCL | ARGTYPE_END_REQ | ARGTYPE_BOOL},
+	{"copy", &opt_copy, "(push) Copy waypoint list", NULL,
+		ARGTYPE_BOOL},
+	{"append", &opt_append, "(pop) Append list", NULL,
+		ARGTYPE_BEGIN_EXCL | ARGTYPE_BOOL},
+	{"discard", &opt_discard, "(pop) Discard top of stack", 
 		NULL, ARGTYPE_BOOL},
-	{"depth", &opt_depth, "Item to use when swapping", NULL, ARGTYPE_INT},
+	{"replace", &opt_replace, "(pop) Replace list (default)", 
+		NULL, ARGTYPE_END_EXCL | ARGTYPE_BOOL},
+	{"depth", &opt_depth, "(swap) Item to use (default=1)", 
+		NULL, ARGTYPE_INT},
 	{"nowarn", &nowarn, "Suppress cleanup warning", NULL, 
-		ARGTYPE_INT | ARGTYPE_HIDDEN},
+		ARGTYPE_BOOL | ARGTYPE_HIDDEN},
 	{0, 0, 0, 0, 0}
 };
 
 struct stack_elt {
 	queue waypts;
+	unsigned int waypt_ct;
 	struct stack_elt *next;
 } *stack = NULL;
 
@@ -72,11 +74,13 @@ stackfilt_process(void)
 	queue *elem = NULL;
 	queue *tmp = NULL;
 	queue tmp_queue;
-	waypoint *wpt_tmp;
+	unsigned int tmp_count;
 	
 	if ( opt_push ) {
 		tmp_elt = (struct stack_elt *)xmalloc(sizeof(struct stack_elt));
 		QUEUE_MOVE(&(tmp_elt->waypts), &waypt_head);
+		tmp_elt->waypt_ct = waypt_count();
+		set_waypt_count(0);
 		tmp_elt->next = stack;
 		stack = tmp_elt;
 		if ( opt_copy ) {
@@ -101,6 +105,7 @@ stackfilt_process(void)
 		else {
 			waypt_flush( &waypt_head );
 			QUEUE_MOVE(&(waypt_head), &(stack->waypts) );
+			set_waypt_count(stack->waypt_ct);
 		}
 		stack = tmp_elt->next;
 		xfree( tmp_elt );
@@ -117,6 +122,10 @@ stackfilt_process(void)
 		QUEUE_MOVE(&tmp_queue, &(tmp_elt->waypts) );
 		QUEUE_MOVE(&(tmp_elt->waypts), &waypt_head );
 		QUEUE_MOVE(&waypt_head, &tmp_queue );
+		
+		tmp_count = waypt_count();
+		set_waypt_count( tmp_elt->waypt_ct );
+		tmp_elt->waypt_ct = tmp_count;
 	}
 }
 

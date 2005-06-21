@@ -518,8 +518,8 @@ static char *latlon2str(const waypoint * wpt)
     char lon_hemi = wpt->longitude < 0 ? 'W' : 'E';
     unsigned char lat_deg = fabs(wpt->latitude);
     unsigned char lon_deg = fabs(wpt->longitude);
-    unsigned int lat_min = (fabs(wpt->latitude) - lat_deg) * 60000 + 0.5;
-    unsigned int lon_min = (fabs(wpt->longitude) - lon_deg) * 60000 + 0.5;
+    unsigned int lat_min = (fabs(wpt->latitude) - lat_deg) * 60000 + 0.500000000001;
+    unsigned int lon_min = (fabs(wpt->longitude) - lon_deg) * 60000 + 0.500000000001;
 
     if (snprintf(str, 18, "%02u%05u%c%03u%05u%c",
 		 lat_deg, lat_min, lat_hemi, lon_deg, lon_min, lon_hemi) != 17) {
@@ -842,20 +842,20 @@ static void wr_track(void)
 	QUEUE_FOR_EACH(&gnss_track->waypoint_list, elem, tmp) {
 	    wpt = (waypoint *) elem;
 	    pres_alt = interpolate_alt(pres_track, wpt->creation_time + time_adj);
-	    wr_fix_record(wpt, pres_alt, wpt->altitude);
+	    wr_fix_record(wpt, (int) pres_alt, (int) wpt->altitude);
 	}
     } else {
 	if (pres_track) {
 	    // Only the pressure altitude track was found so generate fix
 	    // records from it alone.
 	    QUEUE_FOR_EACH(&pres_track->waypoint_list, elem, tmp) {
-		wr_fix_record((waypoint *) elem, ((waypoint *) elem)->altitude, unknown_alt);
+		wr_fix_record((waypoint *) elem, (int) ((waypoint *) elem)->altitude, (int) unknown_alt);
 	    }
 	} else if (gnss_track) {
 	    // Only the GNSS altitude track was found so generate fix
 	    // records from it alone.
 	    QUEUE_FOR_EACH(&gnss_track->waypoint_list, elem, tmp) {
-		wr_fix_record((waypoint *) elem, unknown_alt, ((waypoint *) elem)->altitude);
+		wr_fix_record((waypoint *) elem, (int) unknown_alt, (int) ((waypoint *) elem)->altitude);
 	    }
 	} else {
 	    // No tracks found so nothing to do
@@ -894,6 +894,7 @@ static arglist_t igc_args[] = {
 
 ff_vecs_t igc_vecs = {
     ff_type_file,
+    { ff_cap_none , ff_cap_read | ff_cap_write, ff_cap_read | ff_cap_write },
     rd_init,
     wr_init,
     rd_deinit,
