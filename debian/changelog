@@ -1,0 +1,20 @@
+gpsbabel (1.2.4-2) unstable; urgency=low
+
+  * make check failure no longer causes build failure.  There are apparently
+    a lot of minor differences in rounding on different archs that were
+    causing this.  Closes: #294717.
+
+ -- John Goerzen <jgoerzen@complete.org>  Mon, 14 Mar 2005 10:39:57 -0600
+
+gpsbabel (1.2.4-1) unstable; urgency=low
+
+  * New upstream release.  Closes: #291544.
+
+ -- John Goerzen <jgoerzen@complete.org>  Thu, 27 Jan 2005 11:08:20 -0600
+
+gpsbabel (1.2.3-1) unstable; urgency=low
+
+  * Initial Release.  Closes: #270812.
+
+ -- John Goerzen <jgoerzen@complete.org>  Thu,  9 Sep 2004 08:14:00 -0500
+
