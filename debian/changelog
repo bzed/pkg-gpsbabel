@@ -1,3 +1,12 @@
+gpsbabel (1.2.5+1.2.6-beta20050608-1) unstable; urgency=low
+
+  * New usptream version.  Closes: #315227.
+  * New version includes support for USB.  Closes: #315134.
+  * New upstream version already has patch for my_rd_deinit.
+    Closes: #315164.
+
+ -- John Goerzen <jgoerzen@complete.org>  Tue, 21 Jun 2005 05:59:58 -0500
+
 gpsbabel (1.2.4-2) unstable; urgency=low
 
   * make check failure no longer causes build failure.  There are apparently
