@@ -1,6 +1,6 @@
 gpsbabel (1.2.7-1) unstable; urgency=low
 
-  * New upstream version.
+  * New upstream version.  Closes: #317559.
 
  -- John Goerzen <jgoerzen@complete.org>  Tue, 11 Oct 2005 05:31:39 -0500
 
