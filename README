@@ -61,14 +61,6 @@ COMMON USAGE
 	gpsbabel -i magellan -f /dev/ttyS0 -o geo -F mag.loc
 	gpsbabel -i magellan -f com1 -o geo -F mag.loc
 	
-    PathAway (Palm) database
-    
-	PathAway is a Palm software designed for handling "most" GPS devices 
-	(including BlueTooth). In this time (i mean 2005) a free tool 
-	to convert this database is located on the homepage 
-	of PathAway (www.pathaway.com). But i've read there ... for windows and
-	the output format was also very limited. 
-
 	Optionally, you may specify "-s" in any command line.  This causes
 	the program to ignore any "short" names that may be present in the
 	source data format and synthesize one from the long name.  This
@@ -85,10 +77,21 @@ COMMON USAGE
 
 ADVANCED USAGE
 
-	Argument are processed in the order they appear on the command line.
-	Input is cumulative.  The input file type remains unchanged until a 
-	new -i argument is seen.  Files are read in the order they appear.  
-	So you could merge three input files into one output file with:
+	Argument are processed in the order they appear on the command line
+	and are translated internally into a pipeline that data flows
+	through when executed. Normally one would:
+	- read from one input
+	- optionally apply filters
+	- write into one output
+
+        but GPSBabel is flexible enough to allow more complicated
+        operations such as reading from several files (potentially of
+        different types), applying a filter, reading more data, then
+        write the merged data to multiple destinations.
+
+	The input file type remains unchanged until a new -i argument 
+	is seen.  Files are read in the order they appear. So you could 
+	merge three input files into one output file with:
 	
 	gpsbabel -i geo -f 1.loc -f 2.loc -f 3.loc -o geo -F big.loc
 
@@ -102,13 +105,31 @@ ADVANCED USAGE
 
 ROUTE AND TRACK MODES
 
-        The presence of "-t" on the command line tells us to work with
-        tracks.  The presence of "-r" tells us to work with routes.
-        Tracks and routes are advanced features and don't try to
-        handle every possible hazard that can be encountered during a
-        conversion.  If you're merging or converting files of similar
-        limitations, things work very well.  The presence of "-s" on
-        the command line tends to creat havoc because tracks and routes.
+	Most formats will make reasonable attempt to work transparently
+	with waypoints, tracks, and routes.  Some formats, like 'garmin'
+	and 'magellan' require the '-t' flag to work with tracks and
+	'-r' to work with routes. '-w' is for waypoints, and is the
+	default. So if you wanted to read all data from your unit into
+	a gpx file, you might use a command like:
+
+		gpsbabel -t -r -w -i magellan -f com1:  -o gpx -F backup.gpx
+
+	Tracks and routes are advanced features and don't try to
+	handle every possible hazard that can be encountered during a
+	conversion.  If you're merging or converting files of similar
+	limitations, things work very well.
+
+        Tracks and routes will sometimes be converted to a list of
+        waypoints when necessary, f.i. when writing into one of the CSV
+        formats. The inverse operation is not supported right now, so
+        reading the converted track back from CSV will always result in
+        a list of waypoints, not the original track.   
+
+        The presence of "-s" on the command line tends to creats havoc
+        on tracks and routes since many of these formats rely on
+        internal linkages between such points and renaming them may
+        break those linkages.  In general, don't use "-s" when tracks or
+        routes are present.
 
 THE FORMATS
 
@@ -143,12 +164,22 @@ THE FORMATS
 
     MAGELLANX
 
- 	The SD card format used by the Magellan Explorist 300, 400, and 500.
+ 	The SD card format used by the Magellan Explorist 400, 500, and 600.
 	It's identical to the Magellan SD format used by Meridian, but allows
 	longer waypoint names.
 	
 	You should name any file created with this format with a ".upt"
 	extension so the firmware can read it.
+
+    MAGGEO
+
+        The SD card format used by the Magellan Explorist 400, 500, and
+        600 to describe geocaches.  Notice what while the format can
+        hold an infinite number of geocaches, the unit will read and
+        silently discard all but 200 geocache POIs at a time.
+
+        You should name any file created with this format with a ".gs"
+        extension so the firmware can read it.
 
     GARMIN
 
@@ -162,16 +193,11 @@ THE FORMATS
         else (PDA hotsync programs, gpsd, getty, pppd, etc.) is using
         the serial port.
 
-        New in GPSBabel 1.2.4 is USB support, but only under Windows.
-        It's reported successful with VistaC, SummitC, 60C, 60CS, 76C,
-        76CS, and 96C.  Some users report success with StreetPilot 2610
-        and some do not, but nobody's followed up with details on that.
-
-        Quest is known to not work, not becuase of USB problems, but
-        rather becuase it only implements a new waypoint protocol that's
-        seemingly only available on that model.  If you have a Quest and
-        would like to see it supported and can provide patches or a loan
-        of the equipment for a few days, please contact Robert Lipe.
+        GPSBabel supports the USB Garmins under Windows and on Linux and
+        OS/X via libusb.  It's reported successful with VistaC, SummitC,
+        60C, 60CS, 76C, 76CS, 96C, and Quest.  Some users report success
+        with StreetPilot 2610 and some do not, but nobody's followed up
+        with details on that.
 
         Currently, only a single USB unit at a time can be supported.  The
         device name to use on the command line is "usb:"   Thus, to read
@@ -184,6 +210,13 @@ THE FORMATS
 	dumps by adding "-D9" to the command line, like:
 
 		gpsbabel -D9 -i garmin -f usb: -o gpx -F blah.gpx
+
+        Custom icons are supported on units that support that.  Neither
+        GPSBabel nor your firmware know what is associated with any
+        given slot number.  They don't know that the picture you placed
+        in the first slot is a happy face, they only know they're in the
+        lowest numbered slot.  GPSBabel names the them consistently with
+        Mapsource, so they are named 'Custom 0' through 'Custom 23'.
 
     GPSMAN
 
@@ -221,8 +254,16 @@ THE FORMATS
 	The Lowrance iFinder GPS series has the unique capability to
 	output its data to an MMC card.  The data is saved to the card
 	as a .USR file and can be read by your computer using a card
-	reader.  Currently only reading and writing of waypoints (no
-	routes or tracks) is supported.
+	reader.  Waypoints, routes, tracks are supported.  By default,
+	Event marker icons are converted to waypoints.  Symbols tend
+	to get lost in the translation.
+
+	Additional options:
+	ignoreicons	-	don't convert icons to waypoints
+	merge		-	(USR output) merge all tracks into a single
+					track with segments
+	break		-	(USR input) break track segments into separate
+					tracks
 
     XMap
 
@@ -462,6 +503,12 @@ THE FORMATS
         GpsDrive way.txt file format. A space seperated format file. Tested
         against GpsDrive v 1.30 found @ http://www.kraftvoll.at/software.
         Contributed by Alan Curry.
+	
+    GPSDRIVETRACK
+    
+        Format used by GpsDrive to save tracks. Like GPSDRIVE a space
+	seperated format file. See above for a link to GpsDrive.
+	Contributed by Tobias Minich.
 
     Geocaching DB
 
@@ -512,8 +559,10 @@ THE FORMATS
 
     s_and_t
 
-	This is a CSV format for Microsoft Streets and Trips.   Detailed
-	instructions on how to import to it, preserving hyperlinks, are at
+        This is a format for importing into Microsoft Streets and Trips.
+        It's been exercised on versions 2003, 2004, and 2005.  Detailed
+        instructions on how to use it, including preserving hyperlinks,
+        are at
 
 	http://www.gpsbabel.org/formats/s_and_t/Importing_into_Microsoft_Streets_and_Trips_2003.html
 
@@ -530,8 +579,24 @@ THE FORMATS
 
     Fugawi
 
-	This was a requested CSV format.   It's unknown which version of
-	which software it works with.
+	This was a requested CSV format, *not* the proprietary binary format
+        used by Fugawi. Like any other CSV format, GPSBabel cannot read tracks
+        in this format, but converting a track into it and then importing as
+        track in Fugawi works.
+
+        It is known to work with Fugawi V3.1.4.635. When importing/exporting
+        waypoints, one has to specify the order of fields as follows (names of
+        fields may depend on the language used by Fugawi):
+        - Name
+        - Comment
+        - Description
+        - Latidude
+        - Longitude
+        - Altitude (metres)
+        - Date (yyyymmdd/yymmdd)
+        - Time of day (hhmmss)
+        When importing tracks, use "[ignore]" instead of "Name", "Comment" and
+        "Description".
 
 	http://www.fugawi.com/
 
@@ -782,26 +847,38 @@ THE FORMATS
         useful:
 
         #!/bin/sh
-        FROM="233 S. Wacker, Chicago, IL"
-        TO="1060 W. Addison, Chicago, IL"
+	FROM="233 S. Upper Wacker Dr, Chicago, IL"
+	TO="1060 W. Addison St, Chicago, IL"
         wget -O - "http://maps.google.com/maps?q=$FROM to $TO&output=js" \
            2>/dev/null >google_map.js
 
         gpsbabel -i google -f google_map.js -o gpx -F google_map.gpx
+
+        Note that Internet Explorer has been observed to damage the
+        XHTML beyond recognition so use a better browser to save the
+        pages such as Firefox or Mozilla.
+
+    TEF
+
+        TEF, internal called "TourExchangeFormat", is a XML based 
+	export format, used by Map&Guide "Motorrad-Routenplaner 2005/06".
+	Another posibility to exchange data with this are the .bcr files,
+	which are sopprted by GPSbabel in both directions (see BCR).
+	Via XML this software can only export routing data.  
+	So we don't support writing. 
 	
-    TourExchangeFormat
-    
-	XML based export format, used by Map&Guide
-	"Motorrad-Routenplaner". This software can only export routing data.
-	So we don't support writing.
+	With the option "routevia" you can eliminate calculated route
+	points from tef source file.
 	
+	gpsbabel -r -i tef,routevia -f in.xml -o gpx -F out.gpx
+
     PathAway
-    
-	PathAway is a Palm software designed for handling "most" GPS devices 
-	(including BlueTooth). In this time (i mean 2005) a free tool 
-	to convert this database is located on the homepage 
-	of PathAway (www.pathaway.com). But i've read there ... for windows and
-	the output formats are also very limited. 
+
+        PathAway is a Palm software designed for handling "most" GPS
+        devices (including BlueTooth). In this time (i mean 2005) a free
+        tool to convert this database is located on the homepage of
+        PathAway (www.pathaway.com). But i've read there ... for windows
+        and the output formats are also very limited.
 
     AN1
 
@@ -839,16 +916,94 @@ THE FORMATS
         the icon.  It should be 22x22 and 16 colors, and have the same name
         (not including the extension) as the .ov2 file.
 
+    VitoSMT
+
+	Vito Navigator II is a Pocket PC GPS application.  This format reads
+	a Vito Navigator II .SMT track file and can work in either waypoint
+	or track mode.  The speed, heading and Dilution of Position data
+	is written in the notes field.
+
+	Support for writing .SMT tracks is very experimental and may crash
+	VitoNavigator II on the Pocket PC.
+
+    GDB
+
+        Support for the "Garmin GPS Database" format used by default in
+        MapSource versions since release 6.0. By default we create gdb's
+        of version 2.  Version 2 is used in Mapsource 6.3 and 6.5.
+
+        Garmin GPS database is an undocumented file format. The
+        basic info for this module comes from the existing MapSource
+        conversion code.
+
+        Additional options:
+
+            ver - set the data format version of the output file
+            (currently 1 or 2); 2 is our default.
+	     via - Drop hidden route points (means calculated stuff) 
+	    cat - default category on output (1..16)
+
+    BCR
+    
+	This file format (extension .bcr) is used in
+	"Motorrad Routenplaner 2002-..." by Map&Guide. It is a route-onle
+	format. If you own a newer release (2005...) you can also use 
+	the XML export and convert via 
+	"gpsbabel ... -i tef ..." to your preferred format. 
+	
+	May be there are other products from Map&Guide using the format.
+	
+	Coordinates are stored in Mercator format. The calculation between
+	this and our internal format can result in visible differences.
+	Experience reports are welcome.
+	
+	Options:
+	
+	  index -  If more then one route are present in source data, with
+	           this option you can determine, which of this should used
+		   for the output. The range is 1 to number routes in input.
+		   If you don't use this, only the first route will be
+		   converted.
+	  name -   Not every input format has a real name for routes in 
+	           their data. So you can give the route a nice name.
+	  radius - Overwrites the default value of 6371000.0 meters for
+	           the earth radius. My be this can help to reduce 
+		   differences.
+		   
+	An example with all options:
+	
+	gpsbabel -r \
+		 -i gpx -f in.gpx
+	         -o bcr,index=1,name="From A to B",radius=6371012 \
+		 -F a_to_b.bcr
+	
+    OPENOFFICE
+	Tab seperated export-all (except geocaching data) file format. 
+	Intended to serve as source for number-processing applications
+	like OpenOffice, Ploticus and others. Tab was chosen as delimiter
+	because it is a) supported by both OpenOffice and Ploticus and
+	b) is not ',', so you can use 'sed -i "s/./,/g" <x>.csv' to adapt it to
+	locales where ',' is used as decimal seperator.
+	Contributed by Tobias Minich.
+	
 DATA FILTERS
 
-	GPSBabel supports data filtering.  Data filters are invoked from
-	the command line via the '-x' option.  It should be noted that
-	data filters are invoked in the order they appear on the command
-	line and can be used in intermittently between several variations
-	of input and output functions.  It should also be noted that
-	filtering data from different input types can sometimes produce
-	undesirable results due to differences in the native data formats.
+        GPSBabel supports data filtering.  Data filters are invoked from
+        the command line via the '-x' option.  It should be noted that
+        data filters are invoked in the internal pipeline at the point
+        that corresponds to their position on the command. This implies
+        that specifying a filter before reading any data ('-x <filter>
+        -f <file>'), despite being legal, will not have any effect. The
+        advantage is that filters can be used intermittently between
+        several variations of input and output functions.  It should
+        also be noted that filtering data from different input types can
+        sometimes produce undesirable results due to differences in the
+        native data formats.
 
+        Beware that most filters only apply to a certain kind of
+        data. This is usually indicated below by referring to points,
+        tracks or routes in the first sentence which describes each
+        filter or in the table at http://www.gpsbabel.org/capabilities.html .
 
     POSITION
 
@@ -1117,3 +1272,145 @@ DATA FILTERS
                     -x stack,pop,append \
                     -o magellan -F fwaind.wpt
  
+
+    TRACK
+
+	( !!! This filter always drops empty tracks !!! )
+	
+        The track filter is a tool for manipulating track lists. 
+	The following options are available:
+
+        TITLE
+
+            Gives the new track(s) a basic title. Basic means if more
+            than one track is created by filter the title will be
+            expanded with the date the new track. Special formats (see
+            UNIX date or strftime for details) are possible.
+
+            gpsbabel -t \
+		-i gpx -f in.gpx  \
+	          -x track,pack,split,title="ACTIVE LOG-%D" \ 
+		-o gpx -F out.gpx PACK
+		
+	MOVE
+	
+	    Change the time of all trackpoints. This is useful if
+	    your track has moved by one or more hours through a
+	    time zone problem.   The following example will shift
+	    your track to be one hour later.
+
+	    gpsbabel -t \
+		     -i gpx -f in.gpx \
+		     -x track,move=+1h,pack,title="ACTIVE LOG" \
+		     -o gpx -F out.gpx
+		     
+	START / STOP
+	
+	    Filter tracks against time borders. All points outside
+	    this range will be dropped. The date-time paramters
+	    have to be in form of YYYYMMDDHHMMSS; but you may specify
+ 	    only the most significant portion represented in the the 
+	    leftmost fields.  See the example, where the time is 
+	    specified only through the hour.
+	    
+	    If you only want to get a track mapped on 20 july 2005 from
+	    10 am to 6pm, you should use this:
+	    
+	    gpsbabel -t \
+		     -i gpx -f in.gpx \
+		     -x track,start=2005072010,stop=2005072018 \
+		     -o gpx -F out.gpx
+	    
+	PACK
+	
+            With this default option all tracks from input will be
+            packed into one track. If tracks overlaps in time, the
+            filter stops working.   To pack all the tracks together
+	    into one track and give it a name, use this:
+
+	    gpsbabel -t \
+		     -i gpx -f in.gpx \
+		     -x track,pack,title="ACTIVE LOG" \
+		     -o gpx -F out.gpx
+		     
+	SPLIT
+	
+	    The input track will be split into several tracks 
+	    depending on date of track points. If there is more 
+	    than one track, use the pack option before before 
+	    using this. 
+  
+	    To split a single tracks into separate tracks for each day
+	    and name them, use this:
+ 
+	    gpsbabel -t \
+		     -i gpx -f in.gpx \
+		     -x track,split,title="ACTIVE LOG # %Y%m%d" \
+		     -o gpx -F out.gpx
+
+	    If the input has multiple tracks, pack them together before
+	    splitting them back apart per day thusly:
+	    
+	    gpsbabel -t \
+		     -i gpx -f in.gpx \
+		     -x track,pack,split,title="ACTIVE LOG # %D" \
+		     -o gpx -F out.gpx
+
+            Additionally you can add an interval to the split option.
+            With this the track will be split if the time between two
+            points is greater than this parameter. The interval must be
+            numeric and can be int days, hours, minutes or seconds, 
+	    expressed as one of the character "d", "h", "m", or "s".
+	    If no trailing character is present, the units are assumed to
+	    be in seconds.
+
+            For example, to split a track based on an four hour interval, 
+	    use this:
+
+            gpsbabel -t \ 
+			-i gpx -f in.gpx \ 
+			-x track,pack,split=4h,title="LOG # %c" \ 
+			-o gpx -F out.gpx
+
+ 	MERGE
+ 	    
+ 	    Merge puts all track points into one single track and
+ 	    sort them by time. Points with identical time stamp 
+ 	    will be dropped !!!
+ 	    
+ 	    If you want to merge tracks from different devices 
+ 	    but from same trip, use this:
+ 	    
+ 	    gpsbabel -t \
+ 		     -i gpx -f john.gpx \
+ 		     -i gpx -f doe.gpx \
+ 		     -x track,merge,title="COMBINED LOG" \
+ 		     -o gpx -F john_doe.gpx
+
+    DISCARD
+
+        This filter 'fixes' gps data by discarding points with a hdop
+        and/or vdop over a set limit. If you give both the hdop and a
+        vdop options, by default points that exceed EITHER are discarded
+        (OR). This filter processes waypoints, tracks, and routes.
+
+        HDOP (float)
+
+            Points with a hdop exceeding the given value are discarded.
+
+        VDOP (float)
+
+            Points with a vdop exceeding the given value are discarded.
+
+        HDOPANDVDOP
+
+            Only useful if both hdop and vdop are given. Now logical AND
+            is used, i.e. only points exceeding both given values are
+            discarded.
+
+            Example: gpsbabel \ 
+		-i gpx -f in.gpx \
+		-x discard,hdop=10,vdop=20,hdopandvdop \ 
+		-o gpx -F out.gpx
+
+        Contributed by Tobias Minich.

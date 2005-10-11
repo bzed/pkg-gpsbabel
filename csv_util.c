@@ -24,6 +24,7 @@
 #include "defs.h"
 #include "csv_util.h"
 #include "grtcirc.h"
+#include "strptime.h"
 
 #define MYNAME "CSV_UTIL"
 
@@ -41,9 +42,8 @@ extern char *xcsv_urlbase;
 extern char *prefer_shortnames;
 
 extern const char *gs_get_container(geocache_container t);
-extern geocache_container gs_mktype(const char *t);
+extern geocache_type gs_mktype(const char *t);
 extern geocache_container gs_mkcont(const char *t);
-extern const char *gs_get_cachetype(geocache_type t);
 
 static double pathdist = 0;
 static double oldlon = 999;
@@ -185,6 +185,17 @@ csv_lineparse(const char *stringstart, const char *delimited_by,
     
     if (strcmp(delimited_by, "\\w") == 0)
         hyper_whitespace_delimiter = 1;
+
+    /*
+     * This is tacky.  Our "csv" format is actually "commaspace" format.
+     * Changing that causes unwanted churn, but it also makes "real" 
+     * comma separated data (such as likely to be produced by Excel, etc.) 
+     * unreadable.   So we silently change it here on a read and let the
+     * whitespace eater consume the space.
+     */
+    if (strcmp(delimited_by, ", ") == 0) {
+	delimited_by = ",";
+    }
 
     if (!p) {
 	/* first pass thru */
@@ -621,6 +632,92 @@ yyyymmdd_to_time(const char *s)
 	return mktime(&tm);
 }
 
+
+
+/*
+ * sscanftime - Parse a date buffer using strftime format
+ */
+static
+time_t
+sscanftime( const char *s, const char *format, const int gmt )
+{
+	struct tm stm = {0,0,0,0,0,0,0,0,0};
+	if ( strptime( s, format, &stm ) )
+	{
+		stm.tm_isdst = -1;
+		if (gmt)
+			return mkgmtime(&stm);
+		else
+			return mktime(&stm);		
+	}
+	
+	return -1;
+}
+static
+time_t
+addhms( const char *s, const char *format )
+{
+	time_t tt =0;
+	int  hour =0;
+	int  min  =0;
+	int  sec  =0;
+	char * ampm = NULL;
+	
+	ampm = xmalloc( strlen(s) );
+	if (sscanf(s, format, &hour, &min, &sec, ampm))
+	   tt = ((tolower(ampm[0])=='P')?43200:0)+3600*hour+60*min+sec;
+    	xfree(ampm);
+    	
+	return tt;
+}
+
+static 
+int 
+writetime(char * buff, size_t bufsize, const char * format, time_t t, int gmt )
+{
+	static struct tm * stmp;
+
+	if (gmt)
+		stmp = gmtime(&t);
+	else
+		stmp = localtime(&t);
+
+	return strftime(buff, bufsize, format, stmp );
+}
+
+static 
+int 
+writeisotime(char * buff, size_t bufsize, const char * format, time_t t)
+{
+	static struct tm * stmp;
+	char * ibuff = NULL;
+	int i;
+	
+	ibuff = xmalloc(bufsize);
+	stmp = gmtime(&t);
+	strftime(ibuff, bufsize, format, stmp );
+	i = snprintf(buff, bufsize, format, ibuff );
+	xfree(ibuff);
+	return i;
+}
+
+
+static 
+int 
+writehms(char * buff, size_t bufsize, const char * format, time_t t, int gmt )
+{
+	static struct tm * stmp;
+
+	if (gmt)
+		stmp = gmtime(&t);
+	else
+		stmp = localtime(&t);
+
+	return snprintf(buff, bufsize, format, 
+		stmp->tm_hour, stmp->tm_min, stmp->tm_sec, 
+		(stmp->tm_hour>=12?"PM":"AM") );
+}
+
 static 
 long 
 time_to_yyyymmdd(time_t t)
@@ -735,6 +832,14 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
        /* altitude in meters as a decimal value */
        wpt->altitude = atof(s);
     } else
+    
+    /* PATH CONVERSIONS ************************************************/
+    if (strcmp(fmp->key, "PATH_SPEED") == 0) {
+	wpt->speed = atof(s);
+    } else
+    if (strcmp(fmp->key, "PATH_COURSE") == 0) {
+	wpt->course = atof(s);
+    } else
 
     /* TIME CONVERSIONS ***************************************************/
     if (strcmp(fmp->key, "EXCEL_TIME") == 0) {
@@ -748,7 +853,22 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     if (strcmp(fmp->key, "YYYYMMDD_TIME") == 0) {
 	wpt->creation_time = yyyymmdd_to_time(s);
     } else
-    if (strcmp(fmp->key, "GEOCACHE_LAST_FOUND") == 0) {
+    if (strcmp(fmp->key, "GMT_TIME") == 0) {
+	wpt->creation_time = sscanftime(s, fmp->printfc, 1);
+    } else
+    if (strcmp(fmp->key, "LOCAL_TIME") == 0) {
+	wpt->creation_time = sscanftime(s, fmp->printfc, 0);
+    } else
+    /* Useful when time and date are in separate fields 
+    	GMT / Local offset is handled by the two cases above */
+    if ((strcmp(fmp->key, "HMSG_TIME") == 0)||
+    	(strcmp(fmp->key, "HMSL_TIME") == 0) ) {
+	wpt->creation_time += addhms(s, fmp->printfc);
+    } else
+    if (strcmp(fmp->key, "ISO_TIME") == 0) {
+	wpt->creation_time = xml_parse_time(s);
+    } else
+	if (strcmp(fmp->key, "GEOCACHE_LAST_FOUND") == 0) {
 	wpt->gc_data.last_found = yyyymmdd_to_time(s);
     } else
 
@@ -773,6 +893,33 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     } else
     if (strcmp(fmp->key, "GEOCACHE_PLACER") == 0) {
        wpt->gc_data.placer = csv_stringtrim(s, "", 0);
+    } else
+	
+    /* GPS STUFF *******************************************************/
+    if (strcmp(fmp->key, "GPS_HDOP") == 0) {
+	 wpt->hdop = atof(s);
+    } else
+    if (strcmp(fmp->key, "GPS_VDOP") == 0) {
+	wpt->vdop = atof(s);
+    } else
+    if (strcmp(fmp->key, "GPS_PDOP") == 0) {
+        wpt->pdop = atof(s);
+    } else
+    if (strcmp(fmp->key, "GPS_SAT") == 0) {
+	wpt->sat = atoi(s);
+    } else
+    if (strcmp(fmp->key, "GPS_FIX") == 0) {
+	wpt->fix = atoi(s)-1;
+	if ( wpt->fix < fix_2d) {
+	if (!case_ignore_strcmp(s, "none"))
+		wpt->fix = fix_none;
+	else if (!case_ignore_strcmp(s, "dgps"))
+		wpt->fix = fix_dgps;
+	else if (!case_ignore_strcmp(s, "pps"))
+		wpt->fix = fix_pps;
+	else
+		wpt->fix = fix_unknown;
+	}
     } else
 	
     /* OTHER STUFF ***************************************************/
@@ -934,30 +1081,31 @@ xcsv_waypt_pr(const waypoint *wpt)
 
     i = 0;
     QUEUE_FOR_EACH(xcsv_file.ofield, elem, tmp) {
+	char *obuff;
         fmp = (field_map_t *) elem;
 
         if (i != 0) 
             fprintf (xcsv_file.xcsvfp, write_delimiter);
 
         i++;
-
+#define writebuff(b, fmt, data) snprintf(b, sizeof(b), fmt, data)
         if (strcmp(fmp->key, "IGNORE") == 0) {
             /* IGNORE -- Write the char printf conversion */
-            sprintf(buff, fmp->printfc, "");
+            writebuff(buff, fmp->printfc, "");
         } else
         if (strcmp(fmp->key, "INDEX") == 0) {
-            sprintf(buff, fmp->printfc, waypt_out_count + atoi(fmp->val));
+            writebuff(buff, fmp->printfc, waypt_out_count + atoi(fmp->val));
         } else
         if (strcmp(fmp->key, "CONSTANT") == 0) {
 	    const char *cp = xcsv_get_char_from_constant_table(fmp->val);
 	    if (cp) {
-                sprintf(buff, fmp->printfc, cp);
+                writebuff(buff, fmp->printfc, cp);
 	    } else {
-		sprintf(buff, fmp->printfc, fmp->val);
+		writebuff(buff, fmp->printfc, fmp->val);
 	    }
         } else
         if (strcmp(fmp->key, "SHORTNAME") == 0) {
-            sprintf(buff, fmp->printfc, 
+            writebuff(buff, fmp->printfc, 
                 (shortname && *shortname) ? shortname : fmp->val);
         } else
         if (strcmp(fmp->key, "ANYNAME") == 0) {
@@ -976,16 +1124,16 @@ xcsv_waypt_pr(const waypoint *wpt)
                 anyname = xstrdup(shortname);
 	    }
 
-            sprintf(buff, fmp->printfc, anyname);
+            writebuff(buff, fmp->printfc, anyname);
             
             xfree(anyname);
         } else
         if (strcmp(fmp->key, "DESCRIPTION") == 0) {
-            sprintf(buff, fmp->printfc, 
+            writebuff(buff, fmp->printfc, 
                 (description && *description) ? description : fmp->val);
         } else
         if (strcmp(fmp->key, "NOTES") == 0) {
-	    sprintf(buff, fmp->printfc, 
+	    writebuff(buff, fmp->printfc, 
 	        (wpt->notes && *wpt->notes) ? wpt->notes : fmp->val);
         } else
         if (strcmp(fmp->key, "URL") == 0) {
@@ -995,16 +1143,16 @@ xcsv_waypt_pr(const waypoint *wpt)
 		off = strlen(xcsv_urlbase);
 	    }
 	    if (wpt->url)
-		sprintf(buff + off, fmp->printfc, wpt->url);
+		snprintf(buff + off, sizeof(buff) - off, fmp->printfc, wpt->url);
 	    else
 		strcpy(buff, (fmp->val && *fmp->val) ? fmp->val : "\"\"");
         } else
         if (strcmp(fmp->key, "URL_LINK_TEXT") == 0) {
-            sprintf(buff, fmp->printfc, 
+            snprintf(buff, sizeof(buff), fmp->printfc, 
                 (wpt->url_link_text && *wpt->url_link_text) ? wpt->url_link_text : fmp->val);
         } else
         if (strcmp(fmp->key, "ICON_DESCR") == 0) {
-            sprintf(buff, fmp->printfc, 
+            writebuff(buff, fmp->printfc, 
                 (wpt->icon_descr && *wpt->icon_descr) ? 
                 wpt->icon_descr : fmp->val);
         } else
@@ -1012,51 +1160,51 @@ xcsv_waypt_pr(const waypoint *wpt)
         /* LATITUDE CONVERSION***********************************************/
         if (strcmp(fmp->key, "LAT_DECIMAL") == 0) {
             /* latitude as a pure decimal value */
-            sprintf(buff, fmp->printfc, wpt->latitude);
+            writebuff(buff, fmp->printfc, wpt->latitude);
         } else
         if (strcmp(fmp->key, "LAT_DECIMALDIR") == 0) {
             /* latitude as a decimal value with N/S after it */
-            sprintf(buff, fmp->printfc, fabs(wpt->latitude), 
+            snprintf(buff, sizeof(buff), fmp->printfc, fabs(wpt->latitude), 
               LAT_DIR(wpt->latitude));
         } else
         if (strcmp(fmp->key, "LAT_DIRDECIMAL") == 0) {
             /* latitude as a decimal value with N/S before it */
-            sprintf(buff, fmp->printfc, 
+            snprintf(buff, sizeof(buff), fmp->printfc, 
               LAT_DIR(wpt->latitude),
               fabs(wpt->latitude));
         } else
         if (strcmp(fmp->key, "LAT_INT32DEG") == 0) {
             /* latitude as an integer offset from 0 degrees */
-            sprintf(buff, fmp->printfc,
+            writebuff(buff, fmp->printfc,
               dec_to_intdeg(wpt->latitude, 1));
         } else
 	if (strcmp(fmp->key, "LAT_HUMAN_READABLE") == 0) {
 	    dec_to_human( buff, fmp->printfc, "SN", wpt->latitude );
 	} else
 	if (strcmp(fmp->key, "LAT_NMEA") == 0) {
-		sprintf(buff, fmp->printfc, degrees2ddmm(wpt->latitude));
+		writebuff(buff, fmp->printfc, degrees2ddmm(wpt->latitude));
 	} else
 
         /* LONGITUDE CONVERSIONS*********************************************/
         if (strcmp(fmp->key, "LON_DECIMAL") == 0) {
             /* longitude as a pure decimal value */
-            sprintf(buff, fmp->printfc, wpt->longitude);
+            writebuff(buff, fmp->printfc, wpt->longitude);
         } else
         if (strcmp(fmp->key, "LON_DECIMALDIR") == 0) {
             /* latitude as a decimal value with N/S after it */
-            sprintf(buff, fmp->printfc,
+            snprintf(buff, sizeof(buff),  fmp->printfc,
               fabs(wpt->longitude), 
               LON_DIR(wpt->longitude));
         } else
         if (strcmp(fmp->key, "LON_DIRDECIMAL") == 0) {
             /* latitude as a decimal value with N/S before it */
-            sprintf(buff, fmp->printfc,
+            snprintf(buff, sizeof(buff), fmp->printfc,
               LON_DIR(wpt->longitude),
               fabs(wpt->longitude));
         } else
         if (strcmp(fmp->key, "LON_INT32DEG") == 0) {
             /* longitudee as an integer offset from 0 degrees */
-            sprintf(buff, fmp->printfc,
+            writebuff(buff, fmp->printfc,
               dec_to_intdeg(wpt->longitude, 0));
         } else
 	if (strcmp(fmp->key, "LON_HUMAN_READABLE") == 0) {
@@ -1069,87 +1217,150 @@ xcsv_waypt_pr(const waypoint *wpt)
 			    wpt->longitude );
 	} else
 	if (strcmp(fmp->key, "LON_NMEA") == 0) {
-		sprintf(buff, fmp->printfc, degrees2ddmm(wpt->longitude));
+		writebuff(buff, fmp->printfc, degrees2ddmm(wpt->longitude));
 	} else
 
         /* DIRECTIONS *******************************************************/
         if (strcmp(fmp->key, "LAT_DIR") == 0) {
             /* latitude N/S as a char */
-            sprintf(buff, fmp->printfc,
+            writebuff(buff, fmp->printfc,
             LAT_DIR(wpt->latitude));
         } else
         if (strcmp(fmp->key, "LON_DIR") == 0) {
             /* longitude E/W as a char */
-            sprintf(buff, fmp->printfc,
+            writebuff(buff, fmp->printfc,
               LON_DIR(wpt->longitude));
         } else
 
         /* ALTITUDE CONVERSIONS**********************************************/
         if (strcmp(fmp->key, "ALT_FEET") == 0) {
             /* altitude in feet as a decimal value */
-            sprintf(buff, fmp->printfc,
+            writebuff(buff, fmp->printfc,
               (wpt->altitude * 3.2808));
         } else
         if (strcmp(fmp->key, "ALT_METERS") == 0) {
             /* altitude in meters as a decimal value */
-            sprintf(buff, fmp->printfc,
+            writebuff(buff, fmp->printfc,
               wpt->altitude);
         } else
 		
         /* DISTANCE CONVERSIONS**********************************************/
 	if (strcmp(fmp->key, "PATH_DISTANCE_MILES") == 0) {
             /* path (route/track) distance in miles */
-            sprintf( buff, fmp->printfc, pathdist );
+            writebuff( buff, fmp->printfc, pathdist );
 	} else
 	if (strcmp(fmp->key, "PATH_DISTANCE_KM") == 0) {
             /* path (route/track) distance in  */
-            sprintf( buff, fmp->printfc, pathdist * 5280*12*2.54/100/1000 );
+            writebuff( buff, fmp->printfc, pathdist * 5280*12*2.54/100/1000 );
+	} else
+	if (strcmp(fmp->key, "PATH_SPEED") == 0) {
+            writebuff( buff, fmp->printfc, wpt->speed );
+	} else
+	if (strcmp(fmp->key, "PATH_COURSE") == 0) {
+            writebuff( buff, fmp->printfc, wpt->course );
 	} else
 
         /* TIME CONVERSIONS**************************************************/
         if (strcmp(fmp->key, "EXCEL_TIME") == 0) {
             /* creation time as an excel (double) time */
-            sprintf(buff, fmp->printfc, TIMET_TO_EXCEL(wpt->creation_time));
+            writebuff(buff, fmp->printfc, TIMET_TO_EXCEL(wpt->creation_time));
         } else
         if (strcmp(fmp->key, "TIMET_TIME") == 0) {
             /* time as a time_t variable */
-            sprintf(buff, fmp->printfc, wpt->creation_time);
+            writebuff(buff, fmp->printfc, wpt->creation_time);
         } else
         if (strcmp(fmp->key, "YYYYMMDD_TIME") == 0) {
-	    sprintf(buff, fmp->printfc, time_to_yyyymmdd(wpt->creation_time));
+	    writebuff(buff, fmp->printfc, time_to_yyyymmdd(wpt->creation_time));
+	} else
+	if (strcmp(fmp->key, "GMT_TIME") == 0) {
+	    writetime(buff, sizeof buff, fmp->printfc, wpt->creation_time, 1 );
+	} else
+        if (strcmp(fmp->key, "LOCAL_TIME") == 0) {
+            writetime(buff, sizeof buff, fmp->printfc, wpt->creation_time, 0 );
+	} else
+        if (strcmp(fmp->key, "HMSG_TIME") == 0) {
+            writehms(buff, sizeof buff, fmp->printfc, wpt->creation_time, 1 );
+	} else
+        if (strcmp(fmp->key, "HMSL_TIME") == 0) {
+            writehms(buff, sizeof buff, fmp->printfc, wpt->creation_time, 0 );
+	} else
+	if (strcmp(fmp->key, "ISO_TIME") == 0) {
+            writetime(buff, sizeof buff, "%Y-%m-%dT%H:%M:%SZ", wpt->creation_time, 1 );
 	} else
         if (strcmp(fmp->key, "GEOCACHE_LAST_FOUND") == 0) {
-	    sprintf(buff, fmp->printfc, time_to_yyyymmdd(wpt->gc_data.last_found));
+	    writebuff(buff, fmp->printfc, time_to_yyyymmdd(wpt->gc_data.last_found));
 	} else
 
         /* GEOCACHE STUFF **************************************************/
         if (strcmp(fmp->key, "GEOCACHE_DIFF") == 0) {
             /* Geocache Difficulty as a double */
-            sprintf(buff, fmp->printfc, wpt->gc_data.diff / 10.0);
+            writebuff(buff, fmp->printfc, wpt->gc_data.diff / 10.0);
         } else
         if (strcmp(fmp->key, "GEOCACHE_TERR") == 0) {
             /* Geocache Terrain as a double */
-            sprintf(buff, fmp->printfc, wpt->gc_data.terr / 10.0);
+            writebuff(buff, fmp->printfc, wpt->gc_data.terr / 10.0);
         } else
         if (strcmp(fmp->key, "GEOCACHE_CONTAINER") == 0) {
             /* Geocache Container */
-            sprintf(buff, fmp->printfc, gs_get_container(wpt->gc_data.container));
+            writebuff(buff, fmp->printfc, gs_get_container(wpt->gc_data.container));
 	} else
 	if (strcmp(fmp->key, "GEOCACHE_TYPE") == 0) {
             /* Geocache Type */
-            sprintf(buff, fmp->printfc, gs_get_cachetype(wpt->gc_data.type));
+            writebuff(buff, fmp->printfc, gs_get_cachetype(wpt->gc_data.type));
         } else 
 	if (strcmp(fmp->key, "GEOCACHE_HINT") == 0) {
-	    sprintf(buff, fmp->printfc, NONULL(wpt->gc_data.hint));
+	    writebuff(buff, fmp->printfc, NONULL(wpt->gc_data.hint));
         } else 
 	if (strcmp(fmp->key, "GEOCACHE_PLACER") == 0) {
-	    sprintf(buff, fmp->printfc, NONULL(wpt->gc_data.placer));
-        } else {
-           /* this should probably never happen */
+	    writebuff(buff, fmp->printfc, NONULL(wpt->gc_data.placer));
+        } else
+	
+	/* GPS STUFF *******************************************************/
+	if (strcmp(fmp->key, "GPS_HDOP") == 0) {
+            writebuff(buff, fmp->printfc, wpt->hdop);
+        } else
+	if (strcmp(fmp->key, "GPS_VDOP") == 0) {
+            writebuff(buff, fmp->printfc, wpt->vdop);
+        } else
+	if (strcmp(fmp->key, "GPS_PDOP") == 0) {
+            writebuff(buff, fmp->printfc, wpt->pdop);
+        } else
+	if (strcmp(fmp->key, "GPS_SAT") == 0) {
+            writebuff(buff, fmp->printfc, wpt->sat);
+        } else
+	if (strcmp(fmp->key, "GPS_FIX") == 0) {
+		char *fix = NULL;
+		switch (wpt->fix) {
+			case fix_unknown:
+				fix = "Unknown";
+				break;
+			case fix_none:
+				fix = "None";
+				break;
+			case fix_2d:
+				fix = "2d";
+				break;
+			case fix_3d:
+				fix = "3d";
+				break;
+			case fix_dgps:
+				fix = "dgps";
+				break;
+			case fix_pps:
+				fix = "pps";
+				break;
+		}
+		writebuff(buff, fmp->printfc, fix);
+        } else
+
+	{
+		/* this should probably never happen */
         }
+	
 
-        fprintf (xcsv_file.xcsvfp, "%s", buff);
-
+        obuff = csv_stringclean(buff, xcsv_file.badchars);
+        fprintf (xcsv_file.xcsvfp, "%s", obuff);
+	xfree(obuff);
     }
 
     fprintf (xcsv_file.xcsvfp, "%s", xcsv_file.record_delimiter);

@@ -124,6 +124,8 @@ void goog_poly_e( const char *args, const char **unused )
 	long lat = 0;
 	long lon = 0;
 	long level = 0;
+	long level1 = -9999;
+	long level2 = -9999;
         char *str = encoded_points;
 	char *lstr = encoded_levels;
 	
@@ -135,12 +137,22 @@ void goog_poly_e( const char *args, const char **unused )
 		lat += decode_goog64( &str );
 		lon += decode_goog64( &str );
 		
-		level = 0;
+		level = -1;
+		level2 = level1;
 		if ( lstr && *lstr ) 
 		{
-			level = decode_goog64( &lstr );
-		} 
-
+			level1 = -decode_goog64( &lstr );
+		}
+		else 
+		{
+			level1 = -9999;
+		}
+		level = (level1<level2)?level1:level2;
+		
+		/* level of -9999 happens for endpoints */
+	        if ( level == -9999 ) 
+			level = 99999;	
+		
 		{
 			waypoint *wpt_tmp = waypt_new();
 			wpt_tmp->latitude = lat / 100000.0;
@@ -167,7 +179,7 @@ void goog_poly_e( const char *args, const char **unused )
 void
 google_rd_init(const char *fname)
 {
-	xml_init(fname, google_map);
+	xml_init(fname, google_map, "ISO-8859-1" );
 }
 
 void
@@ -184,7 +196,7 @@ google_read(void)
 			if ( end ) {
 				*end = '\0';
 				xml_deinit();
-				xml_init( NULL, google_map );
+				xml_init( NULL, google_map, NULL );
 				xml_readstring( xml );
 			}
 		}

@@ -68,7 +68,7 @@ maggeo_wr_deinit(void)
 static void
 maggeo_read(void)
 {
-	fatal("Not implemented yet.");
+	fatal("Reading maggeo is not implemented yet.\n");
 }
 
 /*
@@ -100,6 +100,7 @@ maggeo_fmtdate(time_t t)
  * cleansing it of NMEA-isms and decomposing to ASCII as we go.
  */
 static
+void
 append(char *buf, const char *str)
 {
 	char *cleansed1, *cleansed2;
@@ -124,13 +125,12 @@ static void
 maggeo_waypt_pr(const waypoint *waypointp)
 {
 	char obuf[4096];
-	char dtbuf[10];
 	double ilon, ilat;
 	double lon, lat;
 	int lon_deg, lat_deg;
 	char *shortname;
 	char *cname = NULL;
-	char *ctype = NULL;
+	const char *ctype = NULL;
 	char *placer = NULL;
 	char *lfounddate = NULL;
 	char *placeddate = NULL;
@@ -215,7 +215,6 @@ strconsume(char *instr, int *eaten)
 	const char *origstr = instr;
 	char *s = instr;
 	char *e = instr;
-	int ct;
 
 	while (e && *e && *e != ',')
 		*e++;
@@ -229,7 +228,7 @@ strconsume(char *instr, int *eaten)
 
 ff_vecs_t maggeo_vecs = {
 	ff_type_file,
-	FF_CAP_RW_WPT,
+	{ ff_cap_read, ff_cap_none, ff_cap_none },
 	maggeo_rd_init,
 	maggeo_wr_init,
 	maggeo_rd_deinit,

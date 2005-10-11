@@ -36,6 +36,9 @@
 #  define M_PI 3.14159265358979323846
 #endif
 
+#define FEET_TO_METERS(feetsies) ((feetsies) * 0.3048)
+#define METERS_TO_FEET(meetsies) ((meetsies) * 3.2808399)
+
 /*
  * Snprintf is in SUS (so it's in most UNIX-like substance) and it's in 
  * C99 (albeit with slightly different semantics) but it isn't in C89.   
@@ -43,6 +46,7 @@
  */
 #if __WIN32__
 #  define snprintf _snprintf
+#  define vsnprintf _vsnprintf
 #endif
 
 /* Turn off numeric conversion warning */
@@ -68,6 +72,15 @@ typedef enum {
 	wptdata,
 	rtedata
 } gpsdata_type;
+
+typedef enum {
+	fix_unknown=-1,
+	fix_none=0,
+	fix_2d=1,	
+	fix_3d,
+	fix_dgps,
+	fix_pps
+} fix_type;
 
 #define NOTHINGMASK		0
 #define WPTDATAMASK		1
@@ -158,12 +171,32 @@ typedef struct xml_tag {
 	struct xml_tag *child;
 } xml_tag ;
 
-typedef void (*an1_destroy)(void *);
-typedef void (*an1_copy)(void **, void *);
-typedef struct {
-	an1_destroy destroy;
-	an1_copy copy;
-} an1_base;
+typedef void (*fs_destroy)(void *);
+typedef void (*fs_copy)(void **, void *);
+typedef struct format_specific_data {
+	long type;
+	struct format_specific_data *next;
+	
+	fs_destroy destroy;
+	fs_copy copy;
+} format_specific_data;
+
+format_specific_data *fs_chain_copy( format_specific_data *source );
+void fs_chain_destroy( format_specific_data *chain );
+format_specific_data *fs_chain_find( format_specific_data *chain, long type );
+void fs_chain_add( format_specific_data **chain, format_specific_data *data );
+
+typedef struct fs_xml {
+	format_specific_data fs;
+	xml_tag *tag;
+} fs_xml;
+
+fs_xml *fs_xml_alloc( long type );
+
+#define FS_GPX 0x67707800L
+#define FS_AN1W 0x616e3177L
+#define FS_AN1L 0x616e316cL
+#define FS_AN1V 0x616e3176L
 
 /*
  * Misc bitfields inside struct waypoint;
@@ -241,10 +274,20 @@ typedef struct {
 	 * nice enough to use exactly the same priority scheme.
 	 */
 	int route_priority;
+
+	/* Optional dilution of precision:  positional, horizontal, veritcal.  
+	 * 1 <= dop <= 50 
+	 */ 
+	float hdop;		
+	float vdop;		
+	float pdop;		
+	float course;	/* Optional: degrees true */
+	float speed;   	/* Optional: meters per second. */
+	fix_type fix;	/* Optional: 3d, 2d, etc. */
+	int  sat;	/* Optional: number of sats used for fix */
 	
 	geocache_data gc_data;
-	xml_tag *gpx_extras;
-	an1_base *an1_extras;
+	format_specific_data *fs;
 	void *extra_data;	/* Extra data added by, say, a filter. */
 } waypoint;
 
@@ -255,7 +298,7 @@ typedef struct {
 	char *rte_desc;
 	int rte_num;
 	int rte_waypt_ct;		/* # waypoints in waypoint list */
-	an1_base *an1_extras;
+	format_specific_data *fs;
 } route_head;
 
 /*
@@ -461,6 +504,7 @@ void waypt_status_disp(int total_ct, int myct);
 void fatal(const char *, ...)
 #if __GNUC__
 	__attribute__ ((__format__ (__printf__, 1, 2)))
+	__attribute__((noreturn))
 #endif
 	;
 void warning(const char *, ...)
@@ -535,15 +579,23 @@ char *strsub(const char *s, const char *search, const char *replace);
 char *gstrsub(const char *s, const char *search, const char *replace);
 void rtrim(char *s);
 signed int get_tz_offset(void);
+time_t mkgmtime(struct tm *t);
 time_t current_time(void);
 signed int month_lookup(const char *m);
 const char *get_cache_icon(const waypoint *waypointp);
+const char *gs_get_cachetype(geocache_type t);
 char * xml_entitize(const char * str);
 char * html_entitize(const char * str);
 char * strip_html(const utf_string*);
 char * strip_nastyhtml(const char * in);
-char * str_utf8_to_cp1252( const char * str );
-char * str_utf8_to_ascii( const char * str );
+
+/* 
+ * Character encoding transformations.
+ */
+char * str_utf8_to_cp1252(const char * str);
+char * str_utf8_to_ascii(const char * str);
+char * str_iso8859_1_to_utf8(const char *str );
+
 
 /* this lives in gpx.c */
 time_t xml_parse_time( const char *cdatastr );

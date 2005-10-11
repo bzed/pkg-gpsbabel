@@ -195,7 +195,7 @@ typedef struct {
 } an1_symbol_record;
 
 typedef struct {
-	an1_base base;
+	format_specific_data fs;
 	short magic;
 	long unk1;
 	long lon;
@@ -226,7 +226,7 @@ typedef struct {
 } an1_waypoint_record;
 
 typedef struct {
-	an1_base base;
+	format_specific_data fs;
 	short magic;
 	long unk0;
 	long lon;
@@ -235,7 +235,7 @@ typedef struct {
 } an1_vertex_record;
 
 typedef struct {
-	an1_base base;
+	format_specific_data fs;
 	short magic;
 	short unk1;
 	short serial;
@@ -261,6 +261,7 @@ void Destroy_AN1_Waypoint( void *vwpt ) {
 	an1_waypoint_record *wpt = (an1_waypoint_record *)vwpt;
 	xfree( wpt->name );
 	xfree( wpt->fontname );
+	xfree( vwpt );
 }
 
 void Copy_AN1_Waypoint( void **vdwpt, void *vwpt ) {
@@ -275,14 +276,16 @@ void Copy_AN1_Waypoint( void **vdwpt, void *vwpt ) {
 static an1_waypoint_record *Alloc_AN1_Waypoint( ) {
 	an1_waypoint_record *result = NULL;
 	result = (an1_waypoint_record *)xcalloc( sizeof(*result), 1 );
-	result->base.copy = Copy_AN1_Waypoint;
-	result->base.destroy = Destroy_AN1_Waypoint; 
+	result->fs.type = FS_AN1W;
+	result->fs.copy = Copy_AN1_Waypoint;
+	result->fs.destroy = Destroy_AN1_Waypoint;
+	return result;
 }
 	
 static an1_vertex_record *Alloc_AN1_Vertex();
 
 void Destroy_AN1_Vertex( void *vvertex ) {
-	/* do nothing */
+	xfree( vvertex );
 }
 
 void Copy_AN1_Vertex( void **vdvert, void *vvert ) {
@@ -295,8 +298,10 @@ void Copy_AN1_Vertex( void **vdvert, void *vvert ) {
 static an1_vertex_record *Alloc_AN1_Vertex() {
 	an1_vertex_record *result = NULL;
 	result = (an1_vertex_record *)xcalloc( sizeof( *result), 1 );
-	result->base.copy = Copy_AN1_Vertex;
-	result->base.destroy = Destroy_AN1_Vertex;
+	result->fs.type = FS_AN1V;
+	result->fs.copy = Copy_AN1_Vertex;
+	result->fs.destroy = Destroy_AN1_Vertex;
+	return result;
 }
 			
 
@@ -305,6 +310,7 @@ static an1_line_record *Alloc_AN1_Line();
 void Destroy_AN1_Line( void *vline ) {
 	an1_line_record *line = (an1_line_record *)vline;
 	xfree( line->name );
+	xfree( vline );
 }
 
 void Copy_AN1_Line( void **vdline, void *vline ) {
@@ -318,8 +324,10 @@ void Copy_AN1_Line( void **vdline, void *vline ) {
 static an1_line_record *Alloc_AN1_Line( ) {
 	an1_line_record *result = NULL;
 	result = (an1_line_record *)xcalloc( sizeof(*result), 1 );
-	result->base.copy = Copy_AN1_Line;
-	result->base.destroy = Destroy_AN1_Line;
+	result->fs.type = FS_AN1L;
+	result->fs.copy = Copy_AN1_Line;
+	result->fs.destroy = Destroy_AN1_Line;
+	return result;
 }
 
 
@@ -451,7 +459,7 @@ static void Write_AN1_Line( FILE *f, an1_line_record *line ) {
 	len = strlen( line->name );
 	WriteShort( f, len );
 	WriteString( f, line->name );
-	WriteShort( f, line->lineweight );
+	WriteShort( f, (short) line->lineweight );
 	WriteLong( f, line->linestyle );
 	WriteLong( f, line->linecolor );
 	WriteLong( f, line->unk5 );
@@ -507,7 +515,7 @@ static void Read_AN1_Header( FILE *f ) {
 
 static void Write_AN1_Header( FILE *f ) {
 	WriteShort( f, 11557 );
-	WriteShort( f, atoi( output_type ) );
+	WriteShort( f, (short) atoi( output_type ) );
 }
 
 static void Read_AN1_Bitmaps( FILE *f ) {
@@ -547,7 +555,7 @@ static void Read_AN1_Waypoints( FILE *f ) {
 	unsigned long count = 0;
 	unsigned long i = 0;
 	an1_waypoint_record *rec = NULL;
-	waypoint *wpt_tmp;
+	waypoint *wpt_tmp;	
 	char *icon = NULL;
 	ReadShort( f );
 	count = ReadLong( f );
@@ -563,8 +571,8 @@ static void Read_AN1_Waypoints( FILE *f ) {
 		if (FindIconByGuid(&rec->guid, &icon)) {
 			wpt_tmp->icon_descr = icon;
 		}
-		
-		wpt_tmp->an1_extras = (an1_base *)(void *)rec;
+	
+		fs_chain_add( &(wpt_tmp->fs), (format_specific_data *)rec);
 		rec = NULL;
 		waypt_add( wpt_tmp );
 	}
@@ -575,9 +583,12 @@ Write_One_AN1_Waypoint( const waypoint *wpt )
 {
 	an1_waypoint_record *rec;
 	int local;
+	format_specific_data *fs = NULL;
 	
-	if ( wpt->an1_extras ) {
-		rec = (an1_waypoint_record *)(void *)(wpt->an1_extras);	
+	fs = fs_chain_find( wpt->fs, FS_AN1W );
+	
+	if ( fs ) {
+		rec = (an1_waypoint_record *)fs;
 		xfree( rec->name );
 		local = 0;
 	}
@@ -604,7 +615,6 @@ Write_One_AN1_Waypoint( const waypoint *wpt )
 	Write_AN1_Waypoint( outfile, rec );
 	if ( local ) {
 		Destroy_AN1_Waypoint( rec );
-		xfree( rec );
 	}
 }
 
@@ -630,9 +640,9 @@ static void Read_AN1_Lines( FILE *f ) {
 		Read_AN1_Line( f, rec );
 		/* create route rec */
                 rte_head = route_head_alloc();
-		rte_head->an1_extras = (an1_base *)(void *)rec;
+		fs_chain_add( &rte_head->fs, (format_specific_data *)rec );
                 route_add_head(rte_head);
-		for (j = 0; j < rec->pointcount; j++ ) {
+		for (j = 0; j < (unsigned) rec->pointcount; j++ ) {
 			vert = Alloc_AN1_Vertex();
 			Read_AN1_Vertex( f, vert );
 			
@@ -642,7 +652,8 @@ static void Read_AN1_Lines( FILE *f ) {
 		        wpt_tmp->longitude = -DecodeOrd( vert->lon );
 		        wpt_tmp->shortname = (char *) xmalloc(7);
 		        sprintf( wpt_tmp->shortname, "\\%5.5x", rtserial++ );
-			wpt_tmp->an1_extras = (an1_base *)(void *)vert;
+			fs_chain_add( &wpt_tmp->fs,
+				(format_specific_data *)vert );
 		        route_add_wpt(rte_head, wpt_tmp);
 		}
 	}
@@ -653,15 +664,18 @@ Write_One_AN1_Line( const route_head *rte )
 {
 	an1_line_record *rec;
 	int local;
+	format_specific_data *fs = NULL;
 	
-	if ( rte->an1_extras ) {
-		rec = (an1_line_record *)(void *)(rte->an1_extras);	
+	fs = fs_chain_find( rte->fs, FS_AN1L );
+	
+	if ( fs ) {
+		rec = (an1_line_record *)(void *)fs;	
 		local = 0;
 		switch (output_type_num) {
 			case 1:
 				if ( rec->type != 14 ) {
 					rec = Alloc_AN1_Line();
-					memcpy( rec, rte->an1_extras, sizeof(an1_line_record));
+					memcpy( rec, fs, sizeof(an1_line_record));
 					local = 1;
 					rec->magic = 4112;
 					rec->unk1 = 4359;
@@ -673,7 +687,7 @@ Write_One_AN1_Line( const route_head *rte )
 			case 2:
 				if ( rec->type != 15 ) {
 					rec = Alloc_AN1_Line();
-					memcpy( rec, rte->an1_extras, sizeof(an1_line_record));
+					memcpy( rec, fs, sizeof(an1_line_record));
 					local = 1;
 					rec->type = 15;
 				} // end if
@@ -681,7 +695,7 @@ Write_One_AN1_Line( const route_head *rte )
 			case 4:
 				if ( rec->type != 16 ) {
 					rec = Alloc_AN1_Line();
-					memcpy( rec, rte->an1_extras, sizeof(an1_line_record));
+					memcpy( rec, fs, sizeof(an1_line_record));
 					local = 1;
 					rec->type = 16;
 				} // end if
@@ -740,7 +754,6 @@ Write_One_AN1_Line( const route_head *rte )
 	Write_AN1_Line( outfile, rec );
 	if ( local ) {
 		Destroy_AN1_Line( rec );
-		xfree( rec );
 	}
 }
 
@@ -749,9 +762,12 @@ Write_One_AN1_Vertex( const waypoint *wpt )
 {
 	an1_vertex_record *rec;
 	int local;
+	format_specific_data *fs = NULL;
 	
-	if ( wpt->an1_extras ) {
-		rec = (an1_vertex_record *)(void *)(wpt->an1_extras);	
+	fs = fs_chain_find( wpt->fs, FS_AN1V );
+	
+	if ( fs ) {
+		rec = (an1_vertex_record *)(void *)fs;	
 		local = 0;
 	}
 	else {
@@ -765,7 +781,6 @@ Write_One_AN1_Vertex( const waypoint *wpt )
 	Write_AN1_Vertex( outfile, rec );
 	if ( local ) {
 		Destroy_AN1_Vertex( rec );
-		xfree( rec );
 	}
 }
 

@@ -101,7 +101,7 @@ le_fwrite64(void *ptr, int sz, int ct, FILE *stream)
 	unsigned char cbuf[8];
 
 	if ((sz != 8) || (ct != 1)) {
-		fatal(MYNAME ": Bad internal arguments to le_fwrite64");
+		fatal(MYNAME ": Bad internal arguments to le_fwrite64.\n");
 	}
 
 	le_read64(cbuf, ptr);
@@ -187,7 +187,7 @@ mps_find_desc_from_icon_number(const int icon, garmin_formats_e garmin_format)
 					return i->icon;
 				break;
 			default:
-				fatal(MYNAME ": unknown garmin format");
+				fatal(MYNAME ": unknown garmin format.\n");
 		}
 	}
 	return DEFAULTICONDESCR;
@@ -221,7 +221,7 @@ mps_find_icon_number_from_desc(const char *desc, garmin_formats_e garmin_format)
 			case GARMIN_SERIAL:
 				return i->pcxsymnum;
 			default:
-				fatal(MYNAME ": unknown garmin format");
+				fatal(MYNAME ": unknown garmin format.\n");
 			}
 		}
 	}
@@ -267,7 +267,7 @@ int mps_converted_icon_number(const int icon_num, const int mpsver, garmin_forma
 		return icon_num;
 
 	default:
-		fatal(MYNAME ": unknown garmin format");
+		fatal(MYNAME ": unknown garmin format.\n");
 	}
 	return def_icon;
 }
@@ -413,7 +413,7 @@ mps_fileHeader_r(FILE *mps_file, int *mps_ver)
 static void
 mps_fileHeader_w(FILE *mps_file, int mps_ver)
 {
-	unsigned char hdr[100];
+	char hdr[100];
 	int reclen;
 
 	strcpy (hdr, "MsRc");
@@ -446,12 +446,12 @@ mps_fileHeader_w(FILE *mps_file, int mps_ver)
 	strcpy(hdr+7,"Oct 20 1999");
 	strcpy(hdr+19,"12:50:33");
 	if (mps_ver == 4) {
-		hdr[1] = 0x96;					/* equates to V4.06 */
+		hdr[1] = (char) 0x96;					/* equates to V4.06 */
 		strcpy(hdr+7,"Oct 22 2001");
 		strcpy(hdr+19,"15:45:33");
 	}
 	if (mps_ver == 5) {
-		hdr[1] = 0xF4;					/* equates to V5.0 */
+		hdr[1] = (char) 0xF4;					/* equates to V5.0 */
 		strcpy(hdr+7,"Jul  3 2003");
 		strcpy(hdr+19,"08:35:33");
 	}
@@ -1802,7 +1802,7 @@ mps_read(void)
 		fread(&reclen, 4, 1, mps_file_in);
 		reclen = le_read32(&reclen);
 
-		if (reclen < 0) fatal (MYNAME ": a record length read from the input file is invalid. \nEither the file is corrupt or unsupported");
+		if (reclen < 0) fatal (MYNAME ": a record length read from the input file is invalid. \nEither the file is corrupt or unsupported.\n");
 
 		/* Read the record type "flag" in - using fread in case in the future need more than one char */
 		fread(&recType, 1, 1, mps_file_in);

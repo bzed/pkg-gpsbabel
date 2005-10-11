@@ -116,11 +116,11 @@ tef_header(const char *args, const char **attrv)
 	    {
 		if (strcmp(avp[0], "Name") == 0) 
 		{
-		    route->rte_name = str_utf8_to_cp1252(avp[1]);
+		    route->rte_name = xstrdup(avp[1]);
 		}
 		else if (strcmp(avp[0], "Software") == 0) 
 		{
-		    route->rte_desc = str_utf8_to_cp1252(avp[1]);
+		    route->rte_desc = xstrdup(avp[1]);
 		}
         	avp+=2;
 	    }
@@ -218,11 +218,11 @@ tef_item_start(const char *args, const char **attrv)
 	{
 	    if (0 == strcmp(avp[0], "PointDescription")) 
 	    {
-		wpt_tmp->shortname = str_utf8_to_cp1252(avp[1]);
+		wpt_tmp->shortname = xstrdup(avp[1]);
 	    }
 	    if (0 == strcmp(avp[0], "SegDescription")) 
 	    {
-		wpt_tmp->description = str_utf8_to_cp1252(avp[1]);
+		wpt_tmp->description = xstrdup(avp[1]);
 	    }
 	    if ((0 == strcmp(avp[0], "ViaStation")) && (0 == strcmp(avp[1], "true")))
 	    {
@@ -269,7 +269,7 @@ tef_point(const char *args, const char **attrv)
 static void 
 tef_xml_rd_init(const char *fname)
 {
-	xml_init(fname, tef_xml_map);
+	xml_init(fname, tef_xml_map, NULL);
 }
 
 /*

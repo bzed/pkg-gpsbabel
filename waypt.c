@@ -1,7 +1,7 @@
 /*
     Perform various operations on waypoints.
 
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,9 @@ waypt_init(void)
 waypoint *
 waypt_dupe(const waypoint *wpt) 
 {
+	/*
+	 * This and waypt_free should be closely synced.
+	 */
 	waypoint * tmp;
 	tmp = waypt_new();
 	memcpy(tmp, wpt, sizeof(waypoint));
@@ -54,22 +57,25 @@ waypt_dupe(const waypoint *wpt)
 		tmp->icon_descr = xstrdup(wpt->icon_descr);
 	if (wpt->gc_data.desc_short.utfstring) {
 		tmp->gc_data.desc_short.utfstring = 
-			xstrdup(tmp->gc_data.desc_short.utfstring);
+			xstrdup(wpt->gc_data.desc_short.utfstring);
 	}
 	if (wpt->gc_data.desc_long.utfstring) {
 		tmp->gc_data.desc_long.utfstring = 
-			xstrdup(tmp->gc_data.desc_long.utfstring);
+			xstrdup(wpt->gc_data.desc_long.utfstring);
 	}
+	if (wpt->gc_data.placer) {
+                tmp->gc_data.placer = xstrdup(wpt->gc_data.placer);
+        }
+	if (wpt->gc_data.hint) {
+                tmp->gc_data.hint = xstrdup(wpt->gc_data.hint);
+        }
+
 	/*
 	 * It's important that this duplicated waypoint not appear
 	 * on the master Q.
 	 */
 	tmp->Q.next = tmp->Q.prev = NULL;
-	tmp->gpx_extras = NULL;
-	if ( wpt->an1_extras ) {
-		wpt->an1_extras->copy((void **)(&tmp->an1_extras), 
-			 (void *)wpt->an1_extras );
-	}
+	tmp->fs = fs_chain_copy( wpt->fs );
 
 	return tmp;
 }
@@ -85,7 +91,6 @@ waypt_add(waypoint *wpt)
 	 * try to be sure that we have these fields even if just by
 	 * copying them from elsewhere.
 	 */
-
 	if (wpt->shortname == NULL) {
 		if (wpt->description) {
 			wpt->shortname = xstrdup(wpt->description);
@@ -129,6 +134,10 @@ waypt_new(void)
 
 	wpt = (waypoint *) xcalloc(sizeof (*wpt), 1);
 	wpt->altitude = unknown_alt;
+	wpt->course = -999.0;
+	wpt->speed = -999.0;
+	wpt->fix = fix_unknown;
+	wpt->sat = -1;
 
 	return wpt;
 }
@@ -247,6 +256,9 @@ find_waypt_by_name(const char *name)
 void 
 waypt_free( waypoint *wpt )
 {
+	/*
+	 * This and waypt_dupe should be closely synced.
+	 */
 	if (wpt->shortname) {
 		xfree(wpt->shortname);
 	}
@@ -265,9 +277,6 @@ waypt_free( waypoint *wpt )
 	if (wpt->icon_descr && wpt->wpt_flags.icon_descr_is_dynamic) {
 		xfree((char *)(void *)wpt->icon_descr);
 	}
-	if (wpt->gpx_extras) {
-		free_gpx_extras(wpt->gpx_extras);
-	}
 	if (wpt->gc_data.desc_short.utfstring) {
 		xfree(wpt->gc_data.desc_short.utfstring);
 	}
@@ -277,10 +286,10 @@ waypt_free( waypoint *wpt )
 	if (wpt->gc_data.placer) {
 		xfree(wpt->gc_data.placer);
 	}
-	if ( wpt->an1_extras ) {
-		(*(wpt->an1_extras->destroy))((void *)wpt->an1_extras );
-		xfree( wpt->an1_extras );
-	}
+	if (wpt->gc_data.hint) {
+		xfree (wpt->gc_data.hint);
+	} 
+	fs_chain_destroy( wpt->fs );
 	xfree(wpt);	
 }
 
@@ -292,6 +301,7 @@ waypt_flush( queue *head )
 	QUEUE_FOR_EACH(head, elem, tmp) {
 		waypoint *q = (waypoint *) dequeue(elem);
 		waypt_free(q);
+		waypt_ct--;
 	}
 }
 

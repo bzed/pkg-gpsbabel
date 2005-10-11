@@ -57,7 +57,7 @@ static void
 data_read(void)
 {
 	char ibuf[100];
-	char name[9], desc[30];
+	char name[9], desc[31];
 	double lat,lon;
 	char latdir, londir;
 	int ilat, ilon;
@@ -124,7 +124,8 @@ gpsutil_disp(const waypoint *wpt)
 		lat < 0.0 ? 'S' : 'N',
 		fabs(lon),
 		lon < 0.0 ? 'W' : 'E',
-		wpt->altitude == unknown_alt ? 0 : wpt->altitude,
+		((wpt->altitude == unknown_alt) || 
+		 (wpt->altitude < 0.0)) ? 0 : wpt->altitude,
 		'm', 
 		wpt->description ? tdesc : "",
 		icon_token);

@@ -477,6 +477,7 @@ si_round( double d )
 /*
  *  Return a time_t suitable for adding to a time_t that is in GMT to
  *  make it a local time.
+ *  Obsolete: to use mkgmtime instead.
  */
 signed int 
 get_tz_offset(void)
@@ -490,6 +491,54 @@ get_tz_offset(void)
 		return (signed int) difftime(now, later);
 	}
 }
+
+/*
+	mkgmtime -- convert tm struct in UTC to time_t
+
+	works just like mktime but without all the mucking
+	around with timezones and daylight savings
+
+	obsoletes get_tz_offset()
+
+	Borrowed from lynx GPL source code
+	http://lynx.isc.org/release/lynx2-8-5/src/mktime.c
+
+	Written by Philippe De Muyter <phdm@macqel.be>.
+*/
+
+time_t
+mkgmtime(struct tm *t)
+{
+	short  month, year;
+	time_t result;
+	static int      m_to_d[12] =
+		{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+
+	month = t->tm_mon;
+	year = t->tm_year + month / 12 + 1900;
+	month %= 12;
+	if (month < 0)
+	{
+		year -= 1;
+		month += 12;
+	}
+	result = (year - 1970) * 365 + m_to_d[month];
+	if (month <= 1)
+		year -= 1;
+	result += (year - 1968) / 4;
+	result -= (year - 1900) / 100;
+	result += (year - 1600) / 400;
+	result += t->tm_mday;
+	result -= 1;
+	result *= 24;
+	result += t->tm_hour;
+	result *= 60;
+	result += t->tm_min;
+	result *= 60;
+	result += t->tm_sec;
+	return(result);
+}
+
 
 /*
  * A wrapper for time(2) that allows us to "freeze" time for testing.
@@ -805,7 +854,7 @@ char * str_utf8_to_cp1252( const char * str )
 				}
 			}
 			*cur = (char)value;
-			strcpy( cur+1, cur+bytes );
+			memmove(cur+1, cur+bytes, strlen(cur+bytes) + 1);
 		}
 		cur++;
 	}
@@ -895,12 +944,54 @@ char * str_utf8_to_ascii( const char * str )
 				cur += bytes - 1;
 			} else {
 				*cur = (char)value;
-				memmove(cur+1, cur+bytes, bytes+1);
+				memmove(cur+1, cur+bytes, strlen(cur+bytes));
 			}
 		}
 		cur++;
 	}
 	return result;
+}
+
+/*
+ * str_iso8859_1_to_utf8
+ *
+ * converts the single byte charset ISO8859-1 (latin1) to UTF-8
+ */
+
+char *
+str_iso8859_1_to_utf8(const char *s)
+{
+	int len;
+	char *res;
+	unsigned char c;
+	char *src, *dst;
+
+	if (s == NULL) return NULL;
+
+	len = 0;
+	src = (char *)s;
+	while ('\0' != (c = *src++))
+	{
+	    len++;
+	    if (c & 0x80) len++;
+	}
+
+	src = (char *)s;
+	dst = res = (void *) xmalloc(len + 1);
+	while ('\0' != (c = *src++))
+	{
+	    if (c & 0x80)
+	    {
+		*dst++ = (0xc0 | (c >> 6));
+		*dst++ = (c & 0xbf);
+	    }
+	    else
+	    {
+		*dst++ = c;
+	    }
+	}
+	*dst = '\0';
+	return res;
 }
 
 /* 

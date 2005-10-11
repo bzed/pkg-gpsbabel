@@ -180,11 +180,6 @@ xml_cdata(void *dta, const XML_Char *s, int len)
 	estr = (char *) cdatastr.mem + strlen(cdatastr.mem);
 	memcpy(estr, s, len);
 	estr[len]  = 0;
-
-	cb = xml_tbl_lookup(current_tag.mem, cb_cdata);
-	if (cb) {
-		(*cb)(estr, NULL);
-	}
 }
 
 static void
@@ -195,6 +190,10 @@ xml_end(void *data, const char *el)
 
 	if (strcmp(s + 1, el)) {
 		fprintf(stderr, "Mismatched tag %s\n", el);
+	}
+	cb = xml_tbl_lookup(current_tag.mem, cb_cdata);
+	if (cb) {
+		(*cb)( (char *) cdatastr.mem, NULL);
 	}
 
 	cb = xml_tbl_lookup(current_tag.mem, cb_end);
@@ -232,7 +231,7 @@ void xml_readstring( char *str )
 }
 
 void
-xml_init(const char *fname, xg_tag_mapping *tbl)
+xml_init(const char *fname, xg_tag_mapping *tbl, const char *encoding)
 {
 	if (fname) {
 		ifd = xfopen(fname, "r", MYNAME);
@@ -241,7 +240,7 @@ xml_init(const char *fname, xg_tag_mapping *tbl)
 	current_tag = vmem_alloc(1,0);
 	*((char *)current_tag.mem) = '\0';
 
-	psr = XML_ParserCreate(NULL);
+	psr = XML_ParserCreate((const XML_Char *)encoding);
 	if (!psr) {
 		fatal(MYNAME ": Cannot create XML Parser\n");
 	}

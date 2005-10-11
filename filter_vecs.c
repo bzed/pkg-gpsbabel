@@ -37,6 +37,8 @@ extern filter_vecs_t routesimple_vecs;
 extern filter_vecs_t reverse_route_vecs;
 extern filter_vecs_t sort_vecs;
 extern filter_vecs_t stackfilt_vecs;
+extern filter_vecs_t trackfilter_vecs;
+extern filter_vecs_t discard_vecs;
 
 static
 fl_vecs_t filter_vec_list[] = {
@@ -84,6 +86,16 @@ fl_vecs_t filter_vec_list[] = {
 		&stackfilt_vecs,
 		"stack",
 		"Save and restore waypoint lists"
+	},
+	{
+		&trackfilter_vecs,
+		"track",
+		"Manipulate track lists"
+	},
+	{
+		&discard_vecs,
+		"discard",
+		"Remove unreliable points with high hdop or vdop"
 	},
         {
 		NULL,
@@ -204,7 +216,7 @@ alpha (const void *a, const void *b)
         const fl_vecs_t *const ap = a;
         const fl_vecs_t *const bp = b;
 
-        return strcasecmp(ap->desc , bp->desc);
+        return case_ignore_strcmp(ap->desc , bp->desc);
 }
 
 /*

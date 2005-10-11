@@ -82,6 +82,10 @@ extern ff_vecs_t an1_vecs;
 extern ff_vecs_t tomtom_vecs;
 extern ff_vecs_t tef_xml_vecs;
 extern ff_vecs_t ppdb_vecs;
+extern ff_vecs_t vitosmt_vecs;
+extern ff_vecs_t gdb_vecs;
+extern ff_vecs_t bcr_vecs;
+extern ff_vecs_t coto_vecs;
 
 static
 vecs_t vec_list[] = {
@@ -137,8 +141,8 @@ vecs_t vec_list[] = {
 	{
 		&mps_vecs,
 		"mapsource",
-		"Garmin Mapsource",
-		NULL
+		"Garmin Mapsource - mps",
+		"mps"
 	},
 	{
 		&gpsutil_vecs,
@@ -179,13 +183,13 @@ vecs_t vec_list[] = {
 	{
 		&magnav_vec,
 		"magnav",
-		"Magellan NAV Companion for PalmOS", 
+		"Magellan NAV Companion for Palm/OS", 
 		NULL
 	},
 	{
 		&garmin_vecs,
 		"garmin",
-		"Garmin serial protocol", 
+		"Garmin serial/USB protocol", 
 		NULL
 	},
 	{
@@ -221,8 +225,8 @@ vecs_t vec_list[] = {
 	{
 		&easygps_vecs,
 		"easygps",
-		"EasyGPS",
-		NULL
+		"EasyGPS binary format",
+		".loc"
 	},
 	{
 		&quovadis_vecs,
@@ -395,9 +399,35 @@ vecs_t vec_list[] = {
 	{
 		&ppdb_vecs,
 		"pathaway",
-		"PathAway Palm Database",
+		"PathAway Database for Palm/OS",
 		"pdb"
 	},
+	{
+		&vitosmt_vecs,
+		"vitosmt",
+		"Vito Navigator II tracks",
+		"smt"
+	},	
+	{
+		&gdb_vecs,
+		"gdb",
+		"Garmin Mapsource - gdb",
+		"gdb"
+	},	
+	{
+		&bcr_vecs,
+		"bcr",
+		"Motorrad Routenplaner (Map&Guide) .bcr files",
+		"bcr"
+	},	
+#if 0
+	{
+		&coto_vecs,
+		"coto",
+		"cotoGPS for Palm/OS", 
+		NULL
+	},
+#endif
 	{
 		NULL,
 		NULL,
@@ -588,7 +618,7 @@ alpha (const void *a, const void *b)
 	const vecs_t *const *ap = a;
 	const vecs_t *const *bp = b;
 	
-	return strcasecmp((*ap)->desc , (*bp)->desc);
+	return case_ignore_strcmp((*ap)->desc , (*bp)->desc);
 }
 
 /*
@@ -623,6 +653,7 @@ sort_and_unify_vecs(int *ctp)
 		svp[i] = xcalloc(1, sizeof **svp);
 		svp[i]->name = svec->name;
 		svp[i]->vec = xmalloc(sizeof(*svp[i]->vec));
+		svp[i]->extension = xcsv_file.extension;
 		*svp[i]->vec = *vec_list[0].vec; /* Interits xcsv opts */
 		/* Reset file type to inherit ff_type from xcsv for everything
 		 * except the xcsv format itself, which we leave as "internal"
@@ -705,7 +736,6 @@ disp_formats(int version)
 {
 	vecs_t **svp;
 	vecs_t *vec;
-	style_vecs_t *svec;
 	int i, vc = 0;
 
 	switch(version) {
@@ -732,9 +762,9 @@ disp_formats(int version)
 				vec->extension? vec->extension : "", 
 				vec->desc);
 		}
+		xfree (svp);	
 		break;
 	default:
 		;
 	}
-	xfree (svp);	
 }

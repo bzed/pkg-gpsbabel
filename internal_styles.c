@@ -141,8 +141,8 @@ static char fugawi[] =
 "# fugawi XCSV style file\n"
 "#\n"
 "# Format: Fugawi\n"
-"# Author: Robert Lipe\n"
-"#   Date: 03/10/2003\n"
+"# Author: Robert Lipe, Patrick Ohly\n"
+"#   Date: 07/24/2005\n"
 "#\n"
 "# \n"
 
@@ -166,7 +166,7 @@ static char fugawi[] =
 "PROLOGUE \\# Waypoint description\n"
 "PROLOGUE \\# Latitude in Degree and decimals (soutern hemisphere has neg. degrees)\n"
 "PROLOGUE \\# Longitude in degree and decimals (neg. numbers: west of Greenwich)\n"
-"PROLOGUE \\# Height in meters\n"
+"PROLOGUE \\# Height in meters [optional when importing, always present when exporting: Date (GMT) as ISO YYYYMMDD, Time of the day relative to the date as HHMMSS\n"
 
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
@@ -177,6 +177,8 @@ static char fugawi[] =
 "IFIELD	LAT_DECIMAL, \"\", \"%-.7f\"\n"
 "IFIELD	LON_DECIMAL, \"\", \"%-.7f\"\n"
 "IFIELD	ALT_METERS, \"\", \"%-7.1f\"\n"
+"IFIELD  GMT_TIME, \"\", \"%Y%m%d\"\n"
+"IFIELD  HMSG_TIME, \"\", \"%02d%02d%02d\"\n"
 ;
 static char gpsdrive[] = 
 "# gpsbabel XCSV style file\n"
@@ -211,6 +213,35 @@ static char gpsdrive[] =
 "OFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
 "OFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
 "OFIELD	ICON_DESCR, \"\", \"%s\"\n"
+;
+static char gpsdrivetrack[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: GPSDriveTrack\n"
+"# Author: Tobias Minich\n"
+"#   Date: 12/07/2005\n"
+"#\n"
+"# \n"
+"#\n"
+
+"DESCRIPTION		GpsDrive Format for Tracks\n"
+
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		WHITESPACE\n"
+"RECORD_DELIMITER	NEWLINE\n"
+"BADCHARS		,'\"\n"
+
+"SHORTLEN          	20\n"
+"SHORTWHITE              0\n"
+
+"#\n"
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+
+"OFIELD	LAT_DECIMAL, \"\", \"%10.6f\"\n"
+"OFIELD	LON_DECIMAL, \"\", \"%10.6f\"\n"
+"OFIELD	ALT_METERS, \"\", \"%10.0f\"\n"
+"OFIELD	GMT_TIME, \"\", \"%a %b %d %T %Y\"\n"
 ;
 static char gpsman[] = 
 "# gpsbabel XCSV style file\n"
@@ -373,6 +404,55 @@ static char nima[] =
 "IFIELD	DESCRIPTION, \"\", \"%s\"		# FULL_NAME_ND\n"
 "IFIELD	IGNORE, \"\", \"%s\"		# MODIFY_DATE\n"
 ;
+static char openoffice[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: Tab delimitered csv useful for OpenOffice, Ploticus etc.\n"
+"# Author: Tobias Minich\n"
+"#   Date: 07/18/2005\n"
+"#\n"
+"#\n"
+
+"DESCRIPTION		Tab delimitered csv useful for OpenOffice, Ploticus etc.\n"
+
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		TAB\n"
+"RECORD_DELIMITER	NEWLINE\n"
+"BADCHARS		TAB\n"
+
+"#\n"
+"# HEADER STUFF:\n"
+"#\n"
+"PROLOGUE	Index	Lat			Lon			Icon	Name	Description	Notes	URL	Link Text	Altitude (m)	Distance (km)	Speed (m/s)	Course (°)	Time	HDOP	VDOP	PDOP	Satellites	Fix\n"
+
+"#\n"
+"# INDIVIDUAL DATA FIELDS:\n"
+"#\n"
+"IFIELD	INDEX, \"\", \"%d\"\n"
+"IFIELD	LAT_DECIMAL, \"\", \"%f\"\n"
+"IFIELD	LAT_DIR, \"\", \"%c\"\n"
+"IFIELD	LAT_HUMAN_READABLE, \"\", \"%d° %f' %c\"\n"
+"IFIELD	LON_DECIMAL, \"\", \"%f\"\n"
+"IFIELD	LON_DIR, \"\", \"%c\"\n"
+"IFIELD	LON_HUMAN_READABLE, \"\", \"%d° %f' %c\"\n"
+"IFIELD	ICON_DESCR, \"\", \"%s\"\n"
+"IFIELD	SHORTNAME, \"\", \"%s\"\n"
+"IFIELD	DESCRIPTION, \"\", \"%s\"\n"
+"IFIELD	NOTES, \"\", \"%s\"\n"
+"IFIELD	URL, \"\", \"%s\" 		\n"
+"IFIELD	URL_LINK_TEXT, \"\", \"%s\"\n"
+"IFIELD	ALT_METERS, \"\", \"%f\"\n"
+"IFIELD	PATH_DISTANCE_KM, \"\", \"%f\"\n"
+"IFIELD	PATH_SPEED, \"\", \"%f\"\n"
+"IFIELD	PATH_COURSE, \"\", \"%f\"\n"
+"IFIELD	EXCEL_TIME, \"\", \"%f\"\n"
+"IFIELD	GPS_HDOP, \"\", \"%f\"\n"
+"IFIELD	GPS_VDOP, \"\", \"%f\"\n"
+"IFIELD	GPS_PDOP, \"\", \"%f\"\n"
+"IFIELD	GPS_SAT, \"\", \"%d\"\n"
+"IFIELD	GPS_FIX, \"\", \"%s\"\n"
+;
 static char s_and_t[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
@@ -389,6 +469,8 @@ static char s_and_t[] =
 "#\n"
 
 "DESCRIPTION 		Microsoft Streets and Trips 2002-2005\n"
+"EXTENSION               txt\n"
+
 
 "#\n"
 "# FILE LAYOUT DEFINITIIONS:\n"
@@ -568,5 +650,5 @@ static char xmapwpt[] =
 "IFIELD	DESCRIPTION, \"\", \"%-.78s\"\n"
 ;
 #include "defs.h"
-style_vecs_t style_list[] = {{ "xmapwpt", xmapwpt } , { "xmap", xmap } , { "tabsep", tabsep } , { "saplus", saplus } , { "s_and_t", s_and_t } , { "nima", nima } , { "mxf", mxf } , { "mapconverter", mapconverter } , { "gpsman", gpsman } , { "gpsdrive", gpsdrive } , { "fugawi", fugawi } , { "dna", dna } , { "custom", custom } , { "csv", csv } , { "arc", arc } ,  {0,0}};
-size_t nstyles = 15;
+style_vecs_t style_list[] = {{ "xmapwpt", xmapwpt } , { "xmap", xmap } , { "tabsep", tabsep } , { "saplus", saplus } , { "s_and_t", s_and_t } , { "openoffice", openoffice } , { "nima", nima } , { "mxf", mxf } , { "mapconverter", mapconverter } , { "gpsman", gpsman } , { "gpsdrivetrack", gpsdrivetrack } , { "gpsdrive", gpsdrive } , { "fugawi", fugawi } , { "dna", dna } , { "custom", custom } , { "csv", csv } , { "arc", arc } ,  {0,0}};
+size_t nstyles = 17;

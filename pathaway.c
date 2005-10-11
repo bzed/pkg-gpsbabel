@@ -18,16 +18,21 @@
 
 */
 
-/* ToDo:
-	--- date format for read database --
+/* 
+	remarks:
+	
+	The german release 3.0 of PathAway violates the PathAway standards:
+	* N.. .... O.. .... instead of N.. .... E.. ....
+	* date is formatted in DDMMYYYY instead of YYYYMMDD
 */
 
+#include <ctype.h>
 #include "defs.h"
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 #include "csv_util.h"
 
-#define MYNAME "PathAway pdb"
+#define MYNAME "pathaway"
 
 #define PPDB_MAGIC_TRK	0x55735472		/* UsTr */
 #define PPDB_MAGIC_WPT  0x506f4c69		/* PoLi */
@@ -36,7 +41,9 @@
 FILE *fd_in, *fd_out;
 struct pdb *pdb_in, *pdb_out;
 char *fname_in, *fname_out;
+static void *mkshort_handle;
 static gpsdata_type ppdb_type;
+unsigned char german_release = 0;
 
 typedef struct ppdb_appdata
 {
@@ -50,16 +57,16 @@ typedef struct ppdb_appdata
 
 #define PPDB_APPINFO_SIZE sizeof(struct ppdb_appdata)
 
-static char *date_fmt = NULL;
 static char *dbname = NULL;
 static char *deficon = NULL;
+static char *snlen_opt = NULL;
 
 static arglist_t ppdb_args[] = 
 {
 	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING},
 	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING},
-/*	{"dtfmt", &date_fmt, "Date format", NULL, ARGTYPE_STRING }, 		ToDo */
-	{0, 0, 0, 0 }
+	{"snlen", &snlen_opt, "Length of generated shortnames", NULL, ARGTYPE_INT },
+	{0, 0, 0, 0, 0 }
 };
 
 static void 
@@ -68,12 +75,38 @@ is_fatal(int is, const char *msg, ... )
     if (is) fatal(MYNAME ": %s\n", msg);
 }
 
+#define PPDB_DEBUG 1
+
+#if PPDB_DEBUG
+static void
+internal_debug1(const char *filename, int fileline)
+{
+	static int ct=1;
+	printf("DBG(%d): file %s, line %d: ", ct++, filename, fileline);
+}
+static void
+internal_debug2(const char *format, ... )
+{
+	va_list args;
+
+	va_start(args, format);
+	vprintf(format, args);
+	puts("");
+	va_end(args);
+}
+#define DBG	internal_debug1(__FILE__, __LINE__);internal_debug2
+#else
+#define DBG	# ;
+#endif
+
+
 #define CHECK_INP(i, j) is_fatal((i != j), "Error in data structure.")
 
 /*
  * utilities
  */
 
+static
 char *ppdb_strcat(char *dest, char *src, char *def, int *size)
 {
 	int len;
@@ -101,10 +134,11 @@ char *ppdb_strcat(char *dest, char *src, char *def, int *size)
 
 #define STR_POOL_SIZE 16	/* !!! any power of 2 !!! */
 
-static char *str_pool[STR_POOL_SIZE] = {};
-static size_t str_pool_s[STR_POOL_SIZE] = {};
+static char *str_pool[STR_POOL_SIZE];
+static size_t str_pool_s[STR_POOL_SIZE];
 static int str_poolp = -1;
 
+static
 void str_pool_init(void)
 {
 	int i;
@@ -115,6 +149,7 @@ void str_pool_init(void)
 	}
 }
 
+static
 void str_pool_deinit(void)
 {
 	int i;
@@ -128,6 +163,7 @@ void str_pool_deinit(void)
 	    }
 }
 
+static
 char *str_pool_get(size_t size)
 {
 	char *tmp;
@@ -148,6 +184,7 @@ char *str_pool_get(size_t size)
 	return tmp;
 }
 
+static
 char *str_pool_getcpy(char *src, char *def)
 {
 	char *res;
@@ -167,10 +204,11 @@ char *str_pool_getcpy(char *src, char *def)
  * decoding/formatting functions
  */
  
+static
 char *ppdb_fmt_float(const double val)
 {
-	char *c;
 	char *str = str_pool_get(32);
+	char *c;
 	snprintf(str, 32, "%.8f", val);
 	c = str + strlen(str) - 1;
 	while ((c > str) && (*c == '0'))
@@ -187,14 +225,16 @@ char *ppdb_fmt_float(const double val)
 	return str;
 }
 
+static
 char *ppdb_fmt_degrees(char dir, double val)
 {
-	char *tmp;
 	char *str = str_pool_get(32);
-	int deg = abs(val);
+	int deg = fabs(val);
 	double min = 60.0 * (fabs(val) - deg);
 	int power = 0;
 	double fx = min;
+	char *tmp;
+
 	while (fx > 1.0)
 	{
 	    fx = fx / 10.0;
@@ -218,6 +258,7 @@ char *ppdb_fmt_degrees(char dir, double val)
 	return str;
 }
 
+static
 double ppdb_decode_coord(const char *str)
 {
 	double val;
@@ -231,7 +272,11 @@ double ppdb_decode_coord(const char *str)
 	}
 	else
 	{
-	    char *tmp = strchr(str, ' ');
+	    char *tmp;
+
+	    if (*str == 'O') german_release = 1;
+	    
+	    tmp = strchr(str, ' ');
 	    if ((tmp) && (tmp - str < 4))
 	    {
 		CHECK_INP(3, sscanf(str,"%c%d %lf", &dir, &deg, &val));
@@ -247,12 +292,13 @@ double ppdb_decode_coord(const char *str)
 	return val;
 }
 
+static
 int ppdb_decode_tm(char *str, struct tm *tm)
 {
-	int i = 3;
-	int msec, d1, d2, d3, d4, year;
+	int msec, d1, d2, d3, d4;
 	time_t tnow;
 	struct tm now;
+	int year;
     
 	if (*str == '\0') return 0;	/* empty date and time */
 
@@ -276,10 +322,12 @@ int ppdb_decode_tm(char *str, struct tm *tm)
 	
 	year = (d1 * 100) + d2;
 	
+	/* the coordinates comes before date and time in
+	   the dataset, so the flag "german_release" is set yet. */
+
 	/* next code works for most, except for 19. and 20. of month */
-	/* for trouble use input date format - !!! ToDo !!! */
 	
-	if ((year < 1980) || (year > now.tm_year))			/* YYYYMMDD or DDMMYYY ????? */
+	if ((german_release != 0) || (year < 1980) || (year > now.tm_year))	/* YYYYMMDD or DDMMYYY ????? */
 	{
 	    tm->tm_year = (d3 * 100) + d4;
 	    tm->tm_mon = d2;
@@ -291,25 +339,25 @@ int ppdb_decode_tm(char *str, struct tm *tm)
 	    tm->tm_mon = d3;
 	    tm->tm_mday = d4;
 	}
-	
+
 	return 1;
 }
 
-static int ppdb_read_wpt(const struct pdb *pdb_in, const struct pdb_record *pdb_rec, route_head *head)
+static 
+int ppdb_read_wpt(const struct pdb *pdb_in, const struct pdb_record *pdb_rec, route_head *head)
 {
-	char *data, *str, *tmp;
-	char latdir, longdir;
-	int latdeg, longdeg, i;
-	double latval, longval, altfeet;
+	char *data, *str;
+	double altfeet;
 	struct tm tm;
 	
 	for (pdb_rec = pdb_in->rec_index.rec; pdb_rec; pdb_rec=pdb_rec->next) 
 	{
-		int line = 0;
 		waypoint *wpt_tmp = waypt_new();
+		int line = 0;
+
 		data = (char *) pdb_rec->data;
-		
 		str = csv_lineparse(data, ",", """", line++);
+
 		while (str != NULL)
 		{
 		    switch(line)
@@ -334,7 +382,7 @@ static int ppdb_read_wpt(const struct pdb *pdb_in, const struct pdb_record *pdb_
 			    {
 				tm.tm_year -= 1900;
 				tm.tm_mon--;
-				wpt_tmp->creation_time = mktime(&tm) + get_tz_offset();
+				wpt_tmp->creation_time = mkgmtime(&tm);
 			    }
 			    break;
 			case 5:
@@ -382,7 +430,7 @@ static void ppdb_rd_deinit(void)
 
 static void ppdb_read(void)
 {
-	struct pdb_record *pdb_rec;
+	struct pdb_record *pdb_rec = NULL;
 	ppdb_appdata_t *info = NULL;
 	route_head *track_head, *route_head;
 	const char *descr = NULL;
@@ -406,7 +454,7 @@ static void ppdb_read(void)
 	{
 	    case PPDB_MAGIC_TRK:
 		ppdb_type = trkdata; /* as default */
-		if (info)
+		if (info != NULL)
 		{
 		    switch(info->dataBaseSubType)
 		    {
@@ -458,13 +506,29 @@ static void ppdb_read(void)
 
 static void ppdb_wr_init(const char *fname)
 {
+	int len;
+
 	fname_out = xstrdup(fname);
 	str_pool_init();
 	fd_out = xfopen(fname, "wb", MYNAME);
+	mkshort_handle = mkshort_new_handle();
+	
+	if (global_opts.synthesize_shortnames != 0)
+	{
+	    if (snlen_opt != NULL)
+		len = atoi(snlen_opt);
+	    else
+		len = 10;
+	    setshort_length(mkshort_handle, len);
+	    setshort_mustupper(mkshort_handle, 1);
+	    setshort_badchars(mkshort_handle, ",");
+	    setshort_whitespace_ok(mkshort_handle, 0);
+	}
 }
 
 static void ppdb_wr_deinit(void)
 {
+	mkshort_del_handle(mkshort_handle);
 	fclose(fd_out);
 	str_pool_deinit();
 	xfree(fname_out);
@@ -480,13 +544,12 @@ static void ppdb_write_wpt(const waypoint *wpt)
 {
 	char *buff, *tmp;
 	char latdir, longdir;
-	int latdeg, longdeg, len;
+	int len;
 	struct pdb_record *rec;
 	static int ct;
 	struct tm tm;
 	
-	buff = xmalloc(REC_SIZE);
-	memset(buff, 0, REC_SIZE);
+	buff = xcalloc(REC_SIZE, 1);
 
 	if (wpt->latitude < 0)
 	    latdir = 'S';
@@ -520,9 +583,17 @@ static void ppdb_write_wpt(const waypoint *wpt)
 	}
 	buff = ppdb_strcat(buff, ",", NULL, &len);
 	
-	tmp = str_pool_getcpy(wpt->shortname, "");
-	while (strchr(tmp, ',') != NULL)
-	    *strchr(tmp, ',') = '.';
+	if (global_opts.synthesize_shortnames != 0)
+	{
+	    tmp = mkshort_from_wpt(mkshort_handle, wpt);
+	    DBG("shortname %s from %s", tmp, wpt->shortname);
+	}
+	else
+	{
+	    tmp = str_pool_getcpy(wpt->shortname, "");
+	    while (strchr(tmp, ',') != NULL)
+		*strchr(tmp, ',') = '.';
+	}
 	buff = ppdb_strcat(buff, tmp, "", &len);
 	
 	buff = ppdb_strcat(buff, ",", NULL, &len);
@@ -542,7 +613,7 @@ static void ppdb_write_wpt(const waypoint *wpt)
 	    buff = ppdb_strcat(buff, tmp, "", &len);
 
 	len = strlen(buff) + 1;
-	rec = new_Record(0, 0, ct++, len, (const ubyte *) buff);
+	rec = new_Record(0, 0, (udword)ct++, (uword)len, (const ubyte *) buff);
 
 	if (rec == NULL) 
 	    fatal(MYNAME ": libpdb couldn't create record\n");
@@ -583,8 +654,7 @@ static void ppdb_write(void)
 	
 	if (global_opts.objective != wptdata)	/* Waypoint target do not need appinfo block */
 	{
-	    appinfo = xmalloc(PPDB_APPINFO_SIZE);
-	    memset(appinfo, 0, PPDB_APPINFO_SIZE);
+	    appinfo = xcalloc(PPDB_APPINFO_SIZE, 1);
 	    
 	    pdb_out->appinfo = (void *)appinfo;
 	    pdb_out->appinfo_len = PPDB_APPINFO_SIZE;
