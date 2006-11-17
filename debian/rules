@@ -23,6 +23,8 @@ endif
 configure: configure-stamp
 configure-stamp:
 	dh_testdir
+	$(SHELL) ./configure --with-zlib=system --with-doc=debian/doctmp \
+		--prefix=/usr
 	# Add here commands to configure the package.
 
 	touch configure-stamp
@@ -33,6 +35,7 @@ build: build-stamp
 build-stamp: configure-stamp 
 	dh_testdir
 
+	mkdir debian/doctmp
 	# Add here commands to compile the package.
 	$(MAKE)
 	chmod u+x testo
@@ -51,6 +54,7 @@ clean:
 	# Add here commands to clean up after the build process.
 	-$(MAKE) clean
 	-cd doc && $(MAKE) clean
+	-rm -r debian/doctmp
 
 	dh_clean 
 
@@ -61,8 +65,8 @@ install: build
 	dh_installdirs
 
 	# Add here commands to install the package into debian/gpsbabel.
-	#$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel
-	install gpsbabel $(CURDIR)/debian/gpsbabel/usr/bin
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel
+	#install gpsbabel $(CURDIR)/debian/gpsbabel/usr/bin
 
 
 # Build architecture-independent files here.
