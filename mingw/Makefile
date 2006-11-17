@@ -1,12 +1,13 @@
 CC=/usr/local/cross-tools/bin/i386-mingw32msvc-gcc
 VPATH=..:../shapelib
 
-FILES=gpsbabel.exe libexpat.dll ../win32/GPSBabelGUI.exe ../README* ../style/README.style ../COPYING
+FILES=gpsbabel.exe libexpat.dll ../win32/GPSBabelGUI.exe ../win32/gui-2/README.gui \
+  ../README* ../style/README.style ../COPYING ../readme.html
 
 gpsbabel.exe:  wintesto.cmd
 
 include ../Makefile
-CFLAGS=-Iinclude -I../coldsync -O $(INHIBIT_USB)
+CFLAGS=-Iinclude -I../coldsync -O $(INHIBIT_USB) $(EXTRA_CFLAGS)
 #
 # Must define empty (don't comment out the whole line) if you want to 
 # override INHIBIT_USB from the parent Makefile.

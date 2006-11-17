@@ -29,6 +29,7 @@
 */
     
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 #
@@ -139,19 +140,20 @@ typedef struct cetus_track_point_s
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-struct pdb *opdb;
-struct pdb_record *opdb_rec;
-static void *mkshort_wr_handle;
+static struct pdb *opdb;
+static struct pdb_record *opdb_rec;
+static short_handle mkshort_wr_handle;
 
 static char *dbname = NULL;
 static char *appendicon = NULL;
 
 static
 arglist_t cetus_args[] = {
-	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING },
-	{"appendicon", &appendicon, "Append icon_descr to description.",
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0 }
+	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING, 
+		ARG_NOMINMAX },
+	{"appendicon", &appendicon, "Append icon_descr to description",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 static waypoint *
@@ -247,7 +249,7 @@ read_tracks(const struct pdb *pdb)
 			tm.tm_mday = head->day;
 			tm.tm_mon = head->month - 1;
 			tm.tm_year = head->year + 100;
-			basetime = mktime(&tm);
+			basetime = mkgmtime(&tm);
 			break;
 			
 		    case 1: 	/* first part of description */
@@ -265,7 +267,7 @@ read_tracks(const struct pdb *pdb)
 			wpt = read_track_point((cetus_track_point_t *)c, basetime);
 			if (wpt != NULL)
 			{
-			    route_add_wpt(track, wpt);
+			    track_add_wpt(track, wpt);
 			    points++;
 			    
 			    /* Did we run over midnight ? */
@@ -343,7 +345,7 @@ read_waypts(const struct pdb *pdb)
 			tm.tm_mon = rec->mon - 1;
 			tm.tm_year = be_read16(&rec->year) - 1900;
 
-			wpt_tmp->creation_time = mktime(&tm); 
+			wpt_tmp->creation_time = mkgmtime(&tm); 
 			
 		}
 
@@ -477,7 +479,7 @@ cetus_writewpt(const waypoint *wpt)
 
 	vdata = (char *)rec + sizeof(*rec);
 	if ( wpt->shortname ) {
-			char *sn = str_utf8_to_cp1252(wpt->shortname);
+			char *sn = xstrdup(wpt->shortname);
 		        strncpy( vdata, sn, 16 );
 		        vdata[15] = '\0';
 			xfree(sn);
@@ -490,7 +492,7 @@ cetus_writewpt(const waypoint *wpt)
 	if (wpt->gc_data.desc_short.utfstring) {
 		char *stripped_html = strip_html(&wpt->gc_data.desc_short);
 		desc_short = xstrdup("\n\n");
-		desc_short = xstrappend(desc_short, str_utf8_to_cp1252(stripped_html));
+		desc_short = xstrappend(desc_short, xstrdup(stripped_html));
 		xfree(stripped_html);
 	} else {
 		desc_short = xstrdup("");
@@ -499,13 +501,13 @@ cetus_writewpt(const waypoint *wpt)
 	if (wpt->gc_data.desc_long.utfstring) {
 		char *stripped_html = strip_html(&wpt->gc_data.desc_long);
 		desc_long = xstrdup("\n\n");
-		desc_long = xstrappend(desc_long, str_utf8_to_cp1252(stripped_html));
+		desc_long = xstrappend(desc_long, xstrdup(stripped_html));
 		xfree(stripped_html);
 	} else {
 		desc_long = xstrdup("");
 	}
 
-	desc = wpt->description ? str_utf8_to_cp1252(wpt->description) : 
+	desc = wpt->description ? xstrdup(wpt->description) : 
 		xstrdup("");
 
 	snprintf(vdata, DESCSZ, "%s%s%s", 
@@ -529,7 +531,7 @@ cetus_writewpt(const waypoint *wpt)
 	vdata += strlen( vdata ) + 1;
 
 	if (wpt->gc_data.hint) {
-		char *hint = str_utf8_to_cp1252(wpt->gc_data.hint);
+		char *hint = xstrdup(wpt->gc_data.hint);
 		rec->type = WptCache;
 		strncpy( vdata, hint, NOTESZ + 1 ) ;
 		xfree(hint);
@@ -623,7 +625,7 @@ data_write(void)
 
 	pdb_Write(opdb, fileno(file_out));
 	xfree(htable);
-	mkshort_del_handle(mkshort_wr_handle);
+	mkshort_del_handle(&mkshort_wr_handle);
 }
 
 
@@ -638,4 +640,6 @@ ff_vecs_t cetus_vecs = {
 	data_write,
 	NULL,
 	cetus_args,
+	CET_CHARSET_MS_ANSI, 0	/* CET-REVIEW */
 };
+#endif

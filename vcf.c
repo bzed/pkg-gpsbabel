@@ -24,17 +24,17 @@
 #include <ctype.h>
 
 static FILE *file_out;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 
-static char *encrypt = NULL;
+static char *vcf_encrypt = NULL;
 
 #define MYNAME "VCF"
 
 static
 arglist_t vcf_args[] = {
-	{ "encrypt", &encrypt,
-		"Encrypt hints using ROT13", NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+	{ "encrypt", &vcf_encrypt,
+		"Encrypt hints using ROT13", NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 static void
@@ -48,7 +48,7 @@ static void
 wr_deinit(void)
 {
 	fclose(file_out);
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 }
 
 /*
@@ -107,7 +107,7 @@ vcf_disp(const waypoint *wpt)
 	fprintf(file_out, "\\n");
 	vcf_print_utf(&wpt->gc_data.desc_long);
 	fprintf(file_out, "\\n\\nHINT:\\n");
-	if (encrypt) {
+	if (vcf_encrypt) {
 		char *s = rot13(wpt->gc_data.hint);
 		vcf_print(s);
 		xfree(s);
@@ -136,5 +136,6 @@ ff_vecs_t vcf_vecs = {
 	NULL,
 	data_write,
 	NULL, 
-	vcf_args
+	vcf_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

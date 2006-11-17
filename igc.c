@@ -26,8 +26,7 @@
 #include "defs.h"
 #include <errno.h>
 
-static FILE *file_in;
-static FILE *file_out;
+static gbfile *file_in, *file_out;
 static char manufacturer[4];
 static const route_head *head;
 static char *timeadj = NULL;
@@ -88,42 +87,37 @@ static unsigned char coords_match(double lat1, double lon1, double lat2, double 
  * @param  rec  Caller allocated storage for the record.  At least MAXRECLEN chars must be allocated.
  * @return the record type.  rec_none on EOF, rec_bad on fgets() or parse error.
  */
-static igc_rec_type_t get_record(char *rec)
+static igc_rec_type_t get_record(char **rec)
 {
     size_t len;
+    char *c;
 
-    if (fgets(rec, MAXRECLEN, file_in) == NULL) {
-	if (feof(file_in)) {
-	    return rec_none;
-	} else {
-	    warning(MYNAME " fgets(): %s\n", strerror(errno));
-	    return rec_bad;
-	}
-    }
-    len = strlen(rec);
-    if (len < 3 || rec[0] < 'A' || rec[0] > 'Z') {
-	warning(MYNAME " bad input record: '%s'\n", rec);
+    *rec = c = gbfgetstr(file_in);
+    if (c == NULL) return rec_none;
+
+    len = strlen(c);
+    if (len < 3 || c[0] < 'A' || c[0] > 'Z') {
+	warning(MYNAME " bad input record: '%s'\n", c);
 	return rec_bad;
     }
-    rec[len - 2] = '\0';
-    return (igc_rec_type_t) rec[0];
+    return (igc_rec_type_t) c[0];
 }
 
 static void rd_init(const char *fname)
 {
-    char ibuf[MAXRECLEN];
+    char *ibuf;
 
-    file_in = xfopen(fname, "rb", MYNAME);
+    file_in = gbfopen(fname, "r", MYNAME);
 
     // File must begin with a manufacturer/ID record
-    if (get_record(ibuf) != rec_manuf_id || sscanf(ibuf, "A%3[A-Z]", manufacturer) != 1) {
+    if (get_record(&ibuf) != rec_manuf_id || sscanf(ibuf, "A%3[A-Z]", manufacturer) != 1) {
 	fatal(MYNAME ": %s is not an IGC file\n", fname);
     }
 }
 
 static void rd_deinit(void)
 {
-    fclose(file_in);
+    gbfclose(file_in);
 }
 
 /**
@@ -240,7 +234,7 @@ static void igc_task_rec(const char *rec)
 
 static void data_read(void)
 {
-    char ibuf[MAXRECLEN];
+    char *ibuf;
     igc_rec_type_t rec_type;
     unsigned int hours, mins, secs;
     unsigned int lat_deg, lat_min, lat_frac;
@@ -266,7 +260,7 @@ static void data_read(void)
     strcpy(trk_desc, HDRMAGIC HDRDELIM);
 
     while (1) {
-	rec_type = get_record(ibuf);
+	rec_type = get_record(&ibuf);
 	switch (rec_type) {
 	case rec_manuf_id:
 	    // Manufacturer/ID record already found in rd_init().
@@ -358,7 +352,7 @@ static void data_read(void)
 	    } else {
 		pres_wpt->altitude = unknown_alt;
 	    }
-	    route_add_wpt(pres_head, pres_wpt);
+	    track_add_wpt(pres_head, pres_wpt);
 
 	    // Add the same waypoint with GNSS altitude to the second
 	    // track
@@ -370,7 +364,7 @@ static void data_read(void)
 	    } else {
 		gnss_wpt->altitude = unknown_alt;
 	    }
-	    route_add_wpt(gnss_head, gnss_wpt);
+	    track_add_wpt(gnss_head, gnss_wpt);
 	    break;
 
 	case rec_task:
@@ -572,13 +566,13 @@ static void wr_header(void)
     if (NULL == (tm = gmtime(&date))) {
 	fatal(MYNAME ": Bad track timestamp\n");
     }
-    xfprintf(MYNAME, file_out, "HFDTE%s\r\n", date2str(tm));
+    gbfprintf(file_out, "HFDTE%s\r\n", date2str(tm));
 
     // Other header data may have been stored in track description
     if (track && track->rte_desc && strncmp(track->rte_desc, HDRMAGIC, strlen(HDRMAGIC)) == 0) {
 	for (str = strtok(track->rte_desc + strlen(HDRMAGIC) + strlen(HDRDELIM), HDRDELIM);
 	     str; str = strtok(NULL, HDRDELIM)) {
-	    xfprintf(MYNAME, file_out, "%s\r\n", str);
+	    gbfprintf(file_out, "%s\r\n", str);
 	}
     } else {
 	// IGC header info not found so synthesise it.
@@ -588,7 +582,7 @@ static void wr_header(void)
 	if (NULL != (wpt = find_waypt_by_name("PILOT")) && wpt->description) {
 	    str = wpt->description;
 	}
-	xfprintf(MYNAME, file_out, "HFPLTPILOT:%s\r\n", str);
+	gbfprintf(file_out, "HFPLTPILOT:%s\r\n", str);
     }
 }
 
@@ -598,7 +592,7 @@ static void wr_header(void)
 
 static void wr_task_wpt_name(const waypoint * wpt, const char *alt_name)
 {
-    xfprintf(MYNAME, file_out, "C%s%s\r\n", latlon2str(wpt),
+    gbfprintf(file_out, "C%s%s\r\n", latlon2str(wpt),
 	     wpt->description ? wpt->description : wpt->shortname ? wpt->shortname : alt_name);
 }
 
@@ -640,7 +634,7 @@ static void wr_task_hdr(const route_head * rte)
 	sscanf(rte->rte_desc, DATEMAGIC "%6[0-9]: %s", flight_date, task_desc);
     }
 
-    xfprintf(MYNAME, file_out, "C%s%s%s%04u%02u%s\r\n", date2str(tm),
+    gbfprintf(file_out, "C%s%s%s%04u%02u%s\r\n", date2str(tm),
 	     tod2str(tm), flight_date, task_num++, num_tps, task_desc);
 
     if (!have_takeoff) {
@@ -685,7 +679,7 @@ static void wr_fix_record(const waypoint * wpt, int pres_alt, int gnss_alt)
     if (unknown_alt == gnss_alt) {
 	gnss_alt = 0;
     }
-    xfprintf(MYNAME, file_out, "B%02u%02u%02u%sA%05d%05d\r\n", tm->tm_hour,
+    gbfprintf(file_out, "B%02u%02u%02u%sA%05d%05d\r\n", tm->tm_hour,
 	     tm->tm_min, tm->tm_sec, latlon2str(wpt), pres_alt, gnss_alt);
 }
 
@@ -866,30 +860,30 @@ static void wr_track(void)
 
 static void wr_init(const char *fname)
 {
-    file_out = xfopen(fname, "wb", MYNAME);
+    file_out = gbfopen(fname, "wb", MYNAME);
 }
 
 static void wr_deinit(void)
 {
-    fclose(file_out);
+    gbfclose(file_out);
 }
 
 static void data_write(void)
 {
-    xfputs(MYNAME, "AXXXZZZGPSBabel\r\n", file_out);
+    gbfputs("AXXXZZZGPSBabel\r\n", file_out);
     wr_header();
     wr_tasks();
     wr_track();
-    xfprintf(MYNAME, file_out, "LXXXGenerated by GPSBabel Version %s\r\n", gpsbabel_version);
-    xfputs(MYNAME, "GGPSBabelSecurityRecordGuaranteedToFailVALIChecks\r\n", file_out);
+    gbfprintf(file_out, "LXXXGenerated by GPSBabel Version %s\r\n", gpsbabel_version);
+    gbfputs("GGPSBabelSecurityRecordGuaranteedToFailVALIChecks\r\n", file_out);
 }
 
 
 static arglist_t igc_args[] = {
     {"timeadj", &timeadj,
      "(integer sec or 'auto') Barograph to GPS time diff", 
-     NULL, ARGTYPE_STRING},
-    {0, 0, 0, 0, 0}
+     NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+    ARG_TERMINATOR
 };
 
 ff_vecs_t igc_vecs = {
@@ -902,5 +896,6 @@ ff_vecs_t igc_vecs = {
     data_read,
     data_write,
     NULL, 
-    igc_args
+    igc_args,
+    CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

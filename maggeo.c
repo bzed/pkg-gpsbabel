@@ -1,7 +1,7 @@
 /*
     Magellan ".gs" files as they appear on USB of Explorist 400,500,600.
 
-    Copyright (C) 2005, robertlipe@usa.net
+    Copyright (C) 2005, 2006 robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,9 +26,12 @@
 
 #define MYNAME "maggeo"
 
+/* Turn this on (remove) after 5.2 becomes widespread. */
+#define FIRMWARE_DOES_88591 0		
+
 static FILE *maggeofile_in;
 static FILE *maggeofile_out;
-static void *desc_handle = NULL;
+static short_handle desc_handle = NULL;
 
 static void
 maggeo_writemsg(const char * const buf)
@@ -52,6 +55,9 @@ maggeo_rd_deinit(void)
 static void
 maggeo_wr_init(const char *fname)
 {
+	if (waypt_count() > 200) {
+		fatal(MYNAME ": eXplorist does not support more than 200 waypoints in one .gs file.\nDecrease the number of waypoints sent.\n");
+	}
 	maggeofile_out = xfopen(fname, "wb", MYNAME);
 	desc_handle = mkshort_new_handle();
 	setshort_length(desc_handle, 20);
@@ -62,13 +68,14 @@ static void
 maggeo_wr_deinit(void)
 {
 	maggeo_writemsg("PMGNCMD,END");
+	mkshort_del_handle(&desc_handle);
 	fclose(maggeofile_out);
 }
 
 static void
 maggeo_read(void)
 {
-	fatal("Reading maggeo is not implemented yet.\n");
+	fatal(MYNAME ": Reading maggeo is not implemented yet.\n");
 }
 
 /*
@@ -111,8 +118,13 @@ append(char *buf, const char *str)
 		return;
 	}
 
-	cleansed1 = str_utf8_to_ascii(str);
+	cleansed1 = xstrdup(str);
+#if FIRMWARE_DOES_88591
+/* Actually, this function needs needs refactored... */
+	cleansed2 = xstrdup(cleansed1);
+#else
 	cleansed2 = m330_cleanse(cleansed1);
+#endif
 
 	strcat(buf, cleansed2);
 
@@ -151,7 +163,15 @@ maggeo_waypt_pr(const waypoint *waypointp)
 	lon = (lon_deg * 100.0 + lon);
 	lat = (lat_deg * 100.0 + lat);
 
-	ctype = gs_get_cachetype(waypointp->gc_data.type);
+	/* 
+	 * For some reason, Magellan used exactly the GPX spellings of 
+	 * everything except this one...
+	 */
+	if (waypointp->gc_data.type == gt_suprise) {
+		ctype = "Mystery Cache";
+	} else {
+		ctype = gs_get_cachetype(waypointp->gc_data.type);
+	}
 	placeddate = maggeo_fmtdate(waypointp->creation_time);
 	lfounddate = maggeo_fmtdate(waypointp->gc_data.last_found);
 	cname = mkshort(desc_handle, waypointp->notes ? waypointp->notes : waypointp->shortname);
@@ -197,9 +217,9 @@ maggeo_waypt_pr(const waypoint *waypointp)
 
 	if (lfounddate) xfree(lfounddate);
 	if (placeddate) xfree(placeddate);
+	if (cname) xfree(cname);
 
 	maggeo_writemsg(obuf);
-
 }
 
 static void
@@ -208,31 +228,20 @@ maggeo_write(void)
 	waypt_disp_all(maggeo_waypt_pr);
 }
 
-static
-char *
-strconsume(char *instr, int *eaten)
-{
-	const char *origstr = instr;
-	char *s = instr;
-	char *e = instr;
-
-	while (e && *e && *e != ',')
-		*e++;
-
-	*eaten = e - s;
-	
-	return (xstrndup(instr, e-s));
-	
-}
-
-
 ff_vecs_t maggeo_vecs = {
 	ff_type_file,
-	{ ff_cap_read, ff_cap_none, ff_cap_none },
+	{ ff_cap_write, ff_cap_none, ff_cap_none },
 	maggeo_rd_init,
 	maggeo_wr_init,
 	maggeo_rd_deinit,
 	maggeo_wr_deinit,
 	maggeo_read,
 	maggeo_write,
+	NULL,
+	NULL,
+#if FIRMWARE_DOES_88591
+	CET_CHARSET_LATIN1, 0	/* CET-REVIEW */
+#else
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+#endif
 };

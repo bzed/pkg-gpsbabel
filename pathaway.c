@@ -1,6 +1,6 @@
 /* 
 	Support for PathAway Palm Database, 
-	Copyright (C) 2005 Olaf Klein, o.b.klein@t-online.de
+	Copyright (C) 2005-2006 Olaf Klein, o.b.klein@gpsbabel.org
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,13 +24,17 @@
 	The german release 3.0 of PathAway violates the PathAway standards:
 	* N.. .... O.. .... instead of N.. .... E.. ....
 	* date is formatted in DDMMYYYY instead of YYYYMMDD
+
+	Release 4.x store only numeric coordinates and uses a six-number date.
 */
 
 #include <ctype.h>
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 #include "csv_util.h"
+#include "strptime.h"
 
 #define MYNAME "pathaway"
 
@@ -38,12 +42,13 @@
 #define PPDB_MAGIC_WPT  0x506f4c69		/* PoLi */
 #define PPDB_MAGIC	0x4b6e5772 		/* KwNr */
 
-FILE *fd_in, *fd_out;
-struct pdb *pdb_in, *pdb_out;
-char *fname_in, *fname_out;
-static void *mkshort_handle;
+static FILE *fd_in, *fd_out;
+static struct pdb *pdb_in, *pdb_out;
+static char *fname_in, *fname_out;
+static short_handle mkshort_handle;
 static gpsdata_type ppdb_type;
-unsigned char german_release = 0;
+static unsigned char german_release = 0;
+static char *datefmt;
 
 typedef struct ppdb_appdata
 {
@@ -57,24 +62,21 @@ typedef struct ppdb_appdata
 
 #define PPDB_APPINFO_SIZE sizeof(struct ppdb_appdata)
 
-static char *dbname = NULL;
-static char *deficon = NULL;
-static char *snlen_opt = NULL;
+static char *opt_dbname = NULL;
+static char *opt_deficon = NULL;
+static char *opt_snlen = NULL;
+static char *opt_date = NULL;
 
 static arglist_t ppdb_args[] = 
 {
-	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING},
-	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING},
-	{"snlen", &snlen_opt, "Length of generated shortnames", NULL, ARGTYPE_INT },
-	{0, 0, 0, 0, 0 }
+	{"date",    &opt_date, "Read/Write date format (i.e. DDMMYYYY)", NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+	{"dbname",  &opt_dbname, "Database name", NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+	{"deficon", &opt_deficon, "Default icon name", NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+	{"snlen",   &opt_snlen, "Length of generated shortnames", "10", ARGTYPE_INT, "1", NULL },
+	ARG_TERMINATOR
 };
 
-static void 
-is_fatal(int is, const char *msg, ... )
-{
-    if (is) fatal(MYNAME ": %s\n", msg);
-}
-
+/*#undef PPDB_DEBUG*/
 #define PPDB_DEBUG 1
 
 #if PPDB_DEBUG
@@ -94,13 +96,13 @@ internal_debug2(const char *format, ... )
 	puts("");
 	va_end(args);
 }
-#define DBG	internal_debug1(__FILE__, __LINE__);internal_debug2
+#define DBG(args)	internal_debug1(__FILE__, __LINE__);internal_debug2 args
 #else
-#define DBG	# ;
+#define DBG(args)	;
 #endif
 
 
-#define CHECK_INP(i, j) is_fatal((i != j), "Error in data structure.")
+#define CHECK_INP(i, j, k) is_fatal((i != j), "Error in data structure (%s).", (k))
 
 /*
  * utilities
@@ -231,17 +233,9 @@ char *ppdb_fmt_degrees(char dir, double val)
 	char *str = str_pool_get(32);
 	int deg = fabs(val);
 	double min = 60.0 * (fabs(val) - deg);
-	int power = 0;
-	double fx = min;
 	char *tmp;
 
-	while (fx > 1.0)
-	{
-	    fx = fx / 10.0;
-	    power++;
-	}
-	snprintf(str, 31, "%c%02d 000", dir, deg);
-	snprintf(str + 6 - power, 24, "%.8f", min);
+	snprintf(str, 31, "%c%0*d %.8f", dir, (deg > 99) ? 3 : 2, deg, min);
 	
 	tmp = str + strlen(str) - 1;	/* trim trailing nulls */
 	while ((tmp > str) && (*tmp == '0'))
@@ -267,7 +261,7 @@ double ppdb_decode_coord(const char *str)
 	
 	if (*str < 'A') 	/* only numeric */
 	{
-	    CHECK_INP(1, sscanf(str,"%lf", &val));
+	    CHECK_INP(1, sscanf(str,"%lf", &val), "decode_coord(1)");
 	    return val;
 	}
 	else
@@ -279,12 +273,12 @@ double ppdb_decode_coord(const char *str)
 	    tmp = strchr(str, ' ');
 	    if ((tmp) && (tmp - str < 4))
 	    {
-		CHECK_INP(3, sscanf(str,"%c%d %lf", &dir, &deg, &val));
+		CHECK_INP(3, sscanf(str,"%c%d %lf", &dir, &deg, &val), "decode_coord(2)");
 		val = deg + (val / 60.0);
 	    }
 	    else
 	    {
-		CHECK_INP(2, sscanf(str,"%c%lf", &dir, &val));
+		CHECK_INP(2, sscanf(str,"%c%lf", &dir, &val), "decode_coord(3)");
 	    }
 	    if ((dir == 'S') || (dir == 'W'))
 		val = -val;
@@ -296,55 +290,86 @@ static
 int ppdb_decode_tm(char *str, struct tm *tm)
 {
 	int msec, d1, d2, d3, d4;
-	time_t tnow;
-	struct tm now;
 	int year;
+	char *cx;
     
 	if (*str == '\0') return 0;	/* empty date and time */
 
 	if (strchr(str, '.'))		/* time in hhmmss.ms */
 	{
-	    CHECK_INP(8, sscanf(str, "%02d%02d%02d.%d %02d%02d%02d%02d",
-		&tm->tm_hour, &tm->tm_min, &tm->tm_sec,
-		&msec, &d1, &d2, &d3, &d4));
+		CHECK_INP(4, sscanf(str, "%02d%02d%02d.%d",
+			&tm->tm_hour, &tm->tm_min, &tm->tm_sec, &msec), 
+			"decode_tm(1)");
 	}
 	else
 	{
-	    CHECK_INP(7, sscanf(str, "%02d%02d%02d %02d%02d%02d%02d",
-		&tm->tm_hour, &tm->tm_min, &tm->tm_sec,
-		&d1, &d2, &d3, &d4));
+		CHECK_INP(3, sscanf(str, "%02d%02d%02d",
+			&tm->tm_hour, &tm->tm_min, &tm->tm_sec), 
+			"decode_tm(2)");
 	}
-
-	tnow = current_time();
-	now = *localtime(&tnow);
-	now.tm_year += 1900;
-	now.tm_mon++;
+	cx = strchr(str, ' ');
+	if (cx == NULL) return 0;	/* no date */
 	
-	year = (d1 * 100) + d2;
+	while (*cx == ' ') cx++;
+	if (*cx == '\0') return 0;	/* no date */
 	
-	/* the coordinates comes before date and time in
-	   the dataset, so the flag "german_release" is set yet. */
-
-	/* next code works for most, except for 19. and 20. of month */
-	
-	if ((german_release != 0) || (year < 1980) || (year > now.tm_year))	/* YYYYMMDD or DDMMYYY ????? */
+	if (datefmt)
 	{
-	    tm->tm_year = (d3 * 100) + d4;
-	    tm->tm_mon = d2;
-	    tm->tm_mday = d1;
+		struct tm tm2;
+		
+		if (NULL == strptime(cx, datefmt, &tm2))
+		{
+			fatal(MYNAME ": Unable to convert date '%s' using format '%s' (%s)!\n", cx, datefmt, opt_date);
+		}
+		
+		tm->tm_year = tm2.tm_year + 1900;
+		tm->tm_mon = tm2.tm_mon + 1;
+		tm->tm_mday = tm2.tm_mday;
 	}
 	else
 	{
-	    tm->tm_year = (d1 * 100) + d2;
-	    tm->tm_mon = d3;
-	    tm->tm_mday = d4;
-	}
+		time_t tnow;
+		struct tm now;
+		
+		if (strlen(cx) != 8)
+		{
+			printf(MYNAME ": Date from first record is %s.\n", cx);
+			printf(MYNAME ": Please use option 'date' to specify how this is formatted.\n");
+			fatal(MYNAME  ": (... -i pathaway,date=DDMMYY ...)\n");
+		}
+		
+		CHECK_INP(4, sscanf(cx, "%02d%02d%02d%02d", &d1, &d2, &d3, &d4), "decode_tm(3)");
+		
+		tnow = current_time();
+		now = *localtime(&tnow);
+		now.tm_year += 1900;
+		now.tm_mon++;
+		
+		year = (d1 * 100) + d2;
+		
+		/* the coordinates comes before date and time in
+		   the dataset, so the flag "german_release" is set yet. */
 
+		/* next code works for most, except for 19. and 20. of month */
+	
+		if ((german_release != 0) || (year < 1980) || (year > now.tm_year))	/* YYYYMMDD or DDMMYYY ????? */
+		{
+		    tm->tm_year = (d3 * 100) + d4;
+		    tm->tm_mon = d2;
+		    tm->tm_mday = d1;
+		}
+		else
+		{
+		    tm->tm_year = (d1 * 100) + d2;
+		    tm->tm_mon = d3;
+		    tm->tm_mday = d4;
+		}
+	}
 	return 1;
 }
 
 static 
-int ppdb_read_wpt(const struct pdb *pdb_in, const struct pdb_record *pdb_rec, route_head *head)
+int ppdb_read_wpt(const struct pdb *pdb_in, const struct pdb_record *pdb_rec, route_head *head, int isRoute)
 {
 	char *data, *str;
 	double altfeet;
@@ -371,9 +396,9 @@ int ppdb_read_wpt(const struct pdb *pdb_in, const struct pdb_record *pdb_rec, ro
 			case 3:
 			    if (*str != '\0')
 			    {
-				CHECK_INP(1, sscanf(str, "%lf", &altfeet));
+				CHECK_INP(1, sscanf(str, "%lf", &altfeet), "altitude");
 				if (altfeet != -9999) 
-				    wpt_tmp->altitude = altfeet / 3.2808;
+				    wpt_tmp->altitude = FEET_TO_METERS(altfeet);
 			    }
 			    break;
 			case 4:
@@ -400,8 +425,10 @@ int ppdb_read_wpt(const struct pdb *pdb_in, const struct pdb_record *pdb_rec, ro
 		    str = csv_lineparse(NULL, ",", """", line++);
 		}
 		
-		if (head)
+		if (head && isRoute )
 		    route_add_wpt(head, wpt_tmp);
+		else if (head)
+                    track_add_wpt(head, wpt_tmp);
 		else
 		    waypt_add(wpt_tmp);
 
@@ -419,6 +446,10 @@ static void ppdb_rd_init(const char *fname)
 	str_pool_init();
 	fd_in = xfopen(fname, "rb", MYNAME);
 	
+	if (opt_date)
+		datefmt = convert_human_date_format(opt_date);
+	else
+		datefmt = NULL;
 }
 
 static void ppdb_rd_deinit(void)
@@ -426,6 +457,7 @@ static void ppdb_rd_deinit(void)
 	fclose(fd_in);
 	str_pool_deinit();
 	xfree(fname_in);
+	if (datefmt) xfree(datefmt);
 }
 
 static void ppdb_read(void)
@@ -449,7 +481,6 @@ static void ppdb_read(void)
 	    info = (ppdb_appdata_t *) pdb_in->appinfo;
 	    descr = info->vehicleStr;
 	}
-	
 	switch(pdb_in->type)
 	{
 	    case PPDB_MAGIC_TRK:
@@ -484,16 +515,19 @@ static void ppdb_read(void)
 		track_head = route_head_alloc();
 		track_add_head(track_head);
 		track_head->rte_name = xstrdup(pdb_in->name);
-		ppdb_read_wpt(pdb_in, pdb_rec, track_head);
+		ppdb_read_wpt(pdb_in, pdb_rec, track_head, 0);
 		break;
 	    case rtedata:
 		route_head = route_head_alloc();
 		route_add_head(route_head);
 		route_head->rte_name = xstrdup(pdb_in->name);
-		ppdb_read_wpt(pdb_in, pdb_rec, route_head);
+		ppdb_read_wpt(pdb_in, pdb_rec, route_head, 1);
 		break;
 	    case wptdata:
-		ppdb_read_wpt(pdb_in, pdb_rec, NULL);
+		ppdb_read_wpt(pdb_in, pdb_rec, NULL, 0);
+		break;
+	    case posndata:
+		fatal(MYNAME ": Realtime positioning not supported.\n");
 		break;
 	}
 	
@@ -515,23 +549,29 @@ static void ppdb_wr_init(const char *fname)
 	
 	if (global_opts.synthesize_shortnames != 0)
 	{
-	    if (snlen_opt != NULL)
-		len = atoi(snlen_opt);
-	    else
-		len = 10;
+	    len = atoi(opt_snlen);
 	    setshort_length(mkshort_handle, len);
 	    setshort_mustupper(mkshort_handle, 1);
 	    setshort_badchars(mkshort_handle, ",");
 	    setshort_whitespace_ok(mkshort_handle, 0);
 	}
+	if (opt_date)
+	{
+		char *c = convert_human_date_format(opt_date);
+		xasprintf(&datefmt, "%s %s", "%H%M%S", c);
+		xfree(c);
+	}
+	else
+		datefmt = xstrdup("%H%M%S %Y%m%d");
 }
 
 static void ppdb_wr_deinit(void)
 {
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 	fclose(fd_out);
 	str_pool_deinit();
 	xfree(fname_out);
+	if (datefmt) xfree(datefmt);
 }
 
 /*
@@ -570,7 +610,7 @@ static void ppdb_write_wpt(const waypoint *wpt)
 	if (fabs(wpt->altitude) < 9999.0)	
 	{
 	    tmp = str_pool_get(32);
-	    snprintf(tmp, 32, ppdb_fmt_float(wpt->altitude * 3.2808));
+	    snprintf(tmp, 32, ppdb_fmt_float(METERS_TO_FEET(wpt->altitude)));
 	    buff = ppdb_strcat(buff, tmp, NULL, &len);
 	}
 	buff = ppdb_strcat(buff, ",", NULL, &len);
@@ -578,7 +618,7 @@ static void ppdb_write_wpt(const waypoint *wpt)
 	{
 	    tmp = str_pool_get(20);
 	    tm = *gmtime(&wpt->creation_time);
-	    strftime(tmp, 20, "%H%M%S %Y%m%d", &tm);
+	    strftime(tmp, 20, datefmt, &tm);
 	    buff = ppdb_strcat(buff, tmp, NULL, &len);
 	}
 	buff = ppdb_strcat(buff, ",", NULL, &len);
@@ -586,7 +626,7 @@ static void ppdb_write_wpt(const waypoint *wpt)
 	if (global_opts.synthesize_shortnames != 0)
 	{
 	    tmp = mkshort_from_wpt(mkshort_handle, wpt);
-	    DBG("shortname %s from %s", tmp, wpt->shortname);
+	    DBG(("shortname %s from %s", tmp, wpt->shortname));
 	}
 	else
 	{
@@ -597,7 +637,7 @@ static void ppdb_write_wpt(const waypoint *wpt)
 	buff = ppdb_strcat(buff, tmp, "", &len);
 	
 	buff = ppdb_strcat(buff, ",", NULL, &len);
-	buff = ppdb_strcat(buff, deficon, "0", &len);
+	buff = ppdb_strcat(buff, opt_deficon, "0", &len);
 	buff = ppdb_strcat(buff, ",", NULL, &len);
 
 	tmp = str_pool_getcpy(wpt->description, "");
@@ -643,8 +683,8 @@ static void ppdb_write(void)
 	
 	if (NULL == (pdb_out = new_pdb()))
 	    fatal(MYNAME ": new_pdb failed\n");
-	if (dbname)
-	    strncpy(pdb_out->name, dbname, PDB_DBNAMELEN);
+	if (opt_dbname)
+	    strncpy(pdb_out->name, opt_dbname, PDB_DBNAMELEN);
 	    
 	pdb_out->name[PDB_DBNAMELEN-1] = 0;
 	pdb_out->attributes = PDB_ATTR_BACKUP;
@@ -663,21 +703,24 @@ static void ppdb_write(void)
 	switch(global_opts.objective)		/* Only one target is possible */
 	{
 	    case wptdata:
-		if (dbname == NULL) strncpy(pdb_out->name, "PathAway Waypoints", PDB_DBNAMELEN);
+		if (opt_dbname == NULL) strncpy(pdb_out->name, "PathAway Waypoints", PDB_DBNAMELEN);
 		pdb_out->type = PPDB_MAGIC_WPT;
 		waypt_disp_all(ppdb_write_wpt);
 		break;
 	    case trkdata:
-		if (dbname == NULL) strncpy(pdb_out->name, "PathAway Track", PDB_DBNAMELEN);
+		if (opt_dbname == NULL) strncpy(pdb_out->name, "PathAway Track", PDB_DBNAMELEN);
 		pdb_out->type = PPDB_MAGIC_TRK;
 		appinfo->dataBaseSubType = 0;
 		track_disp_all(ppdb_track_header, ppdb_track_trailer, ppdb_write_wpt);
 		break;
 	    case rtedata:
-		if (dbname == NULL) strncpy(pdb_out->name, "PathAway Route", PDB_DBNAMELEN);
+		if (opt_dbname == NULL) strncpy(pdb_out->name, "PathAway Route", PDB_DBNAMELEN);
 		pdb_out->type = PPDB_MAGIC_TRK;
 		appinfo->dataBaseSubType = 1;
 		route_disp_all(ppdb_track_header, ppdb_track_trailer, ppdb_write_wpt);
+		break;
+	    case posndata:
+		fatal(MYNAME ": Realtime positioning not supported.\n");
 		break;
 	}
 
@@ -697,5 +740,7 @@ ff_vecs_t ppdb_vecs = {
 	ppdb_read,
 	ppdb_write,
 	NULL, 
-	ppdb_args
+	ppdb_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

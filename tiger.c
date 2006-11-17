@@ -22,15 +22,14 @@
 #include "defs.h"
 #include "csv_util.h"
 
-static FILE *file_in;
-static FILE *file_out;
-static void *mkshort_handle;
-static void *mkshort_whandle;
+static gbfile *file_in, *file_out;
+static short_handle mkshort_handle;
+static short_handle mkshort_whandle;
 
 #define MYNAME "GPSUTIL"
 
 static double maxlat, maxlon, minlat, minlon;
-int rec_cnt;
+static int rec_cnt;
 static char *nolabels = NULL;
 static char *genurl = NULL;
 static char *suppresswhite = NULL;
@@ -45,9 +44,8 @@ static char *oldmarker  = NULL;
 static char *newmarker  = NULL;
 static char *unfoundmarker  = NULL;
 
-int scalev;
-int short_length;
-double thresh_days;
+static int short_length;
+static double thresh_days;
 
 /*
  *   The code bracketed by CLICKMAP is to generate clickable image maps
@@ -62,66 +60,66 @@ static char *clickmap = NULL;
 
 static
 arglist_t tiger_args[] = {
-	{"nolabels", &nolabels, "Suppress labels on generated pins.",
-		NULL, ARGTYPE_BOOL },
-	{"genurl", &genurl, "Generate file with lat/lon for centering map.",
-		NULL, ARGTYPE_OUTFILE },
-	{"margin", &margin, "Margin for map.  Degrees or percentage.",
-		"15%", ARGTYPE_FLOAT},
-	{"snlen", &snlen, "Max shortname length when used with -s.",
-		NULL, ARGTYPE_INT},
+	{"nolabels", &nolabels, "Suppress labels on generated pins",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"genurl", &genurl, "Generate file with lat/lon for centering map",
+		NULL, ARGTYPE_OUTFILE, ARG_NOMINMAX },
+	{"margin", &margin, "Margin for map.  Degrees or percentage",
+		"15%", ARGTYPE_FLOAT, ARG_NOMINMAX},
+	{"snlen", &snlen, "Max shortname length when used with -s",
+		"10", ARGTYPE_INT, "1", NULL},
 	{"oldthresh", &oldthresh, 
-		"Days after which points are considered old.",
-		"14", ARGTYPE_INT},
-	{"oldmarker", &oldmarker, "Marker type for old points.",
-		"redpin", ARGTYPE_STRING},
-	{"newmarker", &newmarker, "Marker type for new points.",
-		"greenpin", ARGTYPE_STRING},
+		"Days after which points are considered old",
+		"14", ARGTYPE_INT, ARG_NOMINMAX},
+	{"oldmarker", &oldmarker, "Marker type for old points",
+		"redpin", ARGTYPE_STRING, ARG_NOMINMAX},
+	{"newmarker", &newmarker, "Marker type for new points",
+		"greenpin", ARGTYPE_STRING, ARG_NOMINMAX},
 	{"suppresswhite", &suppresswhite,
 		"Suppress whitespace in generated shortnames", 
-		NULL, ARGTYPE_BOOL },
-	{"unfoundmarker", &unfoundmarker, "Marker type for unfound points.",
-		"bluepin", ARGTYPE_STRING},
-	{"xpixels", &xpixels, "Width in pixels of map.",
-		"768", ARGTYPE_INT},
-	{"ypixels", &ypixels, "Height in pixels of map.",
-		"768", ARGTYPE_INT},
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"unfoundmarker", &unfoundmarker, "Marker type for unfound points",
+		"bluepin", ARGTYPE_STRING, ARG_NOMINMAX},
+	{"xpixels", &xpixels, "Width in pixels of map",
+		"768", ARGTYPE_INT, ARG_NOMINMAX},
+	{"ypixels", &ypixels, "Height in pixels of map",
+		"768", ARGTYPE_INT, ARG_NOMINMAX},
 	{"iconismarker", &iconismarker,
 		"The icon description is already the marker", NULL,
-		ARGTYPE_BOOL },
+		ARGTYPE_BOOL, ARG_NOMINMAX },
 #if CLICKMAP
-	{"clickmap", &clickmap, "Generate Clickable map web page.",
-		NULL, ARGTYPE_BOOL},
+	{"clickmap", &clickmap, "Generate Clickable map web page",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 #endif
-	{0, 0, 0, 0, 0}
+	ARG_TERMINATOR
 };
 
 
 static void
 rd_init(const char *fname)
 {
-	file_in = xfopen(fname, "r", MYNAME);
+	file_in = gbfopen(fname, "rb", MYNAME);
 	mkshort_handle = mkshort_new_handle();
 }
 
 static void
 rd_deinit(void)
 {
-	fclose(file_in);
-	mkshort_del_handle(mkshort_handle);
+	gbfclose(file_in);
+	mkshort_del_handle(&mkshort_handle);
 }
 
 static void
 wr_init(const char *fname)
 {
-	file_out = xfopen(fname, "w", MYNAME);
+	file_out = gbfopen(fname, "w", MYNAME);
 	thresh_days = strtod(oldthresh, NULL);
 }
 
 static void
 wr_deinit(void)
 {
-	fclose(file_out);
+	gbfclose(file_out);
 }
 
 static void
@@ -130,10 +128,10 @@ data_read(void)
 	double lat,lon;
 	char desc[100];
 	char icon[100];
-	char ibuf[1024];
+	char *ibuf;
 	waypoint *wpt_tmp;
-
-	while (fgets(ibuf, sizeof(ibuf), file_in)) {
+	
+	while ((ibuf = gbfgetstr(file_in))) {
 		if( sscanf(ibuf, "%lf,%lf:%100[^:]:%100[^\n]", 
 				&lon, &lat, icon, desc)) {
 			wpt_tmp = waypt_new();
@@ -171,17 +169,20 @@ tiger_disp(const waypoint *wpt)
 		if (lon < minlon) minlon = lon;
 	}
 
-	fprintf(file_out, "%f,%f:%s", lon, lat, pin);
+	gbfprintf(file_out, "%f,%f:%s", lon, lat, pin);
 	if (!nolabels) {
+		char *temp = NULL;
 		char *desc = csv_stringclean(wpt->description, ":");
-		char *adesc = str_utf8_to_ascii(desc);
 		if (global_opts.synthesize_shortnames)
-			adesc = mkshort(mkshort_whandle, adesc);
-		fprintf(file_out, ":%s", adesc);
+		{
+			temp = desc;
+			desc = mkshort(mkshort_whandle, desc);
+		}
+		gbfprintf(file_out, ":%s", desc);
+		if (temp != NULL) desc = temp;
 		xfree(desc);
-		xfree(adesc);
 	}
-	fprintf(file_out, "\n");
+	gbfprintf(file_out, "\n");
 }
 
 #if CLICKMAP
@@ -194,7 +195,7 @@ map_plot(const waypoint *wpt)
 	x+=10;
 	y+=10;
 
-	fprintf(linkf, "<area shape=\"circle\" coords=\"%d,%d,7\" href=\"%s\" alt=\"%s\"\n", x, y, wpt->url, wpt->description);
+	gbfprintf(linkf, "<area shape=\"circle\" coords=\"%d,%d,7\" href=\"%s\" alt=\"%s\"\n", x, y, wpt->url, wpt->description);
 }
 #endif /* CLICKMAP */
 
@@ -225,10 +226,7 @@ data_write(void)
 	minlon = 9999.0;
 	rec_cnt = 0;
 
-	if (snlen)
-		short_length = atoi(snlen);
-	else
-		short_length = 10;
+	short_length = atoi(snlen);
 	mkshort_whandle = mkshort_new_handle();
 
 	if (suppresswhite) {
@@ -237,13 +235,13 @@ data_write(void)
 
 	setshort_length(mkshort_whandle, short_length);
 
-	fprintf(file_out, "#tms-marker\n");
+	gbfprintf(file_out, "#tms-marker\n");
 	waypt_disp_all(tiger_disp);
 
 	if (genurl) {
-		FILE *urlf;
+		gbfile *urlf;
 
-		urlf = xfopen(genurl, "w", MYNAME);
+		urlf = gbfopen(genurl, "w", MYNAME);
 		latsz = fabs(maxlat - minlat); 
 		lonsz = fabs(maxlon - minlon); 
 
@@ -251,27 +249,27 @@ data_write(void)
 		 * Center the map along X and Y axis the midpoint of
 		 * our min and max coords each way.   
 		 */
-		fprintf(urlf, "lat=%f&lon=%f&ht=%f&wid=%f",
+		gbfprintf(urlf, "lat=%f&lon=%f&ht=%f&wid=%f",
 				minlat + (latsz/2.0),
 				minlon + (lonsz/2.0),
 				dscale(latsz),
 				dscale(lonsz));
 
-		fprintf(urlf, "&iwd=%s&iht=%s", xpixels, ypixels);
-		fclose(urlf);
+		gbfprintf(urlf, "&iwd=%s&iht=%s", xpixels, ypixels);
+		gbfclose(urlf);
 #if CLICKMAP
 		if (clickmap) {
-			linkf = xfopen(clickmap, "w", MY NAME);
-			fprintf(linkf, "<map name=\"map\">\n");
+			linkf = gbfopen(clickmap, "w", MY NAME);
+			gbfprintf(linkf, "<map name=\"map\">\n");
 			waypt_disp_all(map_plot);
-			fprintf(linkf, "</map>\n");
-			fclose(linkf);
+			gbfprintf(linkf, "</map>\n");
+			gbfclose(linkf);
 			linkf = NULL;
 		}
 #endif
 	}
 
-	mkshort_del_handle(mkshort_whandle);
+	mkshort_del_handle(&mkshort_whandle);
 }
 
 
@@ -286,4 +284,5 @@ ff_vecs_t tiger_vecs = {
 	data_write,
 	NULL, 
 	tiger_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

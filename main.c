@@ -19,16 +19,105 @@
 
 
 #include "defs.h"
+#include "filterdefs.h"
+#include "cet.h"
+#include "cet_util.h"
+#include "csv_util.h"
+#include "inifile.h"
 #include <ctype.h>
 
-global_options global_opts;
-const char gpsbabel_version[] = VERSION;
+#define MYNAME "main"
+
+typedef struct arg_stack_s {
+	int argn;
+	int argc;
+	char **argv;
+	struct arg_stack_s *prev;
+} arg_stack_t;
+
+static arg_stack_t
+*push_args(arg_stack_t *stack, const int argn, const int argc, char *argv[])
+{
+	arg_stack_t *res = xmalloc(sizeof(*res));
+	
+	res->prev = stack;
+	res->argn = argn;
+	res->argc = argc;
+	res->argv = (char **)argv;
+
+	return res;
+}
+
+static arg_stack_t
+*pop_args(arg_stack_t *stack, int *argn, int *argc, char **argv[])
+{
+	arg_stack_t *res;
+	char **argv2 = *argv;
+	int i;
+	
+	if (stack == NULL) fatal("main: Invalid point in time to call 'pop_args'\n");
+	
+	for (i = 0; i < *argc; i++)
+		xfree(argv2[i]);
+	xfree(*argv);
+
+	*argn = stack->argn;
+	*argc = stack->argc;
+	*argv = stack->argv;
+	
+	res = stack->prev;
+	xfree(stack);
+	
+	return res;
+}
 
 static void
-usage(const char *pname, int shorter)
+load_args(const char *filename, int *argc, char **argv[])
+{
+	gbfile *fin;
+	char *str, *line = NULL;
+	int argc2;
+	char **argv2;
+	
+	fin = gbfopen(filename, "r", "main");
+	while ((str = gbfgetstr(fin))) {
+		str = lrtrim(str);
+		if ((*str == '\0') || (*str == '#')) continue;
+		
+		if (line == NULL) line = xstrdup(str);
+		else {
+			char *tmp;
+			xasprintf(&tmp, "%s %s", line, str);
+			xfree(line);
+			line = tmp;
+		}
+	}
+	gbfclose(fin);
+	
+	argv2 = xmalloc(2 * sizeof(*argv2));
+	argv2[0] = xstrdup(*argv[0]);
+	argc2 = 1;
+	
+	str = csv_lineparse(line, " ", "\"", 0);
+	while (str != NULL) {
+		argv2 = xrealloc(argv2, (argc2 + 2) * sizeof(*argv2));
+		argv2[argc2] = xstrdup(str);
+		argc2++;
+		str = csv_lineparse(NULL, " ", "\"", 0);
+	}
+	xfree(line);
+
+	argv2[argc2] = NULL;
+	
+	*argc = argc2;
+	*argv = argv2;
+}
+
+static void
+usage(const char *pname, int shorter )
 {
 	printf("GPSBabel Version %s.  http://www.gpsbabel.org\n\n",
-			VERSION );
+			gpsbabel_version );
 	printf(
 "Usage:\n"
 "    %s [options] -i INTYPE -f INFILE -o OUTTYPE -F OUTFILE\n"
@@ -43,19 +132,23 @@ usage(const char *pname, int shorter)
 "    In the second form of the command, INFILE and OUTFILE are the\n"
 "    first and second positional (non-option) arguments.\n"
 "\n"
-"    INTYPE and OUTTYPE must be one of the file types listed below, and\n"
+"    INTYPE and OUTTYPE must be one of the supported file types and\n"
 "    may include options valid for that file type.  For example:\n"
 "      'gpx', 'gpx,snlen=10' and 'ozi,snlen=10,snwhite=1'\n"
 "    (without the quotes) are all valid file type specifications.\n"
 "\n"
 "Options:\n"
+"    -p               Preferences file (gpsbabel.ini)\n"
 "    -s               Synthesize shortnames\n"
 "    -r               Process route information\n"
 "    -t               Process track information\n"
 "    -w               Process waypoint information [default]\n"
+"    -b               Process command file (batch mode)\n"
+"    -c               Character set for next operation\n"
 "    -N               No smart icons on output\n"
 "    -x filtername    Invoke filter (place between inputs and output) \n"
 "    -D level         Set debug level [%d]\n"
+"    -l               Print GPSBabel builtin character sets and exit\n"
 "    -h, -?           Print detailed help and exit\n"
 "    -V               Print GPSBabel version and exit\n"
 "\n"
@@ -75,7 +168,13 @@ usage(const char *pname, int shorter)
 	}
 }
 
-
+static void 
+spec_usage( const char *vec ) {
+	printf( "\n" );
+	disp_vec( vec );
+	disp_filter_vec ( vec );
+	printf( "\n" );
+}
 
 int
 main(int argc, char *argv[])
@@ -93,10 +192,19 @@ main(int argc, char *argv[])
 	int opt_version = 0;
 	int did_something = 0;
 	const char *prog_name = argv[0]; /* argv is modified during processing */
+	queue *wpt_head_bak, *rte_head_bak, *trk_head_bak;	/* #ifdef UTF8_SUPPORT */
+	signed int wpt_ct_bak, rte_ct_bak, trk_ct_bak;	/* #ifdef UTF8_SUPPORT */
+	arg_stack_t *arg_stack = NULL;
 
 	global_opts.objective = wptdata;
 	global_opts.masked_objective = NOTHINGMASK;	/* this makes the default mask behaviour slightly different */
+	global_opts.charset = NULL;
+	global_opts.charset_name = NULL;
+	global_opts.inifile = NULL;
 
+	gpsbabel_now = time(NULL);			/* gpsbabel startup-time */
+	gpsbabel_time = current_time();			/* same like gpsbabel_now, but freezed to zero during testo */
+	
 #ifdef DEBUG_MEM
 	debug_mem_open();
 	debug_mem_output( "command line: " );
@@ -105,7 +213,11 @@ main(int argc, char *argv[])
 	}
 	debug_mem_output( "\n" );
 #endif
+	if (gpsbabel_time != 0) {	/* within testo ? */
+		global_opts.inifile = inifile_init(NULL, MYNAME);
+	}
 	
+	cet_register();
 	waypt_init();
 	route_init();
 
@@ -117,7 +229,8 @@ main(int argc, char *argv[])
 	/*
 	 * Open-code getopts since POSIX-impaired OSes don't have one.
 	 */
-	for (argn = 1; argn < argc; argn++) {
+	argn = 1;
+	while (argn < argc) {
 		char *optarg;
 
 		if (argv[argn][0] != '-') {
@@ -128,12 +241,17 @@ main(int argc, char *argv[])
 		}
 		
 		if (argv[argn][1] == 'V' ) {
-			 printf("\nGPSBabel Version %s\n\n", VERSION );
+			 printf("\nGPSBabel Version %s\n\n", gpsbabel_version );
 			 exit(0);
 		}
 
 		if (argv[argn][1] == '?' || argv[argn][1] == 'h') {
-			usage(argv[0],0);
+			if ( argn < argc-1 ) {
+				spec_usage( argv[argn+1] );
+			}
+			else {
+				usage(argv[0],0);
+			}
 			exit(0);
 		}
 
@@ -144,12 +262,19 @@ main(int argc, char *argv[])
 		}
 
 		switch (c) {
+			case 'c':
+				optarg = argv[argn][2] ? argv[argn]+2 : argv[++argn];
+				cet_convert_init(optarg, 1);
+				break;
 			case 'i': 
 				optarg = argv[argn][2]
 					? argv[argn]+2 : argv[++argn];
 				ivecs = find_vec(optarg, &ivec_opts);
 				break;
 			case 'o':
+				if (ivecs == NULL) {
+					warning ("-o appeared before -i.   This is probably not what you want to do.\n");
+				}
 				optarg = argv[argn][2]
 					? argv[argn]+2 : argv[++argn];
 				ovecs = find_vec(optarg, &ovec_opts);
@@ -167,27 +292,77 @@ main(int argc, char *argv[])
 				if (ivecs->rd_init == NULL) {
 					fatal ("Format does not support reading.\n");
 				}
+				if (global_opts.masked_objective & POSNDATAMASK) {
+					did_something = 1;
+					break;
+				}
 				/* simulates the default behaviour of waypoints */
 				if (doing_nothing) global_opts.masked_objective |= WPTDATAMASK;
+			
+				cet_convert_init(ivecs->encode, ivecs->fixed_encode);	/* init by module vec */
+
 				ivecs->rd_init(fname);
 				ivecs->read();
 				ivecs->rd_deinit();
+				
+				cet_convert_strings(global_opts.charset, NULL, NULL);
+				cet_convert_deinit();
+				
 				did_something = 1;
 				break;
 			case 'F':
 				optarg = argv[argn][2]
 					? argv[argn]+2 : argv[++argn];
 				ofname = optarg;
-				if (ovecs) {
+				if (ovecs && (!(global_opts.masked_objective & POSNDATAMASK))) {
 					/* simulates the default behaviour of waypoints */
 					if (doing_nothing) 
 						global_opts.masked_objective |= WPTDATAMASK;
 					if (ovecs->wr_init == NULL) {
 						fatal ("Format does not support writing.\n");
 					}
+					
+					cet_convert_init(ovecs->encode, ovecs->fixed_encode);
+
+					wpt_ct_bak = -1;
+					rte_ct_bak = -1;
+					trk_ct_bak = -1;
+					rte_head_bak = trk_head_bak = NULL;
+
 					ovecs->wr_init(ofname);
+
+					if (global_opts.charset != &cet_cs_vec_utf8)
+					{
+					/* 
+					 * Push and pop verbose_status so 
+                          		 * we don't get dual progress bars 
+					 * when doing characterset 
+					 * transformation. 
+					 */
+					    int saved_status = global_opts.verbose_status;
+					    global_opts.verbose_status = 0;
+					    waypt_backup(&wpt_ct_bak, &wpt_head_bak);
+					    route_backup(&rte_ct_bak, &rte_head_bak);
+					    track_backup(&trk_ct_bak, &trk_head_bak);
+					    
+					    cet_convert_strings(NULL, global_opts.charset, NULL);
+					    global_opts.verbose_status = saved_status;
+					}
+
 					ovecs->write();
 					ovecs->wr_deinit();
+					
+					cet_convert_deinit();
+					
+					if (wpt_ct_bak != -1) waypt_restore(wpt_ct_bak, wpt_head_bak);
+					if (rte_ct_bak != -1) {
+						route_restore( rte_head_bak);
+						xfree( rte_head_bak );
+					}
+					if (trk_ct_bak != -1) {
+						track_restore( trk_head_bak);
+						xfree( trk_head_bak );
+					}
 				}
 				break;
 			case 's':
@@ -204,6 +379,10 @@ main(int argc, char *argv[])
 			case 'r':
 				global_opts.objective = rtedata;
 				global_opts.masked_objective |= RTEDATAMASK;
+				break;
+			case 'T':
+				global_opts.objective = posndata;
+				global_opts.masked_objective |= POSNDATAMASK;
 				break;
 			case 'N':
 				switch(argv[argn][2]) {
@@ -242,7 +421,7 @@ main(int argc, char *argv[])
 				 * When debugging, announce version.
 				 */
 				if (global_opts.debug_level > 0)  {
-					warning("GPSBabel Version: " VERSION "\n" );
+					warning("GPSBabel Version: %s \n", gpsbabel_version );
 				}
 
 				break;
@@ -270,7 +449,35 @@ main(int argc, char *argv[])
 			case '?':
 				usage(argv[0],0);
 				exit(0);
+			case 'l':
+				cet_disp_character_set_names(stdout);
+				exit(0);
+			case 'p':
+				optarg = argv[argn][2] ? argv[argn]+2 : argv[++argn];
+				inifile_done(global_opts.inifile);
+				if (!optarg || strcmp(optarg, "") == 0)	/* from GUI to preserve inconsistent options */
+					global_opts.inifile = NULL;
+				else
+					global_opts.inifile = inifile_init(optarg, MYNAME);
+				break;
+			case 'b':
+				optarg = argv[argn][2] ? argv[argn]+2 : argv[++argn];
+				arg_stack = push_args(arg_stack, argn, argc, argv);
+				load_args(optarg, &argc, &argv);
+				if (argc == 0)
+					arg_stack = pop_args(arg_stack, &argn, &argc, &argv);
+				else
+					argn = 0;
+				break;
+
+			default:
+				fatal("Unknown option '%s'.\n", argv[argn]);
+				break;
 		}
+		
+		if ((argn+1 >= argc) && (arg_stack != NULL))
+			arg_stack = pop_args(arg_stack, &argn, &argc, &argv);
+		argn++;
 	}
 
 	/*
@@ -286,13 +493,26 @@ main(int argc, char *argv[])
 		did_something = 1;
 		/* simulates the default behaviour of waypoints */
 		if (doing_nothing) global_opts.masked_objective |= WPTDATAMASK;
+					
+		cet_convert_init(ivecs->encode, 1);
+
 		ivecs->rd_init(argv[0]);
 		ivecs->read();
 		ivecs->rd_deinit();
-		if (argc == 2 && ovecs) {
+		
+		cet_convert_strings(global_opts.charset, NULL, NULL);
+		cet_convert_deinit();
+		
+		if (argc == 2 && ovecs) 
+		{
+			cet_convert_init(ovecs->encode, 1);
+			cet_convert_strings(NULL, global_opts.charset, NULL);
+			
 			ovecs->wr_init(argv[1]);
 			ovecs->write();
 			ovecs->wr_deinit();
+			
+			cet_convert_deinit();
 		}
 	}
 	else if (argc) {
@@ -300,15 +520,90 @@ main(int argc, char *argv[])
 		exit(0);
 	}
 	if (ovecs == NULL)
+	{
+		/* 
+		 * Push and pop verbose_status so we don't get dual
+		 * progress bars when doing characterset transformation. 
+		 */
+		int saved_status = global_opts.verbose_status;
+		global_opts.verbose_status = 0;
+		cet_convert_init(CET_CHARSET_ASCII, 1);
+		cet_convert_strings(NULL, global_opts.charset, NULL);
 		waypt_disp_all(waypt_disp);
+		global_opts.verbose_status = saved_status;
+	}
+
+	/*
+	 * This is very unlike the rest of our command sequence.
+	 * If we're doing realtime position tracking, we enforce that
+	 * we're not doing anything else and we just bounce between
+	 * the special "read position" and "write position" vectors 
+	 * in our most recent vecs.
+	 */
+	if (global_opts.masked_objective & POSNDATAMASK) {
+
+		if (!ivecs->position_ops.rd_position) {
+			fatal("Realtime tracking (-T) is not suppored by this input type.\n");
+		}
+
+
+		if (ivecs->position_ops.rd_init) {
+			ivecs->position_ops.rd_init(fname);
+		}
+
+		if (global_opts.masked_objective & ~POSNDATAMASK) {
+			fatal("Realtime tracking (-T) is exclusive of other modes.\n");
+		}
+
+		if (ovecs) {
+			if (!ovecs->position_ops.wr_init || 
+			    !ovecs->position_ops.wr_position ||
+			    !ovecs->position_ops.wr_deinit) {
+				fatal ("This output format does not support realtime positioning.\n");
+			}
+		}
+
+		while (1) {
+			posn_status status;
+			waypoint *wpt = ivecs->position_ops.rd_position(&status);
+			status.request_terminate = 0;
+
+			if (status.request_terminate) {
+				if (wpt) {
+					waypt_free(wpt);
+				}
+				break;
+			}
+			if (wpt) {
+				if (ovecs) {
+					ovecs->position_ops.wr_init(ofname);
+					ovecs->position_ops.wr_position(wpt);
+					ovecs->position_ops.wr_deinit();
+				} else {
+					/* Just print to screen */
+					waypt_disp(wpt);
+				}
+				waypt_free(wpt);
+			}
+		}
+		if (ivecs->position_ops.rd_deinit) {
+			ivecs->position_ops.rd_deinit();
+		}
+		if (ivecs->position_ops.wr_deinit) {
+			ivecs->position_ops.wr_deinit();
+		}
+	}
+
 
 	if (!did_something)
 		fatal ("Nothing to do!  Use '%s -h' for command-line options.\n", prog_name);
 
+	cet_deregister();
 	waypt_flush_all();
 	route_flush_all();
 	exit_vecs();
 	exit_filter_vecs();
+	inifile_done(global_opts.inifile);
 
 #ifdef DEBUG_MEM
 	debug_mem_close();

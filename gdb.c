@@ -1,7 +1,7 @@
 /* 
 	Garmin GPS Database Reader/Writer
 	
-	Copyright (C) 2005 Olaf Klein, o.b.klein@t-online.de
+	Copyright (C) 2005,2006 Olaf Klein, o.b.klein@gpsbabel.org
 	Mainly based on mapsource.c,
 	Copyright (C) 2005 Robert Lipe, robertlipe@usa.net
 	
@@ -32,15 +32,36 @@
 			new option "ver"
 			fixed compiler warnings
 	    2005/07/29: fixed compiler warnings
+	    2005/08/04: Read/write URL (reference data changed)
+	    2005/08/11: Display sym and name in GDB
+	    2005/08/12: Neuter proximity and depth for now
+	    2005/08/29: big CET merge
+	    2005/09/13: Make sure routes have unique wpt names
+	    2005/10/10: MSVC fixes from Andrew
+	    2005/10/17: RJL: Tighten up types of a short handle.  It's now a "real" type and not a void *
+	    2005/10/31: RJL: Add v3 format, min/max, provide defaults, data types, etc
+	    2005/11/09: RJL: Clarify help text for dropping via points
+	    2005/12/01: changed waypt's URL to descr for hidden waypoints (-> reference data changed)
+	                removed unused procedure gdb_add_to_hidden
+	    2005/12/04: additional testo sequences
+	    2006/02/24: last field of a route is rte url
+	    2006/02/25: rte_read_loop: zero check replaced with a dummy read (8 unknown bytes)
+	    2006/03/05: first implementation of Garmin special data (garmin_fs)
+	    2006/04/04: Use track_add_wpt for all tracks
+	    2006/04/19: add url i/o to tracks and routes
+	    2006/04/19: check for empty waypoint shortnames (paranioa)
+	    2006/11/01: Use version of GPSBabel and date/time of gdb.c (managed by CVS) for watermark
 */
 
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 
 #include "defs.h"
 #include "garmin_tables.h"
 #include "jeeps/gpsmath.h"
+#include "garmin_fs.h"
 
 #define MYNAME "gdb"
 
@@ -57,7 +78,6 @@
 #define GDB_NOTES_BUFFERLEN	4096	/* (likewise)   */
 
 #define DEFAULTICONVALUE	18
-#define DEFAULTICONDESCR	"Waypoint"
 
 #ifdef UTF8_SUPPORT
 # define GDB_UTF8_ENABLED 1
@@ -65,15 +85,12 @@
 # define GDB_UTF8_ENABLED 0
 #endif
 
-typedef enum {
-	GDB_DISPLAY_SYMBOL_ONLY = 0,
-	GDB_DISPLAY_SYMBOL_AND_NAME = 1,
-	GDB_DISPLAY_SYMBOL_AND_COMMENT = 2,
-} gdb_display_type;
-
 /* %%% local vars %%% */
 
-FILE *fin, *fout;
+/* static char gdb_release[] = "$Revision: 1.43 $"; */
+static char gdb_release_date[] = "$Date: 2006/11/01 22:23:39 $";
+
+static FILE *fin, *fout;
 static char *fin_name, *fout_name;
 
 static int gdb_ver = 1;
@@ -81,8 +98,8 @@ static int gdb_debug = 0;
 static int gdb_via;		/* 0 = read and write hidden points too; 1 = drop */
 static int gdb_category;
 
-route_head *gdb_hidden = NULL;
-
+static queue gdb_hidden;
+static short_handle gdb_short_handle;
 
 #define GDB_OPT_VER		"ver"
 #define GDB_OPT_VIA		"via"
@@ -94,28 +111,17 @@ static char *gdb_opt_via = NULL;
 
 static arglist_t gdb_args[] = {
 	{GDB_OPT_CATEGORY, &gdb_opt_category, 
-	    "Default category on output (1..16)", NULL, ARGTYPE_INT},
+	    "Default category on output (1..16)", NULL, ARGTYPE_INT, "1", "16"},
 	{GDB_OPT_VER, &gdb_opt_ver, 
-	    "Version of gdb file to generate (1,2)", "2", ARGTYPE_INT},
+	    "Version of gdb file to generate (1,2)", "2", ARGTYPE_INT, "1", "2"},
 	{GDB_OPT_VIA, &gdb_opt_via, 
-	    "Drop route points, if they don't have an aquivalent waypoint (hidden points)", NULL, ARGTYPE_BOOL},
-	{0, 0, 0, 0, 0}
+	    "Drop route points that do not have an equivalent waypoint (hidden points)", NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
 /********************************************************************************************************/
 
 /* %%% 1-1 functions from mapsource, should by shared!!! %%% */
-
-/*
- * Add a waypoint that we've already written out to our list
- *
- */
-static void
-gdb_add_to_hidden(const waypoint *wpt)
-{
-	waypoint *tmp = waypt_dupe(wpt);
-	route_add_wpt(gdb_hidden, tmp);
-}
 
 static waypoint *
 gdb_find_wpt_q_by_name(const queue *whichQueue, const char *name)
@@ -125,146 +131,24 @@ gdb_find_wpt_q_by_name(const queue *whichQueue, const char *name)
 
 	QUEUE_FOR_EACH(whichQueue, elem, tmp) {
 		waypointp = (waypoint *) elem;
-		if (0 == strcmp(waypointp->shortname, name)) {
+		if (0 == case_ignore_strcmp(waypointp->shortname, name)) {
 			return waypointp;
 		}
 	}
 	return NULL;
 }
 
-static const char *
-gdb_find_desc_from_icon_number(const int icon, garmin_formats_e garmin_format)
-{
-	static char custom[] = "Custom 63";
-	icon_mapping_t *i;
-
-	if (icon >= 500 && icon <= 563)
-	{
-	    snprintf(custom, sizeof(custom), "Custom %d", icon - 500);
-	    return &custom[0];
-	}
-
-	for (i = garmin_icon_table; i->icon; i++) {
-		switch (garmin_format) {
-			case MAPSOURCE:
-				if (icon == i->mpssymnum)
-					return i->icon;
-				break;
-			case PCX:
-			case GARMIN_SERIAL:
-				if (icon == i->pcxsymnum)
-					return i->icon;
-				break;
-			default:
-				fatal(MYNAME ": unknown garmin format.\n");
-		}
-	}
-	return DEFAULTICONDESCR;
-}
-
-static int
-gdb_find_icon_number_from_desc(const char *desc, garmin_formats_e garmin_format)
-{
-	icon_mapping_t *i;
-	int def_icon = DEFAULTICONVALUE;
-	int n;
-
-	if (!desc)
-		return def_icon;
-
-	/*
-	 * If we were given a numeric icon number as a description 
-	 * (i.e. 8255), just return that.
-	 */
-	n = atoi(desc);
-	if (n)  {
-		return n;
-	}
-
-	for (i = garmin_icon_table; i->icon; i++) {
-		if (case_ignore_strcmp(desc,i->icon) == 0) {
-			switch (garmin_format) {
-			case MAPSOURCE:
-				return i->mpssymnum;
-			case PCX:
-			case GARMIN_SERIAL:
-				return i->pcxsymnum;
-			default:
-				fatal(MYNAME ": unknown garmin format.\n");
-			}
-		}
-	}
-	return def_icon;
-}
-
 static int
 gdb_detect_rtept_class(const waypoint *wpt)
 {
-	if (gdb_find_wpt_q_by_name((queue *)&gdb_hidden->waypoint_list, wpt->shortname) == NULL)
+	if (gdb_find_wpt_q_by_name((queue *)&gdb_hidden, wpt->shortname) == NULL)
 	    return (int)GDB_HIDDENROUTEWPTCLASS;
 	else
 	    return (int)GDB_DEFAULTWPTCLASS;
 }
 
 
-#ifndef UTF8_SUPPORT
-static char *gdb_garmin_to_utf8(const char *s)
-{
-	int len;
-	char *res;
-	unsigned char c;
-	char *src, *dst;
-
-	if (s == NULL) return NULL;
-
-	len = 0;
-	src = (char *)s;
-	while ('\0' != (c = *src++))
-	{
-	    len++;
-	    if (c & 0x80) len++;
-	    if (c == 0x80) len++;
-	}
-
-	src = (char *)s;
-	dst = res = (void *) xmalloc(len + 1);
-	while ('\0' != (c = *src++))
-	{
-	    if (c == 0x80)
-	    {
-		*dst++ = 0xe2;
-		*dst++ = 0x82;
-		*dst++ = 0xac;
-	    }
-	    else if (c & 0x80)
-	    {
-		*dst++ = (0xc0 | (c >> 6));
-		*dst++ = (c & 0xbf);
-	    }
-	    else
-	    {
-		*dst++ = c;
-	    }
-	}
-	*dst = '\0';
-	return res;
-}
-#endif
-
 /* %%% local functions (read support) %%% */
-
-static char *
-gdb_convert_name_buff(char *buff, size_t buffsize)
-{
-#ifdef UTF8_SUPPORT
-	char *tmp = str_garmin_to_utf8(buff);
-#else
-	char *tmp = gdb_garmin_to_utf8(buff);
-#endif	
-	strncpy(buff, tmp, buffsize);
-	xfree(tmp);
-	return buff;
-}
 
 #ifdef GDB_DEBUG
 static void
@@ -290,10 +174,13 @@ gdb_create_rte_wpt(const char *name, double lat, double lon, double alt)
 	if (wpt == NULL)
 	{
 	    if (gdb_via != 0) return NULL;
-	    wpt = gdb_find_wpt_q_by_name((queue *)&gdb_hidden->waypoint_list, name);
+	    wpt = gdb_find_wpt_q_by_name((queue *)&gdb_hidden, name);
 	}
-	if (wpt != NULL) 
-		wpt = waypt_dupe(wpt);
+	if (wpt != NULL)
+	{
+	    wpt = waypt_dupe(wpt);
+//	    wpt->creation_time = 0; /* !!! should be removed !!! */
+	}
 	else
 	{
 	    wpt = waypt_new();
@@ -346,10 +233,11 @@ gdb_fread_str(char *dest, size_t maxlen)
 	    }
 	}
 	fatal(MYNAME ": local buffer overflow detected, please report!\n");
+	return 0;
 }
 
 static int
-gdb_fread_le(void *dest, size_t size, int bit_count, const char *prefix, const char *field)
+gdb_fread_le(void *dest, size_t size, const unsigned int bit_count, const char *prefix, const char *field)
 {
 	char buff[32];
 	unsigned char *c = dest;
@@ -389,6 +277,7 @@ gdb_fread_le(void *dest, size_t size, int bit_count, const char *prefix, const c
 	    default:
 		fatal(MYNAME "%s: unsupported bit count (%d) in gdb_le_read!\n", prefix, bit_count);	    
 	}
+	return 0;
 }
 
 static int
@@ -479,7 +368,7 @@ gdb_read_file_header(void)
 	
 	gdb_fread(&reclen, 4);
 	reclen = le_read32(&reclen);
-	gdb_is_valid(reclen < sizeof(buff), prefix, "Invalid record length");
+	gdb_is_valid(reclen < (int)sizeof(buff), prefix, "Invalid record length");
 	gdb_fread(buff, reclen);
 	
 	gdb_is_valid(0 == gdb_fread_str(buff, sizeof(buff)), prefix, "header");
@@ -499,17 +388,23 @@ gdb_read_wpt(const size_t fileofs, int *wptclass)
 	char xnotes[GDB_NOTES_BUFFERLEN];
 	char xurl[GDB_URL_BUFFERLEN];
 	int xclass;
-	int xlat, xlon, xdisplay, xcolour, xicon, xtime;
+	int xlat, xlon, xdisplay, xcolour, xicon, xtime, dynamic;
 	short xcat;
 	double xdepth = unknown_alt;
 	double xalt = unknown_alt;
 	double xproximity = unknown_alt;
+	double xtemp;
 	waypoint *res;
 	char buff[128];
 	size_t pos, delta;
+	garmin_fs_t *gmsd = NULL;
 	
 	const char *prefix = "wpt_read";
 
+	res = waypt_new();
+	
+	gmsd = garmin_fs_alloc(-1);
+	fs_chain_add(&res->fs, (format_specific_data *) gmsd);
 	
 /********************************************************************************************************/
 /*	record structure
@@ -540,52 +435,89 @@ gdb_read_wpt(const size_t fileofs, int *wptclass)
 /********************************************************************************************************/
 
 	gdb_is_valid(gdb_fread_str(xname, sizeof(xname)) > 0, prefix, "new waypoint");
-	gdb_convert_name_buff(xname, sizeof(xname));
+	res->shortname = xstrdup(xname);
 
 	gdb_fread_le(&xclass, sizeof(xclass), 32, prefix, "class");
-	gdb_fread_str(buff, sizeof(buff));				/* country */
+	GMSD_SET(wpt_class, xclass);
+
+	gdb_fread_str(buff, sizeof(buff));				/* country code */
+	GMSD_SETSTR(cc, buff);
 	
 	gdb_fread(buff, 22);
 	xlat = gdb_fread_le(&xlat, sizeof(xlat), 32, prefix, "latitude");
 	xlon = gdb_fread_le(&xlon, sizeof(xlon), 32, prefix, "longitude");
 	
-	if (gdb_fread_flag(1)) 						/* altitude flag */
+	if (gdb_fread_flag(1)) { 						/* altitude flag */
 	    gdb_fread_le(&xalt, sizeof(xalt), 64, prefix, "altitude");
+	    if (xalt > 1.0e24)
+		xalt = unknown_alt;
+	}
 	
 	gdb_fread_str(xnotes, sizeof(xnotes));				/* notes */
-	gdb_convert_name_buff(xnotes, sizeof(xnotes));
 	
-	if (gdb_fread_flag(1))						/* proximity flag */
+	if (gdb_fread_flag(1)) {					/* proximity flag */
 	    gdb_fread_le(&xproximity, sizeof(xproximity), 64, prefix, "proximity");
+	    GMSD_SET(proximity, xproximity);
+	}
 	
 	xdisplay = gdb_fread_le(&xdisplay, sizeof(xdisplay), 32, prefix, "display");
+	switch(xdisplay) {
+		case gt_gdb_display_mode_symbol: 
+			xdisplay = gt_display_mode_symbol; 
+			break;
+		case gt_gdb_display_mode_symbol_and_comment: 
+			xdisplay = gt_display_mode_symbol_and_comment; 
+			break;
+		default: /* gt_gdb_display_mode_symbol_and_name and others */
+			xdisplay = gt_display_mode_symbol_and_name; 
+			break;
+	}
+	GMSD_SET(display, xdisplay);
+	
 	xcolour = gdb_fread_le(&xcolour, sizeof(xcolour), 32, prefix, "colour");
+	
 	xicon = gdb_fread_le(&xicon, sizeof(xicon), 32, prefix, "icon");
+	GMSD_SET(icon, xicon);
 
 	gdb_fread_str(buff, sizeof(buff));				/* city */
+	GMSD_SETSTR(city, buff);
+
 	gdb_fread_str(buff, sizeof(buff));				/* state */
+	GMSD_SETSTR(state, buff);
+	
 	gdb_fread_str(buff, sizeof(buff));				/* facility */
+	GMSD_SETSTR(facility, buff);
 	
 	gdb_fread(buff, 1);						/* unknown */
 	
-	if (gdb_fread_flag(1))						/* depth flag */
+	if (gdb_fread_flag(1)) {					/* depth flag */
 	    gdb_fread_le(&xdepth, sizeof(xdepth), 64, prefix, "depth");
+	    GMSD_SET(depth, xdepth);
+	}
 	
 	gdb_fread(buff, 1);
 	gdb_fread(buff, 1);
 
 	if (gdb_fread_flag(0))
-	    gdb_fread(buff, 4);
-	else
 	    gdb_fread(buff, 3);
+	else
+	    gdb_fread(buff, 2);
+	
+	do								/* undocumented & unused string */
+	{
+	    gdb_fread(buff, 1);
+	}
+	while (buff[0] != 0);
 
-	gdb_fread_str(xurl, sizeof(xurl));
-	gdb_convert_name_buff(xurl, sizeof(xurl));
+	gdb_fread_str(xurl, sizeof(xurl));				/* URL */
 	
 	xcat = gdb_fread_le(&xcat, sizeof(xcat), 16, prefix, "category");
+	if (xcat != 0) GMSD_SET(category, xcat);
 	
-	if (gdb_fread_flag(1))						/* temperature flag */
-	    gdb_fread(buff, 8);						/* temperature */
+	if (gdb_fread_flag(1)) {					/* temperature flag */
+	    gdb_fread_le(&xtemp, sizeof(xtemp), 64, prefix, "temperature");
+	    GMSD_SET(temperature, xtemp);
+	}
 
 	/* Here comes 1 .. 6 unknown bytes
 	   !!! 6 only if class > 0 !!!
@@ -604,7 +536,7 @@ gdb_read_wpt(const size_t fileofs, int *wptclass)
 	xtime = 0;
 	if (gdb_fread_flag(1))
 	{
-	    gdb_is_valid(delta==5, prefix, "Waypoint time");
+	    gdb_is_valid((delta == 5), prefix, "Waypoint time");
 	    gdb_fread_le(&xtime, sizeof(xtime), 32, prefix, "time");
 	}
 	    else
@@ -612,24 +544,22 @@ gdb_read_wpt(const size_t fileofs, int *wptclass)
 	
 	*wptclass = xclass;
 	
-	res = waypt_new();
-	res->shortname = xstrdup(xname);
-	if (xurl[0] != '\0') res->url = xstrdup(xurl);
+	if (xurl[0] != '\0')
+	{
+	    if (xclass == 0)
+		res->url = xstrdup(xurl);
+	    else
+		res->description = xstrdup(xurl);
+	}
 	if (xnotes[0] != '\0') res->notes = xstrdup(xnotes);
 	res->latitude = GPS_Math_Semi_To_Deg(xlat);
 	res->longitude = GPS_Math_Semi_To_Deg(xlon);
 	res->altitude = xalt;
 	res->creation_time = xtime;
-#if 0
-	res->depth = xdepth;
-	res->proximity = xproximity;
-	res->garmin_data = xcalloc(1, sizeof(garmin_data_t));
-	res->garmin_data->colour = xcolour;
-	res->garmin_data->category = xcat;
-	res->garmin_data->display = xdisplay;
-#endif
+
 	/* might need to change this to handle version dependent icon handling */
-	res->icon_descr = gdb_find_desc_from_icon_number(xicon, MAPSOURCE);
+	res->icon_descr = gt_find_desc_from_icon_number(xicon, GDB, &dynamic);
+	res->wpt_flags.icon_descr_is_dynamic = dynamic;
 
 	gdb_is_validf(fabs(res->latitude) <= 90.0, prefix, "%s has invalid latitude (%f)", 
 	    res->shortname, res->latitude);
@@ -661,13 +591,12 @@ gdb_read_route(void)
 	route_head *route;
 	waypoint *wpt;
 	
-	const char *prefix =  "rte_read_head";
-	const char *prefix1 = "rte_read_loop";
-	const char *prefix2 = "rte_ils_loop";
-	const char *prefix3 = "rte_read_final";
+	const char prefix[] =  "rte_read_head";
+	const char prefix1[] = "rte_read_loop";
+	const char prefix2[] = "rte_ils_loop";
+	const char prefix3[] = "rte_read_final";
 	
 	gdb_is_valid(gdb_fread_str(xname, sizeof(xname)) > 0, prefix, "Route has no name");
-	gdb_convert_name_buff(xname, sizeof(xname));
 	
 	gdb_fread_le(&auto_name, sizeof(auto_name), 8, prefix, "auto name");
 	if (gdb_fread_flag(0))					/* max. data flag */
@@ -695,22 +624,26 @@ gdb_read_route(void)
 	route->rte_name = xstrdup(xname);
 	route_add_head(route);
 
-#ifdef GDB_DEBUG
-	printf(MYNAME " - route: \"%s\" with %d point(s)\n", xname, count);
-#endif
 	origin = count;
 	
 	while (count--)
 	{
+	    garmin_fs_t *gmsd = NULL;
+	    garmin_ilink_t *anchor;
+	    
 	    gdb_fread_str(xwptname, sizeof(xwptname));			/* waypoint name */
-	    gdb_convert_name_buff(xwptname, sizeof(xwptname));
 	
 	    gdb_fread_le(&xclass, sizeof(xclass), 32, prefix1, "class");	/* class */
 	    gdb_fread_str(buff, sizeof(buff));					/* country */
 	    
 	    gdb_fread(buff, 22);						/* sub class data */
 	    gdb_fread(buff, 1);
-	    gdb_is_valid(buff[0] == 0, prefix1, "Should by zero byte (1)");
+	    if (buff[0] != 0) {							/* 0x00 or 0xFF */
+		gdb_fread(buff, 8);						/* unknown 8 bytes */
+#ifdef GDB_DEBUG
+		gdb_print_buff(buff, 8, "Unknown bytes within rte_reed_loop");
+#endif
+	    }
 
 	    /* The next thing is the unknown 0x03 0x00 .. 0x00 (18 bytes) */
 	    /* OK: this should be, but i've seen exceptions (...cannot verify the first byte */
@@ -728,8 +661,9 @@ gdb_read_route(void)
 		if (gdb_ver > 1)
 		    gdb_fread(buff, 8);					/* Unknown 8 bytes since gdb v2 */
 
-		gdb_fread(buff, 1);
-		gdb_is_valid((buff[0] == 0), prefix3, "last seq.(2)");
+		gdb_fread_str(xname, sizeof(xname));
+		if (buff[0] != 0)
+			route->rte_url = xstrdup(xname);
 		
 		wpt = gdb_create_rte_wpt(xwptname, xlat, xlon, xalt);
 		if (wpt != NULL)
@@ -750,8 +684,20 @@ gdb_read_route(void)
 		xalt = unknown_alt;
 
 	    wpt = gdb_create_rte_wpt(xwptname, xlat, xlon, xalt);
-	    if (wpt != NULL)
+	    if (wpt != NULL) {
 		route_add_wpt(route, wpt);
+		gmsd = GMSD_FIND(wpt);
+		if (gmsd == NULL) {
+		    gmsd = garmin_fs_alloc(-1);
+		    fs_chain_add(&wpt->fs, (format_specific_data *) gmsd);
+		}
+		GMSD_SET(wpt_class, xclass);
+	    }
+	    else {
+		gmsd = NULL;
+	    }
+	    
+	    anchor = NULL;
 	    
 	    while (--isteps > 0)
 	    {
@@ -764,6 +710,23 @@ gdb_read_route(void)
 		xlat = GPS_Math_Semi_To_Deg(semilat);
 		xlon = GPS_Math_Semi_To_Deg(semilon);
 		gdb_is_validf(fabs(xlat) <= 90.0, prefix2, "Invalid latitude (%f)", xlat);
+		
+		if (gmsd != NULL) 
+		{
+		    garmin_ilink_t *ilink_ptr = xmalloc(sizeof(*ilink_ptr));
+		    
+		    ilink_ptr->ref_count = 1;
+		    ilink_ptr->lat = xlat;
+		    ilink_ptr->lon = xlon;
+		    ilink_ptr->next = NULL;
+		    
+		    if (anchor == NULL) {
+			gmsd->ilinks = ilink_ptr;
+		    } else {
+			anchor->next = ilink_ptr;
+		    }
+		    anchor = ilink_ptr;
+		}
 	    }
 	    
 	    gdb_fread(buff, 1);
@@ -788,6 +751,7 @@ gdb_read_route(void)
 	/* This should normally never happen; end of route is handled in main loop before this */
 	
 	fatal(MYNAME "-%s: Unexpected end of route \"%s\"!", prefix1, xname);
+    return 0;
 }
 
 
@@ -814,7 +778,6 @@ gdb_read_track(const size_t max_file_pos)
 	const char *prefix = "trk_read_loop";
 	
 	gdb_fread_str(xname, sizeof(xname));
-	gdb_convert_name_buff(xname, sizeof(xname));
 	
 	gdb_fread_le(&xdisplay, sizeof(xdisplay), 8, prefix0, "display");
 	gdb_fread_le(&xcolour, sizeof(xcolour), 32, prefix0, "colour");
@@ -856,10 +819,12 @@ gdb_read_track(const size_t max_file_pos)
 	    
 	    gdb_is_validf(fabs(wpt->latitude) <= 90.0, prefix, "Invalid latitude (%f)", wpt->latitude);
 	    
-	    route_add_wpt(track, wpt);
+	    track_add_wpt(track, wpt);
 	}
 	
-	gdb_fread(buff, 1);
+	gdb_fread_str(xname, sizeof(xname));
+	if (xname[0] != '\0')
+		track->rte_url = xstrdup(xname);
 	
 	return track;
 }
@@ -869,6 +834,7 @@ gdb_read_track(const size_t max_file_pos)
 static void
 gdb_read_data(void)
 {
+	queue *elem, *temp;
 	int reclen, warnings;
 	char typ;
 	size_t curpos, anchor;
@@ -876,8 +842,7 @@ gdb_read_data(void)
 	
 	const char *prefix = "main_read_loop";
 
-	gdb_hidden = route_head_alloc();
-	track_add_head(gdb_hidden);
+	QUEUE_INIT(&gdb_hidden);
 
 	warnings = 0;
 	
@@ -903,10 +868,11 @@ gdb_read_data(void)
 		wpt = gdb_read_wpt(curpos + reclen, &wptclass);
 		if (wpt != NULL )
 		{
-		    if (wptclass == 0)
-		        waypt_add(wpt);
+		    if (wptclass == 0) {
+		    	waypt_add(wpt);
+		    }
 		    else if (gdb_via == 0)
-		        route_add_wpt(gdb_hidden, wpt);
+		        ENQUEUE_TAIL(&gdb_hidden, &wpt->Q);
 		    else
 			waypt_free(wpt);
 		}
@@ -931,6 +897,7 @@ gdb_read_data(void)
 	clearerr(fin);
     	fseek(fin, anchor, SEEK_SET);
 
+	
 	while (feof(fin) == 0)
 	{
 	    gdb_fread_le(&reclen, sizeof(reclen), 32, prefix, "record length");
@@ -979,9 +946,10 @@ gdb_read_data(void)
     		fseek(fin, curpos + reclen, SEEK_SET);
 	    }
 	}
-	
-	/* finally kill our temporary queue */
-	track_del_head(gdb_hidden);
+
+	QUEUE_FOR_EACH(&gdb_hidden, elem, temp) {	/* finally kill our temporary queue */
+	    waypt_free((waypoint *) elem);
+	}
 }
 
 /*******************************************************************************/
@@ -1035,9 +1003,8 @@ gdb_fwrite_str(const char *str, const int len)
 	    gdb_fwrite(str, len);	/* write a string with fixed length */
 	else
 	{
-	    char *tmp = str_utf8_to_cp1252((str != NULL) ? str : "");
+	    char *tmp = (str != NULL) ? (char *)str : "";
 	    gdb_fwrite(tmp, strlen(tmp) + 1);
-	    xfree(tmp);
 	}
 }
 
@@ -1072,7 +1039,8 @@ gdb_fwrite_le(const void *data, const size_t size)
 		break;
 		
 	    default:
-		fatal(MYNAME "-write_le: Unsupported data size (%ld)!\n", size);
+		fatal(MYNAME "-write_le: Unsupported data size (%lu)!\n",
+		                    (unsigned long) size);
 	}
 }
 
@@ -1115,10 +1083,10 @@ gdb_fwrite_icon(const waypoint *wpt)	/* partly taken from mapsource.c */
 	else
 	{
 	    /* might need to change this to handle version dependent icon handling */
-	    icon = gdb_find_icon_number_from_desc(wpt->icon_descr, MAPSOURCE);
+	    icon = gt_find_icon_number_from_desc(wpt->icon_descr, GDB);
 	    if (get_cache_icon(wpt) /* && wpt->icon_descr && (strcmp(wpt->icon_descr, "Geocache Found") != 0)*/) 
 	    {
-		icon = gdb_find_icon_number_from_desc(get_cache_icon(wpt), MAPSOURCE);
+		icon = gt_find_icon_number_from_desc(get_cache_icon(wpt), MAPSOURCE);
 	    }
 	}
 	gdb_fwrite_le(&icon, sizeof(icon));
@@ -1129,11 +1097,12 @@ gdb_fwrite_icon(const waypoint *wpt)	/* partly taken from mapsource.c */
 /*-----------------------------------------------------------------------------*/
 
 static void
-gdb_write_file_header(const struct tm *tm)
+gdb_write_file_header(void)
 {
-	char buff[128];
+	char buff[128], tbuff[32];
 	char *c;
 	int len;
+	struct tm tm;
 	
 	gdb_fwrite_str("MsRcf", -1);
 	gdb_fwrite_int(2);
@@ -1143,11 +1112,30 @@ gdb_write_file_header(const struct tm *tm)
 	gdb_fwrite_str(buff, -1);
 	
 #if 0
+	/* Take this if anything is wrong with our self generated watermark */
 	strncpy(buff, "A].SQA*Dec 27 2004*17:40:51", sizeof(buff));		/* MapSource V6.5 */
 #else
 	/* This is our "Watermark" to show this file was created by GPSbabel */
-	/* !!! We should define the date use through Makefile !!! */
-	strncpy(buff, "A].GPSBabel_1.2.7-beta*Aug 12 2005*19:55:05", sizeof(buff));	/* gpsbabel V1.2.7 BETA */
+	
+	/* history:
+	strncpy(buff, "A].GPSBabel_1.2.7-beta*Sep 13 2005*20:10:00", sizeof(buff));  // gpsbabel V1.2.7 BETA 
+	strncpy(buff, "A].GPSBabel_1.2.8-beta*Jan 18 2006*20:11:00", sizeof(buff));  // gpsbabel 1.2.8-beta01182006_clyde
+	strncpy(buff, "A].GPSBabel_1.2.8-beta*Apr 18 2006*20:12:00", sizeof(buff));  // gpsbabel 1.2.8-beta20060405
+	strncpy(buff, "A].GPSBabel-1.3*Jul 02 2006*20:13:00", sizeof(buff));  // gpsbabel 1.3.0
+	strncpy(buff, "A].GPSBabel-1.3.1*Sep 03 2006*20:14:00", sizeof(buff));  // gpsbabel 1.3.1
+	 */
+
+	/* 
+	  New since 11/01/2006:
+	  version:   version and release of gpsbabel (defined in configure.in)
+	  timestamp: date and time of gdb.c (handled by CVS)
+	*/
+	memset(&tm, 0, sizeof(tm));
+	sscanf(gdb_release_date+7, "%d/%d/%d %d:%d:%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday, &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
+	tm.tm_year -= 1900;
+	tm.tm_mon -= 1;
+	strftime(tbuff, sizeof(tbuff), "%b %d %Y*%H:%M:%S", &tm);
+	snprintf(buff, sizeof(buff), "A].GPSBabel-%s*%s", gpsbabel_version, tbuff);
 #endif
 	len = strlen(buff);
 	buff[2] = 2;
@@ -1161,6 +1149,22 @@ gdb_write_file_header(const struct tm *tm)
 	gdb_fwrite_str("MapSource", -1);			/* MapSource magic */
 }
 
+static void
+gdb_reset_short_handle(void)
+{
+	if (gdb_short_handle != NULL)
+	    mkshort_del_handle(&gdb_short_handle);
+	    
+	gdb_short_handle = mkshort_new_handle();
+	
+	setshort_length(gdb_short_handle, GDB_NAME_BUFFERLEN);
+	setshort_badchars(gdb_short_handle, "");
+	setshort_mustupper(gdb_short_handle, 0);
+	setshort_mustuniq(gdb_short_handle, 1);
+	setshort_whitespace_ok(gdb_short_handle, 1);
+	setshort_repeating_whitespace_ok(gdb_short_handle, 1);
+}
+
 /*******************************************************************************/
 /* %%%                         write waypoints                             %%% */
 /*-----------------------------------------------------------------------------*/
@@ -1172,6 +1176,11 @@ gdb_write_waypt(const waypoint *wpt, const int hidden)
 	char ffbuf[32], zbuf[32];
 	char c0 = 0;
 	char c1 = 1;
+	garmin_fs_t *gmsd;
+	unsigned char wpt_class;
+	char *ident;
+	
+	gmsd = GMSD_FIND(wpt);
 	
 	gdb_is_validf((fabs(wpt->latitude) <= 90), "wpt_write", 
 	    "%s: Invalid latitude (%f) detected\n", wpt->shortname, wpt->latitude);
@@ -1179,11 +1188,16 @@ gdb_write_waypt(const waypoint *wpt, const int hidden)
 	memset(ffbuf, 0xFF, sizeof(ffbuf));
 	memset(zbuf, 0x00, sizeof(zbuf));
 	
-	gdb_fwrite_str(wpt->shortname, -1);
+	ident = wpt->shortname;	/* paranoia */
+	if (global_opts.synthesize_shortnames || (ident == NULL) || (*ident == '\0'))
+	{
+		ident = mkshort_from_wpt(gdb_short_handle, wpt);
+	}
+	gdb_fwrite_str(ident, -1);
 
-	gdb_fwrite_int( (hidden != 0) ? 
-	    GDB_HIDDENROUTEWPTCLASS : GDB_DEFAULTWPTCLASS); /* class */
-	gdb_fwrite_str("", -1);				/* country */
+	wpt_class = GMSD_GET(wpt_class, (hidden != 0) ? GDB_HIDDENROUTEWPTCLASS : GDB_DEFAULTWPTCLASS);
+	gdb_fwrite_int(wpt_class);			/* class */
+	gdb_fwrite_str(GMSD_GET(cc, ""), -1);		/* country code */
 
 	gdb_fwrite(zbuf, 4);				/* subclass part 1 */
 	gdb_fwrite(ffbuf, 12);				/* subclass part 2 */
@@ -1197,49 +1211,38 @@ gdb_write_waypt(const waypoint *wpt, const int hidden)
 	
 	gdb_fwrite_str((wpt->notes != NULL) ? wpt->notes : wpt->description, -1);	/* notes/comment/descr */
 	
-#if 0
-	if (garmin_data != NULL)
-	{
-		gdb_fwrite_alt(garmin_data->proximity, 0);		/* proximity */
-		gdb_fwrite_int(garmin_data->display);			/* display */
-		gdb_fwrite_int(garmin_data->colour);			/* colour */
-	{
-		gdb_fwrite(&c0, 1);					/* NO proximity */
-		gdb_fwrite_int(GDB_DISPLAY_SYMBOL_AND_NAME);		/* display */
-		gdb_fwrite_int(0);					/* colour */
-	
+	gdb_fwrite_alt(GMSD_GET(proximity, 0), 0);			/* proximity */
+
+	switch(GMSD_GET(display, 0)) {					/* display */
+		case gt_display_mode_symbol: i = gt_gdb_display_mode_symbol; break;
+		case gt_display_mode_symbol_and_comment: i = gt_gdb_display_mode_symbol_and_comment; break;
+		default: i = gt_gdb_display_mode_symbol_and_name; break;
 	}
-#else
-	gdb_fwrite(&c0, 1);				/* NO proximity */
-	gdb_fwrite_int(GDB_DISPLAY_SYMBOL_AND_NAME);	/* display */
-	gdb_fwrite_int(0);				/* colour */
-#endif
-	gdb_fwrite_icon(wpt);				/* icon    */	
-	gdb_fwrite_str("", -1);				/* city */
-	gdb_fwrite_str("", -1);				/* state */
-	gdb_fwrite_str("", -1);				/* facility */
-	gdb_fwrite(zbuf, 1);				/* unknown */
-#if 0
-	gdb_fwrite_alt((garmin_data != NULL) ? garmin_data->depth : 0, 0);	/* depth */
-#else
-	gdb_fwrite(&c0, 1);				/* NO depth */
-#endif
-	gdb_fwrite(zbuf, 3);				/* three unknown bytes */
-	gdb_fwrite(zbuf, 4);				/* four unknown bytes */
+	gdb_fwrite_int(i);
 
-	gdb_fwrite_str(wpt->url, -1);			/* URL */
+	gdb_fwrite_int(0);						/* colour */
 
-#if 0
-	if (gdb_opt_category != NULL)			/* category */
-	    i = gdb_category;
+	gdb_fwrite_icon(wpt);						/* icon    */	
+	gdb_fwrite_str(GMSD_GET(city, ""), -1);				/* city */
+	gdb_fwrite_str(GMSD_GET(state, ""), -1);			/* state */
+	gdb_fwrite_str(GMSD_GET(facility, ""), -1);			/* facility */
+	
+	gdb_fwrite(zbuf, 1);						/* unknown */
+
+	gdb_fwrite_alt(GMSD_GET(depth, 0), 0);				/* depth */
+
+	gdb_fwrite(zbuf, 3);						/* three unknown bytes */
+	gdb_fwrite(zbuf, 4);						/* four unknown bytes */
+
+	if (hidden == 0)
+	    gdb_fwrite_str(wpt->url, -1);		/* URL */
 	else
-	    i = (wpt->garmin_data != NULL) ? wpt->garmin_data->category : 0;
-#else
-	i = gdb_category;
-#endif
+	    gdb_fwrite_str(wpt->description, -1);	/* description for hidden waypoints */
+
+	i = GMSD_GET(category, gdb_category);		/* category */
 	gdb_fwrite_le(&i, 2);
 
-	gdb_fwrite(zbuf, 1);				/* temperature flag */
+	gdb_fwrite_alt(GMSD_GET(temperature, 0), 0);	/* temperature */
 	
 	if (wpt->creation_time != 0)			/* creation time */
 	{
@@ -1256,9 +1259,10 @@ gdb_write_waypt_cb(const waypoint *wpt)			/* called by waypt_disp over all waypo
 {
 	int reclen;
 	size_t pos;
+	waypoint *tmp;
 	
 	/* check for duplicate waypoints */
-	if (NULL != gdb_find_wpt_q_by_name((queue *)&gdb_hidden->waypoint_list, wpt->shortname))
+	if (NULL != gdb_find_wpt_q_by_name(&gdb_hidden, wpt->shortname))
 	    return;
 
 	gdb_fwrite_int(0);
@@ -1273,7 +1277,8 @@ gdb_write_waypt_cb(const waypoint *wpt)			/* called by waypt_disp over all waypo
 	
 	fseek(fout, pos + reclen, SEEK_SET);
 
-	route_add_wpt(gdb_hidden, waypt_dupe(wpt));	/* add tis point to our internal queue */
+	tmp = waypt_dupe(wpt);
+	ENQUEUE_TAIL(&gdb_hidden, &tmp->Q);	/* add this point to our internal queue */
 }
 
 static void
@@ -1281,9 +1286,9 @@ gdb_write_rtewpt_cb(const waypoint *wpt)		/* called by waypt_disp (route points)
 {
 	int reclen;
 	size_t pos;
-	waypoint *tmp;
+	waypoint *tmp, *dupe;
 
-	tmp = gdb_find_wpt_q_by_name((queue *)&gdb_hidden->waypoint_list, wpt->shortname);
+	tmp = gdb_find_wpt_q_by_name(&gdb_hidden, wpt->shortname);
 	if (tmp == NULL)
 	{
 	    tmp = find_waypt_by_name(wpt->shortname);
@@ -1300,7 +1305,8 @@ gdb_write_rtewpt_cb(const waypoint *wpt)		/* called by waypt_disp (route points)
 	
 	    fseek(fout, pos + reclen, SEEK_SET);
 
-	    route_add_wpt(gdb_hidden, waypt_dupe(wpt));	/* add tis point to our internal queue */
+	    dupe = waypt_dupe(wpt);
+	    ENQUEUE_TAIL(&gdb_hidden, &dupe->Q);	/* add this point to our internal queue */
 	}
 }
 
@@ -1342,13 +1348,20 @@ gdb_write_route(const route_head *route, const waypoint **list, const int count)
 	    }
 	}
 
-	if (route->rte_name == NULL)
 	{
-	    snprintf(buff, sizeof(buff), "Route%04d", route->rte_num);
-	    gdb_fwrite_str(buff, -1);
+	    char *cname;
+	    
+	    if (route->rte_name == NULL)
+	    {
+		snprintf(buff, sizeof(buff), "Route%04d", route->rte_num);
+		cname = mkshort(gdb_short_handle, buff);
+	    }
+	    else
+		cname = mkshort(gdb_short_handle, route->rte_name);
+	    
+	    gdb_fwrite_str(cname, -1);
+	    xfree(cname);
 	}
-	else
-	    gdb_fwrite_str(route->rte_name, -1);
 
 	gdb_fwrite(&c0, 1);					/* auto_name */
 	
@@ -1370,8 +1383,13 @@ gdb_write_route(const route_head *route, const waypoint **list, const int count)
 	for (i = 0; i < count; i++)
 	{
 	    const waypoint *wpt = list[i];
+	    garmin_fs_t *gmsd;
 
-	    wpt_class = gdb_detect_rtept_class(wpt);
+	    gmsd = GMSD_FIND(wpt);
+	    if (gmsd && gmsd->flags.wpt_class)
+		wpt_class = gmsd->wpt_class;
+	    else
+		wpt_class = gdb_detect_rtept_class(wpt);
 	    
 	    if (prev != NULL)
 	    {
@@ -1438,7 +1456,7 @@ gdb_write_route(const route_head *route, const waypoint **list, const int count)
 	    gdb_fwrite_str(wpt->shortname, -1);				/* short name */
 	    
 	    gdb_fwrite_int(wpt_class);					/* class */
-	    gdb_fwrite_str("", -1);					/* country */
+	    gdb_fwrite_str(GMSD_GET(cc, ""), -1);			/* country */
 	    
 	    gdb_fwrite(zbuff, 4);					/* subclass part 1 */
 	    gdb_fwrite(ffbuff, 12);					/* subclass part 2 */
@@ -1460,7 +1478,7 @@ gdb_write_route(const route_head *route, const waypoint **list, const int count)
 	if (gdb_ver > 1)
 	    gdb_fwrite(ffbuff, 8);
 	    
-	gdb_fwrite(&c0, 1);
+	gdb_fwrite_str(route->rte_url, -1);
 }
 
 static void
@@ -1502,12 +1520,21 @@ gdb_write_track(const route_head *track)
 	queue *elem, *tmp;
 	int count = track->rte_waypt_ct;
 	
-	if (track->rte_name == NULL)
-	    snprintf(buff, sizeof(buff), "Track%04d", track->rte_num);
-	else 
-	    strncpy(buff, track->rte_name, sizeof(buff));
+	{
+	    char *cname;
 	    
-	gdb_fwrite_str(buff, -1);
+	    if (track->rte_name == NULL)
+	    {
+		snprintf(buff, sizeof(buff), "Track%04d", track->rte_num);
+		cname = mkshort(gdb_short_handle, buff);
+	    }
+	    else
+		cname = mkshort(gdb_short_handle, track->rte_name);
+		
+	    gdb_fwrite_str(cname, -1);
+	    xfree(cname);
+	}
+	
 	gdb_fwrite(&c0, 1);				/* display */
 	gdb_fwrite_int(0);				/* xcolour */
 	gdb_fwrite_int(count);
@@ -1532,7 +1559,7 @@ gdb_write_track(const route_head *track)
 	    gdb_fwrite_alt(wpt->depth, unknown_alt);	/* depth */
 	    gdb_fwrite(&c0, 1);				/* temperature */
 	}
-	gdb_fwrite(&c0, 1);
+	gdb_fwrite_str(track->rte_url, -1);
 }
 
 static void
@@ -1562,26 +1589,35 @@ gdb_write_track_cb(const route_head *track)			/* called from track_disp_all */
 static void
 gdb_write_data(void)
 {
+	queue *temp, *elem;
 	char c1 = 1;
 
-	gdb_hidden = route_head_alloc();	/* contains all written waypts & rtepts */
-	track_add_head(gdb_hidden);		/* tracks comes later and we drop this before */
+	QUEUE_INIT(&gdb_hidden);		/* contains all written waypts & rtepts */
 
-	if (doing_wpts) waypt_disp_all(gdb_write_waypt_cb);
-	if (doing_rtes)
+	/* (doing_wpts) */
+	
+	gdb_reset_short_handle();
+	waypt_disp_all(gdb_write_waypt_cb);
+	
+	/* (doing_rtes) */
+	
+	gdb_reset_short_handle();
+	setshort_defname(gdb_short_handle, "Route");
+	if (gdb_via == 0)
 	{
-	    
-	    if (gdb_via == 0) 
-	    {
-		/* find out all route points we have to write as a "HIDDEN CLASS" waypoint */
-		route_disp_all(NULL, NULL, gdb_write_rtewpt_cb);
-	    }
-	    route_disp_all(gdb_write_route_cb, NULL, NULL);
+	    /* find out all route points we have to write as a "HIDDEN CLASS" waypoint */
+	    route_disp_all(NULL, NULL, gdb_write_rtewpt_cb);
 	}
+	route_disp_all(gdb_write_route_cb, NULL, NULL);
+	QUEUE_FOR_EACH(&gdb_hidden, elem, temp) {	/* vaporize our temporary queue */
+ 	    waypt_free((waypoint *) elem);
+ 	}
 
-	track_del_head(gdb_hidden);		/* vaporize our temporary queue */
-
-	if (doing_trks) track_disp_all(gdb_write_track_cb, NULL, NULL);
+	/* (doing_trks) */
+	
+	gdb_reset_short_handle();
+	setshort_defname(gdb_short_handle, "Track");
+	track_disp_all(gdb_write_track_cb, NULL, NULL);
 
 	gdb_fwrite_int(2);			/* finalize gdb with empty map segment */
 	gdb_fwrite_str("V", -1);
@@ -1615,7 +1651,7 @@ gdb_init_opts(const char op)	/* 1 = read; 2 = write */
 		gdb_category = atoi(gdb_opt_category);
 		if ((gdb_category < 1) || (gdb_category > 16))
 		    fatal(MYNAME ": Unsupported category \"%s\"!\n", gdb_opt_category);
-		gdb_category = 1 << --gdb_category;
+		gdb_category = 1 << (gdb_category - 1);
 	    }
 	    
 	    gdb_ver = atoi(gdb_opt_ver);
@@ -1644,6 +1680,8 @@ gdb_wr_init(const char *fname)
 	
 	fout_name = xstrdup(fname);
 	fout = xfopen(fname, "wb", MYNAME);
+	gdb_short_handle = NULL;
+	QUEUE_INIT(&gdb_hidden);
 }
 
 static void 
@@ -1660,6 +1698,7 @@ gdb_wr_deinit(void)
 	fclose(fout);
 	xfree(fout_name);
 	fout_name = NULL;
+	mkshort_del_handle(&gdb_short_handle);
 }
 
 static void 
@@ -1672,7 +1711,7 @@ gdb_read(void)
 static void
 gdb_write(void)
 {
-	gdb_write_file_header(NULL);
+	gdb_write_file_header();
 	gdb_write_data();
 }
 
@@ -1688,7 +1727,8 @@ ff_vecs_t gdb_vecs = {
 	gdb_read,
 	gdb_write,
 	NULL, 
-	gdb_args
+	gdb_args,
+	CET_CHARSET_MS_ANSI, 1				/* CET-REVIEW */
 };
 
 /*******************************************************************************/

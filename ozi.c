@@ -28,11 +28,17 @@
 #include <math.h>                /* for floor */
 
 #define MYNAME        "OZI"
+#define BADCHARS	",\n"
+
+typedef struct {
+	format_specific_data fs;
+	int fgcolor;
+	int bgcolor;
+} ozi_fsdata;
 
 
-static FILE *file_in;
-static FILE *file_out;
-static void *mkshort_handle;
+static gbfile *file_in, *file_out;
+static short_handle mkshort_handle;
 static route_head *trk_head;
 static route_head *rte_head;
 
@@ -44,23 +50,63 @@ static char *snlenopt = NULL;
 static char *snwhiteopt = NULL;
 static char *snupperopt = NULL;
 static char *snuniqueopt = NULL;
+static char *wptfgcolor = NULL;
+static char *wptbgcolor = NULL;
+
+
 
 static
 arglist_t ozi_args[] = {
 	{"snlen", &snlenopt, "Max synthesized shortname length",
-		NULL, ARGTYPE_INT},
-	{"snwhite", &snwhiteopt, "(0/1) Allow whitespace synth. shortnames",
-		NULL, ARGTYPE_BOOL},
-	{"snupper", &snupperopt, "(0/1) UPPERCASE synth. shortnames",
-	        NULL, ARGTYPE_BOOL},
-	{"snunique", &snuniqueopt, "(0/1) Make synth. shortnames unique",
-		NULL, ARGTYPE_BOOL},
-	{0, 0, 0, 0, 0}
+		"32", ARGTYPE_INT, "1", NULL},
+	{"snwhite", &snwhiteopt, "Allow whitespace synth. shortnames",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"snupper", &snupperopt, "UPPERCASE synth. shortnames",
+	        NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"snunique", &snuniqueopt, "Make synth. shortnames unique",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"wptfgcolor", &wptfgcolor, "Waypoint foreground color",
+		"black", ARGTYPE_STRING, ARG_NOMINMAX},
+	{"wptbgcolor", &wptbgcolor, "Waypoint background color",
+		"yellow", ARGTYPE_STRING, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
-gpsdata_type ozi_objective;
+static gpsdata_type ozi_objective;
 
 static char *ozi_ofname = NULL;
+
+static void
+ozi_copy_fsdata(ozi_fsdata **dest, ozi_fsdata *src) 
+{
+	/* No strings to mess with.  Straight forward copy. */
+	*dest = (void *)xmalloc(sizeof(*src));
+	**dest = *src;
+	(*dest)->fs.next = NULL;
+}
+
+static void
+ozi_free_fsdata(void *fsdata)
+{
+	xfree(fsdata);
+}
+
+static
+ozi_fsdata *
+ozi_alloc_fsdata(void) 
+{
+	ozi_fsdata *fsdata = xcalloc(sizeof(*fsdata), 1);
+	fsdata->fs.type = FS_OZI;
+	fsdata->fs.copy = (fs_copy) ozi_copy_fsdata;
+	fsdata->fs.destroy = ozi_free_fsdata;
+	fsdata->fs.convert = NULL;
+
+	/* Provide defaults via command line defaults */
+	fsdata->fgcolor = color_to_bbggrr(wptfgcolor);
+	fsdata->bgcolor = color_to_bbggrr(wptbgcolor);
+
+	return fsdata;
+}
 
 static void
 ozi_openfile(char *fname) {
@@ -69,8 +115,13 @@ ozi_openfile(char *fname) {
     char buff[32];
     
     /* if we're doing multi-track output, sequence the filenames like:
-     * mytrack.plt, mytrack-1.plt...
+     * mytrack.plt, mytrack-1.plt...unless we're writing to stdout.
      */
+
+    if (0 == strcmp(fname, "-")) {
+	file_out = gbfopen(fname, "wb", MYNAME);
+	return;
+    }
 
     if ((track_out_count) && (ozi_objective == trkdata)) {
         sprintf(buff, "-%d", track_out_count);
@@ -102,11 +153,11 @@ ozi_openfile(char *fname) {
 
     /* re-open file_out with the new filename */
     if (file_out) {
-        fclose(file_out);
+        gbfclose(file_out);
         file_out = NULL;
     }
 
-    file_out = xfopen(tmpname, "wb", MYNAME);
+    file_out = gbfopen(tmpname, "wb", MYNAME);
 
     xfree(tmpname);
 
@@ -121,11 +172,12 @@ ozi_track_hdr(const route_head * rte)
         "WGS 84\r\n"
         "Altitude is in Feet\r\n"
         "Reserved 3\r\n" 
-        "0,2,255,ComplimentsOfGPSBabel,0,0,2,8421376\r\n"
+        "0,2,255,%s,0,0,2,8421376\r\n"
         "0\r\n";
 
     ozi_openfile(ozi_ofname);
-    fprintf(file_out, ozi_trk_header);
+    gbfprintf(file_out, ozi_trk_header, 
+	rte->rte_name ? rte->rte_name : "ComplimentsOfGPSBabel");
 
     track_out_count++;
 }
@@ -141,10 +193,10 @@ ozi_track_disp(const waypoint * waypointp)
     if (waypointp->altitude == unknown_alt) {
         alt_feet = -777;
     } else {
-        alt_feet = (waypointp->altitude * 3.2808);
+        alt_feet = METERS_TO_FEET(waypointp->altitude);
     }
 
-    fprintf(file_out, "%.6f,%.6f,0,%.0f,%.5f,,\r\n",
+    gbfprintf(file_out, "%.6f,%.6f,0,%.0f,%.5f,,\r\n",
             waypointp->latitude, waypointp->longitude, alt_feet, ozi_time);
 }
 
@@ -170,7 +222,7 @@ ozi_route_hdr(const route_head * rte)
 
     /* prologue on 1st pass only */
     if (route_out_count == 0) {
-        fprintf(file_out, ozi_route_header);
+        gbfprintf(file_out, ozi_route_header);
     }
 
     route_out_count++;
@@ -188,7 +240,7 @@ ozi_route_hdr(const route_head * rte)
      * R, 1, ICP GALHETA,, 16711680 
      */
      
-     fprintf(file_out, "R,%d,%s,%s,\r\n", 
+     gbfprintf(file_out, "R,%d,%s,%s,\r\n", 
          route_out_count, 
          rte->rte_name ? rte->rte_name : "", 
          rte->rte_desc ? rte->rte_desc : "");
@@ -208,7 +260,7 @@ ozi_route_disp(const waypoint * waypointp)
     if (waypointp->altitude == unknown_alt) {
         alt_feet = -777;
     } else {
-        alt_feet = (waypointp->altitude * 3.2808);
+        alt_feet = METERS_TO_FEET(waypointp->altitude);
     }
 
 /*
@@ -232,7 +284,7 @@ ozi_route_disp(const waypoint * waypointp)
  * W,1,7,7,007,-25.581670,-48.316660,36564.54196,10,1,4,0,65535,TR ILHA GALHETA,0,0 
  */
 
-    fprintf(file_out, "W,%d,%d,,%s,%.6f,%.6f,%.5f,0,1,3,0,65535,%s,0,0\r\n", 
+    gbfprintf(file_out, "W,%d,%d,,%s,%.6f,%.6f,%.5f,0,1,3,0,65535,%s,0,0\r\n", 
             route_out_count,
             route_wpt_count,
             waypointp->shortname ? waypointp->shortname : "",
@@ -257,7 +309,7 @@ ozi_route_pr()
 static void
 rd_init(const char *fname)
 {
-    file_in = xfopen(fname, "r", MYNAME);
+    file_in = gbfopen(fname, "rb", MYNAME);
 
     mkshort_handle = mkshort_new_handle();
 }
@@ -265,9 +317,9 @@ rd_init(const char *fname)
 static void
 rd_deinit(void)
 {
-    fclose(file_in);
+    gbfclose(file_in);
     file_in = NULL;
-    mkshort_del_handle(mkshort_handle);
+    mkshort_del_handle(&mkshort_handle);
 }
 
 static void
@@ -286,10 +338,7 @@ wr_init(const char *fname)
     /* set mkshort options from the command line if applicable */
     if (global_opts.synthesize_shortnames) {
 
-        if (snlenopt)
-            setshort_length(mkshort_handle, atoi(snlenopt));
-        else 
-            setshort_length(mkshort_handle, 32);
+        setshort_length(mkshort_handle, atoi(snlenopt));
 
         if (snwhiteopt)
             setshort_whitespace_ok(mkshort_handle, atoi(snwhiteopt));
@@ -308,15 +357,18 @@ wr_init(const char *fname)
 static void
 wr_deinit(void)
 {
-    fclose(file_out);
-    file_out = NULL;
+    if (file_out != NULL) {
+    
+	gbfclose(file_out);
+	file_out = NULL;
+    }
     ozi_ofname = NULL;
 
-    mkshort_del_handle(mkshort_handle);
+    mkshort_del_handle(&mkshort_handle);
 }
 
 static void
-ozi_parse_waypt(int field, char *str, waypoint * wpt_tmp)
+ozi_parse_waypt(int field, char *str, waypoint * wpt_tmp, ozi_fsdata *fsdata)
 {
     double alt;
 
@@ -351,9 +403,11 @@ ozi_parse_waypt(int field, char *str, waypoint * wpt_tmp)
         break;
     case 8:
         /* foreground color (0=black) */
+	fsdata->fgcolor = atoi(str);
         break;
     case 9:
         /* background color (65535=yellow) */
+	fsdata->bgcolor = atoi(str);
         break;
     case 10:
         /* Description */
@@ -367,6 +421,7 @@ ozi_parse_waypt(int field, char *str, waypoint * wpt_tmp)
         break;
     case 13:
         /* proximity distance - meters */
+	wpt_tmp->proximity = atof(str);
         break;
     case 14:
         /* altitude in feet */
@@ -374,7 +429,7 @@ ozi_parse_waypt(int field, char *str, waypoint * wpt_tmp)
         if (alt == -777) {
             wpt_tmp->altitude = unknown_alt;
         } else {
-            wpt_tmp->altitude = alt * .3048;
+            wpt_tmp->altitude = FEET_TO_METERS(alt);
         }
         break;
     case 15:
@@ -419,7 +474,7 @@ ozi_parse_track(int field, char *str, waypoint * wpt_tmp)
         if (alt == -777) {
             wpt_tmp->altitude = unknown_alt;
         } else {
-            wpt_tmp->altitude = alt * .3048;
+            wpt_tmp->altitude = FEET_TO_METERS(alt);
         }
         break;
     case 4:
@@ -521,16 +576,14 @@ ozi_parse_routeheader(int field, char *str, waypoint * wpt_tmp)
 static void
 data_read(void)
 {
-    char buff[1024];
+    char *buff;
     char *s;
     waypoint *wpt_tmp;
     int i;
     int linecount = 0;
-
-    do {
+    
+    while ((buff = gbfgetstr(file_in))) {
         linecount++;
-        memset(buff, '\0', sizeof(buff));
-        fgets(buff, sizeof(buff), file_in);
 
         /* 
          * this is particularly nasty.  use the first line of the file
@@ -556,7 +609,7 @@ data_read(void)
 	}
 
         if ((strlen(buff)) && (strstr(buff, ",") != NULL)) {
-
+	    ozi_fsdata *fsdata = ozi_alloc_fsdata();
             wpt_tmp = waypt_new();
 
             /* data delimited by commas, possibly enclosed in quotes.  */
@@ -578,8 +631,11 @@ data_read(void)
 
                     break;
                 case wptdata:
-                    ozi_parse_waypt(i, s, wpt_tmp);
+                    ozi_parse_waypt(i, s, wpt_tmp, fsdata);
                     break;
+		case posndata:
+		    fatal(MYNAME ": realtime positioning not supported.\n");
+		    break;
                 }
                 i++;
                 s = csv_lineparse(NULL, ",", "", linecount);
@@ -588,7 +644,7 @@ data_read(void)
             switch (ozi_objective) {
             case trkdata:
                 if (linecount > 6) /* skipping over file header */
-                    route_add_wpt(trk_head, wpt_tmp);
+                    track_add_wpt(trk_head, wpt_tmp);
                 else
                     waypt_free(wpt_tmp);
                 break;
@@ -599,18 +655,24 @@ data_read(void)
                     waypt_free(wpt_tmp);
                 break;
             case wptdata:
-                if (linecount > 4)  /* skipping over file header */
+                if (linecount > 4) {  /* skipping over file header */ 
+		    fs_chain_add(&(wpt_tmp->fs), 
+			(format_specific_data *) fsdata);
                     waypt_add(wpt_tmp);
-                else
+                } else {
                     waypt_free(wpt_tmp);
+		}
                 break;
+	     case posndata:
+		 fatal(MYNAME ": realtime positioning not supported.\n");
+	  	 break;
             }
 
         } else {
             /* empty line */
         }
 
-    } while (!feof(file_in));
+    }
 }
 
 static void
@@ -621,13 +683,22 @@ ozi_waypt_pr(const waypoint * wpt)
     double ozi_time;
     char *description;
     char *shortname;
+    int faked_fsdata = 0;
+    ozi_fsdata *fs = NULL;
+
+    fs = (ozi_fsdata *) fs_chain_find(wpt->fs, FS_OZI);
+
+    if (!fs) {
+	fs = ozi_alloc_fsdata();
+	faked_fsdata = 1;
+    }
 
     ozi_time = (wpt->creation_time / 86400.0) + 25569.0;
 
     if (wpt->altitude == unknown_alt) {
         alt_feet = -777;
     } else {
-        alt_feet = (wpt->altitude * 3.2808);
+        alt_feet = METERS_TO_FEET(wpt->altitude);
     }
 
     if ((!wpt->shortname) || (global_opts.synthesize_shortnames)) {
@@ -635,35 +706,43 @@ ozi_waypt_pr(const waypoint * wpt)
             if (global_opts.synthesize_shortnames)
                 shortname = mkshort_from_wpt(mkshort_handle, wpt);
             else
-                shortname = csv_stringclean(wpt->description, ",");
+                shortname = csv_stringclean(wpt->description, BADCHARS);
         } else {
             /* no description available */
             shortname = xstrdup("");
         }
     } else {
-        shortname = csv_stringclean(wpt->shortname, ",");
+        shortname = csv_stringclean(wpt->shortname, BADCHARS);
     }
 
     if (!wpt->description) {
         if (shortname) {
-            description = csv_stringclean(shortname, ",");
+            description = csv_stringclean(shortname, BADCHARS);
         } else {
             description = xstrdup("");
         }
     } else {
-        description = csv_stringclean(wpt->description, ",");
+        description = csv_stringclean(wpt->description, BADCHARS);
     }
 
     index++;
 
-    fprintf(file_out,
-            "%d,%s,%.6f,%.6f,%.5f,%d,%d,%d,%d,%d,%s,%d,%d,%d,%.0f,%d,%d,%d\r\n",
+    gbfprintf(file_out,
+            "%d,%s,%.6f,%.6f,%.5f,%d,%d,%d,%d,%d,%s,%d,%d,",
             index, shortname, wpt->latitude, wpt->longitude, ozi_time, 0,
-            1, 3, 0, 65535, description, 0, 0, 0, alt_feet, 6, 0, 17);
+            1, 3, fs->fgcolor, fs->bgcolor, description, 0, 0);
+    if (wpt->proximity > 0)
+	gbfprintf(file_out, "%.1f,", wpt->proximity);
+    else
+	gbfprintf(file_out,"0,");
+    gbfprintf(file_out, "%.0f,%d,%d,%d\r\n", alt_feet, 6, 0, 17);
 
     xfree(description);
     xfree(shortname);
 
+    if (faked_fsdata) {
+	xfree(fs);
+    }
 }
 
 static void
@@ -680,7 +759,7 @@ data_write(void)
     if (waypt_count()) {
         ozi_objective = wptdata;
         ozi_openfile(ozi_ofname);
-        fprintf(file_out, ozi_wpt_header);
+        gbfprintf(file_out, ozi_wpt_header);
         waypt_disp_all(ozi_waypt_pr);
     }
 
@@ -707,5 +786,6 @@ ff_vecs_t ozi_vecs = {
     data_read,
     data_write,
     NULL,
-    ozi_args
+    ozi_args,
+    CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

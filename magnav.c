@@ -20,6 +20,7 @@
  */
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 
@@ -52,10 +53,10 @@ struct record {
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 
-struct pdb *opdb;
-struct pdb_record *opdb_rec;
+static struct pdb *opdb;
+static struct pdb_record *opdb_rec;
 
 static void
 rd_init(const char *fname)
@@ -82,7 +83,7 @@ static void
 wr_deinit(void)
 {
 	fclose(file_out);
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 }
 
 static void
@@ -270,5 +271,8 @@ ff_vecs_t magnav_vec = {
 	wr_deinit,
 	data_read,
 	data_write,
-	NULL
+	NULL,
+	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

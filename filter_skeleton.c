@@ -2,7 +2,7 @@
 
     Filter skeleton: 
     
-    Simple copy this file to <your_filter_name>.c and 
+    Simply copy this file to <your_filter_name>.c and 
     rename all filter_skeleton tokens to <your_filter_name>. Replace 
     the stupid name and address in the Copyright few lines below.
     To active your new filter you have to create a new section in 
@@ -27,18 +27,20 @@
  */
  
 #include "defs.h"
+#include "filterdefs.h"
 #include <ctype.h>
 
 #define MYNAME "filter_skeleton"
 
+#if FILTERS_ENABLED
 
 // Any arg in this list will appear in command line help and will be 
 // populated for you.
 static
 arglist_t filter_skeleton_args[] = {
 // {"foo", &fooopt, "The text of the foo option in help", 
-//   "default", ARGYTPE_STRING} , 
-	{0, 0, 0, 0, 0}
+//   "default", ARGYTPE_STRING, ARG_NOMINMAX} , 
+	ARG_TERMINATOR
 };
 
 /*******************************************************************************
@@ -46,8 +48,14 @@ arglist_t filter_skeleton_args[] = {
 *******************************************************************************/
 
 static void
-filter_skeleton_init(const char *args) 	/* optional */
+filter_skeleton_init(const char *args) 	
 {
+  /* Called before filter processing */
+	
+  /* optional.  If not needed, delete and replace entry in vecs with NULL  */
+  
+  /* This may be used to parse filter options, allocate memory, and do other
+   * housekeeping that should be done before filtering */
 }
 
 static void 
@@ -60,8 +68,29 @@ filter_skeleton_process(void)	/* this procedure must be present in vecs */
 }
 
 static void
-filter_skeleton_deinit(void) 		/* optional */
+filter_skeleton_deinit(void) 		
 {
+  /* called after filter processing */
+	
+  /* optional.   If not needed, delete and replace entry in vecs with NULL */
+	
+  /* This should be used to clean up any memory allocations that are no longer
+   * needed after the filter terminates. */
+}
+
+static void
+filter_skeleton_exit(void)
+{
+  /* called on program exit */
+	
+  /* optional.   If not needed, delete and replace entry in vecs with NULL */
+	
+  /* You should not need this for simple filters, but it may be used to
+   * clean up memory allocations that must persist from one invocation of 
+   * your filter to the next (for example, the stack in the stack filter.) 
+   * Note that this member will be called even if your filter has not been
+   * used, so it *cannot* assume that _init or _process has been called
+   * previously. */
 }
 
 /*******************************************************************************/
@@ -70,8 +99,9 @@ filter_vecs_t filter_skeleton_vecs = {
 	filter_skeleton_init,
 	filter_skeleton_process,
 	filter_skeleton_deinit,
-	NULL,
+	filter_skeleton_exit,
 	filter_skeleton_args
 };
 
 /*******************************************************************************/
+#endif // FILTERS_ENABLED

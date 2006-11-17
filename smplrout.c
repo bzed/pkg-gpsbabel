@@ -18,20 +18,65 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-#include <stdio.h>
+
+/* The following comments are from an email I wrote to Paul Fox in November
+ * 2005 in an attempt to explain how the cross track error minimization method
+ * works  (RLP 2005):
+ * 
+ * It's pretty simple, really: for each triplet of vertices A-B-C, we compute 
+ * how much cross-track error we'd introduce by going straight from A to C 
+ * (the maximum cross-track error for that segment is the height of the 
+ * triangle ABC, measured between vertex B and edge AC.)  If we need to remove 
+ * 40 points, we just sort the points by that metric and remove the 40 
+ * smallest ones.
+ * 
+ * It's actually a little more complicated than that, because removing a 
+ * point changes the result for its two nearest neighbors.  When we remove 
+ * one, we recompute the neighbors and then sort them back into the list 
+ * at their new locations.
+ * 
+ * As you can see, this hasn't been shown to be an optimal algorithm.  After 
+ * all, removing one high-xte point might create two very low-xte neighbors 
+ * that more than make up for the high xte of the original point.  I believe 
+ * the optimal algorithm would be NP-complete, but I haven't proven it.  This 
+ * is really more of a heuristic than anything, but it seems to work well for 
+ * the routes I've fed it.
+ *
+ * Not in that email was an explanation of how the pathlength-based calculation
+ * works: instead of computing the height of the triangle, we just compute
+ * the difference in pathlength from taking the direct route.  This case,
+ * too, is only a heuristic, as it's possible that a different combination or
+ * order of point removals could lead to a smaller number of points with less
+ * reduction in path length.  In the case of pathlength, error is cumulative.
+ */
+
+
 #include "defs.h"
+#include "filterdefs.h"
 #include "grtcirc.h"
 
 #define MYNAME "Route simplification filter"
 
 static int count = 0;
+static double totalerror = 0;
+static double error = 0;
+
 static char *countopt = NULL;
+static char *erroropt = NULL;
+static char *xteopt = NULL;
+static char *lenopt = NULL;
 
 static
 arglist_t routesimple_args[] = {
 	{"count", &countopt,  "Maximum number of points in route", 
-		NULL, ARGTYPE_INT | ARGTYPE_REQUIRED},
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_INT | ARGTYPE_BEGIN_REQ | ARGTYPE_BEGIN_EXCL, "1", NULL},
+	{"error", &erroropt, "Maximum error", NULL,
+		ARGTYPE_STRING | ARGTYPE_END_REQ | ARGTYPE_END_EXCL, "0", NULL},
+	{"crosstrack", &xteopt, "Use cross-track error (default)", NULL, 
+		ARGTYPE_BOOL | ARGTYPE_BEGIN_EXCL, ARG_NOMINMAX },
+	{"length", &lenopt, "Use arclength error", NULL, 
+		ARGTYPE_BOOL | ARGTYPE_END_EXCL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 struct xte_intermed;
@@ -98,10 +143,21 @@ compute_xte( struct xte *xte_rec ) {
 	}
 	wpt2 = xte_rec->intermed->next->wpt;
 	
-	xte_rec->distance = linedist( 
+	if ( xteopt || !lenopt ) {
+		xte_rec->distance = radtomiles(linedist( 
 			wpt1->latitude, wpt1->longitude, 
 			wpt2->latitude, wpt2->longitude,
-			wpt3->latitude, wpt3->longitude );
+			wpt3->latitude, wpt3->longitude ));
+	} 
+	else {
+		xte_rec->distance = radtomiles( 
+		       gcdist( wpt1->latitude, wpt1->longitude, 
+			       wpt3->latitude, wpt3->longitude ) +
+		       gcdist( wpt3->latitude, wpt3->longitude,
+			       wpt2->latitude, wpt2->longitude ) -
+		       gcdist( wpt1->latitude, wpt1->longitude,
+			       wpt2->latitude, wpt2->longitude ));
+	}
 }
 
 
@@ -133,9 +189,10 @@ routesimple_head( const route_head *rte )
    	/* build array of XTE/wpt xref records */
         xte_count = 0;
 	tmpprev = NULL;
+	totalerror = 0;
 	
 	/* short-circuit if we already have fewer than the max points */
-	if ( count >= rte->rte_waypt_ct) return;
+	if ( countopt && count >= rte->rte_waypt_ct) return;
 	
 	xte_recs = (struct xte *) xcalloc(  rte->rte_waypt_ct, sizeof (struct xte));
 	cur_rte = rte;
@@ -196,9 +253,22 @@ routesimple_tail( const route_head *rte )
 		xte_recs[i].intermed->xte_rec = xte_recs+i;
 	}
 	/* while we still have too many records... */
-	while ( count < xte_count ) {
+	while ( (countopt && count < xte_count) || (erroropt && totalerror < error) ) {
 		i = xte_count - 1;
 		/* remove the record with the lowest XTE */
+		if ( erroropt ) {
+			if ( xteopt ) {
+				if ( i > 1 ) {
+					totalerror = xte_recs[i-1].distance;
+				}
+				else {
+					totalerror = xte_recs[i].distance;
+				}
+			}
+			if ( lenopt ) {
+				totalerror += xte_recs[i].distance;
+			}
+		}
 		route_del_wpt( (route_head *)(void *)rte,
 				(waypoint *)(void *)(xte_recs[i].intermed->wpt));
               	
@@ -234,13 +304,29 @@ routesimple_process( void )
 
 void
 routesimple_init(const char *args) {
+	char *fm = NULL;
 	count = 0;
 
+	if ( !!countopt == !!erroropt ) {
+		fatal( MYNAME ": You must specify either count or error, but not both.\n");
+	}
+	if ( xteopt && lenopt ) {
+		fatal( MYNAME ": crosstrack and length may not be used together.\n");
+	}
+	if ( !xteopt && !lenopt ) {
+		xteopt = (char *)xmalloc( 1 );
+	}
+		
 	if (countopt) {
 		count = atol(countopt);
 	}
-	else {
-		fatal( MYNAME ": You must specify a maximum size for the new route with 'count' option.\n");
+	if (erroropt) {
+               error = strtod(erroropt, &fm);
+
+               if ((*fm == 'k') || (*fm == 'K')) {
+	            /* distance is kilometers, convert to miles */
+	            error *= .6214;
+	       }
 	}
 }
 

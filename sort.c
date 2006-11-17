@@ -19,73 +19,54 @@
 
  */
 #include "defs.h"
+#include "filterdefs.h"
 
-extern queue waypt_head;
+#if FILTERS_ENABLED
 
 typedef enum {
 	sm_unknown = 0,
 	sm_gcid,
 	sm_shortname,
-	sm_description
+	sm_description,
+	sm_time
 } sort_mode_;
 
 sort_mode_ sort_mode = sm_shortname;	/* How are we sorting these? */
 
-static char *opt_sm_gcid, *opt_sm_shortname, *opt_sm_description;
+static char *opt_sm_gcid, *opt_sm_shortname, *opt_sm_description, *opt_sm_time;
 
 static
 arglist_t sort_args[] = {
 	{"gcid", &opt_sm_gcid, "Sort by numeric geocache ID", 
-		NULL, ARGTYPE_BOOL },
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"shortname", &opt_sm_shortname, "Sort by waypoint short name", 
-		NULL, ARGTYPE_BOOL },
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"description", &opt_sm_description, "Sort by waypoint description", 
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"time", &opt_sm_time, "Sort by time", 
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 static int
-sort_comp(const void * a, const void * b)
+sort_comp(const queue * a, const queue * b)
 {
-	const waypoint *x1 = *(waypoint **)a;
-	const waypoint *x2 = *(waypoint **)b;
+	const waypoint *x1 = (waypoint *)a;
+	const waypoint *x2 = (waypoint *)b;
 
 	switch (sort_mode)  {
-	   case sm_gcid: return x1->gc_data.id > x2->gc_data.id;
+	   case sm_gcid: return x1->gc_data.id - x2->gc_data.id;
 	   case sm_shortname: return strcmp (x1->shortname, x2->shortname);
 	   case sm_description: return strcmp (x1->description, x2->description);
-	   default: abort(); /* Internal caller error. */
+	   case sm_time: return x1->creation_time - x2->creation_time;
+	   default: abort(); return 0; /* Internal caller error. */
 	}
 }
 
 void 
 sort_process(void)
 {
-	queue * elem, * tmp;
-	waypoint ** comp;
-	int i = 0, wc;
-
-	wc = waypt_count();
-
-	comp = (waypoint **) xcalloc(wc, sizeof(*comp));
-
-	QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-		comp[i] = (waypoint *)elem;
-		waypt_del(comp[i]); /* Pop this waypoint off the master Q */
-		i++;
-	}
-
-	qsort(comp, wc, sizeof(waypoint *), sort_comp);
-
-	/*
-	 * Now re-add the list back.
-	 */
-	for (i = 0; i < wc ; i++) {
-		waypt_add(comp[i]);
-	}
-
-	if (comp)
-		xfree(comp);
+	sortqueue(&waypt_head, sort_comp);
 }
 
 void
@@ -97,6 +78,8 @@ sort_init(const char *args)
 		sort_mode = sm_shortname;
 	if (opt_sm_description)
 		sort_mode = sm_description;
+	if (opt_sm_time)
+		sort_mode = sm_time;
 }
 
 filter_vecs_t sort_vecs = {
@@ -106,3 +89,4 @@ filter_vecs_t sort_vecs = {
 	NULL,
 	sort_args
 };
+#endif // FILTERS_ENABLED

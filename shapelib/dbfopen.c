@@ -1,5 +1,5 @@
 /******************************************************************************
- * $Id: dbfopen.c,v 1.1 2004/09/20 17:21:22 robertl Exp $
+ * $Id: dbfopen.c,v 1.3 2006/07/13 03:27:54 robertl Exp $
  *
  * Project:  Shapelib
  * Purpose:  Implementation of .dbf access API documented in dbf_api.html.
@@ -34,6 +34,13 @@
  ******************************************************************************
  *
  * $Log: dbfopen.c,v $
+ * Revision 1.3  2006/07/13 03:27:54  robertl
+ * Andy Armstrong turns on -Wall for GCC builds and kills about a sequillion warnings.  Most of them aren't "real", but it's still a good thing to clean up.
+ * (I hope I don't regret this before 1.3.1...)
+ *
+ * Revision 1.2  2006/05/07 02:14:35  robertl
+ * Make shapefile and all palm pdb formats deselectable at build time.
+ *
  * Revision 1.1  2004/09/20 17:21:22  robertl
  * Check in shapelib and experimental prototype of crude shapefile support.
  *
@@ -185,10 +192,13 @@
  * Added header.
  */
 
-static char rcsid[] = 
-  "$Id: dbfopen.c,v 1.1 2004/09/20 17:21:22 robertl Exp $";
+/*static char rcsid[] = 
+  "$Id: dbfopen.c,v 1.3 2006/07/13 03:27:54 robertl Exp $";*/
 
 #include "shapefil.h"
+#include "config.h"
+
+#if SHAPELIB_ENABLED
 
 #include <math.h>
 #include <stdlib.h>
@@ -1496,3 +1506,4 @@ DBFGetFieldIndex(DBFHandle psDBF, const char *pszFieldName)
     }
     return(-1);
 }
+#endif

@@ -23,14 +23,15 @@
 
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "jeeps/gpsmath.h"
 #include <ctype.h>
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 
 static FILE *file_out;
-static void *mkshort_handle;
-static void *mkshort_bookmark_handle;
+static short_handle mkshort_handle;
+static short_handle mkshort_bookmark_handle;
 static const char *out_fname;
 static struct pdb *opdb;
 static struct pdb_record *opdb_rec;
@@ -43,7 +44,7 @@ static char *includelogs = NULL;
 static int ct = 1;
 static int offset = 0;
 
-static char *encrypt;
+static char *palm_encrypt;
 
 #define MYNAME "PALMDOC"
 
@@ -67,29 +68,29 @@ struct buffer {
 static
 arglist_t palmdoc_args[] = {
 	{ "nosep", &suppresssep, 
-		"Suppress separator lines between waypoints", NULL,
-		ARGTYPE_BOOL },
-	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING },
-	{"encrypt", &encrypt, "Encrypt hints with ROT13", NULL,
-		ARGTYPE_BOOL },
+		"No separator lines between waypoints", NULL,
+		ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
+	{"encrypt", &palm_encrypt, "Encrypt hints with ROT13", NULL,
+		ARGTYPE_BOOL, ARG_NOMINMAX },
 	{ "logs", &includelogs,
-		"Include groundspeak logs if present", NULL, ARGTYPE_BOOL },
+		"Include groundspeak logs if present", NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	{ "bookmarks_short", &bmid, "Include short name in bookmarks", 
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 static struct buffer buf;
 
 struct doc_record0                   /* 16 bytes total */
 {
-    unsigned short version;          /* 1 = plain text, 2 = compressed */
-    unsigned short reserved1;
-    unsigned long  doc_size;         /* in bytes, when uncompressed */
-    unsigned short num_records;      /* PDB header numRecords - 1 */
-    unsigned short rec_size;         /* usually RECORD_SIZE_MAX */
-    unsigned long  reserved2;
-    unsigned short recsizes[1];
+    gbuint16 version;          /* 1 = plain text, 2 = compressed */
+    gbuint16 reserved1;
+    gbuint32 doc_size;         /* in bytes, when uncompressed */
+    gbuint16 num_records;      /* PDB header numRecords - 1 */
+    gbuint16 rec_size;         /* usually RECORD_SIZE_MAX */
+    gbuint32 reserved2;
+    gbuint16 recsizes[1];
 };
 
 static struct recordsize {
@@ -105,7 +106,7 @@ static struct bookmark {
 
 struct bookmark_record {
 	char text[16];
-	unsigned long offset;
+	gbuint32 offset;
 };
 
 static void put_byte(struct buffer *b, unsigned char c, int *space)
@@ -142,7 +143,7 @@ static unsigned char * mem_find(unsigned char *t, int t_len, unsigned char *m, i
 }
 
 
-static void compress( struct buffer *b )
+static void pd_compress( struct buffer *b )
 {
 
 	unsigned i, j;
@@ -315,7 +316,7 @@ static void commit_buffer( void ) {
 	newrec->size = buf.len;
 	recordsize_tail = newrec;
 
-	compress( &buf );
+	pd_compress( &buf );
 	
         opdb_rec = new_Record (0, 0, ct++, (uword) buf.len, (const ubyte *)buf.data);
 
@@ -400,8 +401,8 @@ static void
 wr_deinit(void)
 {
 	fclose(file_out);
-	mkshort_del_handle(mkshort_handle);
-	mkshort_del_handle(mkshort_bookmark_handle);
+	mkshort_del_handle(&mkshort_handle);
+	mkshort_del_handle(&mkshort_bookmark_handle);
 	
         if ( dbname ) {
             xfree(dbname);
@@ -448,7 +449,7 @@ palmdoc_disp(const waypoint *wpt)
 		tm = time(NULL);
 	strftime(tbuf, sizeof(tbuf), "%d-%b-%Y", localtime(&tm));
 
-	docprintf(300, "%-16s  %c%d %06.3f  %c%d %06.3f  (%ld%c %6.0f %7.0f)",
+	docprintf(300, "%-16s  %c%d %06.3f  %c%d %06.3f  (%d%c %6.0f %7.0f)",
 		(global_opts.synthesize_shortnames) ? mkshort_from_wpt(mkshort_handle, wpt) : wpt->shortname,
 		wpt->latitude < 0 ? 'S' : 'N',  abs(latint), 60.0 * (fabs(wpt->latitude) - latint), 
 		wpt->longitude < 0 ? 'W' : 'E', abs(lonint), 60.0 * (fabs(wpt->longitude) - lonint),
@@ -460,6 +461,10 @@ palmdoc_disp(const waypoint *wpt)
 		docprintf(10+strlen(wpt->description), "%s\n", wpt->description);
 	}
 	if (wpt->gc_data.terr) {
+
+		docprintf (100, "%s/%s\n", gs_get_cachetype(wpt->gc_data.type), 
+			gs_get_container(wpt->gc_data.container));
+
 	        if (wpt->gc_data.desc_short.utfstring) {
 	                char *stripped_html = strip_html(&wpt->gc_data.desc_short);
 			docprintf (10+strlen(stripped_html), "\n%s\n", stripped_html);
@@ -472,7 +477,7 @@ palmdoc_disp(const waypoint *wpt)
        		}
 		if (wpt->gc_data.hint) {
 			char *hint = NULL;
-			if ( encrypt )
+			if ( palm_encrypt )
 				hint = rot13( wpt->gc_data.hint );
 			else
 				hint = xstrdup( wpt->gc_data.hint );
@@ -557,7 +562,7 @@ palmdoc_disp(const waypoint *wpt)
 				encstr = xml_attribute( logpart, "encoded" );
 				encoded = (encstr[0] != 'F');
 				
-				if ( encrypt && encoded ) {
+				if ( palm_encrypt && encoded ) {
 					s = rot13( logpart->cdata );
 				}
 				else {
@@ -623,7 +628,9 @@ ff_vecs_t palmdoc_vecs = {
 	NULL,
 	data_write,
 	NULL, 
-	palmdoc_args
+	palmdoc_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
 
 
+#endif

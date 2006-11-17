@@ -1,7 +1,7 @@
 /*
     Access Magellan Mapsend files.
 
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2006 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,7 +27,8 @@
 
 static FILE *mapsend_file_in;
 static FILE *mapsend_file_out;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
+static short_handle wpt_handle;
 
 static int route_wp_count;
 static int mapsend_infile_version;
@@ -35,9 +36,41 @@ static int trk_version = 30;
 
 #define MYNAME "mapsend"
 
+static char *mapsend_opt_trkver = NULL;
+#define MAPSEND_TRKVER_MIN 3
+#define MAPSEND_TRKVER_MAX 4
+
+static
+arglist_t mapsend_args[] = {
+	{"trkver", &mapsend_opt_trkver, 
+		"MapSend version TRK file to generate (3,4)",
+		"4", ARGTYPE_INT, "3", "4" },
+	ARG_TERMINATOR
+};
+
+static void
+mapsend_init_opts(const char isReading) {	/* 1=read, 2=write */
+	int opt_trkver;
+	
+	/* read & write options here */
+	
+	if (isReading) {
+		/* reading-only options here */
+	} else {
+		/* writing-only options here */
+		
+		// TRK MapSend version
+	    opt_trkver = atoi(mapsend_opt_trkver);
+	    if ((opt_trkver < MAPSEND_TRKVER_MIN) || (opt_trkver > MAPSEND_TRKVER_MAX))
+		fatal(MYNAME ": Unsupported MapSend TRK version \"%s\"!\n", mapsend_opt_trkver);
+		trk_version = opt_trkver * 10;
+	}
+}
+
 static void
 mapsend_rd_init(const char *fname)
 {
+	mapsend_init_opts(1);
 	mapsend_file_in = xfopen(fname, "rb", MYNAME);
 }
 
@@ -83,7 +116,7 @@ my_fread4(void *ptr, FILE *stream)
 
 static 
 size_t
-my_fwrite4(int *ptr, FILE *stream)
+my_fwrite4(void *ptr, FILE *stream)
 {
 	int i = le_read32(ptr);
 	return fwrite(&i, 4, 1, stream);
@@ -92,8 +125,14 @@ my_fwrite4(int *ptr, FILE *stream)
 static void
 mapsend_wr_init(const char *fname)
 {
+	mapsend_init_opts(0);
 	mapsend_file_out = xfopen(fname, "wb", MYNAME);
 	mkshort_handle = mkshort_new_handle();
+
+	wpt_handle = mkshort_new_handle();
+	setshort_whitespace_ok(wpt_handle, 1);
+	setshort_length(wpt_handle, 8);
+
 	route_wp_count = 0;
 }
 
@@ -101,7 +140,8 @@ static void
 mapsend_wr_deinit(void)
 {
 	fclose(mapsend_file_out);
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
+	mkshort_del_handle(&wpt_handle);
 }
 
 static void
@@ -265,7 +305,7 @@ mapsend_track_read(void)
 		wpt_tmp->creation_time = time;
 		wpt_tmp->centiseconds = centisecs;
 		wpt_tmp->altitude = wpt_alt;
-		route_add_wpt(track_head, wpt_tmp);
+		track_add_wpt(track_head, wpt_tmp);
 	}
 }
 
@@ -335,14 +375,15 @@ mapsend_waypt_pr(const waypoint *waypointp)
 	 * them into the Mapsend file.
 	 */
 
-	tmp = str_utf8_to_ascii(sn);
+	
+	tmp = mkshort(wpt_handle, sn);
 	c = tmp ? strlen(tmp) : 0;
 	fwrite(&c, 1, 1, mapsend_file_out);
 	fwrite(tmp, c, 1, mapsend_file_out);
 	if (tmp)
 		xfree(tmp);
 
-	tmp = str_utf8_to_ascii(waypointp->description);
+	tmp = waypointp->description;
 	if (tmp)
 		c = strlen(tmp);
 	else
@@ -351,8 +392,6 @@ mapsend_waypt_pr(const waypoint *waypointp)
 	if (c > 30) c = 30;
 	fwrite(&c, 1, 1, mapsend_file_out);
 	fwrite(tmp, c, 1, mapsend_file_out);
-	if (tmp)
-		xfree(tmp);
 
 	/* #, icon, status */
 	n = ++cnt;
@@ -475,12 +514,19 @@ void mapsend_track_hdr(const route_head * trk)
 	char *tname;
 	unsigned char c;
 	int i;
-	mapsend_hdr hdr = {13, "4D533334 MS", "30", ms_type_track, {0}};
+	mapsend_hdr hdr = {13, "4D533334 MS", "30", ms_type_track, {0, 0, 0}};
 	
 	switch (trk_version) {
 		case 20: verstring = "30"; break;
 		case 30: verstring = "34"; break;
-		case 40: verstring = "36"; break;
+		case 40: 
+			/* the signature seems to change with the versions, even though it 
+			 * shouldn't have according to the document. MapSend V4 doesn't 
+			 * like the old version.
+			 */
+			hdr.ms_signature[7] = '6';
+			verstring = "36"; 
+			break;
 		default: fatal("Unknown track version.\n"); break;
 	}
 
@@ -517,6 +563,7 @@ void mapsend_track_disp(const waypoint * wpt)
 	double dbl;
 	int i;
 	int t;
+	int f;
 	int valid = 1;
 	static int last_time;
 
@@ -543,9 +590,16 @@ void mapsend_track_disp(const waypoint * wpt)
 	dbl = -wpt->latitude;
 	my_fwrite8(&dbl, mapsend_file_out);
 
-	/* altitude */
-	i = (int) wpt->altitude;
-	my_fwrite4(&i, mapsend_file_out);
+	/* altitude 
+	 * in V4.0+ this field is a float, it was previously an int
+	 */
+	if (trk_version < 40) {
+		i = (int) wpt->altitude;
+		my_fwrite4(&i, mapsend_file_out);
+	} else {
+		f = (float) wpt->altitude;
+		my_fwrite4(&f, mapsend_file_out);
+	}
 	
 	/* time */
 	my_fwrite4(&t, mapsend_file_out);
@@ -570,7 +624,7 @@ mapsend_track_write(void)
 static void
 mapsend_wpt_write(void)
 {
-	mapsend_hdr hdr = {13, {"4D533330 MS"}, {"30"}, ms_type_wpt, {0}};
+	mapsend_hdr hdr = {13, {"4D533330 MS"}, {"30"}, ms_type_wpt, {0, 0, 0}};
 	int wpt_count = waypt_count();
 	int n = 0;
 	
@@ -613,5 +667,7 @@ ff_vecs_t mapsend_vecs = {
 	mapsend_wr_deinit,
 	mapsend_read,
 	mapsend_wpt_write,
-	NULL
+	NULL,
+	mapsend_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

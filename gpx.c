@@ -21,7 +21,9 @@
 
 #include "defs.h"
 #include "xmlgeneric.h"
-#ifndef NO_EXPAT
+#include "cet_util.h"
+#include "garmin_fs.h"
+#if HAVE_LIBEXPAT
 	#include <expat.h>
 	static XML_Parser psr;
 #endif
@@ -35,17 +37,17 @@ static const char *gpx_version;
 static char *gpx_wversion;
 static int gpx_wversion_num;
 static const char *gpx_creator;
-static char *xsi_schema_loc;
+static char *xsi_schema_loc = NULL;
 
 static char *gpx_email = NULL;
 static char *gpx_author = NULL;
-vmem_t current_tag;
+static vmem_t current_tag;
 
 static waypoint *wpt_tmp;
 static int cache_descr_is_html;
 static FILE *fd;
 static FILE *ofd;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 
 static const char *input_string = NULL;
 static int input_string_len = 0;
@@ -57,12 +59,19 @@ static char *suppresswhite = NULL;
 static char *urlbase = NULL;
 static route_head *trk_head;
 static route_head *rte_head;
+/* used for bounds calculation on output */
+static bounds all_bounds;
 
+static format_specific_data **fs_ptr;
 
 #define MYNAME "GPX"
-#define MY_CBUF 4096
+#define MY_CBUF_SZ 4096
 #define DEFAULT_XSI_SCHEMA_LOC "http://www.topografix.com/GPX/1/0 http://www.topografix.com/GPX/1/0/gpx.xsd"
 #define DEFAULT_XSI_SCHEMA_LOC_FMT "\"http://www.topografix.com/GPX/%c/%c http://www.topografix.com/GPX/%c/%c/gpx.xsd\""
+#ifndef CREATOR_NAME_URL
+#  define CREATOR_NAME_URL "GPSBabel - http://www.gpsbabel.org"
+#endif
+
 
 /* 
  * Format used for floating point formats.  Put in one place to make it
@@ -77,10 +86,15 @@ static route_head *rte_head;
 typedef enum {
 	tt_unknown = 0,
 	tt_gpx,
-	tt_author,
+
+	tt_name,		/* Optional file-level info */
 	tt_desc,
+	tt_author,
 	tt_email,
-	tt_time,
+	tt_url,
+	tt_urlname,
+	tt_keywords,
+
 	tt_wpt,
 	tt_wpt_cmt,
 	tt_wpt_desc,
@@ -111,6 +125,16 @@ typedef enum {
 	tt_cache_log_type,
 	tt_cache_log_date,
 	tt_cache_placer,
+	
+	tt_garmin_extension,		/* don't change this order */
+	tt_garmin_waypt_extension,
+	tt_garmin_proximity,
+	tt_garmin_temperature,
+	tt_garmin_depth,
+	tt_garmin_display_mode,
+	tt_garmin_categories,
+	tt_garmin_category,		/* don't change this order */
+
 	tt_rte,
 	tt_rte_name,
 	tt_rte_desc,
@@ -143,10 +167,86 @@ typedef enum {
 	tt_trk_trkseg_trkpt_speed,
 } tag_type;
 
+typedef struct {
+	queue queue;
+	char *tagdata;
+} gpx_global_entry;
+
+/*
+ * The file-level information.
+ */
+static 
+struct gpx_global {
+	gpx_global_entry name;
+	gpx_global_entry desc;
+	gpx_global_entry author;
+	gpx_global_entry email;
+	gpx_global_entry url;
+	gpx_global_entry urlname;
+	gpx_global_entry keywords;
+	/* time and bounds aren't here; they're recomputed. */
+} *gpx_global ;
+
+static void
+gpx_add_to_global(gpx_global_entry *ge, char *cdata) 
+{
+	queue *elem, *tmp;
+	gpx_global_entry * gep;
+
+	QUEUE_FOR_EACH(&ge->queue, elem, tmp) {
+		gep = BASE_STRUCT(elem, gpx_global_entry, queue);
+		if (0 == strcmp(cdata, gep->tagdata))
+			return;
+	}
+
+	gep = xcalloc(sizeof(*gep), 1);
+	QUEUE_INIT(&gep->queue);
+	gep->tagdata = xstrdup(cdata);
+	ENQUEUE_TAIL(&ge->queue, &gep->queue);
+}
+
+static void
+gpx_rm_from_global(gpx_global_entry *ge)
+{
+	queue *elem, *tmp;
+
+	QUEUE_FOR_EACH(&ge->queue, elem, tmp) {
+		gpx_global_entry *g = (gpx_global_entry *) dequeue(elem);
+		xfree(g->tagdata);
+		xfree(g);
+	}
+}
+
+static void
+gpx_write_gdata(gpx_global_entry *ge, char *tag)
+{
+	queue *elem, *tmp;
+	gpx_global_entry * gep;
+
+	if (!gpx_global || QUEUE_EMPTY(&ge->queue)) {
+		return;
+	}
+
+	fprintf(ofd, "<%s>", tag);
+	QUEUE_FOR_EACH(&ge->queue, elem, tmp) {
+		gep = BASE_STRUCT(elem, gpx_global_entry, queue);
+		fprintf(ofd, "%s", gep->tagdata);
+		/* Some tags we just output once. */
+		if ((0 == strcmp(tag, "url")) ||
+			(0 == strcmp(tag, "email"))) {
+			break;
+		}
+		fprintf(ofd, " ");
+	}
+	fprintf(ofd, "</%s>\n", tag);
+}
+
+
 typedef struct tag_mapping {
 	tag_type tag_type;		/* enum from above for this tag */
 	int tag_passthrough;		/* true if we don't generate this */
 	const char *tag_name;		/* xpath-ish tag name */
+	unsigned long crc;		/* Crc32 of tag_name */
 } tag_mapping;
 
 /*
@@ -156,101 +256,124 @@ typedef struct tag_mapping {
  */
 
 tag_mapping tag_path_map[] = {
-	{ tt_gpx, 0, "/gpx" },
-	{ tt_time, 0, "/gpx/time" },
-	{ tt_author, 0, "/gpx/author" },
-	{ tt_email, 0, "/gpx/email" },
-	{ tt_time, 0, "/gpx/time" },
-	{ tt_desc, 0, "/gpx/desc" },
+	{ tt_gpx, 0, "/gpx", 0UL },
+	{ tt_name, 0, "/gpx/name", 0UL },
+	{ tt_desc, 0, "/gpx/desc", 0UL },
+	{ tt_author, 0, "/gpx/author", 0UL },
+	{ tt_email, 0, "/gpx/email", 0UL },
+	{ tt_url, 0, "/gpx/url", 0UL },
+	{ tt_urlname, 0, "/gpx/urlname", 0UL },
+	{ tt_keywords, 0, "/gpx/keywords", 0UL },
 
-	{ tt_wpt, 0, "/gpx/wpt" },
-	{ tt_wpt_ele, 0, "/gpx/wpt/ele" },
-	{ tt_wpt_time, 0, "/gpx/wpt/time" },
-	{ tt_wpt_name, 0, "/gpx/wpt/name" },
-	{ tt_wpt_cmt, 0, "/gpx/wpt/cmt" },
-	{ tt_wpt_desc, 0, "/gpx/wpt/desc" },
-	{ tt_wpt_url, 0, "/gpx/wpt/url" },
-	{ tt_wpt_urlname, 0, "/gpx/wpt/urlname" },
-	{ tt_wpt_link, 0, "/gpx/wpt/link" },			/* GPX 1.1 */
-	{ tt_wpt_link_text, 0, "/gpx/wpt/link/text" },		/* GPX 1.1 */
-	{ tt_wpt_sym, 0, "/gpx/wpt/sym" },
-	{ tt_wpt_type, 1, "/gpx/wpt/type" },
-	{ tt_cache, 1, "/gpx/wpt/groundspeak:cache" },
-	{ tt_cache_name, 1, "/gpx/wpt/groundspeak:cache/groundspeak:name" },
-	{ tt_cache_container, 1, "/gpx/wpt/groundspeak:cache/groundspeak:container" },
-	{ tt_cache_type, 1, "/gpx/wpt/groundspeak:cache/groundspeak:type" },
-	{ tt_cache_difficulty, 1, "/gpx/wpt/groundspeak:cache/groundspeak:difficulty" },
-	{ tt_cache_terrain, 1, "/gpx/wpt/groundspeak:cache/groundspeak:terrain" },
-	{ tt_cache_hint, 1, "/gpx/wpt/groundspeak:cache/groundspeak:encoded_hints" },
-	{ tt_cache_desc_short, 1, "/gpx/wpt/groundspeak:cache/groundspeak:short_description" },
-	{ tt_cache_desc_long, 1, "/gpx/wpt/groundspeak:cache/groundspeak:long_description" },
-	{ tt_cache_log_wpt, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:log_wpt" },
-	{ tt_cache_log_type, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:type" },
-	{ tt_cache_log_date, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:date" },
-	{ tt_cache_placer, 1, "/gpx/wpt/groundspeak:cache/groundspeak:owner" },
+	{ tt_wpt, 0, "/gpx/wpt", 0UL },
+	{ tt_wpt_ele, 0, "/gpx/wpt/ele", 0UL },
+	{ tt_wpt_time, 0, "/gpx/wpt/time", 0UL },
+	{ tt_wpt_name, 0, "/gpx/wpt/name", 0UL },
+	{ tt_wpt_cmt, 0, "/gpx/wpt/cmt", 0UL },
+	{ tt_wpt_desc, 0, "/gpx/wpt/desc", 0UL },
+	{ tt_wpt_url, 0, "/gpx/wpt/url", 0UL },
+	{ tt_wpt_urlname, 0, "/gpx/wpt/urlname", 0UL },
+	{ tt_wpt_link, 0, "/gpx/wpt/link", 0UL },			/* GPX 1.1 */
+	{ tt_wpt_link_text, 0, "/gpx/wpt/link/text", 0UL },		/* GPX 1.1 */
+	{ tt_wpt_sym, 0, "/gpx/wpt/sym", 0UL },
+	{ tt_wpt_type, 1, "/gpx/wpt/type", 0UL },
+	
+	{ tt_cache, 1, "/gpx/wpt/groundspeak:cache", 0UL },
+	{ tt_cache_name, 1, "/gpx/wpt/groundspeak:cache/groundspeak:name", 0UL },
+	{ tt_cache_container, 1, "/gpx/wpt/groundspeak:cache/groundspeak:container", 0UL },
+	{ tt_cache_type, 1, "/gpx/wpt/groundspeak:cache/groundspeak:type", 0UL },
+	{ tt_cache_difficulty, 1, "/gpx/wpt/groundspeak:cache/groundspeak:difficulty", 0UL },
+	{ tt_cache_terrain, 1, "/gpx/wpt/groundspeak:cache/groundspeak:terrain", 0UL },
+	{ tt_cache_hint, 1, "/gpx/wpt/groundspeak:cache/groundspeak:encoded_hints", 0UL },
+	{ tt_cache_desc_short, 1, "/gpx/wpt/groundspeak:cache/groundspeak:short_description", 0UL },
+	{ tt_cache_desc_long, 1, "/gpx/wpt/groundspeak:cache/groundspeak:long_description", 0UL },
+	{ tt_cache_log_wpt, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:log_wpt", 0UL },
+	{ tt_cache_log_type, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:type", 0UL },
+	{ tt_cache_log_date, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:date", 0UL },
+	{ tt_cache_placer, 1, "/gpx/wpt/groundspeak:cache/groundspeak:owner", 0UL },
+	
+	{ tt_garmin_extension, 0, "/gpx/wpt/extensions", 0UL },
+	{ tt_garmin_waypt_extension, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension", 0UL },
+	{ tt_garmin_proximity, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Proximity", 0UL },
+	{ tt_garmin_temperature, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Temperature", 0UL },
+	{ tt_garmin_depth, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Depth", 0UL },
+	{ tt_garmin_display_mode, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:DisplayMode", 0UL },
+	{ tt_garmin_categories, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Categories", 0UL },
+	{ tt_garmin_category, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Categories/gpxx:Category", 0UL },
 
-	{ tt_rte, 0, "/gpx/rte" },
-	{ tt_rte_name, 0, "/gpx/rte/name" },
-	{ tt_rte_desc, 0, "/gpx/rte/desc" },
-	{ tt_rte_number, 0, "/gpx/rte/number" },
-	{ tt_rte_rtept, 0, "/gpx/rte/rtept" },
-	{ tt_rte_rtept_ele, 0, "/gpx/rte/rtept/ele" },
-	{ tt_rte_rtept_time, 0, "/gpx/rte/rtept/time" },
-	{ tt_rte_rtept_name, 0, "/gpx/rte/rtept/name" },
-	{ tt_rte_rtept_cmt, 0, "/gpx/rte/rtept/cmt" },
-	{ tt_rte_rtept_desc, 0, "/gpx/rte/rtept/desc" },
-	{ tt_rte_rtept_url, 0, "/gpx/rte/rtept/url" },
-	{ tt_rte_rtept_urlname, 0, "/gpx/rte/rtept/urlname" },
-	{ tt_rte_rtept_sym, 0, "/gpx/rte/rtept/sym" },
+	{ tt_rte, 0, "/gpx/rte", 0UL },
+	{ tt_rte_name, 0, "/gpx/rte/name", 0UL },
+	{ tt_rte_desc, 0, "/gpx/rte/desc", 0UL },
+	{ tt_rte_number, 0, "/gpx/rte/number", 0UL },
+	{ tt_rte_rtept, 0, "/gpx/rte/rtept", 0UL },
+	{ tt_rte_rtept_ele, 0, "/gpx/rte/rtept/ele", 0UL },
+	{ tt_rte_rtept_time, 0, "/gpx/rte/rtept/time", 0UL },
+	{ tt_rte_rtept_name, 0, "/gpx/rte/rtept/name", 0UL },
+	{ tt_rte_rtept_cmt, 0, "/gpx/rte/rtept/cmt", 0UL },
+	{ tt_rte_rtept_desc, 0, "/gpx/rte/rtept/desc", 0UL },
+	{ tt_rte_rtept_url, 0, "/gpx/rte/rtept/url", 0UL },
+	{ tt_rte_rtept_urlname, 0, "/gpx/rte/rtept/urlname", 0UL },
+	{ tt_rte_rtept_sym, 0, "/gpx/rte/rtept/sym", 0UL },
 
-	{ tt_trk, 0, "/gpx/trk" },
-	{ tt_trk_name, 0, "/gpx/trk/name" },
-	{ tt_trk_desc, 0, "/gpx/trk/desc" },
-	{ tt_trk_trkseg, 0, "/gpx/trk/trkseg" },
-	{ tt_trk_number, 0, "/gpx/trk/number" },
-	{ tt_trk_trkseg_trkpt, 0, "/gpx/trk/trkseg/trkpt" },
-	{ tt_trk_trkseg_trkpt_ele, 0, "/gpx/trk/trkseg/trkpt/ele" },
-	{ tt_trk_trkseg_trkpt_time, 0, "/gpx/trk/trkseg/trkpt/time" },
-	{ tt_trk_trkseg_trkpt_name, 0, "/gpx/trk/trkseg/trkpt/name" },
-	{ tt_trk_trkseg_trkpt_cmt, 0, "/gpx/trk/trkseg/trkpt/cmt" },
-	{ tt_trk_trkseg_trkpt_desc, 0, "/gpx/trk/trkseg/trkpt/desc" },
-	{ tt_trk_trkseg_trkpt_url, 0, "/gpx/trk/trkseg/trkpt/url" },
-	{ tt_trk_trkseg_trkpt_urlname, 0, "/gpx/trk/trkseg/trkpt/urlname" },
-	{ tt_trk_trkseg_trkpt_sym, 0, "/gpx/trk/trkseg/trkpt/sym" },
-	{ tt_trk_trkseg_trkpt_course, 0, "/gpx/trk/trkseg/trkpt/course" },
-	{ tt_trk_trkseg_trkpt_speed, 0, "/gpx/trk/trkseg/trkpt/speed" },
+	{ tt_trk, 0, "/gpx/trk", 0UL },
+	{ tt_trk_name, 0, "/gpx/trk/name", 0UL },
+	{ tt_trk_desc, 0, "/gpx/trk/desc", 0UL },
+	{ tt_trk_trkseg, 0, "/gpx/trk/trkseg", 0UL },
+	{ tt_trk_number, 0, "/gpx/trk/number", 0UL },
+	{ tt_trk_trkseg_trkpt, 0, "/gpx/trk/trkseg/trkpt", 0UL },
+	{ tt_trk_trkseg_trkpt_ele, 0, "/gpx/trk/trkseg/trkpt/ele", 0UL },
+	{ tt_trk_trkseg_trkpt_time, 0, "/gpx/trk/trkseg/trkpt/time", 0UL },
+	{ tt_trk_trkseg_trkpt_name, 0, "/gpx/trk/trkseg/trkpt/name", 0UL },
+	{ tt_trk_trkseg_trkpt_cmt, 0, "/gpx/trk/trkseg/trkpt/cmt", 0UL },
+	{ tt_trk_trkseg_trkpt_desc, 0, "/gpx/trk/trkseg/trkpt/desc", 0UL },
+	{ tt_trk_trkseg_trkpt_url, 0, "/gpx/trk/trkseg/trkpt/url", 0UL },
+	{ tt_trk_trkseg_trkpt_urlname, 0, "/gpx/trk/trkseg/trkpt/urlname", 0UL },
+	{ tt_trk_trkseg_trkpt_sym, 0, "/gpx/trk/trkseg/trkpt/sym", 0UL },
+	{ tt_trk_trkseg_trkpt_course, 0, "/gpx/trk/trkseg/trkpt/course", 0UL },
+	{ tt_trk_trkseg_trkpt_speed, 0, "/gpx/trk/trkseg/trkpt/speed", 0UL },
 
 	/* Common to tracks, routes, and waypts */
-	{ tt_fix,  0, "/gpx/wpt/fix" },
-	{ tt_fix,  0, "/gpx/trk/trkseg/trkpt/fix" },
-	{ tt_fix,  0, "/gpx/rte/rtept/fix" },
-	{ tt_sat,  0, "/gpx/wpt/sat" },
-	{ tt_sat,  0, "/gpx/trk/trkseg/trkpt/sat" },
-	{ tt_sat,  0, "/gpx/rte/rtept/sat" },
-	{ tt_pdop, 0, "/gpx/wpt/pdop" },
-	{ tt_pdop, 0, "/gpx/trk/trkseg/trkpt/pdop" },
-	{ tt_pdop, 0, "/gpx/rte/rtept/pdop" },
-	{ tt_hdop, 0, "/gpx/wpt/hdop" },
-	{ tt_hdop, 0, "/gpx/trk/trkseg/trkpt/hdop" },
-	{ tt_hdop, 0, "/gpx/rte/rtept/hdop" },
-	{ tt_vdop, 0, "/gpx/wpt/vdop" },
-	{ tt_vdop, 0, "/gpx/trk/trkseg/trkpt/vdop" },
-	{ tt_vdop, 0, "/gpx/rte/rtept/hdop" },
-	{0}
+	{ tt_fix,  0, "/gpx/wpt/fix", 0UL },
+	{ tt_fix,  0, "/gpx/trk/trkseg/trkpt/fix", 0UL },
+	{ tt_fix,  0, "/gpx/rte/rtept/fix", 0UL },
+	{ tt_sat,  0, "/gpx/wpt/sat", 0UL },
+	{ tt_sat,  0, "/gpx/trk/trkseg/trkpt/sat", 0UL },
+	{ tt_sat,  0, "/gpx/rte/rtept/sat", 0UL },
+	{ tt_pdop, 0, "/gpx/wpt/pdop", 0UL },
+	{ tt_pdop, 0, "/gpx/trk/trkseg/trkpt/pdop", 0UL },
+	{ tt_pdop, 0, "/gpx/rte/rtept/pdop", 0UL },
+	{ tt_hdop, 0, "/gpx/wpt/hdop", 0UL },
+	{ tt_hdop, 0, "/gpx/trk/trkseg/trkpt/hdop", 0UL },
+	{ tt_hdop, 0, "/gpx/rte/rtept/hdop", 0UL },
+	{ tt_vdop, 0, "/gpx/wpt/vdop", 0UL },
+	{ tt_vdop, 0, "/gpx/trk/trkseg/trkpt/vdop", 0UL },
+	{ tt_vdop, 0, "/gpx/rte/rtept/hdop", 0UL },
+	{0, 0, NULL, 0UL}
 };
 
 static tag_type
 get_tag(const char *t, int *passthrough)
 {
 	tag_mapping *tm;
+	unsigned long tcrc = get_crc32_s(t);
+
 	for (tm = tag_path_map; tm->tag_type != 0; tm++) {
-		if (0 == strcmp(tm->tag_name, t)) {
+		if ((tcrc == tm->crc) && (0 == strcmp(tm->tag_name, t))) {
 			*passthrough = tm->tag_passthrough;
 			return tm->tag_type;
 		}
 	}
 	*passthrough = 1;
 	return tt_unknown;
+}
+
+static void
+prescan_tags(void)
+{
+	tag_mapping *tm;
+	for (tm = tag_path_map; tm->tag_type != 0; tm++) {
+		tm->crc = get_crc32_s(tm->tag_name);
+	}
 }
 
 static void
@@ -293,6 +416,7 @@ tag_wpt(const char **attrv)
 		}
 		avp+=2;
 	}
+	fs_ptr = &wpt_tmp->fs;
 }
 
 static void
@@ -315,7 +439,6 @@ tag_gs_cache(const char **attrv)
 {
 	const char **avp;
 
-	cache_descr_is_html = 0;
 	for (avp = &attrv[0]; *avp; avp+=2) {
 		if (strcmp(avp[0], "id") == 0) {
 				wpt_tmp->gc_data.id = atoi(avp[1]);
@@ -330,14 +453,14 @@ start_something_else(const char *el, const char **attrv)
 	char **avcp = NULL;
 	int attr_count = 0;
 	xml_tag *new_tag;
-	fs_xml *fs_gpx = NULL;
-       
-	if ( !wpt_tmp ) {
+	fs_xml *fs_gpx;
+
+	if ( !fs_ptr ) {
 		return;
 	}
 	
-        new_tag = (xml_tag *)xcalloc(sizeof(xml_tag),1);
-        new_tag->tagname = xstrdup(el);
+	new_tag = (xml_tag *)xcalloc(sizeof(xml_tag),1);
+	new_tag->tagname = xstrdup(el);
 	
 	/* count attributes */
 	while (*avp) {
@@ -371,7 +494,7 @@ start_something_else(const char *el, const char **attrv)
 		}
 	}
 	else {
-		fs_gpx = (fs_xml *)fs_chain_find( wpt_tmp->fs, FS_GPX );
+		fs_gpx = (fs_xml *)fs_chain_find( *fs_ptr, FS_GPX );
 	       	
 		if ( fs_gpx && fs_gpx->tag ) {
 			cur_tag = fs_gpx->tag;
@@ -384,7 +507,7 @@ start_something_else(const char *el, const char **attrv)
 		else {
 			fs_gpx = fs_xml_alloc(FS_GPX);
 			fs_gpx->tag = new_tag;
-			fs_chain_add( &(wpt_tmp->fs), (format_specific_data *)fs_gpx );
+			fs_chain_add( fs_ptr, (format_specific_data *)fs_gpx );
 			new_tag->parent = NULL;
 		}
 	}
@@ -438,11 +561,13 @@ tag_log_wpt(const char **attrv)
 }
 
 static void
-gpx_start(void *data, const char *el, const char **attr)
+gpx_start(void *data, const XML_Char *xml_el, const XML_Char **xml_attr)
 {
 	char *e;
 	char *ep;
 	int passthrough;
+	const char *el = xml_convert_to_char_string(xml_el);
+	const char **attr = xml_convert_attrs_to_char_string(xml_attr);
 
 	vmem_realloc(&current_tag, strlen(current_tag.mem) + 2 + strlen(el));
 	e = current_tag.mem;
@@ -472,6 +597,7 @@ gpx_start(void *data, const char *el, const char **attr)
 	case tt_rte:
 		rte_head = route_head_alloc();
 		route_add_head(rte_head);
+		fs_ptr = &rte_head->fs;
 		break;
 	case tt_rte_rtept:
 		tag_wpt(attr);
@@ -479,6 +605,7 @@ gpx_start(void *data, const char *el, const char **attr)
 	case tt_trk:
 		trk_head = route_head_alloc();
 		track_add_head(trk_head);
+		fs_ptr = &trk_head->fs;
 		break;
 	case tt_trk_trkseg_trkpt:
 		tag_wpt(attr);
@@ -503,6 +630,8 @@ gpx_start(void *data, const char *el, const char **attr)
 	if (passthrough) {
 		start_something_else(el, attr);
 	}
+	xml_free_converted_string(el);
+	xml_free_converted_attrs(attr);
 }
 
 struct
@@ -520,6 +649,8 @@ gs_type_mapping{
 	{ gt_cito, "Cache In Trash Out Event" },
 	{ gt_letterbox, "Letterbox Hybrid" },
 	{ gt_locationless, "Locationless (Reverse) Cache" },
+	{ gt_ape, "Project APE Cache" },
+	{ gt_mega, "Mega-Event Cache" },
 
 	{ gt_benchmark, "Benchmark" }, /* Not Groundspeak; for GSAK  */
 };
@@ -530,6 +661,7 @@ gs_container_mapping{
 	const char *name;
 } gs_container_map[] = {
 	{ gc_other, "Unknown" },
+	{ gc_other, "Other" }, /* Synonym on read. */
 	{ gc_micro, "Micro" },
 	{ gc_regular, "Regular" },
 	{ gc_large, "Large" },
@@ -604,6 +736,8 @@ xml_parse_time( const char *cdatastr )
 	struct tm tm;
 	time_t rv = 0;
 	char *timestr = xstrdup( cdatastr );
+
+	memset(&tm, 0, sizeof(tm));
 	
 	offsetstr = strchr( timestr, 'Z' );
 	if ( offsetstr ) {
@@ -648,42 +782,56 @@ xml_parse_time( const char *cdatastr )
 	
 	rv = mkgmtime(&tm) - off_sign*off_hr*3600 - off_sign*off_min*60;
 	
-        xfree(timestr);
+	xfree(timestr);
 	
 	return rv;
 }
 
 static void
-gpx_end(void *data, const char *el)
+gpx_end(void *data, const XML_Char *xml_el)
 {
+	const char *el = xml_convert_to_char_string(xml_el);
 	char *s = strrchr(current_tag.mem, '/');
 	float x;
 	char *cdatastrp = cdatastr.mem;
 	int passthrough;
 	static time_t gc_log_date;
+	tag_type tag;
 
 	if (strcmp(s + 1, el)) {
 		fprintf(stderr, "Mismatched tag %s\n", el);
 	}
 
-	switch (get_tag(current_tag.mem, &passthrough)) {
+	tag = get_tag(current_tag.mem, &passthrough);
+	switch(tag) {
 	/*
 	 * First, the tags that are file-global.
 	 */
-	case tt_time:
-		file_time = xml_parse_time(cdatastrp);
+	case tt_name:
+		gpx_add_to_global(&gpx_global->name, cdatastrp);
 		break;
-	case tt_email:
-		if (gpx_email) xfree(gpx_email);
-		gpx_email = xstrdup(cdatastrp);
+	case tt_desc:
+		gpx_add_to_global(&gpx_global->desc, cdatastrp);
 		break;
 	case tt_author:
-		if (gpx_author) xfree(gpx_author);
-		gpx_author = xstrdup(cdatastrp);
+		gpx_add_to_global(&gpx_global->author, cdatastrp);
 		break;
-	case tt_gpx:
-		/* Could invoke release code here */
+	case tt_email:
+		gpx_add_to_global(&gpx_global->email, cdatastrp);
+		if (gpx_email == NULL) {
+			gpx_email = xstrdup(cdatastrp);
+		}
 		break;
+	case tt_url:
+		gpx_add_to_global(&gpx_global->url, cdatastrp);
+		break;
+	case tt_urlname:
+		gpx_add_to_global(&gpx_global->urlname, cdatastrp);
+		break;
+	case tt_keywords:
+		gpx_add_to_global(&gpx_global->keywords, cdatastrp);
+		break;
+
 	/*
 	 * Waypoint-specific tags.
 	 */
@@ -701,6 +849,7 @@ gpx_end(void *data, const char *el)
 		wpt_tmp = NULL;
 		break;
 	case tt_cache_name:
+		if (wpt_tmp->notes != NULL) xfree(wpt_tmp->notes);
 		wpt_tmp->notes = xstrdup(cdatastrp);
 		break;
 	case tt_cache_container:
@@ -755,6 +904,18 @@ gpx_end(void *data, const char *el)
 		}
 		gc_log_date = 0;
 		break;
+		
+	/*
+	 * Garmin-waypoint-specific tags.
+ 	 */
+	case tt_garmin_proximity:
+	case tt_garmin_temperature:
+	case tt_garmin_depth:
+	case tt_garmin_display_mode:
+	case tt_garmin_category: 
+		garmin_fs_xml_convert(tt_garmin_extension, tag, cdatastrp, wpt_tmp);
+		break;
+
 	/*
 	 * Route-specific tags.
  	 */
@@ -765,6 +926,7 @@ gpx_end(void *data, const char *el)
 		break;
 	case tt_rte_rtept:
 		route_add_wpt(rte_head, wpt_tmp);
+		wpt_tmp = NULL;
 		break;
 	case tt_rte_desc:
 		rte_head->rte_desc = xstrdup(cdatastrp);
@@ -781,7 +943,8 @@ gpx_end(void *data, const char *el)
 	case tt_trk:
 		break;
 	case tt_trk_trkseg_trkpt:
-		route_add_wpt(trk_head, wpt_tmp);
+		track_add_wpt(trk_head, wpt_tmp);
+		wpt_tmp = NULL;
 		break;
 	case tt_trk_desc:
 		trk_head->rte_desc = xstrdup(cdatastrp);
@@ -828,6 +991,7 @@ gpx_end(void *data, const char *el)
 	case tt_wpt_desc:
 	case tt_trk_trkseg_trkpt_desc:
 	case tt_rte_rtept_desc:
+		if (wpt_tmp->notes != NULL) xfree(wpt_tmp->notes);
 		wpt_tmp->notes = xstrdup(cdatastrp);
 		break;
 	case tt_pdop:
@@ -863,31 +1027,40 @@ gpx_end(void *data, const char *el)
 		break;
 	}
 
-	if (passthrough)
+	if (passthrough) {
 		end_something_else();
+	}
 
 	*s = 0;
+	xml_free_converted_string(el);
 }
 
-#if NO_EXPAT
-void
+#if ! HAVE_LIBEXPAT
+static void
 gpx_rd_init(const char *fname)
 {
 	fatal(MYNAME ": This build excluded GPX support because expat was not installed.\n");
 }
 
+static void 
+gpx_rd_deinit(void) 
+{
+}
+
 #else /* NO_EXPAT */
 
 static void
-gpx_cdata(void *dta, const XML_Char *s, int len)
+gpx_cdata(void *dta, const XML_Char *xml_el, int len)
 {
 	char *estr;
 	int *cdatalen;
 	char **cdata;
 	xml_tag *tmp_tag;
+	size_t slen = strlen(cdatastr.mem);
+	const char *s = xml_convert_to_char_string_n(xml_el, &len);
 
-	vmem_realloc(&cdatastr,  1 + len + strlen(cdatastr.mem));
-	estr = (char *) cdatastr.mem + strlen(cdatastr.mem);
+	vmem_realloc(&cdatastr,  1 + len + slen);
+	estr = ((char *) cdatastr.mem) + slen;
 	memcpy(estr, s, len);
 	estr[len]  = 0;
 
@@ -916,9 +1089,11 @@ gpx_cdata(void *dta, const XML_Char *s, int len)
 		memcpy( estr, s, len );
 		*(estr+len) = '\0';
 		*cdatalen += len;
+
+	xml_free_converted_string(s);
 }
 
-void
+static void
 gpx_rd_init(const char *fname)
 {
 	if ( fname[0] ) {
@@ -934,29 +1109,41 @@ gpx_rd_init(const char *fname)
 	file_time = 0;
 	current_tag = vmem_alloc(1, 0);
 	*((char *)current_tag.mem) = '\0';
+
+	prescan_tags();
 	
 	psr = XML_ParserCreate(NULL);
 	if (!psr) {
 		fatal(MYNAME ": Cannot create XML Parser\n");
 	}
+	XML_SetUnknownEncodingHandler(psr, cet_lib_expat_UnknownEncodingHandler, NULL);
+
 	cdatastr = vmem_alloc(1, 0);
 	*((char *)cdatastr.mem) = '\0';
 
-	/* We don't use xstrdup here because we' know we don't free
-	 * this across reads and we unlock the safety belt from the 
-	 * leak tester.
-	 */
 	if (!xsi_schema_loc) {
-		xsi_schema_loc = strdup(DEFAULT_XSI_SCHEMA_LOC);
+		xsi_schema_loc = xstrdup(DEFAULT_XSI_SCHEMA_LOC);
 	}
 	if (!xsi_schema_loc) {
-		fatal("gpx: Unable to allocate %d bytes of memory.\n", strlen(DEFAULT_XSI_SCHEMA_LOC) + 1);
+		fatal("gpx: Unable to allocate %ld bytes of memory.\n", 
+		        (unsigned long) strlen(DEFAULT_XSI_SCHEMA_LOC) + 1);
+	}
+
+	if (NULL == gpx_global) {
+		gpx_global = xcalloc(sizeof(*gpx_global), 1);
+		QUEUE_INIT(&gpx_global->name.queue);
+		QUEUE_INIT(&gpx_global->desc.queue);
+		QUEUE_INIT(&gpx_global->author.queue);
+		QUEUE_INIT(&gpx_global->email.queue);
+		QUEUE_INIT(&gpx_global->url.queue);
+		QUEUE_INIT(&gpx_global->urlname.queue);
+		QUEUE_INIT(&gpx_global->keywords.queue);
 	}
 
 	XML_SetElementHandler(psr, gpx_start, gpx_end);
 	XML_SetCharacterDataHandler(psr, gpx_cdata);
+	fs_ptr = NULL;
 }
-#endif
 
 static 
 void 
@@ -969,11 +1156,14 @@ gpx_rd_deinit(void)
 	 * this across reads or else merges/copies of files with different 
 	 * schemas won't retain the headers.
 	 *
-	if ( xsi_schema_loc ) {
+	 *  moved to gpx_exit
+
+	if ( xsi_schema_loc ) {		
 		xfree(xsi_schema_loc);
 		xsi_schema_loc = NULL;
 	}
-	*/ 
+	*/
+	 
 	if ( gpx_email ) {
 		xfree(gpx_email);
 		gpx_email = NULL;
@@ -987,9 +1177,12 @@ gpx_rd_deinit(void)
 	}
 	XML_ParserFree(psr);
 	psr = NULL;
+	wpt_tmp = NULL;
+	cur_tag = NULL;
 }
+#endif
 
-void
+static void
 gpx_wr_init(const char *fname)
 {
 	mkshort_handle = mkshort_new_handle();
@@ -1001,17 +1194,18 @@ static void
 gpx_wr_deinit(void)
 {
 	fclose(ofd);
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 }
 
 void
 gpx_read(void)
 {
-#ifndef NO_EXPAT
+#if HAVE_LIBEXPAT
 	int len;
 	int done = 0;
-	char buf[MY_CBUF];
+	char *buf = xmalloc(MY_CBUF_SZ);
 	int result = 0;
+	int extra;
 
 	while (!done) {
 		if ( fd ) {
@@ -1024,19 +1218,20 @@ gpx_read(void)
 			 * them not validate which croaks expat and torments
 			 * users.
 			 *
-			 * Look for '&' in the last 6 chars.   If we find
-			 * it, strip it, then read byte-at-a-time until
-			 * we find a non-entity.
+			 * Look for '&' in the last maxentlength chars.   If 
+			 * we find it, strip it, then read byte-at-a-time 
+			 * until we find a non-entity.
 			 */
 			char *badchar;
 			char *semi;
-			len = fread(buf, 1, sizeof(buf)-7, fd);
+			int maxentlength = 8;
+			len = fread(buf, 1, MY_CBUF_SZ - maxentlength, fd);
 			done = feof(fd) || !len;
 			buf[len] = '\0';
-			badchar = buf+len-7;
+			badchar = buf+len-maxentlength;
 			badchar = strchr( badchar, '&' );
-			while ( badchar ) {
-				int extra = 7;
+			extra = maxentlength - 1; /* for terminator */
+			while ( badchar && len < MY_CBUF_SZ-1) {
 				semi = strchr( badchar, ';');
 				while ( extra && !semi ) {
 					len += fread( buf+len, 1, 1, fd);
@@ -1085,11 +1280,12 @@ gpx_read(void)
 		}
 		if (!result) {
 			fatal(MYNAME ": XML parse error at %d: %s\n", 
-				XML_GetCurrentLineNumber(psr),
+				(int) XML_GetCurrentLineNumber(psr),
 				XML_ErrorString(XML_GetErrorCode(psr)));
 		}
 	}
-#endif /* NO_EXPAT */
+	xfree(buf);
+#endif /* HAVE_LIBEXPAT */
 }
 
 static void
@@ -1126,12 +1322,12 @@ fprint_xml_chain( xml_tag *tag, const waypoint *wpt )
 			if ( tag->child ) {
 				fprint_xml_chain(tag->child, wpt);
 			}
-			if ( strcmp(tag->tagname, "groundspeak:cache" ) == 0 
-					&& wpt->gc_data.exported) {
+			if ( wpt && wpt->gc_data.exported &&
+			    strcmp(tag->tagname, "groundspeak:cache" ) == 0 ) {
 				xml_write_time( ofd, wpt->gc_data.exported, 
 						"groundspeak:exported" );
 			}
-			fprintf( ofd, "</%s>", tag->tagname);
+			fprintf( ofd, "</%s>\n", tag->tagname);
 		}
 		if ( tag->parentcdata ) {
 			tmp_ent = xml_entitize(tag->parentcdata);
@@ -1158,7 +1354,7 @@ void free_gpx_extras( xml_tag *tag )
 			xfree(tag->parentcdata);
 		}
 		if (tag->tagname) {
-        		xfree(tag->tagname);
+			xfree(tag->tagname);
 		}
 		if (tag->attributes) {
 			ap = tag->attributes;
@@ -1225,6 +1421,13 @@ gpx_write_common_acc(const waypoint *waypointp, const char *indent)
 		case fix_pps:
 			fix = "pps";
 			break;
+		case fix_none:
+			fix = "none";
+			break;
+		/* GPX spec says omit if we don't know. */
+		case fix_unknown:
+		default:
+			break;
 	}
 	if (fix) {
 		fprintf(ofd, "%s<fix>%s</fix>\n", indent, fix);
@@ -1274,7 +1477,7 @@ gpx_waypt_pr(const waypoint *waypointp)
 {
 	const char *oname;
 	char *odesc;
-	fs_xml *fs_gpx = NULL;
+	fs_xml *fs_gpx;
 
 	/*
 	 * Desparation time, try very hard to get a good shortname
@@ -1303,12 +1506,17 @@ gpx_waypt_pr(const waypoint *waypointp)
 	if ( fs_gpx ) {
 		fprint_xml_chain( fs_gpx->tag, waypointp );
 	}
+	if (gpx_wversion_num > 10) {
+		garmin_fs_xml_fprint(ofd, waypointp);
+	}
 	fprintf(ofd, "</wpt>\n");
 }
 
 static void
 gpx_track_hdr(const route_head *rte)
 {
+	fs_xml *fs_gpx;
+
 	fprintf(ofd, "<trk>\n");
 	write_optional_xml_entity(ofd, "  ", "name", rte->rte_name);
 	write_optional_xml_entity(ofd, "  ", "desc", rte->rte_desc);
@@ -1316,11 +1524,18 @@ gpx_track_hdr(const route_head *rte)
 		fprintf(ofd, "<number>%d</number>\n", rte->rte_num);
 	}
 	fprintf(ofd, "<trkseg>\n");
+
+	fs_gpx = (fs_xml *)fs_chain_find( rte->fs, FS_GPX );
+	if ( fs_gpx ) {
+		fprint_xml_chain( fs_gpx->tag, NULL );
+	}
 }
 
 static void
 gpx_track_disp(const waypoint *waypointp)
 {
+	fs_xml *fs_gpx;
+
 	fprintf(ofd, "<trkpt lat=\"" FLT_FMT_T "\" lon=\"" FLT_FMT_T "\">\n",
 		waypointp->latitude,
 		waypointp->longitude);
@@ -1347,6 +1562,11 @@ gpx_track_disp(const waypoint *waypointp)
 			NULL : waypointp->shortname);
 	gpx_write_common_acc(waypointp, "  ");
 
+	fs_gpx = (fs_xml *)fs_chain_find( waypointp->fs, FS_GPX );
+	if ( fs_gpx ) {
+		fprint_xml_chain( fs_gpx->tag, waypointp );
+	}
+
 	fprintf(ofd, "</trkpt>\n");
 }
 
@@ -1366,17 +1586,26 @@ void gpx_track_pr()
 static void
 gpx_route_hdr(const route_head *rte)
 {
+	fs_xml *fs_gpx;
+
 	fprintf(ofd, "<rte>\n");
 	write_optional_xml_entity(ofd, "  ", "name", rte->rte_name);
 	write_optional_xml_entity(ofd, "  ", "desc", rte->rte_desc);
 	if (rte->rte_num) {
 		fprintf(ofd, "  <number>%d</number>\n", rte->rte_num);
 	}
+
+	fs_gpx = (fs_xml *)fs_chain_find( rte->fs, FS_GPX );
+	if ( fs_gpx ) {
+		fprint_xml_chain( fs_gpx->tag, NULL );
+	}
 }
 
 static void
 gpx_route_disp(const waypoint *waypointp)
 {
+	fs_xml *fs_gpx;
+
 	fprintf(ofd, "  <rtept lat=\"" FLT_FMT_R "\" lon=\"" FLT_FMT_R "\">\n",
 		waypointp->latitude,
 		waypointp->longitude);
@@ -1384,6 +1613,12 @@ gpx_route_disp(const waypoint *waypointp)
 	gpx_write_common_position(waypointp, "    ");
 	gpx_write_common_description(waypointp, "    ", waypointp->shortname);
 	gpx_write_common_acc(waypointp, "    ");
+
+	fs_gpx = (fs_xml *)fs_chain_find( waypointp->fs, FS_GPX );
+	if ( fs_gpx ) {
+		fprint_xml_chain( fs_gpx->tag, waypointp );
+	}
+
 	fprintf(ofd, "  </rtept>\n");
 }
 
@@ -1400,12 +1635,34 @@ void gpx_route_pr()
 	route_disp_all(gpx_route_hdr, gpx_route_tlr, gpx_route_disp);
 }
 
-void
+static void
+gpx_waypt_bound_calc(const waypoint *waypointp)
+{
+	waypt_add_to_bounds(&all_bounds, waypointp);
+}
+
+static void
+gpx_write_bounds(void)
+{
+	waypt_init_bounds(&all_bounds);
+
+	waypt_disp_all(gpx_waypt_bound_calc);
+	route_disp_all(NULL, NULL, gpx_waypt_bound_calc);
+	track_disp_all(NULL, NULL, gpx_waypt_bound_calc);
+
+	if (waypt_bounds_valid(&all_bounds)) {
+		fprintf(ofd, "<bounds minlat=\"%0.9f\" minlon =\"%0.9f\" "
+			       "maxlat=\"%0.9f\" maxlon=\"%0.9f\" />\n",
+			       all_bounds.min_lat, all_bounds.min_lon, 
+			       all_bounds.max_lat, all_bounds.max_lon);
+	}
+}
+
+static void
 gpx_write(void)
 {
 	time_t now = 0;
 	int short_length;
-	bounds bounds;
 
 	gpx_wversion_num = strtod(gpx_wversion, NULL) * 10;
 
@@ -1413,12 +1670,9 @@ gpx_write(void)
 		fatal(MYNAME ": gpx version number of '%s' not valid.\n", gpx_wversion);
 	}
 	
-        now = current_time();
+	now = current_time();
 
-	if (snlen)
-		short_length = atoi(snlen);
-	else
-		short_length = 32;
+	short_length = atoi(snlen);
 
 	if (suppresswhite) {
 		setshort_whitespace_ok(mkshort_handle, 0);
@@ -1426,9 +1680,9 @@ gpx_write(void)
 
 	setshort_length(mkshort_handle, short_length);
 
-	fprintf(ofd, "<?xml version=\"1.0\"?>\n");
+	fprintf(ofd, "<?xml version=\"1.0\" encoding=\"%s\"?>\n", global_opts.charset_name);
 	fprintf(ofd, "<gpx\n version=\"%s\"\n", gpx_wversion);
-	fprintf(ofd, "creator=\"GPSBabel - http://www.gpsbabel.org\"\n");
+	fprintf(ofd, "creator=\"" CREATOR_NAME_URL "\"\n");
 	fprintf(ofd, "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
 	fprintf(ofd, "xmlns=\"http://www.topografix.com/GPX/%c/%c\"\n", gpx_wversion[0], gpx_wversion[2]);
 	if (xsi_schema_loc) {
@@ -1443,14 +1697,21 @@ gpx_write(void)
 	if (gpx_wversion_num > 10) {	
 		fprintf(ofd, "<metadata>\n");
 	}
-	xml_write_time( ofd, now, "time" );
-	waypt_compute_bounds(&bounds);
-	if (bounds.max_lat  > -360) {
-		fprintf(ofd, "<bounds minlat=\"%0.9f\" minlon =\"%0.9f\" "
-			       "maxlat=\"%0.9f\" maxlon=\"%0.9f\" />\n",
-			       bounds.min_lat, bounds.min_lon, 
-			       bounds.max_lat, bounds.max_lon);
+	gpx_write_gdata(&gpx_global->name, "name");
+	gpx_write_gdata(&gpx_global->desc, "desc");
+	/* In GPX 1.1, author changed from a string to a PersonType.
+ 	 * since it's optional, we just drop it instead of rewriting it.
+	 */
+	if (gpx_wversion_num < 11) {
+		gpx_write_gdata(&gpx_global->author, "author");
 	}
+	gpx_write_gdata(&gpx_global->email, "email");
+	gpx_write_gdata(&gpx_global->url, "url");
+	gpx_write_gdata(&gpx_global->urlname, "urlname");
+	xml_write_time( ofd, now, "time" );
+	gpx_write_gdata(&gpx_global->keywords, "keywords");
+
+	gpx_write_bounds();
 
 	if (gpx_wversion_num > 10) {	
 		fprintf(ofd, "</metadata>\n");
@@ -1463,21 +1724,49 @@ gpx_write(void)
 	fprintf(ofd, "</gpx>\n");
 }
 
+
+static void
+gpx_free_gpx_global(void)
+{
+	gpx_rm_from_global(&gpx_global->name);
+	gpx_rm_from_global(&gpx_global->desc);
+	gpx_rm_from_global(&gpx_global->author);
+	gpx_rm_from_global(&gpx_global->email);
+	gpx_rm_from_global(&gpx_global->url);
+	gpx_rm_from_global(&gpx_global->urlname);
+	gpx_rm_from_global(&gpx_global->keywords);
+	xfree(gpx_global);
+}
+
+static void
+gpx_exit(void)
+{
+	if ( xsi_schema_loc ) {
+		xfree(xsi_schema_loc);
+		xsi_schema_loc = NULL;
+	}
+
+	if (gpx_global) {
+		gpx_free_gpx_global();
+		gpx_global = NULL;
+	}
+}
+
 static
 arglist_t gpx_args[] = {
 	{ "snlen", &snlen, "Length of generated shortnames", 
-		NULL, ARGTYPE_INT },
+		"32", ARGTYPE_INT, "1", NULL },
 	{ "suppresswhite", &suppresswhite, 
-		"Suppress whitespace in generated shortnames", 
-		NULL, ARGTYPE_BOOL },
+		"No whitespace in generated shortnames", 
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	{ "logpoint", &opt_logpoint, 
 		"Create waypoints from geocache log entries", 
-		NULL, ARGTYPE_BOOL },
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	{ "urlbase", &urlbase, "Base URL for link tag in output", 
-		NULL, ARGTYPE_STRING},
+		NULL, ARGTYPE_STRING, ARG_NOMINMAX},
 	{ "gpxver", &gpx_wversion, "Target GPX version for output", 
-		"1.0", ARGTYPE_STRING},
-	{ 0, 0, 0, 0, 0 }
+		"1.0", ARGTYPE_STRING, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
 ff_vecs_t gpx_vecs = {
@@ -1489,6 +1778,7 @@ ff_vecs_t gpx_vecs = {
 	gpx_wr_deinit,	
 	gpx_read,
 	gpx_write,
-	NULL, 
+	gpx_exit, 
 	gpx_args,
+	CET_CHARSET_UTF8, 0	/* non-fixed to create non UTF-8 XML's for testing | CET-REVIEW */
 };

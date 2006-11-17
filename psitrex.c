@@ -43,7 +43,7 @@ typedef struct psit_icon_mapping {
 
 static FILE *psit_file_in;
 static FILE *psit_file_out;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 
 /* 2 = not written any tracks out
    1 = change of track to write out track header
@@ -57,8 +57,8 @@ char *snlen;
 static
 arglist_t psit_args[] = {
 /*	{"snlen", &snlen, "Length of generated shortnames", 
- 	NULL, ARGTYPE_INT }, */
-	{0, 0, 0, 0, 0}
+ 	NULL, ARGTYPE_INT, "1", NULL }, */
+	ARG_TERMINATOR
 };
 
 /* Taken from PsiTrex 1.13 */
@@ -208,7 +208,7 @@ psit_wr_deinit(void)
 static void
 psit_getToken(FILE *psit_file, char *buf, size_t sz, psit_tokenSep_type delimType)
 {
-	int c;
+	int c = -1;
 
 	*buf = 0;
 
@@ -313,7 +313,7 @@ psit_waypoint_r(FILE *psit_file, waypoint **wpt)
 		/* since PsiTrex only deals with Garmins, let's use the "proper" Garmin icon name */
 		/* convert the PsiTrex name to the number, which is the PCX one; from there to Garmin desc */
 		garmin_icon_num = psit_find_icon_number_from_desc(psit_current_token);
-		thisWaypoint->icon_descr = mps_find_desc_from_icon_number(garmin_icon_num, PCX);
+		thisWaypoint->icon_descr = gt_find_desc_from_icon_number(garmin_icon_num, PCX, NULL);
 
 		waypt_add(thisWaypoint);
 
@@ -347,10 +347,10 @@ psit_waypoint_w(FILE *psit_file, const waypoint *wpt)
 				wpt->shortname;
 
 	fprintf(psit_file, " %-6s, ", ident);
-	icon = mps_find_icon_number_from_desc(wpt->icon_descr, PCX);
+	icon = gt_find_icon_number_from_desc(wpt->icon_descr, PCX);
 
 	if (get_cache_icon(wpt) && wpt->icon_descr && (strcmp(wpt->icon_descr, "Geocache Found") != 0)) {
-		icon = mps_find_icon_number_from_desc(get_cache_icon(wpt), PCX);
+		icon = gt_find_icon_number_from_desc(get_cache_icon(wpt), PCX);
 	}
 
 	ident = psit_find_desc_from_icon_number(icon);
@@ -434,7 +434,7 @@ psit_route_r(FILE *psit_file, route_head **rte)
 			/* since PsiTrex only deals with Garmins, let's use the "proper" Garmin icon name */
 			/* convert the PsiTrex name to the number, which is the PCX one; from there to Garmin desc */
 			garmin_icon_num = psit_find_icon_number_from_desc(psit_current_token);
-			thisWaypoint->icon_descr = mps_find_desc_from_icon_number(garmin_icon_num, PCX);
+			thisWaypoint->icon_descr = gt_find_desc_from_icon_number(garmin_icon_num, PCX, NULL);
 
 			route_add_wpt(rte_head, thisWaypoint);
 
@@ -458,7 +458,7 @@ psit_routehdr_w(FILE *psit_file, const route_head *rte)
 	char		*rname;
 
 	waypoint	*testwpt;
-	time_t		uniqueValue;
+	time_t		uniqueValue = 0;
 	int			allWptNameLengths;
 
 	queue *elem, *tmp;
@@ -482,7 +482,7 @@ psit_routehdr_w(FILE *psit_file, const route_head *rte)
 
 		/* route name */
 		if (!rte->rte_name) {
-			sprintf(hdr, "Route%04x", uniqueValue);
+			sprintf(hdr, "Route%04x", (unsigned) uniqueValue);
 			rname = xstrdup(hdr);
 		}
 		else
@@ -514,7 +514,7 @@ psit_track_r(FILE *psit_file, route_head **trk)
 
 	struct tm tmTime;
 	time_t	dateTime = 0;
-	route_head *track_head;
+	route_head *track_head = NULL;
 	unsigned int trk_count;
 
 	waypoint	*thisWaypoint;
@@ -592,7 +592,7 @@ psit_track_r(FILE *psit_file, route_head **trk)
 
 			thisWaypoint->creation_time = dateTime;
 			thisWaypoint->centiseconds = 0;
-			route_add_wpt(track_head, thisWaypoint);
+			track_add_wpt(track_head, thisWaypoint);
 
 			if (feof(psit_file)) break;
 
@@ -613,7 +613,7 @@ psit_trackhdr_w(FILE *psit_file, const route_head *trk)
 	unsigned int trk_datapoints;
 	char		*tname;
 	waypoint	*testwpt;
-	time_t		uniqueValue;
+	time_t		uniqueValue = 0;
 
 	queue *elem, *tmp;
 
@@ -635,7 +635,7 @@ psit_trackhdr_w(FILE *psit_file, const route_head *trk)
 
 			/* track name */
 			if (!trk->rte_name) {
-				sprintf(hdr, "Track%04x", uniqueValue);
+				sprintf(hdr, "Track%04x", (unsigned) uniqueValue);
 				tname = xstrdup(hdr);
 			}
 			else
@@ -780,7 +780,7 @@ psit_write(void)
 		track_disp_all(psit_trackhdr_w_wrapper, psit_noop, psit_trackdatapoint_w_wrapper);
 	}
 
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 
 }
 
@@ -794,5 +794,6 @@ ff_vecs_t psit_vecs = {
 	psit_read,
 	psit_write,
 	NULL, 
-	psit_args
+	psit_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

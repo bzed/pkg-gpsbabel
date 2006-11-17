@@ -18,11 +18,11 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-#include <stdio.h>
+
 #include "defs.h"
+#include "filterdefs.h"
 
-extern queue waypt_head;
-
+#if FILTERS_ENABLED
 static char *hdopopt = NULL;
 static char *vdopopt = NULL;
 static char *andopt = NULL;
@@ -32,13 +32,40 @@ static double vdopf;
 static
 arglist_t fix_args[] = {
 	{"hdop", &hdopopt, "Suppress waypoints with higher hdop",
-		"-1.0", ARGTYPE_BEGIN_REQ | ARGTYPE_FLOAT},
+		"-1.0", ARGTYPE_BEGIN_REQ | ARGTYPE_FLOAT, ARG_NOMINMAX},
 	{"vdop", &vdopopt, "Suppress waypoints with higher vdop",
-		"-1.0", ARGTYPE_END_REQ | ARGTYPE_FLOAT},
+		"-1.0", ARGTYPE_END_REQ | ARGTYPE_FLOAT, ARG_NOMINMAX},
 	{"hdopandvdop", &andopt, "Link hdop and vdop supression with AND",
-		NULL, ARGTYPE_BOOL},
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
+
+/*
+ * Decide whether to keep or toss this point.
+ */
+static void
+fix_process_wpt(const waypoint *wpt)
+{
+	int del = 0;
+	int delh = 0;
+	int delv = 0;
+	waypoint *waypointp = (waypoint *) wpt;
+
+	if ((hdopf >= 0.0) && (waypointp->hdop > hdopf))
+		delh = 1;
+	if ((vdopf >= 0.0) && (waypointp->vdop > vdopf))
+		delv = 1;
+	
+	if (andopt)
+		del = delh && delv;
+	else
+		del = delh || delv;
+
+	if (del) {
+		waypt_del(waypointp);
+		waypt_free(waypointp);
+	}
+}
 
 static void
 fix_process_track(const route_head *trk)
@@ -47,65 +74,18 @@ fix_process_track(const route_head *trk)
 	queue *elem, *tmp;
 	
 	QUEUE_FOR_EACH((queue *)&trk->waypoint_list, elem, tmp) {
-		
-		int del = 0;
-		int delh = 0;
-		int delv = 0;
-
 		waypointp = (waypoint *)elem;
-		
-		if ((hdopf >= 0.0) && (waypointp->hdop > hdopf))
-			delh = 1;
-		if ((vdopf >= 0.0) && (waypointp->vdop > vdopf))
-			delv = 1;
-		
-		if (andopt)
-			del = delh && delv;
-		else
-			del = delh || delv;
 
-		if (del) {
-			waypt_del(waypointp);
-			waypt_free(waypointp);
-		}
-
+		fix_process_wpt(waypointp);
 	}
 }
 
-void
+static void
 fix_process(void)
 {
-	waypoint * waypointp;
-	queue *elem, *tmp;
-	extern queue waypt_head;
-	
-	// Filter waypoints
+	// Filter waypoints.
+	waypt_disp_all(fix_process_wpt);
 
-	QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-		
-		int del = 0;
-		int delh = 0;
-		int delv = 0;
-
-		waypointp = (waypoint *)elem;
-		
-		if ((hdopf >= 0.0) && (waypointp->hdop > hdopf))
-			delh = 1;
-		if ((vdopf >= 0.0) && (waypointp->vdop > vdopf))
-			delv = 1;
-		
-		if (andopt)
-			del = delh && delv;
-		else
-			del = delh || delv;
-
-		if (del) {
-			waypt_del(waypointp);
-			waypt_free(waypointp);
-		}
-
-	}
-	
 	// Filter tracks
 	track_disp_all(fix_process_track, NULL, NULL);
 	
@@ -114,28 +94,25 @@ fix_process(void)
 	
 }
 
-void
+static void
 fix_init(const char *args) 
 {
 	if (hdopopt)
 		hdopf = atof(hdopopt);
 	else
 		hdopf = -1.0;
+
 	if (vdopopt)
 		vdopf = atof(vdopopt);
 	else
 		vdopf = -1.0;
 }
 
-void
-fix_deinit(void) 
-{
-}
-
 filter_vecs_t discard_vecs = {
 	fix_init,
 	fix_process,
-	fix_deinit,
+	NULL,
 	NULL,
 	fix_args
 };
+#endif

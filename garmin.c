@@ -1,7 +1,7 @@
 /*
     Jeeps wrapper for Garmin serial protocol.
   
-    Copyright (C) 2002, 2003, 2004 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2003, 2004, 2005, 2006  Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,10 +24,13 @@
 #include "defs.h"
 #include "jeeps/gps.h"
 #include "garmin_tables.h"
+#include "garmin_fs.h"
+
+#define SOON 1
 
 #define MYNAME "GARMIN" 
 static const char *portname;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 static GPS_PWay *tx_routelist;
 static GPS_PWay *cur_tx_routelist_entry;
 static GPS_PTrack *tx_tracklist;
@@ -37,21 +40,25 @@ static char *poweroff = NULL;
 static char *snlen = NULL;
 static char *snwhiteopt = NULL;
 static char *deficon = NULL;
+static char *category = NULL;
+
 /* Technically, even this is a little loose as spaces arent allowed */
 static char valid_waypt_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789";
 
 static
 arglist_t garmin_args[] = {
 	{ "snlen", &snlen, "Length of generated shortnames", NULL, 
-		ARGTYPE_INT },
-	{ "snwhite", &snwhiteopt, "(0/1) Allow whitespace synth. shortnames",
-		NULL, ARGTYPE_BOOL},
-	{ "deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING },
+		ARGTYPE_INT, "1", NULL },
+	{ "snwhite", &snwhiteopt, "Allow whitespace synth. shortnames",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{ "deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
 	{ "get_posn", &getposn, "Return current position as a waypoint", 
-		NULL, ARGTYPE_BOOL},
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 	{ "power_off", &poweroff, "Command unit to power itself down", 
-		NULL, ARGTYPE_BOOL},
-	{ 0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{ "category", &category, "Category number to use for written waypoints", 
+		NULL, ARGTYPE_INT, "1", "16"},
+	ARG_TERMINATOR
 };
 
 static const char * d103_symbol_from_icon_number(unsigned int n);
@@ -60,7 +67,9 @@ static int d103_icon_number_from_symbol(const char *s);
 static void
 rw_init(const char *fname)
 {
-	int short_length;
+	int receiver_short_length;
+	int receiver_must_upper = 1;
+	char * receiver_charset = NULL;
 
 	if (!mkshort_handle)
 		mkshort_handle = mkshort_new_handle();
@@ -92,10 +101,15 @@ rw_init(const char *fname)
 	 * Fortunately, getting this "wrong" only results in ugly names
 	 * when we're using the synthesize_shortname path.
 	 */
-	short_length = 10;
+	receiver_short_length = 10;
 
 	switch ( gps_waypt_type )	/* waypoint type as defined by jeeps */
 	{
+		case 0:
+			fatal("Garmin unit %d does not support waypoint xfer.",
+				 gps_save_id);
+
+			break;
 		case 100:	/* The GARMIN GPS Interface Specification, */
 		case 101:	/* says these waypoint types use an ident */
 		case 102:	/* length of 6.  Waypoint types 106, 108 */
@@ -108,19 +122,40 @@ rw_init(const char *fname)
 		case 152:
 		case 154:
 		case 155:
-			short_length = 6;
+			receiver_short_length = 6;
 			break;
 		case 106:	/* Waypoint types with variable ident length */
 		case 108: 	/* Need GPSr id to know the actual length */
 		case 109:                   
+		case 110:                   
 			switch ( gps_save_id )
 			{
 				case 130:	/* Garmin Etrex (yellow) */
-					short_length = 6;
+					receiver_short_length = 6;
 					break;
 				case 155:	/* Garmin V */
-					short_length = 20;
+				case 404:	/* SP2720 */
+					receiver_short_length = 20;
 					break;
+				case 382: 	/* C320 */
+					receiver_short_length = 30;
+					receiver_must_upper = 0;
+					break;
+				case 292: /* (60|76)C[s]X series */
+				case 421: /* Vista|Legend CX */
+					receiver_short_length = 14;
+					snwhiteopt = xstrdup("1");
+					receiver_must_upper = 0;
+					/* This might be 8859-1 */
+					receiver_charset = CET_CHARSET_MS_ANSI;
+					break;
+				case 231: /* Quest */
+				case 463: /* Quest 2 */
+					receiver_must_upper = 0;
+					receiver_short_length = 30;
+					receiver_charset = CET_CHARSET_MS_ANSI;
+					break;
+				case 260: /* GPSMap 296 */
 				default:
 					break;
 			}
@@ -132,7 +167,12 @@ rw_init(const char *fname)
 	if (global_opts.debug_level > 0)  {
 		fprintf(stderr, "Waypoint type: %d\n"
 			"Chosen waypoint length %d\n",
-			 gps_waypt_type, short_length);
+			 gps_waypt_type, receiver_short_length);
+	if (gps_category_type) {
+		fprintf(stderr, "Waypoint category type: %d\n",
+		gps_category_type);
+	}
+
 	}
 	/*
 	 * If the user provided a short_length, override the calculated value.
@@ -140,22 +180,32 @@ rw_init(const char *fname)
 	if (snlen)
 		setshort_length(mkshort_handle, atoi(snlen));
 	else
-		setshort_length(mkshort_handle, short_length);
+		setshort_length(mkshort_handle, receiver_short_length);
 
 	if (snwhiteopt)
 		setshort_whitespace_ok(mkshort_handle, atoi(snwhiteopt));
 
-	setshort_goodchars(mkshort_handle, valid_waypt_chars);
-	setshort_mustupper(mkshort_handle, 1);
+	/* 
+	 * Until Garmins documents how to determine valid character space
+	 * for the new models, we just release this safety check manually.
+	 */
+	if (receiver_must_upper) {
+		setshort_goodchars(mkshort_handle, valid_waypt_chars);
+	} else {
+		setshort_badchars(mkshort_handle, "");
+	}
 
+	setshort_mustupper(mkshort_handle, receiver_must_upper);
+
+	if (receiver_charset)
+		cet_convert_init(receiver_charset, 1);
 }
 
 static void
 rw_deinit(void)
 {
 	if (mkshort_handle) {
-		mkshort_del_handle(mkshort_handle);
-		mkshort_handle = NULL;
+		mkshort_del_handle(&mkshort_handle);
 	}
 }
 
@@ -203,8 +253,10 @@ waypt_read(void)
 			wpt_tmp->icon_descr = d103_symbol_from_icon_number(
 					way[i]->smbl);
 		} else {
-			wpt_tmp->icon_descr = mps_find_desc_from_icon_number(
-					way[i]->smbl, PCX);
+			int dyn = 0;
+			wpt_tmp->icon_descr = gt_find_desc_from_icon_number(
+					way[i]->smbl, PCX, &dyn);
+			wpt_tmp->wpt_flags.icon_descr_is_dynamic = dyn;
 		}
 		/*
 		 * If a unit doesn't store altitude info (i.e. a D103)
@@ -217,15 +269,18 @@ waypt_read(void)
 		 */
 		if ((way[i]->alt == (float) (1U<<31)) || 
 		     (way[i]->alt == INT_MAX) ||
-		     (way[i]->alt == 1.0e25)
+		     (way[i]->alt >= (float) 1.0e20)
 		     ) {
 			wpt_tmp->altitude = unknown_alt;
 		} else {
 			wpt_tmp->altitude = way[i]->alt;
 		}
-		if (way[i]->Time_populated)
-			wpt_tmp->creation_time = way[i]->Time;
-		
+		if (way[i]->time_populated) {
+			wpt_tmp->creation_time = way[i]->time;
+		}
+#if SOON
+		garmin_fs_garmin_after_read(way[i], wpt_tmp, gps_waypt_type);
+#endif		
 		waypt_add(wpt_tmp);
 		GPS_Way_Del(&way[i]);
 	}
@@ -244,7 +299,7 @@ track_read(void)
 	char trk_seg_num_buf[10];
 	char *trk_name = "";
 
-	ntracks = GPS_Command_Get_Track(portname, &array);
+	ntracks = GPS_Command_Get_Track(portname, &array, waypt_read_cb);
 
 	if ( ntracks <= 0 )
 		return;
@@ -262,7 +317,6 @@ track_read(void)
 			if (!trk_name)
 				trk_name = "";
 			trk_seg_num = 1;
-			continue;
 		}
 
 
@@ -282,15 +336,20 @@ track_read(void)
 			track_add_head(trk_head);
 		}
 
+		if (array[i]->no_latlon || array[i]->ishdr) {
+			continue;
+		}
 		wpt = waypt_new();
 
 		wpt->longitude = array[i]->lon;
 		wpt->latitude = array[i]->lat;
 		wpt->altitude = array[i]->alt;
+		wpt->heartrate = array[i]->heartrate;
+		wpt->cadence = array[i]->cadence;
 		wpt->shortname = xstrdup(array[i]->trk_ident);
 		wpt->creation_time = array[i]->Time;
 		
-		route_add_wpt(trk_head, wpt);
+		track_add_wpt(trk_head, wpt);
 	}
 
 	while(ntracks) {
@@ -306,7 +365,11 @@ route_read(void)
 	int32 nroutepts;
 	int i;
 	GPS_PWay *array;
-  route_head *rte_head;
+    /* TODO: Fixes warning but is it right? 
+     * RJL:  No, the warning isn't right; GCC's flow analysis is broken.
+     * still, it's good taste...
+     */
+    route_head *rte_head = NULL;
 
 	nroutepts = GPS_Command_Get_Route(portname, &array);
 
@@ -323,11 +386,11 @@ route_read(void)
 				case 202: csrc = array[i]->rte_ident; break;
 				default: break;
 			}
-      rte_head = route_head_alloc();
-      route_add_head(rte_head);
-      if (csrc) {
-        rte_head->rte_name = xstrdup(csrc);
-      }
+            rte_head = route_head_alloc();
+            route_add_head(rte_head);
+            if (csrc) {
+                rte_head->rte_name = xstrdup(csrc);
+            }
 		} else { 
 			if (array[i]->islink)  {
 				continue; 
@@ -346,6 +409,95 @@ route_read(void)
 
 }
 
+/*
+ * Rather than propogate Garmin-specific data types outside of the Garmin
+ * code, we convert the PVT (position/velocity/time) data from the receiver
+ * to the data type we use throughout.   Yes, we do lose some data that way.
+ */
+static void
+pvt2wpt(GPS_PPvt_Data pvt, waypoint *wpt)
+{
+	double wptime, wptimes;
+
+	wpt->altitude = pvt->alt;
+	wpt->latitude = pvt->lat;
+	wpt->longitude = pvt->lon;
+
+	/*
+	 * The unit reports time in three fields:
+	 * 1) The # of days to most recent Sun. since  1989-12-31 midnight UTC.
+	 * 2) The number of seconds (fractions allowed) since that Sunday.
+	 * 3) The number of leap seconds that offset the current UTC and GPS
+	 *    reference clocks.
+	 */
+	wptime = 631065600.0 + pvt->wn_days * 86400.0  + 
+		pvt->tow 
+		- pvt->leap_scnds;
+	wptimes = floor(wptime);
+	wpt->creation_time = wptimes;
+	wpt->centiseconds = 100.0 * (wptime - wptimes);
+	
+	/*
+	 * The Garmin spec fifteen different models that use a different 
+	 * table for 'fix' without a really good way to tell if the model 
+	 * we're talking to happens to be one of those...By inspection,
+	 * it looks like even though the models (Summit, Legend, etc.) may
+	 * be popular, it's older (2001 and earlier or so) versions that
+	 * are affected and I think there are relatively few readers of
+	 * the fix field anyway.   Time will tell if this is a good plan.
+	 */
+	switch (pvt->fix) {
+		case 0: wpt->fix = fix_unknown;break;
+		case 1: wpt->fix = fix_none;break;
+		case 2: wpt->fix = fix_2d;break;
+		case 3: wpt->fix = fix_3d;break;
+		case 4: wpt->fix = fix_dgps;break; /* 2D_diff */
+		case 5: wpt->fix = fix_dgps;break; /* 3D_diff */
+		default:
+			/* undocumented type. */
+			break;
+	}
+}
+
+static gpsdevh *pvt_fd;
+
+static void
+pvt_init(const char *fname)
+{
+	rw_init(fname);
+	GPS_Command_Pvt_On(fname, &pvt_fd);
+}
+
+static waypoint *
+pvt_read(posn_status *posn_status)
+{
+	waypoint *wpt = waypt_new();
+	GPS_PPvt_Data pvt = GPS_Pvt_New();
+
+	if (GPS_Command_Pvt_Get(&pvt_fd, &pvt)) {
+		pvt2wpt(pvt, wpt);
+		wpt->shortname = xstrdup("Position");
+
+		if (gps_errno && posn_status) {
+			posn_status->request_terminate = 1;
+		}
+	
+		return wpt;
+	} 
+
+	/*
+	 * If the caller has not given us a better way to return the
+	 * error, do it now. 
+	 */
+	if (gps_errno) {
+		fatal(MYNAME ": Fatal error reading position.\n");
+	}
+
+	GPS_Pvt_Del(&pvt);
+
+	return NULL;
+}
+
 static void
 data_read(void)
 {
@@ -360,7 +512,7 @@ data_read(void)
 	if (global_opts.masked_objective & RTEDATAMASK)
 	  route_read();
 	if (!(global_opts.masked_objective & 
-	      (WPTDATAMASK | TRKDATAMASK | RTEDATAMASK)))
+	      (WPTDATAMASK | TRKDATAMASK | RTEDATAMASK | POSNDATAMASK)))
 	  fatal(MYNAME ": Nothing to do.\n");
 }
 
@@ -484,12 +636,12 @@ waypoint_write(void)
 		way[i]->lat = wpt->latitude;
 
 		if (deficon) {
-			icon = mps_find_icon_number_from_desc(deficon, PCX);
+			icon = gt_find_icon_number_from_desc(deficon, PCX);
 		} else {
 			if (get_cache_icon(wpt)) {
-				icon = mps_find_icon_number_from_desc(get_cache_icon(wpt), PCX);
+				icon = gt_find_icon_number_from_desc(get_cache_icon(wpt), PCX);
 			} else {
-				icon = mps_find_icon_number_from_desc(wpt->icon_descr, PCX);
+				icon = gt_find_icon_number_from_desc(wpt->icon_descr, PCX);
 			}
 		}
 
@@ -501,11 +653,21 @@ waypoint_write(void)
 		}
 		way[i]->smbl = icon;
 		if (wpt->altitude == unknown_alt) {
+			way[i]->alt_is_unknown = 1;
 			way[i]->alt = 0;
 		} else {
 			way[i]->alt = wpt->altitude;
 		}
-		way[i]->Time = wpt->creation_time;
+		if (wpt->creation_time) {
+			way[i]->time = wpt->creation_time;
+			way[i]->time_populated = 1;
+		}
+		if (category) {
+			way[i]->category = 1 << (atoi(category) - 1);
+		}
+#if SOON
+		garmin_fs_garmin_before_write(wpt, way[i], gps_waypt_type);
+#endif
 		i++;
 	}
 
@@ -528,6 +690,10 @@ route_hdr_pr(const route_head *rte)
 {
 	(*cur_tx_routelist_entry)->rte_num = rte->rte_num;
 	(*cur_tx_routelist_entry)->isrte = 1;
+	if (rte->rte_name) {
+		strncpy((*cur_tx_routelist_entry)->rte_ident, rte->rte_name, 
+			sizeof ((*cur_tx_routelist_entry)->rte_ident));
+	}
 }
 
 static void
@@ -542,14 +708,20 @@ route_waypt_pr(const waypoint *wpt)
 	 * we just double them up (sigh) and do that here.
 	 */
 	rte->islink = 1;
+	rte->lon = wpt->longitude;
+	rte->lat = wpt->latitude;
 	cur_tx_routelist_entry++;
 	rte = *cur_tx_routelist_entry;
 
 	rte->lon = wpt->longitude;
 	rte->lat = wpt->latitude;
-	rte->smbl = mps_find_icon_number_from_desc(wpt->icon_descr, PCX);
+	rte->smbl = gt_find_icon_number_from_desc(wpt->icon_descr, PCX);
+
 	if (wpt->altitude != unknown_alt) {
 		rte->alt = wpt->altitude;
+	} else {
+		rte->alt_is_unknown = 1;
+		rte->alt = 0;
 	}
 	strncpy(rte->ident, wpt->shortname, sizeof(rte->ident));
 	rte->ident[sizeof(rte->ident)-1] = 0;
@@ -615,10 +787,7 @@ static void
 track_write(void)
 {
 	int i;
-        /* Headers plus trackpoints. Trackpoints are added by
-         * route_add_waypt so get route_waypt_count() 
-         */
-	int n = route_waypt_count() + track_count();
+	int n = track_waypt_count() + track_count();
 
 	tx_tracklist = xcalloc(n, sizeof(GPS_PTrack));
 	cur_tx_tracklist_entry = tx_tracklist;
@@ -662,7 +831,9 @@ ff_vecs_t garmin_vecs = {
 	data_read,
 	data_write,
 	NULL,
-	garmin_args
+	garmin_args,
+	CET_CHARSET_ASCII, 0,
+	{ pvt_init, pvt_read, rw_deinit, NULL, NULL, NULL }
 };
 
 static const char *d103_icons[16] = {

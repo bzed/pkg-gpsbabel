@@ -20,6 +20,7 @@
  */
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 
@@ -67,7 +68,7 @@ struct record {
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 
 struct pdb *opdb;
 struct pdb_record *opdb_rec;
@@ -97,7 +98,7 @@ static void
 wr_deinit(void)
 {
 	fclose(file_out);
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 }
 
 convert_rec0(struct record0 *rec0)
@@ -164,13 +165,13 @@ decode(char *buf)
 				be_read16(&rec->lon1d) / LONDIV2; 
 
 			vdata = (char *) rec + sizeof(*rec);
-			wpt_tmp->description = strdup(vdata);
+			wpt_tmp->description = xstrdup(vdata);
 			vdata += strlen(wpt_tmp->description) + 1 + 6;
 
 			while (*vdata == 0x40)
 				vdata++;
 			decode(vdata);
-			wpt_tmp->notes = strdup(vdata);
+			wpt_tmp->notes = xstrdup(vdata);
 			vdata += strlen(wpt_tmp->notes) + 1;
 
 			waypt_add(wpt_tmp);
@@ -316,4 +317,8 @@ ff_vecs_t mapopolis_vecs = {
 	wr_deinit,
 	data_read,
 	data_write,
+	NULL,
+	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

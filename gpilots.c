@@ -20,6 +20,7 @@
  */
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 #include "garmin_tables.h"
@@ -153,15 +154,15 @@ struct record
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-struct pdb *opdb;
-struct pdb_record *opdb_rec;
+static struct pdb *opdb;
+static struct pdb_record *opdb_rec;
 
 static char *dbname = NULL;
 
 static
 arglist_t my_args[] = {
-	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING},
-	{0, 0, 0, 0, 0}
+	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
 static void
@@ -203,7 +204,7 @@ data_read(void)
 	struct record *rec;
 	struct pdb *pdb;
 	struct pdb_record *pdb_rec;
-	route_head *track_head;
+	route_head *track_head = NULL;
 
 	if (NULL == (pdb = pdb_Read(fileno(file_in)))) {
 		fatal(MYNAME ": pdb_Read failed\n");
@@ -278,7 +279,7 @@ data_read(void)
 			  fi.i = le_read32(&rec->wpt.d108.dist);
 			  wpt_tmp->proximity = fi.f;
 			  wpt_tmp->wpt_flags.icon_descr_is_dynamic = 0;
-			  wpt_tmp->icon_descr = mps_find_desc_from_icon_number((rec->wpt.d108.smbl[1] << 8) + rec->wpt.d108.smbl[0], PCX);
+			  wpt_tmp->icon_descr = gt_find_desc_from_icon_number((rec->wpt.d108.smbl[1] << 8) + rec->wpt.d108.smbl[0], PCX, NULL);
 			  waypt_add(wpt_tmp);
 			  break;
 
@@ -333,7 +334,7 @@ data_read(void)
 				  wpt_tmp->creation_time = be_read32(&tp_cust->time) + 631065600;
 				  fi.i = be_read32(&tp_cust->alt);
 				  wpt_tmp->altitude = fi.f;
-				  route_add_wpt(track_head, wpt_tmp);
+				  track_add_wpt(track_head, wpt_tmp);
 				  tp_cust++;
 				}
 				break;
@@ -364,7 +365,7 @@ data_read(void)
 				  lat = be_read32(&tp_comp->lat);
 				  wpt_tmp->longitude = lon / 2147483648.0 * 180.0;
 				  wpt_tmp->latitude = lat / 2147483648.0 * 180.0;
-				  route_add_wpt(track_head, wpt_tmp);
+				  track_add_wpt(track_head, wpt_tmp);
 				  tp_comp++;
 				}
 				break;
@@ -457,5 +458,7 @@ ff_vecs_t gpilots_vecs = {
 	data_read,
 	data_write,
 	NULL, 
-	my_args
+	my_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

@@ -28,7 +28,7 @@
 #include "defs.h"
 #include "grtcirc.h"
 
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 
 #define MYNAME         "overlay"
 #define PARAMETER_FILE "overlay.def"
@@ -78,26 +78,26 @@ static char *govl_file_s = NULL;
 
 static arglist_t ovl_args[] = {
        { "col", &govl_col_s, "color index [1-9] for routes",
-        NULL, ARGTYPE_INT },
+        NULL, ARGTYPE_INT, "1", "9" },
        { "size", &govl_size_s, "size index [101-] for routes",
-        NULL, ARGTYPE_INT },
+        NULL, ARGTYPE_INT, "101", NULL },
        { "mapname", &govl_mapname, "name of map",
-        NULL, ARGTYPE_STRING },
+        NULL, ARGTYPE_STRING, ARG_NOMINMAX },
        { "zoomfc", &govl_zoomfc_s, "zoom factor of map in %",
-        NULL, ARGTYPE_INT },
+        NULL, ARGTYPE_INT, ARG_NOMINMAX },
        { "dimmfc", &govl_dimmfc_s, "dimmer factor of map in %",
-        NULL, ARGTYPE_INT },
+        NULL, ARGTYPE_INT, ARG_NOMINMAX },
        { "txtcol", &govl_txtcol_s, "color index [1-9] for waypoint names",
-        NULL, ARGTYPE_INT },
+        NULL, ARGTYPE_INT, "1", "9" },
        { "txtsize", &govl_txtsize_s, "text size [101-] for waypoint names",
-        NULL, ARGTYPE_INT },
+        NULL, ARGTYPE_INT, "101", NULL },
        { "font", &govl_font_s, "font index [1-] for waypoint names",
-        NULL, ARGTYPE_INT },
+        NULL, ARGTYPE_INT, "1", NULL },
        { "txttrans", &govl_txttrans_s, "set text background to transparent",
-        NULL, ARGTYPE_BOOL },
+        NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
        { "file", &govl_file_s, "use file of parameters (parameters on command line overwrites file parameters)",
-        NULL, ARGTYPE_STRING },
-       { 0, 0, 0, 0, 0 }
+        NULL, ARGTYPE_STRING, ARG_NOMINMAX },
+       ARG_TERMINATOR
 };
 
 
@@ -424,11 +424,11 @@ void ovl_read_parameter(char *fname)
               pstr = strtok(NULL,"\n");
               if (p->argtype==ARGTYPE_BOOL)
               {
-                *(p->argval) = atoi(pstr) ? strdup(pstr) : NULL;
+                *(p->argval) = atoi(pstr) ? xstrdup(pstr) : NULL;
               }
               else
               {
-                *(p->argval) = strdup(pstr);
+                *(p->argval) = xstrdup(pstr);
               }
               break;
             }
@@ -580,8 +580,8 @@ static void symbol_deinit(const route_head *hd)
   QUEUE_FOR_EACH(&(hd->waypoint_list), elem, tmp)
   {
     waypointp = (waypoint *) elem;
-    lat2 = waypointp->latitude *M_PI/180.0 ;
-    lon2 = waypointp->longitude*M_PI/180.0 ;
+    lat2 = RAD(waypointp->latitude);
+    lon2 = RAD(waypointp->longitude);
     if (i)
     {
       d   = gcdist(lat1, lon1, lat2, lon2 );
@@ -604,8 +604,8 @@ static void symbol_deinit(const route_head *hd)
   while (elem!=&(hd->waypoint_list) && dd<dist/2.0)
   {
     waypointp = (waypoint *) elem;
-    lat2 = waypointp->latitude *M_PI/180.0;
-    lon2 = waypointp->longitude*M_PI/180.0;
+    lat2 = RAD(waypointp->latitude);
+    lon2 = RAD(waypointp->longitude);
     if (i)
     {
       d   = gcdist(lat1, lon1, lat2, lon2 );
@@ -621,7 +621,7 @@ static void symbol_deinit(const route_head *hd)
 //  d = acos( sin(lats)*sin(late)+cos(lats)*cos(late)*cos(lone-lons) );
   dd = acos( (sin(late) - sin(lats)*cos(d))/(cos(lats)*sin(d)) );
   if (lone<lons) dd = -dd;   // correction because the ambiguity of acos function
-  dd = dd * 180.0/M_PI;      // azimuth
+  dd = DEG(dd);              // azimuth
   dd = 360.0 - (dd + 270.0); // make it anticlockwise and start counting on x-axis
   dd = dd <   0.0 ? dd + 360.0 : dd; // normalizing
   dd = dd > 360.0 ? dd - 360.0 : dd; // normalizing
@@ -629,7 +629,7 @@ static void symbol_deinit(const route_head *hd)
   /* name of route */
   /* plot text at the last point of route */
   govl_dir = dd;  // approximated text rotation, correct value must be the azimuth in UTM
-  symbol_text(lon1*180.0/M_PI,lat1*180.0/M_PI,hd->rte_name,govl_group_cnt);
+  symbol_text(DEG(lon1),DEG(lat1),hd->rte_name,govl_group_cnt);
   govl_dir = 0.0; // restore
 }
 
@@ -698,5 +698,6 @@ ff_vecs_t overlay_vecs = {
        ovl_read,
        ovl_write,
         NULL,
-       ovl_args
+       ovl_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

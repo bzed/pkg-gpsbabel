@@ -38,48 +38,45 @@
 
 #define MYNAME	"TMPro"
 
-static FILE *file_in;
-static FILE *file_out;
-static void *mkshort_handle;
+static gbfile *file_in, *file_out;
+static short_handle mkshort_handle;
 
 static void 
 rd_init(const char *fname)
 {
-    file_in = xfopen(fname, "r", MYNAME);
+    file_in = gbfopen(fname, "rb", MYNAME);
 }
 
 static void 
 rd_deinit(void)
 {
-    fclose(file_in);
+    gbfclose(file_in);
 }
 
 static void 
 wr_init(const char *fname)
 {
-    file_out = xfopen(fname, "w", MYNAME);
+    file_out = gbfopen(fname, "w", MYNAME);
 }
 
 static void 
 wr_deinit(void)
 {
-    fclose(file_out);
+    gbfclose(file_out);
 }
 
 static void 
 data_read(void)
 {
-    char buff[1024];
+    char *buff;
     char *s;
     char *holder;
     waypoint *wpt_tmp;
     int i;
     int linecount = 0;
-
-    do {
+    
+    while ((buff = gbfgetstr(file_in))) {
         linecount++;
-	memset(&buff, '\0', sizeof(buff));
-	fgets(buff, sizeof(buff), file_in);
 
 	/* skip the line if it contains "sHyperLink" as it is a header (I hope :) */
 	if ((strlen(buff)) && (strstr(buff, "sHyperLink") == NULL)) {
@@ -170,7 +167,7 @@ data_read(void)
             /* empty line */
 	}
 
-    } while (!feof(file_in));
+    }
 }
 
 static void 
@@ -210,7 +207,7 @@ tmpro_waypt_pr(const waypoint * wpt)
 	/* Number of characters */
     /*  25    6      80         8    8      8         8       8    4       4       128      */
     
-    fprintf(file_out, "new\t%.6s\t%.80s\t%08.6f\t%08.6f\t\t\t%.2f\t%d\t%d\t%.128s\n",
+    gbfprintf(file_out, "new\t%.6s\t%.80s\t%08.6f\t%08.6f\t\t\t%.2f\t%d\t%d\t%.128s\n",
     	shortname,
     	description,
 	    wpt->latitude,
@@ -218,7 +215,7 @@ tmpro_waypt_pr(const waypoint * wpt)
 	    wpt->altitude,
 	    colour,
 	    icon,
-	    wpt->url
+	    wpt->url ? wpt->url : ""
 	);
 	    
 
@@ -240,10 +237,10 @@ data_write(void)
     }
     
 	/* Write file header */
-	fprintf(file_out, "Group\tsID\tsDescription\tfLat\tfLong\tfEasting\tfNorthing\tfAlt\tiColour\tiSymbol\tsHyperLink\n");
+	gbfprintf(file_out, "Group\tsID\tsDescription\tfLat\tfLong\tfEasting\tfNorthing\tfAlt\tiColour\tiSymbol\tsHyperLink\n");
 
     waypt_disp_all(tmpro_waypt_pr);
-    mkshort_del_handle(mkshort_handle);
+    mkshort_del_handle(&mkshort_handle);
 }
 
 ff_vecs_t tmpro_vecs = {
@@ -255,6 +252,8 @@ ff_vecs_t tmpro_vecs = {
     wr_deinit,
     data_read,
     data_write,
-    NULL
+    NULL,
+    NULL,
+    CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
 

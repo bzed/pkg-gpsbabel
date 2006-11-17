@@ -2,7 +2,7 @@
 
     Track manipulation filter
 
-    Copyright (C) 2005 Olaf Klein, o.b.klein@t-online.de
+    Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,58 +19,91 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
- 
  /* 
     2005-07-20: implemented interval option from Etienne Tasse
     2005-07-26: implemented range option
     2005-07-26: implemented move option
     2005-07-26: implemented merge option
     2005-07-29: warning fixes
+    2005-08-01: Add 'static' qualifier when we can (RJL)
+    2005-10-04: Add filterdefs to hold protos for filter functions... (RJL)
+    2005-10-04: Fix range-check max. value; exit filter, if no more tracks left
+    2006-04-06: Add fix, course, and speed options
+    2006-06-01: Add name option
  */
  
-#include <stdio.h>
-#include <time.h>
 #include <ctype.h>
 #include "defs.h"
+#include "filterdefs.h"
 #include "strptime.h"
+#include "grtcirc.h"
 
+#if FILTERS_ENABLED
 #define MYNAME "trackfilter"
 
 #define TRACKFILTER_PACK_OPTION		"pack"
 #define TRACKFILTER_SPLIT_OPTION	"split"
+#define TRACKFILTER_SDIST_OPTION	"sdistance"
 #define TRACKFILTER_TITLE_OPTION	"title"
 #define TRACKFILTER_MERGE_OPTION	"merge"
+#define TRACKFILTER_NAME_OPTION		"name"
 #define TRACKFILTER_STOP_OPTION		"stop"
 #define TRACKFILTER_START_OPTION	"start"
 #define TRACKFILTER_MOVE_OPTION		"move"
+#define TRACKFILTER_FIX_OPTION          "fix"
+#define TRACKFILTER_COURSE_OPTION       "course"
+#define TRACKFILTER_SPEED_OPTION        "speed"
 
 #undef TRACKF_DBG
 
 static char *opt_merge = NULL;
 static char *opt_pack = NULL;
 static char *opt_split = NULL;
+static char *opt_sdistance = NULL;
 static char *opt_move = NULL;
 static char *opt_title = NULL;
 static char *opt_start = NULL;
 static char *opt_stop = NULL;
+static char *opt_fix = NULL;
+static char *opt_course = NULL;
+static char *opt_speed = NULL;
+static char *opt_name = NULL;
 
 static
 arglist_t trackfilter_args[] = {
 	{TRACKFILTER_MOVE_OPTION, &opt_move, 
-	    "Correct trackpoint timestamps by a delta", NULL, ARGTYPE_STRING},
+	    "Correct trackpoint timestamps by a delta", NULL, ARGTYPE_STRING, 
+	    ARG_NOMINMAX},
 	{TRACKFILTER_PACK_OPTION,  &opt_pack,  
-	    "Pack all tracks into one", NULL, ARGTYPE_BOOL},
+	    "Pack all tracks into one", NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 	{TRACKFILTER_SPLIT_OPTION, &opt_split, 
-	    "Split track by date or by time interval (see README)", NULL, ARGTYPE_STRING},
+	    "Split by date or time interval (see README)", NULL, 
+	    ARGTYPE_STRING, ARG_NOMINMAX},
+	{TRACKFILTER_SDIST_OPTION, &opt_sdistance, 
+	    "Split by distance", NULL, 
+	    ARGTYPE_STRING, ARG_NOMINMAX},
 	{TRACKFILTER_MERGE_OPTION, &opt_merge, 
-	    "Merge multiple tracks for the same way", NULL, ARGTYPE_STRING},
+	    "Merge multiple tracks for the same way", NULL, ARGTYPE_STRING, 
+	    ARG_NOMINMAX},
+	{TRACKFILTER_NAME_OPTION, &opt_name, 
+	    "Use only track(s) where title matches given name", NULL, ARGTYPE_STRING, 
+	    ARG_NOMINMAX},
 	{TRACKFILTER_START_OPTION, &opt_start, 
-	    "Use only track points after this timestamp", NULL, ARGTYPE_INT},
+	    "Use only track points after this timestamp", NULL, ARGTYPE_INT, 
+	    ARG_NOMINMAX},
 	{TRACKFILTER_STOP_OPTION, &opt_stop, 
-	    "Use only track points before this timestamp", NULL, ARGTYPE_INT},
+	    "Use only track points before this timestamp", NULL, ARGTYPE_INT, 
+	    ARG_NOMINMAX},
 	{TRACKFILTER_TITLE_OPTION, &opt_title, 
-	    "Basic title for new track(s)", NULL, ARGTYPE_STRING},
-	{0, 0, 0, 0, 0}
+	    "Basic title for new track(s)", NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+	{TRACKFILTER_FIX_OPTION, &opt_fix,
+	    "Synthesize GPS fixes (PPS, DGPS, 3D, 2D, NONE)", NULL,
+	    ARGTYPE_STRING, ARG_NOMINMAX },
+	{TRACKFILTER_COURSE_OPTION, &opt_course, "Synthesize course",
+	    NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	{TRACKFILTER_SPEED_OPTION, &opt_speed, "Synthesize speed",
+            NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 
@@ -85,20 +118,7 @@ static trkflt_t *track_list = NULL;
 static int track_ct = 0;
 static int track_pts = 0;
 static int opt_interval = 0;
-
-/*******************************************************************************
-* dummy callbacks for track_disp_all
-*******************************************************************************/
-
-static void 
-trackfilter_noop_w(const waypoint *w)
-{
-}
-
-static void 
-trackfilter_noop_t(const route_head *h)
-{
-}
+static int opt_distance = 0;
 
 /*******************************************************************************
 * helpers
@@ -139,19 +159,20 @@ trackfilter_parse_time_opt(const char *arg)
 	    }
 	    switch(tolower(c))
 	    {
-		case 'd': seconds = (24 * 60 * 60); break;
-		case 'h': seconds = (60 * 60); break;
+		case 'd': seconds = SECONDS_PER_DAY; break;
+		case 'h': seconds = SECONDS_PER_HOUR; break;
 		case 'm': seconds = 60; break;
 		case 's': seconds = 1; break;
 		case '+': sign = +1; continue;
 		case '-': sign = -1; continue;
 		default: fatal(MYNAME "-time: invalid character in time option!\n");
 	    }
-	    t0 += (t1 * seconds);
+	    t0 += (t1 * seconds * sign);
+	    sign = +1;
 	    t1 = 0;
 	}
 	t0 += t1;
-	return t0 * sign;
+	return t0;
 }
 
 static int
@@ -172,6 +193,31 @@ trackfilter_merge_qsort_cb(const void *a, const void *b)
 	return wa->creation_time - wb->creation_time;
 }
 
+static fix_type
+trackfilter_parse_fix()
+{
+	if ( !opt_fix ) {
+		return fix_unknown;
+	}
+	if ( !case_ignore_strcmp( opt_fix, "pps" )) {
+		return fix_pps;
+	}
+	if ( !case_ignore_strcmp( opt_fix, "dgps" )) {
+		return fix_dgps;
+	}
+	if ( !case_ignore_strcmp( opt_fix, "3d" )) {
+		return fix_3d;
+	}
+	if ( !case_ignore_strcmp( opt_fix, "2d" )) {
+		return fix_2d;
+	}
+	if ( !case_ignore_strcmp( opt_fix, "none" )) {
+		return fix_none;
+	}
+	fatal( MYNAME ": invalid fix type\n" );
+	return 0;
+}
+
 static void
 trackfilter_fill_track_list_cb(const route_head *track) 	/* callback for track_disp_all */
 {
@@ -183,6 +229,16 @@ trackfilter_fill_track_list_cb(const route_head *track) 	/* callback for track_d
 	{
 	    track_del_head((route_head *)track);
 	    return;
+	}
+	
+	if (opt_name != NULL)
+	{
+		if ((track->rte_name == NULL) ||
+		    (case_ignore_str_match(track->rte_name, opt_name) == 0))
+		{
+			track_del_head((route_head *)track);
+			return;
+		}
 	}
 	
 	track_list[track_ct].track = (route_head *)track;
@@ -368,7 +424,7 @@ trackfilter_merge(void)
 	    {
 		wpt = (waypoint *)elem;
 		buff[j++] = waypt_dupe(wpt);
-		route_del_wpt(track, wpt);
+		track_del_wpt(track, wpt);
 	    }
 	    if (track != master) 		/* i > 0 */
 		track_del_head(track);
@@ -416,17 +472,19 @@ trackfilter_split(void)
 	queue *elem, *tmp;
 	int i, j;
 	float interval = -1;
+	float distance = -1; 
 
 	if (count <= 1) return;
 
 	/* check additional options */
 	
-	opt_interval = (0 != strcmp(opt_split, TRACKFILTER_SPLIT_OPTION));
+	opt_interval = (opt_split && (strlen(opt_split) > 0) && (0 != strcmp(opt_split, TRACKFILTER_SPLIT_OPTION)));
+	opt_distance = (opt_sdistance && (strlen(opt_sdistance) > 0) && (0 != strcmp(opt_sdistance, TRACKFILTER_SDIST_OPTION)));
 
 	if (opt_interval != 0)
 	{
 	    float  base;
-	    char   dhms;
+	    char   unit;
 	    
 	    switch(strlen(opt_split))
 	    {
@@ -435,16 +493,16 @@ trackfilter_split(void)
 		    break; /* ? */
 		    
 		case 1:
-		    dhms = *opt_split;
+		    unit = *opt_split;
 		    interval = 1;
 		    break;
 		    
 		default:
-		    i = sscanf(opt_split,"%f%c", &interval, &dhms);
+		    i = sscanf(opt_split,"%f%c", &interval, &unit);
 		    if (i == 0) 
 		    {
 			/* test reverse order */
-			i = sscanf(opt_split,"%c%f", &dhms, &interval);
+			i = sscanf(opt_split,"%c%f", &unit, &interval);
 		    }
 		    if ((i != 2) || (interval <= 0))
 		    {
@@ -453,7 +511,7 @@ trackfilter_split(void)
 		    break;
 	    }
 
-	    switch(tolower(dhms))
+	    switch(tolower(unit))
 	    {
 		case 's':
 		    base = 1;
@@ -472,9 +530,57 @@ trackfilter_split(void)
 		    break;
 	    }
 #ifdef TRACKF_DBG
-	    printf(MYNAME ": dhms \"%c\", interval %g -> %g\n", dhms, interval, base * interval);
+	    printf(MYNAME ": unit \"%c\", interval %g -> %g\n", unit, interval, base * interval);
 #endif
 	    interval *= base;
+	}
+
+	if (opt_distance != 0)
+	{
+	    float  base;
+	    char   unit;
+	    
+	    switch(strlen(opt_sdistance))
+	    {
+		case 0:
+		    fatal(MYNAME ": No distance specified.\n");
+		    break; /* ? */
+		    
+		case 1:
+		    unit = *opt_sdistance;
+		    distance = 1;
+		    break;
+		    
+		default:
+		    i = sscanf(opt_sdistance,"%f%c", &distance, &unit);
+		    if (i == 0) 
+		    {
+			/* test reverse order */
+			i = sscanf(opt_sdistance,"%c%f", &unit, &distance);
+		    }
+		    if ((i != 2) || (distance <= 0))
+		    {
+			fatal(MYNAME ": invalid distance specified, must be one a positive number.\n");
+		    }
+		    break;
+	    }
+
+	    switch(tolower(unit))
+	    {
+		case 'k': /* kilometers */
+		    base = 0.6214;
+		    break;
+		case 'm': /* miles */
+		    base = 1;
+		    break;
+		default:
+		    fatal(MYNAME ": invalid distance specified, must be one of [km].\n");
+		    break;
+	    }
+#ifdef TRACKF_DBG
+	    printf(MYNAME ": unit \"%c\", distance %g -> %g\n", unit, distance, base * distance);
+#endif
+	    distance *= base;
 	}
 
 	trackfilter_split_init_rte_name(master, track_list[0].first_time);
@@ -494,7 +600,7 @@ trackfilter_split(void)
 	{
 	    int new_track_flag;
 	    
-	    if (opt_interval == 0)
+	    if ((opt_interval == 0) && (opt_distance == 0))
 	    {
 		struct tm t1, t2;
 		
@@ -510,17 +616,41 @@ trackfilter_split(void)
 	    }
 	    else
 	    {
-		float tr_interval;
+		new_track_flag = 1;
 		
-		tr_interval = difftime(buff[j]->creation_time,buff[i]->creation_time);
-		new_track_flag = ( tr_interval > interval );
+		if (distance > 0) 
+		{
+		    double rt1 = RAD(buff[i]->latitude);
+		    double rn1 = RAD(buff[i]->longitude);
+		    double rt2 = RAD(buff[j]->latitude);
+		    double rn2 = RAD(buff[j]->longitude);
+		    double curdist = gcdist( rt1, rn1, rt2, rn2 );
+		    curdist = radtomiles(curdist);
+		    if ( curdist <= distance ) 
+			new_track_flag = 0;
 #ifdef TRACKF_DBG
-		if (new_track_flag != 0)
-		    printf(MYNAME ": split, %g > %g\n", tr_interval, interval );
+		    else
+			printf(MYNAME ": sdistance, %g > %g\n", curdist, distance );
 #endif
+		}
+		
+		if (interval > 0)
+		{
+		    float tr_interval = difftime(buff[j]->creation_time,buff[i]->creation_time);
+		    if ( tr_interval <= interval ) 
+			new_track_flag = 0;
+#ifdef TRACKF_DBG
+		    else
+			printf(MYNAME ": split, %g > %g\n", tr_interval, interval );
+#endif
+		}
+
 	    }
 	    if (new_track_flag != 0)
 	    {
+#ifdef TRACKF_DBG
+		printf(MYNAME ": splitting new track\n" );
+#endif
 		curr = (route_head *) route_head_alloc();
 		trackfilter_split_init_rte_name(curr, buff[j]->creation_time);
 		track_add_head(curr);
@@ -528,8 +658,8 @@ trackfilter_split(void)
 	    if (curr != NULL)
 	    {
 		wpt = waypt_dupe(buff[j]);
-		route_del_wpt(master, buff[j]);
-		route_add_wpt(curr, wpt);
+		track_del_wpt(master, buff[j]);
+		track_add_wpt(curr, wpt);
 		buff[j] = wpt;
 	    }
 	}
@@ -563,6 +693,71 @@ trackfilter_move(void)
 	    track_list[i].last_time += delta;
 	}
 }
+
+/*******************************************************************************
+* options "fix", "course", "speed"
+*******************************************************************************/
+
+static void
+trackfilter_synth(void)
+{
+	int i;
+	queue *elem, *tmp;
+	waypoint *wpt;
+	
+	double oldlat = -999;
+	double oldlon = -999;
+	time_t oldtime = 0;
+	int first = 1;
+	fix_type fix;
+	
+	fix = trackfilter_parse_fix();
+	
+	for (i = 0; i < track_ct; i++)
+	{
+	    route_head *track = track_list[i].track;
+	    first = 1;
+	    QUEUE_FOR_EACH((queue *)&track->waypoint_list, elem, tmp)
+	    {
+		wpt = (waypoint *)elem;
+		if ( opt_fix ) {
+			wpt->fix = fix;
+		}
+		if ( first ) {
+			if ( opt_course ) {
+				wpt->course = 0;
+			}
+			if ( opt_speed ) {
+				wpt->speed = 0;
+			}
+			first = 0;
+		}
+		else {
+			if ( opt_course ) {
+				wpt->course = heading_true_degrees( RAD(oldlat), 
+					RAD(oldlon),RAD(wpt->latitude), 
+					RAD(wpt->longitude) );
+			}
+			if ( opt_speed ) {
+				if ( oldtime != wpt->creation_time ) {
+					wpt->speed = radtometers(gcdist( 
+					    RAD(oldlat), RAD(oldlon), 
+					    RAD(wpt->latitude), 
+					    RAD(wpt->longitude))) /
+					    labs(wpt->creation_time-oldtime);
+				}	
+				else {
+					wpt->speed = unknown_speed;
+				}
+			}
+		}
+		oldlat = wpt->latitude;
+		oldlon = wpt->longitude;
+		oldtime = wpt->creation_time;
+	    }
+	}
+}
+
 
 /*******************************************************************************
 * option: "start" / "stop"
@@ -610,7 +805,7 @@ trackfilter_range(void)		/* returns number of track points left after filtering 
 	if (opt_stop != 0)
 	    stop = trackfilter_range_check(opt_stop);
 	else
-	    stop = (unsigned long)-1;
+	    stop = 0x7FFFFFFF;
 
 	dropped = 0;
 	
@@ -624,7 +819,7 @@ trackfilter_range(void)		/* returns number of track points left after filtering 
 
 		if ((wpt->creation_time < start) || (wpt->creation_time > stop))
 		{
-		    route_del_wpt(track, wpt);
+		    track_del_wpt(track, wpt);
 		    dropped++;
 		}
 	    }
@@ -649,7 +844,7 @@ trackfilter_range(void)		/* returns number of track points left after filtering 
 static void
 trackfilter_init(const char *args) 
 {
-	
+
 	int count = track_count();
 
 	track_ct = 0;
@@ -661,7 +856,7 @@ trackfilter_init(const char *args)
 
 	    /* check all tracks for time and order (except merging) */
 	
-	    track_disp_all(trackfilter_fill_track_list_cb, trackfilter_noop_t, trackfilter_noop_w);
+	    track_disp_all(trackfilter_fill_track_list_cb, NULL, NULL);
 	    qsort(track_list, track_ct, sizeof(*track_list), trackfilter_init_qsort_cb);
 	}
 }
@@ -691,11 +886,24 @@ trackfilter_process(void)
 	
 	opts = trackfilter_opt_count();
 	if (opts == 0) opts = -1;		/* flag for do "pack" by default */
-
+	
+	if (opt_name != NULL)
+	{
+	    if (--opts == 0) return;
+	}
+	
 	if (opt_move != NULL)			/* Correct timestamps before any other op */
 	{
 	    trackfilter_move();
 	    if (--opts == 0) return;
+	}
+	
+	if ( opt_speed || opt_course || opt_fix ) {
+	    trackfilter_synth();
+	    if ( opt_speed ) opts--;
+	    if ( opt_course ) opts--;
+	    if ( opt_fix ) opts--;
+	    if ( !opts ) return;
 	}
 
 	if ((opt_stop != NULL) || (opt_start != NULL))
@@ -709,6 +917,8 @@ trackfilter_process(void)
 	    
 	    trackfilter_deinit();	/* reinitialize */
 	    trackfilter_init(NULL);
+	    
+	    if (track_ct == 0) return;		/* no more track(s), no more fun */
 	    
 	}
 	
@@ -741,7 +951,7 @@ trackfilter_process(void)
 	    return;
 	}
 	
-	if (opt_split != NULL)
+	if ((opt_split != NULL) || (opt_sdistance != NULL))
 	{
 	    if (track_ct > 1) 
 		fatal(MYNAME "-split: Cannot split more than one track, please pack (or merge) before!\n");
@@ -761,3 +971,4 @@ filter_vecs_t trackfilter_vecs = {
 };
 
 /******************************************************************************************/
+#endif // FILTERS_ENABLED

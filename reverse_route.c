@@ -18,14 +18,16 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-#include <stdio.h>
 #include "defs.h"
+#include "filterdefs.h"
+
+#if FILTERS_ENABLED
 
 #define MYNAME "Route reversal filter"
 
 static
 arglist_t reverse_route_args[] = {
-	{0, 0, 0, 0, 0}
+	ARG_TERMINATOR
 };
 
 void 
@@ -65,3 +67,4 @@ filter_vecs_t reverse_route_vecs = {
 	NULL,
 	reverse_route_args
 };
+#endif

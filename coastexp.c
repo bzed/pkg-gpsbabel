@@ -18,17 +18,19 @@
  */
 
 #include "defs.h"
-#if !NO_EXPAT
-#include "xmlgeneric.h"
-#include <expat.h>
-static XML_Parser psr;
+#if HAVE_LIBEXPAT
+#  include "xmlgeneric.h"
+#  include <expat.h>
+   static XML_Parser psr;
 #endif
+
 #include <time.h>
+#include "cet_util.h"
 
 #include "uuid.h"
 
-FILE *fd;
-FILE *ofd;
+static FILE *fd;
+static FILE *ofd;
 
 #define MYNAME "coastexp"
 #define MY_CBUF 4096
@@ -36,18 +38,6 @@ FILE *ofd;
 #define MY_TBUF 64
 #define MY_XBUF 128
 
-#if NO_EXPAT
-void
-ce_rd_init(const char *fname)
-{
-	fatal(MYNAME ": This build excluded CoastalExplorer support because expat was not installed.\n");
-}
-
-void
-ce_read(void)
-{
-}
-#else
 
 static char *element; // Current element being parsed
 static char *cdatastr; // Current XML character data being built up (until a <lf>)
@@ -126,11 +116,28 @@ ce_free_route(ce_route *route)
 	// Don't free the waypoint since this is done elsewhere
 }
 
+#if !HAVE_LIBEXPAT
+void
+ce_rd_init(const char *fname)
+{
+	fatal(MYNAME ": This build excluded CoastalExplorer support because expat was not installed.\n");
+}
+
+void
+ce_read(void)
+{
+}
+#else
+
 /* Start processing an XML item */
 static void
-ce_start(void *data, const char *el, const char **attr)
+ce_start(void *data, const XML_Char *xml_el, const XML_Char **xml_attr)
 {
+	const char *el = xml_convert_to_char_string(xml_el);
 	const char **ap;
+	const char **attr;
+
+	attr = xml_convert_attrs_to_char_string(xml_attr);
 	strcpy(element, el);
 	if (0 == strcmp(el, "Route")) {
 		inRoute = 1;
@@ -162,12 +169,15 @@ ce_start(void *data, const char *el, const char **attr)
 			}
 		}
 	}
+	xml_free_converted_string(el);
+	xml_free_converted_attrs(attr);
 }
 
 /* Finish processing an XML item */
 static void
-ce_end(void *data, const char *el)
+ce_end(void *data, const XML_Char *xml_el)
 {
+	const char *el = xml_convert_to_char_string(xml_el);
 	if (0 == strcmp(el, "Route")) {
 		if (!doing_rtes)
 			ce_free_route(currentRoute);
@@ -175,12 +185,15 @@ ce_end(void *data, const char *el)
 	}
 	else if (0 == strcmp(el, "Mark"))
 		inMark = 0;
+	xml_free_converted_string(el);
 }
 
 /* Process some XML character data for the current item */
 static void
-ce_cdata(void *dta, const XML_Char *s, int len)
+ce_cdata(void *dta, const XML_Char *xml_s, int len)
 {
+	const char *origs = xml_convert_to_char_string_n(xml_s, &len);
+	const char *s = origs;
 	if (*s != '\n') {
 		char *edatastr;
 		// We buffer up characters in 'cdatastr' until a single <lf> is received
@@ -291,6 +304,8 @@ ce_cdata(void *dta, const XML_Char *s, int len)
 		// Start building a new string since we are done with this one
 		cdatastr[0] = '\0';
 	}
+
+	xml_free_converted_string(origs);
 }
 
 /* Set up reading the CE input file */
@@ -306,6 +321,7 @@ ce_rd_init(const char *fname)
 		fatal(MYNAME ":Cannot create XML parser\n");
 	}
 
+	XML_SetUnknownEncodingHandler(psr, cet_lib_expat_UnknownEncodingHandler, NULL);
 	XML_SetElementHandler(psr, ce_start, ce_end);
 	cdatastr = xcalloc(MY_CBUF,1);
 	element = xcalloc(MY_CBUF,1);
@@ -322,7 +338,7 @@ ce_read(void)
 	while ((len = fread(buf, 1, sizeof(buf), fd))) {
 		if (!XML_Parse(psr, buf, len, feof(fd))) {
 			fatal(MYNAME ":Parse error at %d: %s\n",
-				XML_GetCurrentLineNumber(psr),
+				(int) XML_GetCurrentLineNumber(psr),
 				XML_ErrorString(XML_GetErrorCode(psr)));
 		}
 	}
@@ -512,7 +528,9 @@ static char *
 ce_gen_uuid(void)
 {
 	uuid_t uu;
-	uuid_generate(uu);
+
+	memset(&uu, 0, sizeof(uu));
+	gb_uuid_generate(uu);
 	sprintf(uuid_buffer, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
 		uu[0], uu[1], uu[2], uu[3], uu[4], uu[5], uu[6], uu[7],
 		uu[8], uu[9], uu[10], uu[11], uu[12], uu[13], uu[14], uu[15]);
@@ -634,4 +652,5 @@ ff_vecs_t coastexp_vecs = {
 	ce_write,
 	NULL,
 	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

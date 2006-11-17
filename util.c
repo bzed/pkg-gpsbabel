@@ -1,7 +1,7 @@
 /*
     Misc utilities.
 
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,9 +24,14 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
+#include <stdarg.h>
+#include <time.h>
 
-static int i_am_little_endian = -1;
-static int doswap(void);
+#if defined WORDS_BIGENDIAN
+# define i_am_little_endian 0
+#else
+# define i_am_little_endian 1
+#endif
 
 #ifdef DEBUG_MEM
 #define DEBUG_FILENAME "/tmp/gpsbabel.debug"
@@ -74,7 +79,7 @@ xmalloc(size_t size)
 			obj, size, file, line );
 #endif
 	if (!obj) {
-		fatal("gpsbabel: Unable to allocate %d bytes of memory.\n", size);
+		fatal("gpsbabel: Unable to allocate %ld bytes of memory.\n", (unsigned long) size);
 	}
 
 	return obj;
@@ -94,7 +99,7 @@ xcalloc(size_t nmemb, size_t size)
 #endif
 
 	if (!obj) {
-		fatal("gpsbabel: Unable to allocate %d bytes of memory.\n", size);
+		fatal("gpsbabel: Unable to allocate %ld bytes of memory.\n", (unsigned long) size);
 	}
 
 	return obj;
@@ -128,7 +133,7 @@ xstrdup(const char *s)
 #endif
 
 	if (!o) {
-		fatal("gpsbabel: Unable to allocate %d bytes of memory.\n", strlen(s));
+		fatal("gpsbabel: Unable to allocate %ld bytes of memory.\n", (unsigned long) strlen(s));
 	}
 
 	return o;
@@ -144,14 +149,15 @@ XSTRNDUP(const char *str, size_t sz, DEBUG_PARAMS )
 xstrndup(const char *str, size_t sz)
 #endif
 {
-	size_t newlen;
+	size_t newlen = 0;
+	char *cin = (char *)str;
 	char *newstr;
 
-	newlen = strlen(str);
-	if (newlen > sz) {
-		newlen = sz;
+	while ((newlen < sz) && (*cin != '\0')) {
+		newlen++;
+		cin++;
 	}
-
+	
 	newstr = (char *) xmalloc(newlen + 1);
 	memcpy(newstr, str, newlen);    
 	newstr[newlen] = 0;
@@ -170,17 +176,18 @@ XSTRNDUPT(const char *str, size_t sz, DEBUG_PARAMS )
 xstrndupt(const char *str, size_t sz)
 #endif
 {
-	size_t newlen;
+	size_t newlen = 0;
+	char *cin = (char *)str;
 	char *newstr;
 
-	newlen = strlen(str);
-	if (newlen > sz) {
-		newlen = sz;
+	while ((newlen < sz) && (*cin != '\0')) {
+		newlen++;
+		cin++;
 	}
-
+	
 	newstr = (char *) xmalloc(newlen + 1);
-	memcpy(newstr, str, newlen);
-	newstr[newlen] = '\0';
+	memcpy(newstr, str, newlen);    
+	newstr[newlen] = 0;
 	rtrim(newstr);
 
 	return newstr;
@@ -200,7 +207,7 @@ xrealloc(void *p, size_t s)
 #endif
 
 	if (!o) {
-		fatal("gpsbabel: Unable to realloc %d bytes of memory.\n", s);
+		fatal("gpsbabel: Unable to realloc %ld bytes of memory.\n", (unsigned long) s);
 	}
 
 	return o;
@@ -220,6 +227,9 @@ xstrappend(char *src, const char *newd)
 
 	if (!src) {
 		return xxstrdup(newd, file, line);
+	}
+	if (!newd) {
+		return xxstrdup(src, file, line);
 	}
 
 	newsz = strlen(src) + strlen(newd) + 1;
@@ -276,6 +286,95 @@ xfputs(const char *errtxt, const char *s, FILE *stream)
 	}
 }
 
+/*
+ * Allocate a string using a format list with optional arguments
+ */
+
+int
+xvasprintf(char **strp, const char *fmt, va_list args)
+{
+	/* From http://perfec.to/vsnprintf/pasprintf.c */
+/* size of first buffer malloc; start small to exercise grow routines */
+#define	FIRSTSIZE	64
+	char *buf = NULL;
+	int bufsize;
+	char *newbuf;
+	size_t nextsize = 0;
+	int outsize;
+
+	bufsize = 0;
+	for (;;) {
+		if (bufsize == 0) {
+			if ((buf = xmalloc(FIRSTSIZE)) == NULL) {
+				*strp = NULL;
+				return -1;
+			}
+			bufsize = 1;
+		} else if ((newbuf = xrealloc(buf, nextsize)) != NULL) {
+			buf = newbuf;
+			bufsize = nextsize;
+		} else {
+			xfree(buf);
+			*strp = NULL;
+			return -1;
+		}
+
+		outsize = vsnprintf(buf, bufsize, fmt, args);
+
+		if (outsize == -1) {
+			/* Clear indication that output was truncated, but no
+			 * clear indication of how big buffer needs to be, so
+			 * simply double existing buffer size for next time.
+			 */
+			nextsize = bufsize * 2;
+
+		} else if (outsize == bufsize) {
+			/* Output was truncated (since at least the \0 could
+			 * not fit), but no indication of how big the buffer
+			 * needs to be, so just double existing buffer size
+			 * for next time.
+			 */
+			nextsize = bufsize * 2;
+
+		} else if (outsize > bufsize) {
+			/* Output was truncated, but we were told exactly how
+			 * big the buffer needs to be next time. Add two chars
+			 * to the returned size. One for the \0, and one to
+			 * prevent ambiguity in the next case below.
+			 */
+			nextsize = outsize + 2;
+
+		} else if (outsize == bufsize - 1) {
+			/* This is ambiguous. May mean that the output string
+			 * exactly fits, but on some systems the output string
+			 * may have been trucated. We can't tell.
+			 * Just double the buffer size for next time.
+			 */
+			nextsize = bufsize * 2;
+
+		} else {
+			/* Output was not truncated */
+			break;
+		}
+	}
+	*strp = buf;
+	return 0;
+}
+
+int
+xasprintf(char **strp, const char *fmt, ...)
+{
+	va_list args;
+	int rval;
+
+	va_start(args, fmt);
+	rval = xvasprintf(strp, fmt, args);
+	va_end(args);
+
+	return rval;
+	
+}
+
 /* 
  * Duplicate a pascal string into a normal C string.
  */
@@ -312,6 +411,23 @@ rtrim(char *s)
 }
 
 /*
+ * Like trim, but trims whitespace from both beginning and end.
+ */
+char *
+lrtrim(char *buff)
+{
+	char *c;
+
+	c = buff + strlen(buff);
+	while ((c >= buff) && ((unsigned char)*c <= ' ')) *c-- = '\0';
+
+	c = buff;
+	while ((*c != '\0') && ((unsigned char)*c <= ' ')) c++;
+
+	return c;
+}
+
+/*
  *   Like strcmp, but case insensitive.  Like Berkeley's strcasecmp.
  */
 
@@ -340,6 +456,126 @@ case_ignore_strncmp(const char *s1, const char *s2, int n)
 	return rv;
 }
 
+/*
+ * compare str with match
+ * match may contain wildcards "*" and "?"
+ *
+ * examples:
+ *		str_match("ABCDE", "*BC*") ->	1
+ *		str_match("ABCDE", "A*C*E") ->	1
+ *		str_match("?ABCDE", "\\?A*") ->	1
+ *		str_match("", "*A") -> 		0
+ */
+ 
+int
+str_match(const char *str, const char *match)
+{
+	char *m, *s;
+	
+	s = (char *)str;
+	m = (char *)match; 
+	
+	while (*m || *s)
+	{
+		switch(*m) 
+		{
+			
+			case '\0':
+				/* there is something left in s, FAIL */
+				return 0;
+
+			case '*':
+				/* skip all wildcards */
+				while ((*m == '*') || (*m == '?')) m++;
+				if (*m == '\0') return 1;
+				
+				if (*m == '\\')				/* ? escaped ? */
+				{
+					m++;
+					if (*m == '\0') return 0;
+				}
+
+				do
+				{
+					char *mx, *sx;
+					
+					while (*s && (*s != *m)) s++;
+					if (*s == '\0') return 0;
+					
+					sx = s + 1;
+					mx = m + 1;
+					
+					while (*sx)
+					{
+						if (*mx == '\\')	/* ? escaped ? */
+						{
+							mx++;
+							if (*mx == '\0') return 0;
+							
+						}
+						if (*sx == *mx)
+						{
+							sx++;
+							mx++;
+						}
+						else
+							break;
+					}
+					if (*mx == '\0')		/* end of match */
+					{
+						if (*sx == '\0') return 1;
+						s++;
+					}
+					else if ((*mx == '?') || (*mx == '*'))
+					{
+						s = sx;
+						m = mx;
+						break;
+					}
+					else
+						s++;
+				} while (*s);
+				break;
+				
+			case '?':
+				if (*s == '\0') return 0;	/* no character left */
+				m++;
+				s++;
+				break;
+				
+			case '\\':
+				m++;
+				if (*m == '\0') return 0; /* incomplete escape sequence */
+				/* pass-through next character */
+				
+			default:
+				if (*m != *s) return 0;
+				m++;
+				s++;
+		}
+	}
+	return ((*s == '\0') && (*m == '\0'));
+}
+
+/*
+ * as str_match, but case insensitive 
+ */
+ 
+int
+case_ignore_str_match(const char *str, const char *match)
+{
+	char *s1, *s2;
+	int res;
+	
+	s1 = strupper(xstrdup(str));
+	s2 = strupper(xstrdup(match));
+	res = str_match(s1, s2);
+	xfree(s1);
+	xfree(s2);
+	
+	return res;
+}
+
 void
 printposn(const double c, int is_lat)
 {
@@ -353,43 +589,39 @@ printposn(const double c, int is_lat)
 }
 
 void
-fatal(const char *fmt, ...)
+is_fatal(const int condition, const char *fmt, ...)
 {
-	va_list ap;
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-	exit(1);
-}
+	va_list args;
+	char buff[128];
 
-void
-warning(const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
+	if (condition == 0) return;
+
+	va_start(args, fmt);
+	vsnprintf(buff, sizeof(buff), fmt, args);
+	va_end(args);
+
+	fatal("%s\n", buff);
 }
 
 /*
  * Read 4 bytes in big-endian.   Return as "int" in native endianness.
  */
 signed int
-be_read32(void *p)
+be_read32(const void *p)
 {
 	unsigned char *i = (unsigned char *) p;
 	return i[0] << 24 | i[1] << 16  | i[2] << 8 | i[3];
 }
 
 signed int
-be_read16(void *p)
+be_read16(const void *p)
 {
 	unsigned char *i = (unsigned char *) p;
 	return i[0] << 8 | i[1];
 }
 
 void
-be_write16(void *addr, unsigned value)
+be_write16(void *addr, const unsigned value)
 {
 	unsigned char *p = addr;
 	p[0] = value >> 8;
@@ -398,7 +630,7 @@ be_write16(void *addr, unsigned value)
 }
 
 void
-be_write32(void *pp, unsigned i)
+be_write32(void *pp, const unsigned i)
 {
 	char *p = (char *)pp;
 
@@ -409,16 +641,16 @@ be_write32(void *pp, unsigned i)
 }
 
 signed int
-le_read16(void *addr)
+le_read16(const void *addr)
 {
-	unsigned char *p = addr;
+	const unsigned char *p = addr;
 	return p[0] | (p[1] << 8);
 }
 
 signed int
-le_read32(void *addr)
+le_read32(const void *addr)
 {
-	unsigned char *p = addr;
+	const unsigned char *p = addr;
 	return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
 }
 
@@ -432,8 +664,6 @@ le_read64(void *dest, const void *src)
 	char *cdest = dest;
 	const char *csrc = src;
 
-	doswap(); /* make sure i_am_little_endian is initialized */
-
 	if (i_am_little_endian) {
 		memcpy(dest, src, 8);
 	} else {
@@ -445,7 +675,7 @@ le_read64(void *dest, const void *src)
 }
 
 void
-le_write16(void *addr, unsigned value)
+le_write16(void *addr, const unsigned value)
 {
 	unsigned char *p = addr;
 	p[0] = value;
@@ -454,7 +684,7 @@ le_write16(void *addr, unsigned value)
 }
 
 void 
-le_write32(void *addr, unsigned value)
+le_write32(void *addr, const unsigned value)
 {
 	unsigned char *p = addr;
 	p[0] = value;
@@ -539,6 +769,26 @@ mkgmtime(struct tm *t)
 	return(result);
 }
 
+/*
+ * mklocaltime: same as mktime, but try to recover the "Summer time flag",
+ *              which is evaluated by mktime
+ */
+time_t
+mklocaltime(struct tm *t)
+{
+	time_t result;
+	struct tm check = *t;
+	
+	check.tm_isdst = 0;
+	result = mktime(&check);
+	check = *localtime(&result);
+	if (check.tm_isdst == 1) {	/* DST is in effect */
+		check = *t;
+		check.tm_isdst = 1;
+		result = mktime(&check);
+	}
+	return result;
+}
 
 /*
  * A wrapper for time(2) that allows us to "freeze" time for testing.
@@ -611,55 +861,64 @@ get_cache_icon(const waypoint *waypointp)
 	return NULL;
 }
 
-static int doswap()
-{
-  if (i_am_little_endian < 0)
-  {
-	/*	On Intel, Vax and MIPs little endian, -1.0 maps to the bytes
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f and on Motorola,
-		SPARC, ARM, and PowerPC, it maps to
-		0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00.
-	*/
-	double d = 1.0;
-	char c[8];
-	memcpy(c, &d, 8);
-	i_am_little_endian = (c[0] == 0);
-  }
-  return i_am_little_endian;
-}
-
 double
-pdb_read_double(void* ptr)
+endian_read_double(void* ptr, int read_le)
 {
   double ret;
   char r[8];
+  void *p;
   int i;
-  doswap(); /* make sure i_am_little_endian is initialized */
-  for (i = 0; i < 8; i++)
-  {
-	int j = (i_am_little_endian)?(7-i):i;
-	r[i] = ((char*)ptr)[j];
+  
+  if ( i_am_little_endian == read_le ) {
+	  p = ptr;
   }
-  memcpy(&ret, r, 8);
+  else {
+	  for (i = 0; i < 8; i++)
+	  {
+		r[i] = ((char*)ptr)[7-i];
+	  }
+	  p = r;
+  }
+  
+  memcpy(&ret, p, 8);
   return ret;
 }
 
 void
-pdb_write_double(void* ptr, double d)
+endian_write_double(void* ptr, double d, int write_le)
 {
-  char r[8];
+  char *r = (char *)(void *)&d;
   int i;
   char *optr = ptr;
 
-  memcpy(r, &d, 8);
-  doswap(); /* make sure i_am_little_endian is initialized */
-  for (i = 0; i < 8; i++)
-  {
-	int j = (i_am_little_endian)?(7-i):i;
-	*optr++ = r[j];
+  if ( i_am_little_endian == write_le ) {
+	  memcpy( ptr, &d, 8);
   }
-  return;
+  else {
+	  for (i = 0; i < 8; i++)
+	  {
+		*optr++ = r[7-i];
+	  }
+  }
 }
+
+double
+pdb_read_double( void *ptr ) {return endian_read_double(ptr, 0);}
+
+double 
+le_read_double( void *ptr ) {return endian_read_double(ptr,1);}
+
+double 
+be_read_double( void *ptr ) {return endian_read_double(ptr,0);}
+
+void
+pdb_write_double( void *ptr, double d ) {endian_write_double(ptr,d,0);}
+
+void
+le_write_double( void *ptr, double d ) {endian_write_double(ptr,d,1);}
+
+void 
+be_write_double( void *ptr, double d ) {endian_write_double(ptr,d,0);}
 
 /* Magellan and PCX formats use this DDMM.mm format */
 double ddmm2degrees(double pcx_val) {
@@ -727,6 +986,49 @@ gstrsub(const char *s, const char *search, const char *replace)
 	return o;
 }
 
+/*
+ * Like strstr, but starts from back of string.
+ */
+char *
+xstrrstr(const char *s1, const char *s2) 
+{
+	char *r = NULL, *next = NULL; 
+
+	while (next = strstr(s1, s2), NULL != next) {
+		r = next;
+		s1 = next + 1;
+	}
+	return r;
+}
+
+/*
+ *
+ */
+char *
+strupper(char *src)
+{
+	char *c;
+	
+	for (c = src; *c; c++) {
+		*c = toupper(*c);
+	}
+	return src;
+}
+
+/*
+ *
+ */
+char *
+strlower(char *src)
+{
+	char *c;
+	
+	for (c = src; *c; c++) {
+		*c = tolower(*c);
+	}
+	return src;
+}
+
 char *
 rot13( const char *s )
 {
@@ -749,255 +1051,211 @@ rot13( const char *s )
 	return result;
 }
 
-void utf8_to_int( const char *cp, int *bytes, int *value ) 
-{
-	if ( (*cp & 0xe0) == 0xc0 ) {
-		if ( (*(cp+1) & 0xc0) != 0x80 ) goto dodefault;
-		*bytes = 2;
-		*value = ((*cp & 0x1f) << 6) | 
-			(*(cp+1) & 0x3f); 
-	}
-	else if ( (*cp & 0xf0) == 0xe0 ) {
-		if ( (*(cp+1) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+2) & 0xc0) != 0x80 ) goto dodefault;
-		*bytes = 3;
-		*value = ((*cp & 0x0f) << 12) | 
-			((*(cp+1) & 0x3f) << 6) | 
-			(*(cp+2) & 0x3f); 
-	}
-	else if ( (*cp & 0xf8) == 0xf0 ) {
-		if ( (*(cp+1) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+2) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+3) & 0xc0) != 0x80 ) goto dodefault;
-		*bytes = 4;
-		*value = ((*cp & 0x07) << 18) | 
-			((*(cp+1) & 0x3f) << 12) | 
-			((*(cp+2) & 0x3f) << 6) | 
-			(*(cp+3) & 0x3f); 
-	}
-	else if ( (*cp & 0xfc) == 0xf8 ) {
-		if ( (*(cp+1) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+2) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+3) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+4) & 0xc0) != 0x80 ) goto dodefault;
-		*bytes = 5;
-		*value = ((*cp & 0x03) << 24) | 
-			((*(cp+1) & 0x3f) << 18) | 
-			((*(cp+2) & 0x3f) << 12) | 
-			((*(cp+3) & 0x3f) << 6) |
-			(*(cp+4) & 0x3f); 
-	}
-	else if ( (*cp & 0xfe) == 0xfc ) {
-		if ( (*(cp+1) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+2) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+3) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+4) & 0xc0) != 0x80 ) goto dodefault;
-		if ( (*(cp+5) & 0xc0) != 0x80 ) goto dodefault;
-		*bytes = 6;
-		*value = ((*cp & 0x01) << 30) | 
-			((*(cp+1) & 0x3f) << 24) | 
-			((*(cp+2) & 0x3f) << 18) | 
-			((*(cp+3) & 0x3f) << 12) |
-			((*(cp+4) & 0x3f) << 6) |
-			(*(cp+5) & 0x3f); 
-	}
-	else {
-dodefault:
-		*bytes = 1;
-		*value = (unsigned char)*cp;
-	}
-}
-
-char * str_utf8_to_cp1252( const char * str )
-{
-	char *result = xstrdup( str );
-	char *cur = result;
-	
-	while ( cur && *cur ) {
-		if ( *cur & 0x80 ) {
-			int bytes;
-			int value;
-			utf8_to_int( cur, &bytes, &value );
-			if ( value > 0xff ) {
-				switch (value) {
-					case 0x20AC: value = 0x80; break;
-					case 0x201A: value = 0x82; break;
-					case 0x0192: value = 0x83; break;
-					case 0x201E: value = 0x84; break;
-					case 0x2026: value = 0x85; break;
-					case 0x2020: value = 0x86; break;
-					case 0x2021: value = 0x87; break;
-					case 0x02C6: value = 0x88; break;
-					case 0x2030: value = 0x89; break;
-					case 0x0160: value = 0x8A; break;
-					case 0x2039: value = 0x8B; break;
-					case 0x0152: value = 0x8C; break;
-					case 0x017D: value = 0x8E; break;
-					case 0x2018: value = 0x91; break;
-					case 0x2019: value = 0x92; break;
-					case 0x201C: value = 0x93; break;
-					case 0x201D: value = 0x94; break;
-					case 0x2022: value = 0x95; break;
-					case 0x2013: value = 0x96; break;
-					case 0x2014: value = 0x97; break;
-					case 0x02DC: value = 0x98; break;
-					case 0x2122: value = 0x99; break;
-					case 0x0161: value = 0x9A; break;
-					case 0x203A: value = 0x9B; break;
-					case 0x0153: value = 0x9C; break;
-					case 0x017E: value = 0x9E; break;
-					case 0x0178: value = 0x9F; break;
-					/* default is the generic "currency  */
-					/* sign" because question marks  */
-					/* just look stupid. */
-					default: value = 0xA4; break;
-				}
-			}
-			*cur = (char)value;
-			memmove(cur+1, cur+bytes, strlen(cur+bytes) + 1);
-		}
-		cur++;
-	}
-	return result;
-}
-
-#if 0
 /*
- * Convert to ISO 8859-1 (LATIN-1). The result is never longer than 
- * the source.  
+ * Convert a human readable date format (i.e. "YYYY/MM/DD") into
+ * a format usable for strftime and others 
  */
-char * 
-str_utf8_to_8859_1( const char * str )
+ 
+char *
+convert_human_date_format(const char *human_datef)
 {
-	char *result = xstrdup( str );
-	char *cur = result;
-	unsigned char c;
-
-	while (c = *str++) {
-		if (c < 0x80) {
-			*cur++ = c;
-			continue;
-		} 
-		if ((c & 0xFE) == 0xC2) {
-			*cur++ = ((c & 0x03) << 6) | (*str++ & 0x3f);
-		}
-	}
-
-	return result;
-}
-#endif
-
-char * str_utf8_to_ascii( const char * str )
-{
-	char *result;
-	char *cur;
-
-	if (!str) return NULL;
-
-	result = xstrdup( str );
-	cur = result;
+	char *result, *cin, *cout;
+	char prev;
+	int ylen;
 	
-	while ( cur && *cur ) {
-		if ( *cur & 0x80 ) {
-			int bytes;
-			int value;
-			char *strvalue = NULL;
-			utf8_to_int( cur, &bytes, &value );
-			switch (value) {
-				case 0x2026: strvalue = "..."; break;
-				case 0x201c: value = '\"'; break;
-				case 0x201d: value = '\"'; break;
-				case 0xb4:
-				case 0x2018: value = '`'; break;
-				case 0x2019: value = '\''; break;
-					    
-				case 0xf2: 
-				case 0xf3: 
-				case 0xf4: 
-				case 0xf5: 
-				case 0xf6: value = 'o'; break;
-
-				case 0xe0:
-				case 0xe1:
-				case 0xe2:
-				case 0xe3:
-				case 0xe4:
-				case 0xe5: value = 'a'; break;
-
-				case 0xe8:
-				case 0xe9:
-				case 0xea:
-				case 0xeb: value = 'e'; break;
-
-				case 0xc0:
-				case 0xc1:
-				case 0xc2:
-				case 0xc3:
-				case 0xc4:
-				case 0xc5: value = 'A'; break;
-
-				case 0xf8: value = '0'; break;
-				default: value='?'; break;;
-			}
-			if (strvalue) {
-				memcpy(cur, strvalue, bytes);
-				cur += bytes - 1;
-			} else {
-				*cur = (char)value;
-				memmove(cur+1, cur+bytes, strlen(cur+bytes));
+	result = xcalloc((2*strlen(human_datef)) + 1, 1);
+	cout = result;
+	prev = '\0';
+	ylen = 0;
+	
+	for (cin = (char *)human_datef; *cin; cin++)
+	{
+		char okay = 1;
+		
+		if (toupper(*cin) != 'Y') ylen = 0;
+		if (isalpha(*cin)) 
+		{
+			switch(*cin) 
+			{
+			case 'y': case 'Y':
+				if (prev != 'Y')
+				{ 
+					strcat(cout, "%y"); 
+					cout += 2;
+					prev = 'Y'; 
+				}
+				ylen++;
+				if (ylen > 2) *(cout-1) = 'Y';
+				break;
+			case 'm': case 'M':
+				if (prev != 'M')
+				{
+					strcat(cout, "%m");
+					cout += 2;
+					prev = 'M';
+				}
+				break;
+			case 'd': case 'D':
+				if (prev != 'D')
+				{
+					strcat(cout, "%d");
+					cout += 2;
+					prev = 'D';
+				}
+				break;
+			default:
+				okay = 0;
 			}
 		}
-		cur++;
+		else if (ispunct(*cin))
+		{
+			*cout++ = *cin;
+			prev = '\0';
+		}
+		else okay = 0;
+		
+		is_fatal(okay == 0, "Invalid character \"%c\" in date format!", *cin);
 	}
 	return result;
 }
 
 /*
- * str_iso8859_1_to_utf8
- *
- * converts the single byte charset ISO8859-1 (latin1) to UTF-8
+ * Convert a human readable time format (i.e. "HH:mm:ss") into
+ * a format usable for strftime and others
  */
 
 char *
-str_iso8859_1_to_utf8(const char *s)
+convert_human_time_format(const char *human_timef)
 {
-	int len;
-	char *res;
-	unsigned char c;
-	char *src, *dst;
-
-	if (s == NULL) return NULL;
-
-	len = 0;
-	src = (char *)s;
-	while ('\0' != (c = *src++))
+	char *result, *cin, *cout;
+	char prev;
+	
+	result = xcalloc((2*strlen(human_timef)) + 1, 1);
+	cout = result;
+	prev = '\0';
+	
+	for (cin = (char *)human_timef; *cin; cin++)
 	{
-	    len++;
-	    if (c & 0x80) len++;
+		int okay = 1;
+		
+		if (isalpha(*cin))
+		{
+			switch(*cin)
+			{
+			case 'S': case 's':
+				if (prev != 'S') { 
+					strcat(cout, "%S"); 
+					cout += 2;
+					prev = 'S'; 
+				}
+				break;
+				
+			case 'M': case 'm':
+				if (prev != 'M') { 
+					strcat(cout, "%M"); 
+					cout += 2;
+					prev = 'M'; 
+				}
+				break;
+				
+			case 'h':				/* 12-hour-clock */
+				if (prev != 'H') {
+					strcat(cout, "%l");	/* 1 .. 12 */
+					cout += 2;
+					prev = 'H';
+				}
+				else *(cout-1) = 'I';		/* 01 .. 12 */
+				break;
+				
+			case 'H':				/* 24-hour-clock */
+				if (prev != 'H') {
+					strcat(cout, "%k");
+					cout += 2;
+					prev = 'H';
+				}
+				else *(cout-1) = 'H';
+				break;
+				
+			case 'x':
+				if (prev != 'X') {
+					strcat(cout, "%P");
+					cout += 2;
+					prev = 'X';
+				}
+				else *(cout-1) = 'P';
+				break;
+				
+			case 'X':
+				if (prev != 'X') {
+					strcat(cout, "%p");
+					cout += 2;
+					prev = 'X';
+				}
+				else *(cout-1) = 'p';
+				break;
+				
+			default:
+				okay = 0;
+			}
+		}
+		else if (ispunct(*cin) || isspace(*cin))
+		{
+			*cout++ = *cin;
+			prev = '\0';
+		}
+		else okay = 0;
+		
+		is_fatal(okay == 0, "Invalid character \"%c\" in time format!", *cin);
 	}
-
-	src = (char *)s;
-	dst = res = (void *) xmalloc(len + 1);
-	while ('\0' != (c = *src++))
-	{
-	    if (c & 0x80)
-	    {
-		*dst++ = (0xc0 | (c >> 6));
-		*dst++ = (c & 0xbf);
-	    }
-	    else
-	    {
-		*dst++ = c;
-	    }
-	}
-	*dst = '\0';
-	return res;
+	return result;
 }
+
+
+/* 
+ * Return a decimal degree pair as
+ * DD.DDDDD  DD MM.MMM or DD MM SS.S
+ * fmt = ['d', 'm', 's']
+ * html = 1 for html output otherwise text
+ */
+char *
+pretty_deg_format(double lat, double lon, char fmt, int html) 
+{
+	double  latmin, lonmin, latsec, lonsec;
+	int     latint, lonint;
+	char	latsig, lonsig;
+	char	*result;
+	latsig = lat < 0 ? 'S':'N';
+	lonsig = lon < 0 ? 'W':'E';
+	latint = abs((int) lat);
+  	lonint = abs((int) lon);
+	latmin = 60.0 * (fabs(lat) - latint);
+	lonmin = 60.0 * (fabs(lon) - lonint);
+	latsec = 60.0 * (latmin - floor(latmin));
+	lonsec = 60.0 * (lonmin - floor(lonmin));
+	if (fmt == 'd') { /* ddd */
+		xasprintf ( &result, "%c%6.5f%s %c%6.5f%s",
+			latsig, fabs(lat), html?"&deg;":"", 
+			lonsig, fabs(lon), html?"&deg;":"" );
+	}
+	else if (fmt == 's') { /* dms */
+		xasprintf ( &result, "%c%d%s%02d'%04.1f\" %c%d%s%02d'%04.1f\"",
+                        latsig, latint, html?"&deg;":" ", (int)latmin, latsec,
+			lonsig, lonint, html?"&deg;":" ", (int)lonmin, lonsec);
+	}
+	else { /* default dmm */
+		xasprintf ( &result,  "%c%d%s%06.3f %c%d%s%06.3f",
+			latsig, latint, html?"&deg;":" ", latmin, 
+			lonsig, lonint, html?"&deg;":" ", lonmin);
+	} 
+	return result;
+}
+
+
 
 /* 
  * Get rid of potentially nasty HTML that would influence another record
  * that includes;
- * <body> - to stop backgrounds from being loaded
+ * <body> - to stop backgrounds/background colours from being loaded
  * </body> and </html>- stop processing altogether
  * <style> </style> - stop overriding styles for everything
  */
@@ -1008,38 +1266,43 @@ strip_nastyhtml(const char * in)
 	char *lcstr, *lcp;
 	
 	sp = returnstr = xstrdup(in);
-	lcp = lcstr = xstrdup(in);
+	lcp = lcstr = strlower(xstrdup(in));
 	
-	while (*lcp) {
-		*lcp = tolower(*lcp);
-		lcp++;
+	while (lcp = strstr(lcstr, "<body>"), NULL != lcp) {
+		sp = returnstr + (lcp - lcstr) ; /* becomes <!   > */
+		sp++; *sp++ = '!'; *sp++ = ' '; *sp++ = ' '; *sp++ = ' ';
+		*lcp = '*';         /* so we wont find it again */
 	}
-	while (lcp = strstr(lcstr, "<body")) {   /* becomes <---- */
+	while (lcp = strstr(lcstr, "<body"), lcp != NULL) {   /* becomes <!--        --> */
 		sp = returnstr + (lcp - lcstr) ;
-		sp++; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; 
+		sp++; *sp++ = '!'; *sp++ = '-';  *sp++ = '-';  
+		while ( (*sp) && (*sp != '>') ) {
+		  sp++;
+		}
+		*--sp = '-'; *--sp = '-'; 
 		*lcp = '*';         /* so we wont find it again */
 	}
-	while (lcp = strstr(lcstr, "</body")) {
+	while (lcp = strstr(lcstr, "</body>"), NULL != lcp) {
+		sp = returnstr + (lcp - lcstr) ; /* becomes <!---- */
+		sp++; *sp++ = '!'; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; 
+		*lcp = '*';         /* so we wont find it again */
+	}
+	while (lcp = strstr(lcstr, "</html>"), NULL != lcp) {
 		sp = returnstr + (lcp - lcstr) ; /* becomes </---- */
-		sp++; sp++; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; 
+		sp++; *sp++ = '!'; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; 
 		*lcp = '*';         /* so we wont find it again */
 	}
-	while (lcp = strstr(lcstr, "</html")) {
-		sp = returnstr + (lcp - lcstr) ; /* becomes </---- */
-		sp++; sp++; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; *sp++ = '-'; 
-		*lcp = '*';         /* so we wont find it again */
-	}
-	while (lcp = strstr(lcstr, "<style")) {
+	while (lcp = strstr(lcstr, "<style"), NULL != lcp) {
 		sp = returnstr + (lcp - lcstr) ; /* becomes <!--   */
 		sp++; *sp++ = '!'; *sp++ = '-'; *sp++ = '-';  *sp++ = ' '; *sp++ = ' '; *sp = ' ';
 		*lcp = '*';         /* so we wont find it again */
 	}
-	while (lcp = strstr(lcstr, "</style>")) {
+	while (lcp = strstr(lcstr, "</style>"), NULL != lcp) {
 		sp = returnstr + (lcp - lcstr) ; /* becomes    --> */
 		*sp++ = ' '; *sp++ = ' '; *sp++ = ' '; *sp++ = ' '; *sp++ = ' '; *sp++ = '-'; *sp++ = '-'; 
 		*lcp = '*';         /* so we wont find it again */
 	}
-	while (lcp = strstr(lcstr, "<image")) {
+	while (lcp = strstr(lcstr, "<image"), NULL != lcp) {
 		sp = returnstr + (lcp - lcstr) ; /* becomes <img */
 		sp+=3; *sp++ = 'g'; *sp++ = ' '; *sp++ = ' ';
 		*lcp = '*';
@@ -1060,7 +1323,7 @@ strip_html(const utf_string *in)
 	char *outstring, *out;
 	char *instr = in->utfstring;
 	char tag[8];
-	short int taglen;
+	unsigned short int taglen = 0;
 	
 	if (!in->is_html)
 		return xstrdup(in->utfstring);
@@ -1078,8 +1341,15 @@ strip_html(const utf_string *in)
 		}
 		
 		if (! tag[0]) {
-			if (*instr != '\n')
+			if (*instr == '\n') {
+				*out++ = ' ';
+				do {
+					instr++;
+				} while (isspace(*instr));
+				continue;
+			} else {
 				*out++ = *instr;
+			}
 		}
 		else {
 			if (taglen < (sizeof(tag)-1)) {
@@ -1117,7 +1387,7 @@ strip_html(const utf_string *in)
 			
 		      tag[0] = 0;
 		}
-		*instr++;
+		instr++;
 	}
 	*out++ = 0;
 	return (outstring);
@@ -1148,7 +1418,6 @@ entitize(const char * str, int is_html)
 	const char * cp;
 	char * p, * tmp, * xstr;
 
-	char tmpsub[20];
 	int bytes = 0;
 	int value = 0;
 	ep = stdentities;
@@ -1167,15 +1436,17 @@ entitize(const char * str, int is_html)
 	
 	/* figure the same for other than standard entities (i.e. anything
 	 * that isn't in the range U+0000 to U+007F */
+	
+#if 0
 	for ( cp = str; *cp; cp++ ) {
 		if ( *cp & 0x80 ) {
-			
-			utf8_to_int( cp, &bytes, &value );
+			cet_utf8_to_ucs4( cp, &bytes, &value );
 			cp += bytes-1;
 			elen += sprintf( tmpsub, "&#x%x;", value ) - bytes;
 		        nsecount++;	
 		}
 	}
+#endif
 
 	/* enough space for the whole string plus entity replacements, if any */
 	tmp = xcalloc((strlen(str) + elen + 1), 1);
@@ -1210,7 +1481,7 @@ entitize(const char * str, int is_html)
 		p = tmp;
 		while (*p) {
 			if ( *p & 0x80 ) {
-				utf8_to_int( p, &bytes, &value );
+				cet_utf8_to_ucs4( p, &bytes, &value );
 				if ( p[bytes] ) {
 					xstr = xstrdup( p + bytes );
 				}

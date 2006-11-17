@@ -25,9 +25,23 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include "config.h"
 #include "queue.h"
 #include "gbtypes.h"
+#if HAVE_LIBZ
+#include <zlib.h>
+#elif !ZLIB_INHIBITED
+#include "zlib/zlib.h"
+#endif
+#include "gbfile.h"
+#include "cet.h"
+#include "cet_util.h"
+#include "inifile.h"
 
+// Turn on Unicode in expat?
+#ifdef _UNICODE
+#  define XML_UNICODE
+#endif
 
 /*
  * Amazingly, this constant is not specified in the standard...
@@ -39,6 +53,17 @@
 #define FEET_TO_METERS(feetsies) ((feetsies) * 0.3048)
 #define METERS_TO_FEET(meetsies) ((meetsies) * 3.2808399)
 
+#define NMILES_TO_METERS(a) ((a) * 1852.0)	/* nautical miles */
+#define MILES_TO_METERS(a) ((a) * 1609.344)
+#define METERS_TO_MILES(a) ((a) / 1609.344)
+#define FATHOMS_TO_METERS(a) ((a) * 1.8288)
+
+#define CELSIUS_TO_FAHRENHEIT(a) (((a) * 1.8) + 32)
+#define FAHRENHEIT_TO_CELSIUS(a) (((a) - 32) / 1.8)
+
+#define SECONDS_PER_HOUR (60L*60)
+#define SECONDS_PER_DAY (24L*60*60)
+
 /*
  * Snprintf is in SUS (so it's in most UNIX-like substance) and it's in 
  * C99 (albeit with slightly different semantics) but it isn't in C89.   
@@ -47,11 +72,36 @@
 #if __WIN32__
 #  define snprintf _snprintf
 #  define vsnprintf _vsnprintf
+#  ifndef fileno
+#    define fileno _fileno
+#  endif
+#  define strdup _strdup
 #endif
 
 /* Turn off numeric conversion warning */
 #if __WIN32__
-#pragma warning(disable:4244)
+#  if _MSC_VER
+#    pragma warning(disable:4244)
+#  endif
+#  define _CRT_SECURE_NO_DEPRECATE 1
+#endif
+
+/* Pathname separator character */
+#if __WIN32__
+#  define GB_PATHSEP '\\'
+#else
+#  define GB_PATHSEP '/'
+#endif
+
+/* 
+ *  Toss in some GNU C-specific voodoo for checking.
+ */
+#if __GNUC__ 
+#  define PRINTFLIKE(x,y) __attribute__ ((__format__ (__printf__, (x), (y))))
+#  define NORETURN void __attribute__ ((__noreturn__))
+#else
+#  define PRINTFLIKE(x,y)
+#  define NORETURN void
 #endif
 
 /*
@@ -60,18 +110,6 @@
  */
 #define BASE_STRUCT(memberp, struct_type, member_name) \
    ((struct_type *)((char *)(memberp) - offsetof(struct_type, member_name)))
-
-
-/*
- * Define globally on which kind of data gpsbabel is working.
- * Important for "file types" that are essentially a communication
- * protocol for a receiver, like the Magellan serial data.
- */
-typedef enum {
-	trkdata = 1 ,
-	wptdata,
-	rtedata
-} gpsdata_type;
 
 typedef enum {
 	fix_unknown=-1,
@@ -82,16 +120,30 @@ typedef enum {
 	fix_pps
 } fix_type;
 
+/*
+ * Define globally on which kind of data gpsbabel is working.
+ * Important for "file types" that are essentially a communication
+ * protocol for a receiver, like the Magellan serial data.
+ */
+typedef enum {
+	trkdata = 1 ,
+	wptdata,
+	rtedata,
+	posndata
+} gpsdata_type;
+
 #define NOTHINGMASK		0
 #define WPTDATAMASK		1
 #define TRKDATAMASK		2
 #define	RTEDATAMASK		4
+#define	POSNDATAMASK		8
 
 /* mask objective testing */
 #define	doing_nothing (global_opts.masked_objective == NOTHINGMASK)
 #define	doing_wpts ((global_opts.masked_objective & WPTDATAMASK) == WPTDATAMASK)
 #define	doing_trks ((global_opts.masked_objective & TRKDATAMASK) == TRKDATAMASK)
 #define	doing_rtes ((global_opts.masked_objective & RTEDATAMASK) == RTEDATAMASK)
+#define	doing_posn ((global_opts.masked_objective & POSNDATAMASK) == POSNDATAMASK)
 
 typedef struct {
 	int synthesize_shortnames;
@@ -100,11 +152,16 @@ typedef struct {
 	unsigned int	masked_objective;
 	int verbose_status;	/* set by GUI wrappers for status */
 	int no_smart_icons;	
-	int no_smart_names;	
+	int no_smart_names;
+	cet_cs_vec_t *charset;
+	char *charset_name;
+	inifile_t *inifile;
 } global_options;
 
 extern global_options global_opts;
 extern const char gpsbabel_version[];
+extern time_t gpsbabel_now;	/* gpsbabel startup-time; initialized in main.c with time() */
+extern time_t gpsbabel_time;	/* gpsbabel startup-time; initialized in main.c with current_time(), ! ZERO within testo ! */
 
 /* Short or Long XML Times */
 #define XML_SHORT_TIME 1
@@ -127,7 +184,9 @@ typedef enum {
 	gt_earth,
 	gt_locationless,
 	gt_benchmark, /* Extension to Groundspeak for GSAK */
-	gt_cito
+	gt_cito,
+	gt_ape,
+	gt_mega
 } geocache_type;
 
 typedef enum {
@@ -146,11 +205,11 @@ typedef struct {
 } utf_string;
 
 typedef struct {
-	geocache_type type;
-	geocache_container container;
 	int id; /* The decimal cache number */
-	int diff; /* (multiplied by ten internally) */
-	int terr; /* (likewise) */
+	geocache_type type:5;
+	geocache_container container:4;
+	unsigned int diff:6; /* (multiplied by ten internally) */
+	unsigned int terr:6; /* (likewise) */
 	time_t exported;
 	time_t last_found;
 	char *placer; /* Placer name */
@@ -173,12 +232,15 @@ typedef struct xml_tag {
 
 typedef void (*fs_destroy)(void *);
 typedef void (*fs_copy)(void **, void *);
+typedef void (*fs_convert)(void *);
+
 typedef struct format_specific_data {
 	long type;
 	struct format_specific_data *next;
 	
 	fs_destroy destroy;
 	fs_copy copy;
+	fs_convert convert;
 } format_specific_data;
 
 format_specific_data *fs_chain_copy( format_specific_data *source );
@@ -197,6 +259,8 @@ fs_xml *fs_xml_alloc( long type );
 #define FS_AN1W 0x616e3177L
 #define FS_AN1L 0x616e316cL
 #define FS_AN1V 0x616e3176L
+#define FS_OZI 0x6f7a6900L
+#define FS_GMSD 0x474d5344L	/* GMSD = Garmin specific data */
 
 /*
  * Misc bitfields inside struct waypoint;
@@ -204,6 +268,7 @@ fs_xml *fs_xml_alloc( long type );
 typedef struct {
 	unsigned int icon_descr_is_dynamic:1; 
 	unsigned int shortname_is_synthetic:1;
+	unsigned int cet_converted:1;		/* strings are converted to UTF8; interesting only for input */
 } wp_flags;
 
 /*
@@ -285,7 +350,10 @@ typedef struct {
 	float speed;   	/* Optional: meters per second. */
 	fix_type fix;	/* Optional: 3d, 2d, etc. */
 	int  sat;	/* Optional: number of sats used for fix */
-	
+
+	unsigned char heartrate; /* Beats/min. likely to get moved to fs. */
+	unsigned char cadence;	 /* revolutions per minute */
+	float temperature; /* Degrees celsius */
 	geocache_data gc_data;
 	format_specific_data *fs;
 	void *extra_data;	/* Extra data added by, say, a filter. */
@@ -296,10 +364,30 @@ typedef struct {
 	queue waypoint_list;	/* List of child waypoints */
 	char *rte_name;
 	char *rte_desc;
+	char *rte_url;
 	int rte_num;
 	int rte_waypt_ct;		/* # waypoints in waypoint list */
 	format_specific_data *fs;
+	unsigned short cet_converted;	/* strings are converted to UTF8; interesting only for input */
 } route_head;
+
+/*
+ *  Structure of recomputed track/roue data.
+ */
+typedef struct {
+	double	distance_meters;
+	double	max_alt;
+	double	min_alt;
+	double	max_spd;	/* Meters/sec */
+	double	min_spd;	/* Meters/sec */
+	double	avg_hrt;	/* Avg Heartrate */
+	double	avg_cad;	/* Avg Cadence */
+	time_t	start;		/* Min time */
+	time_t	end;		/* Max time */
+	int	min_hrt;        /* Min Heartrate */
+	int	max_hrt;        /* Max Heartrate */
+	int	max_cad;        /* Max Cadence */
+} computed_trkdata;
 
 /*
  *  Bounding box information.
@@ -311,11 +399,17 @@ typedef struct {
 	double min_lon;
 } bounds;
 
+typedef struct {
+	int request_terminate;
+} posn_status;
+
 typedef void (*ff_init) (char const *);
 typedef void (*ff_deinit) (void);
 typedef void (*ff_read) (void);
 typedef void (*ff_write) (void);
 typedef void (*ff_exit) (void);
+typedef void (*ff_writeposn) (waypoint *);
+typedef waypoint * (*ff_readposn) (posn_status *);
 
 #ifndef DEBUG_MEM
 char * get_option(const char *iarglist, const char *argname);
@@ -339,6 +433,9 @@ waypoint * waypt_new(void);
 void waypt_del (waypoint *);
 void waypt_free (waypoint *);
 void waypt_disp_all(waypt_cb);
+void waypt_init_bounds(bounds *bounds);
+int waypt_bounds_valid(bounds *bounds);
+void waypt_add_to_bounds(bounds *bounds, const waypoint *waypointp);
 void waypt_compute_bounds(bounds *);
 void waypt_flush(queue *);
 void waypt_flush_all(void);
@@ -348,46 +445,68 @@ void free_gpx_extras (xml_tag * tag);
 void xcsv_setup_internal_style(const char *style_buf);
 void xcsv_read_internal_style(const char *style_buf);
 waypoint * find_waypt_by_name(const char *name);
+void waypt_backup(signed int *count, queue **head_bak);
+void waypt_restore(signed int count, queue *head_bak);
 
 route_head *route_head_alloc(void);
 void route_add (waypoint *);
 void route_add_wpt(route_head *rte, waypoint *wpt);
 void route_del_wpt(route_head *rte, waypoint *wpt);
+void track_add_wpt(route_head *rte, waypoint *wpt);
+void track_del_wpt(route_head *rte, waypoint *wpt);
 void route_add_head(route_head *rte);
 void route_del_head(route_head *rte);
 void route_reverse(const route_head *rte_hd);
+waypoint * route_find_waypt_by_name(route_head *rh, const char *name);
 void track_add_head(route_head *rte);
 void track_del_head(route_head *rte);
+void route_disp(const route_head *rte, waypt_cb);
 void route_disp_all(route_hdr, route_trl, waypt_cb);
 void track_disp_all(route_hdr, route_trl, waypt_cb);
-void route_free (route_head *);
 void route_flush( queue *);
 void route_flush_all(void);
+void route_flush_all_routes(void);
+void route_flush_all_tracks(void);
+route_head * route_find_route_by_name(const char *name);
+route_head * route_find_track_by_name(const char *name);
 unsigned int route_waypt_count(void);
 unsigned int route_count(void);
+unsigned int track_waypt_count(void);
 unsigned int track_count(void);
+void route_copy( int *dst_count, int *dst_wpt_count, queue **dst, queue *src );
+void route_backup(signed int *count, queue **head_bak);
+void route_restore( queue *head_bak);
+void route_append( queue *src );
+void track_backup(signed int *count, queue **head_bak);
+void track_restore( queue *head_bak);
+void track_append( queue *src );
+void route_flush( queue *head );
+void track_recompute( const route_head *trk, computed_trkdata **);
 
 /*
  * All shortname functions take a shortname handle as the first arg.
  * This is an opaque pointer.  Callers must not fondle the contents of it.
  */
+typedef struct short_handle * short_handle;
 #ifndef DEBUG_MEM 
-char *mkshort (void *, const char *);
+char *mkshort (short_handle,  const char *);
 void *mkshort_new_handle(void);
 #else
-char *MKSHORT(void *, const char *, DEBUG_PARAMS);
+char *MKSHORT(short_handle,  const char *, DEBUG_PARAMS);
 void *MKSHORT_NEW_HANDLE(DEBUG_PARAMS);
 #define mkshort( a, b) MKSHORT(a,b,__FILE__, __LINE__)
 #define mkshort_new_handle() MKSHORT_NEW_HANDLE(__FILE__,__LINE__)
 #endif
-char *mkshort_from_wpt(void *h, const waypoint *wpt);
-void mkshort_del_handle(void *h);
-void setshort_length(void *, int n);
-void setshort_badchars(void *, const char *);
-void setshort_goodchars(void *, const char *);
-void setshort_mustupper(void *, int n);
-void setshort_mustuniq(void *, int n);
-void setshort_whitespace_ok(void *, int n);
+char *mkshort_from_wpt(short_handle h, const waypoint *wpt);
+void mkshort_del_handle(short_handle *h);
+void setshort_length(short_handle, int n);
+void setshort_badchars(short_handle,  const char *);
+void setshort_goodchars(short_handle,  const char *);
+void setshort_mustupper(short_handle,  int n);
+void setshort_mustuniq(short_handle,  int n);
+void setshort_whitespace_ok(short_handle,  int n);
+void setshort_repeating_whitespace_ok(short_handle,  int n);
+void setshort_defname(short_handle, const char *s);
 
 /*
  *  Vmem flags values.
@@ -436,18 +555,23 @@ void 	vmem_realloc(vmem_t*, size_t);
 #define ARGTYPE_TYPEMASK 0x00000fff
 #define ARGTYPE_FLAGMASK 0xfffff000
 
+#define ARG_NOMINMAX NULL, NULL
+#define ARG_TERMINATOR {0, 0, 0, 0, 0, ARG_NOMINMAX}
+
 typedef struct arglist {
 	char *argstring;
 	char **argval;
 	char *helpstring;
 	char *defaultvalue;
-	long argtype;
+	gbuint32 argtype;
+	char *minvalue;		/* minimum value for numeric options */
+	char *maxvalue;		/* maximum value for numeric options */
 } arglist_t;
 
 typedef enum {
 	ff_type_file = 1,	/* normal format: useful to a GUI. */
 	ff_type_internal,	/* fmt not useful with default options */
-	ff_type_serial,		/* format describes a serial protoco (GUI can display port names) */
+	ff_type_serial		/* format describes a serial protocol (GUI can display port names) */
 } ff_type;
 
 typedef enum {
@@ -461,11 +585,25 @@ typedef enum {
 	ff_cap_read = 1,
 	ff_cap_write = 2
 } ff_cap;
+
 #define FF_CAP_RW_ALL \
 	{ ff_cap_read | ff_cap_write, ff_cap_read | ff_cap_write, ff_cap_read | ff_cap_write }
 
 #define FF_CAP_RW_WPT \
 	{ ff_cap_read | ff_cap_write, ff_cap_none, ff_cap_none}
+
+/*
+ * Format capabilities for realtime positioning.
+ */
+typedef struct position_ops {
+	ff_init rd_init;
+	ff_readposn rd_position;
+	ff_deinit rd_deinit;
+
+	ff_init wr_init;
+	ff_writeposn wr_position;
+	ff_deinit wr_deinit;
+} position_ops_t;
 
 /*
  *  Describe the file format to the caller.
@@ -481,6 +619,9 @@ typedef struct ff_vecs {
 	ff_write write;
 	ff_exit exit;
 	arglist_t *args;
+	char *encode;
+	int fixed_encode;
+	position_ops_t position_ops;
 } ff_vecs_t;
 
 typedef struct style_vecs {
@@ -489,40 +630,24 @@ typedef struct style_vecs {
 } style_vecs_t;
 extern style_vecs_t style_list[];
 
-typedef struct filter_vecs {
-	filter_init f_init;
-	filter_process f_process;
-	filter_deinit f_deinit;
-	filter_exit f_exit;
-	arglist_t *args;
-} filter_vecs_t;
-
 void waypt_init(void);
 void route_init(void);
 void waypt_disp(const waypoint *);
 void waypt_status_disp(int total_ct, int myct);
-void fatal(const char *, ...)
-#if __GNUC__
-	__attribute__ ((__format__ (__printf__, 1, 2)))
-	__attribute__((noreturn))
-#endif
-	;
-void warning(const char *, ...)
-#if __GNUC__
-	__attribute__ ((__format__ (__printf__, 1, 2)))
-#endif
-	;
+
+NORETURN fatal(const char *, ...) PRINTFLIKE(1, 2);
+void is_fatal(const int condition, const char *, ...) PRINTFLIKE(2, 3);
+void warning(const char *, ...) PRINTFLIKE(1, 2);
+
 ff_vecs_t *find_vec(char * const, char **);
+void assign_option(const char *vecname, arglist_t *ap, const char *val);
+void disp_vec_options(const char *vecname, arglist_t *ap);
 void disp_vecs(void);
+void disp_vec( const char *vecname );
 void exit_vecs(void);
 void disp_formats(int version);
+const char * name_option(long type);
 void printposn(const double c, int is_lat);
-
-filter_vecs_t * find_filter_vec(char * const, char **);
-void free_filter_vec(filter_vecs_t *);
-void disp_filters(int version);
-void disp_filter_vecs(void);
-void exit_filter_vecs(void);
 
 #ifndef DEBUG_MEM
 void *xcalloc(size_t nmemb, size_t size);
@@ -574,28 +699,48 @@ void xfputs(const char *errtxt, const char *s, FILE *stream);
 
 int case_ignore_strcmp(const char *s1, const char *s2);
 int case_ignore_strncmp(const char *s1, const char *s2, int n);
+int str_match(const char *str, const char *match);
+int case_ignore_str_match(const char *str, const char *match);
 
 char *strsub(const char *s, const char *search, const char *replace);
 char *gstrsub(const char *s, const char *search, const char *replace);
+char *xstrrstr(const char *s1, const char *s2);
 void rtrim(char *s);
+char * lrtrim(char *s);
+int xasprintf(char **strp, const char *fmt, ...);
+char *strupper(char *src);
+char *strlower(char *src);
 signed int get_tz_offset(void);
+time_t mklocaltime(struct tm *t);
 time_t mkgmtime(struct tm *t);
 time_t current_time(void);
 signed int month_lookup(const char *m);
 const char *get_cache_icon(const waypoint *waypointp);
 const char *gs_get_cachetype(geocache_type t);
+const char *gs_get_container(geocache_container t);
 char * xml_entitize(const char * str);
 char * html_entitize(const char * str);
 char * strip_html(const utf_string*);
 char * strip_nastyhtml(const char * in);
+char * convert_human_date_format(const char *human_datef);	/* "MM,YYYY,DD" -> "%m,%Y,%d" */
+char * convert_human_time_format(const char *human_timef);	/* "HH+mm+ss"   -> "%H+%M+%S" */
+char * pretty_deg_format(double lat, double lon, char fmt, int html);   /* decimal ->  dd.dddd or dd mm.mmm or dd mm ss */
 
 /* 
  * Character encoding transformations.
  */
-char * str_utf8_to_cp1252(const char * str);
-char * str_utf8_to_ascii(const char * str);
-char * str_iso8859_1_to_utf8(const char *str );
 
+#define CET_NOT_CONVERTABLE_DEFAULT '$'
+#define CET_CHARSET_ASCII	"US-ASCII"
+#define CET_CHARSET_UTF8	"UTF-8"
+#define CET_CHARSET_MS_ANSI	"MS-ANSI"
+#define CET_CHARSET_LATIN1	"ISO-8859-1"
+
+#define str_utf8_to_cp1252(str) cet_str_utf8_to_cp1252((str)) 
+#define str_cp1252_to_utf8(str) cet_str_cp1252_to_utf8((str))
+
+#define str_utf8_to_iso8859_1(str) cet_str_utf8_to_iso8859_1((str)) 
+#define str_iso8859_1_to_utf8(str) cet_str_iso8859_1_to_utf8((str))
 
 /* this lives in gpx.c */
 time_t xml_parse_time( const char *cdatastr );
@@ -632,17 +777,22 @@ typedef struct {
  * Protypes for Endianness helpers.
  */
 
-signed int be_read16(void *p);
-signed int be_read32(void *p);
-signed int le_read16(void *p);
-signed int le_read32(void *p);
+signed int be_read16(const void *p);
+signed int be_read32(const void *p);
+signed int le_read16(const void *p);
+signed int le_read32(const void *p);
 void le_read64(void *dest, const void *src);
-void be_write16(void *pp, unsigned i);
-void be_write32(void *pp, unsigned i);
-void le_write16(void *pp, unsigned i);
-void le_write32(void *pp, unsigned i);
+void be_write16(void *pp, const unsigned i);
+void be_write32(void *pp, const unsigned i);
+void le_write16(void *pp, const unsigned i);
+void le_write32(void *pp, const unsigned i);
 double pdb_read_double(void *p);
 void pdb_write_double(void *pp, double d);
+
+double le_read_double(void *p);
+double be_read_double(void *p);
+void le_write_double(void *p, double d);
+void be_write_double(void *p, double d);
 
 /*
  * Prototypes for generic conversion routines (util.c).
@@ -655,11 +805,63 @@ double degrees2ddmm(double deg_val);
  *  From util_crc.c
  */
 unsigned long get_crc32(const void * data, int datalen);
+unsigned long get_crc32_s(const void * data);
+
+/*
+ *  From units.c
+ */
+typedef enum {
+	units_unknown = 0,
+	units_statute = 1,
+	units_metric =2
+} fmt_units;
+
+int    fmt_setunits(fmt_units);
+double fmt_distance(const double, char **tag);
+double fmt_speed(const double, char **tag);
+
+/*
+ * From gbsleep.c
+ */
+void gb_sleep(unsigned long microseconds);
+
+/*
+ * From nmea.c
+ */
+int nmea_cksum(const char *const buf);
+
+/*
+ * Color helpers.
+ */
+int color_to_bbggrr(char *cname);
 
 /*
  * A constant for unknown altitude.   It's tempting to just use zero
  * but that's not very nice for the folks near sea level.
  */
-#define unknown_alt -99999999.0
+#define unknown_alt 	-99999999.0
+#define unknown_course 	     -999.0
+#define unknown_speed	     -999.0
+/*
+ * textfile: buffered OS independent (CRLF,NL,CR) text reader
+ */
+ 
+typedef struct
+{
+	FILE *file_in;
+	char buf[1024];
+	char *buf_pos;
+	char *buf_end;
+	char *line;
+	int line_size;
+	int line_no;
+	unsigned char tfclose:1;
+} textfile_t;
+
+textfile_t *textfile_init(const FILE *file_in);
+textfile_t *textfile_open_read(const char *filename, const char *module);
+void textfile_done(textfile_t *tf);
+char *textfile_read(textfile_t *tf);
+int textfile_getc(textfile_t *tf);
 
 #endif /* gpsbabel_defs_h_included */

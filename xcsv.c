@@ -27,6 +27,7 @@
 #include "defs.h"
 #include "csv_util.h"
 
+#if CSVFMTS_ENABLED
 #define MYNAME	"XCSV"
 #define ISSTOKEN(a,b) (strncmp(a,b, strlen(b)) == 0)
 
@@ -43,21 +44,21 @@ static const char *intstylebuf = NULL;
 static
 arglist_t xcsv_args[] = {
 	{"style", &styleopt, "Full path to XCSV style file", NULL,
-		ARGTYPE_FILE | ARGTYPE_REQUIRED },
+		ARGTYPE_FILE | ARGTYPE_REQUIRED, ARG_NOMINMAX },
 	{"snlen", &snlenopt, "Max synthesized shortname length", NULL,
-		ARGTYPE_INT},
-	{"snwhite", &snwhiteopt, "(0/1) Allow whitespace synth. shortnames",
-		NULL, ARGTYPE_BOOL},
-	{"snupper", &snupperopt, "(0/1) UPPERCASE synth. shortnames",
-	        NULL, ARGTYPE_BOOL},
-	{"snunique", &snuniqueopt, "(0/1) Make synth. shortnames unique",
-		NULL, ARGTYPE_BOOL},
+		ARGTYPE_INT, "1", NULL},
+	{"snwhite", &snwhiteopt, "Allow whitespace synth. shortnames",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"snupper", &snupperopt, "UPPERCASE synth. shortnames",
+	        NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"snunique", &snuniqueopt, "Make synth. shortnames unique",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"urlbase", &xcsv_urlbase, "Basename prepended to URL on output",
-	        NULL, ARGTYPE_STRING},
+	        NULL, ARGTYPE_STRING, ARG_NOMINMAX},
 	{"prefer_shortnames", &prefer_shortnames, 
 		"Use shortname instead of description", 
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 /* a table of config file constants mapped to chars */
@@ -159,7 +160,7 @@ xcsv_destroy_style(void)
         xfree(xcsv_file.extension);
 
     if (xcsv_file.mkshort_handle)
-        xfree(xcsv_file.mkshort_handle);
+        mkshort_del_handle(&xcsv_file.mkshort_handle);
 
     /* return everything to zeros */
     internal = xcsv_file.is_internal;
@@ -217,15 +218,13 @@ xcsv_parse_style_line(const char *sbuff)
 		p = csv_stringtrim(xcsv_file.field_delimiter, " ", 0);
 
 		/* field delimiters are always bad characters */
-		if (xcsv_file.badchars) {
-			xcsv_file.badchars = (char *) xrealloc(xcsv_file.badchars,
-				strlen(xcsv_file.badchars) +
-				strlen(p) + 1);
+		if (0 == strcmp(p, "\\w")) {
+			char *s = xstrappend(xcsv_file.badchars, " \n\r");
+			if (xcsv_file.badchars) xfree(xcsv_file.badchars);
+			xcsv_file.badchars = s;
 		} else {
-			xcsv_file.badchars = (char *) xcalloc(strlen(p) + 1, 1);
+			xcsv_file.badchars = xstrappend(xcsv_file.badchars, p);
 		}
-
-		strcat(xcsv_file.badchars, p);
 		
 		xfree(p);
 
@@ -323,6 +322,12 @@ xcsv_parse_style_line(const char *sbuff)
 	    xcsv_epilogue_add(xstrdup(&sbuff[9]));
 	} else
 
+	if (ISSTOKEN(sbuff, "ENCODING")) {
+	    p = csv_stringtrim(&sbuff[8], "\"", 1);
+	    cet_convert_init(p, 1);
+	    xfree(p);
+	} else
+	
 	if (ISSTOKEN(sbuff, "IFIELD")) {
 	    key = val = pfc = NULL;
 	    
@@ -361,6 +366,7 @@ xcsv_parse_style_line(const char *sbuff)
 	 * change the world on ifield vs ofield format later..
 	 */
 	if (ISSTOKEN(sbuff, "OFIELD")) {
+	    int options = 0;
 	    key = val = pfc = NULL;
 
 	    s = csv_lineparse(&sbuff[6], ",", "", linecount);
@@ -380,6 +386,17 @@ xcsv_parse_style_line(const char *sbuff)
 		    /* printf conversion */
 		    pfc = csv_stringtrim(s, "\"", 1);
 		    break;
+		case 3:
+		     /* Any additional options. */
+		     if (strstr(s, "no_delim_before")) {
+			options |= OPTIONS_NODELIM;
+		     }
+		     if (strstr(s, "absolute")) {
+			options |= OPTIONS_ABSOLUTE;
+		     }
+		     if (strstr(s, "optional")) {
+			options |= OPTIONS_OPTIONAL;
+		     }
 		default:
 		    break;
 		}
@@ -387,7 +404,7 @@ xcsv_parse_style_line(const char *sbuff)
 		s = csv_lineparse(NULL, ",", "", linecount);
 	    }
 
-	    xcsv_ofield_add(key, val, pfc);
+	    xcsv_ofield_add(key, val, pfc, options);
 	}
     }
 }
@@ -421,19 +438,17 @@ xcsv_parse_style_buff(const char *sbuff)
 static void
 xcsv_read_style(const char *fname)
 {
-    char sbuff[8192];
-    FILE *fp;
+    char *sbuff;
+    gbfile *fp;
 
     xcsv_file_init();
 
-    fp = xfopen(fname, "r", MYNAME);
+    fp = gbfopen(fname, "rb", MYNAME);
 
-    do {
-        memset(sbuff, '\0', sizeof(sbuff));
-        fgets(sbuff, sizeof(sbuff), fp);
-        rtrim(sbuff);
+    while ((sbuff = gbfgetstr(fp))) {
+        sbuff = lrtrim(sbuff);
 	xcsv_parse_style_line(sbuff);
-    } while (!feof(fp));
+    } while (!gbfeof(fp));
 
     /* if we have no output fields, use input fields as output fields */
     if (xcsv_file.ofield_ct == 0) {
@@ -442,8 +457,7 @@ xcsv_read_style(const char *fname)
         xcsv_file.ofield = &xcsv_file.ifield;
         xcsv_file.ofield_ct = xcsv_file.ifield_ct;
     }
-
-    fclose(fp);
+    gbfclose(fp);
 }
 
 /*
@@ -500,14 +514,14 @@ xcsv_rd_init(const char *fname)
 	warning(MYNAME " attempt to read %s as a track or route, but this module only supports waypoints on read.  Reading as waypoints instead.\n", fname);
     }
 
-    xcsv_file.xcsvfp = xfopen(fname, "r", MYNAME);
+    xcsv_file.xcsvfp = gbfopen(fname, "r", MYNAME);
 
 }
 
 static void
 xcsv_rd_deinit(void)
 {
-    fclose(xcsv_file.xcsvfp);
+    gbfclose(xcsv_file.xcsvfp);
 
     xcsv_destroy_style();
 }
@@ -529,7 +543,7 @@ xcsv_wr_init(const char *fname)
         xcsv_read_style(styleopt);
     }
 
-    xcsv_file.xcsvfp = xfopen(fname, "w", MYNAME);
+    xcsv_file.xcsvfp = gbfopen(fname, "w", MYNAME);
     xcsv_file.fname = (char *)fname;
 
     /* set mkshort options from the command line */
@@ -556,7 +570,7 @@ xcsv_wr_init(const char *fname)
 static void
 xcsv_wr_deinit(void)
 {
-    fclose(xcsv_file.xcsvfp);
+    gbfclose(xcsv_file.xcsvfp);
 
     xcsv_destroy_style();
 }
@@ -571,5 +585,10 @@ ff_vecs_t xcsv_vecs = {
     xcsv_data_read,
     xcsv_data_write,
     NULL, 
-    xcsv_args
+    xcsv_args,
+    CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#else
+void xcsv_read_internal_style(const char *style_buf) {}
+void xcsv_setup_internal_style(const char *style_buf) {}
+#endif //CSVFMTS_ENABLED

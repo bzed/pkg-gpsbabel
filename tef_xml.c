@@ -2,7 +2,7 @@
 	Support for XML based "TourExchangeFormat", 
 	found in Map & Guide Motorrad-Tourenplaner 2005/06
 	
-	Copyright (C) 2005 Olaf Klein, o.b.klein@t-online.de
+	Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
 
 	Based on kml.c, Keyhole "kml" format.
 	Copyright (C) 2005 Robert Lipe, robertlipe@usa.net
@@ -26,28 +26,23 @@
 #include "defs.h"
 #include "xmlgeneric.h"
 
-static char *deficon = NULL;
-
 static waypoint *wpt_tmp = NULL;
 static int item_count = -1;
 static int waypoints = 0;
 
 static route_head *route = NULL;
 
-FILE *fd;
-FILE *ofd;
-
 static char *routevia = NULL;
 
 static arglist_t tef_xml_args[] = 
 {
-	{"routevia", &routevia, "Include only via stations in route", NULL, ARGTYPE_BOOL},
-	{0, 0, 0, 0 }
+	{"routevia", &routevia, "Include only via stations in route", NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
 #define MYNAME "TourExchangeFormat"
 
-#if NO_EXPAT
+#if ! HAVE_LIBEXPAT
 void
 tef_xml_rd_init(const char *fname)
 {
@@ -304,5 +299,6 @@ ff_vecs_t tef_xml_vecs = {
 	tef_xml_read,
 	NULL,
 	NULL, 
-	tef_xml_args
+	tef_xml_args,
+	CET_CHARSET_UTF8, 1
 };

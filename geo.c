@@ -20,23 +20,24 @@
 #include "xmlgeneric.h"
 
 static char *deficon = NULL;
+static char *nuke_placer;
 
 static waypoint *wpt_tmp;
 
-FILE *fd;
-FILE *ofd;
+static FILE *ofd;
 
 static
 arglist_t geo_args[] = {
-	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING },
-	{0, 0, 0, 0, 0}
+	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
+	{"nuke_placer", &nuke_placer, "Omit Placer name", NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 #define MYNAME "geo"
 #define MY_CBUF 4096
 
-#if NO_EXPAT
-void
+#if ! HAVE_LIBEXPAT
+static void
 geo_rd_init(const char *fname)
 {
 	fatal(MYNAME ": This build excluded GEO support because expat was not installed.\n");
@@ -89,7 +90,18 @@ void wpt_name_s(const char *args, const char **attrv)
 
 void wpt_name(const char *args, const char **unused)
 {
-	if (args) wpt_tmp->description = xstrappend(wpt_tmp->description,args);
+	char *s;
+	if (!args) return;
+
+	wpt_tmp->description = xstrappend(wpt_tmp->description,args);
+	s = xstrrstr(wpt_tmp->description, " by ");
+	if (s) {
+		wpt_tmp->gc_data.placer = xstrdup(s + 4);
+
+		if (nuke_placer) {
+			*s = '\0';
+		}
+	}
 }
 
 void wpt_link_s(const char *args, const char **attrv)
@@ -130,32 +142,32 @@ void wpt_coord(const char *args, const char **attrv)
         }
 }
 
-void
+static void
 geo_rd_init(const char *fname)
 {
 	xml_init(fname, loc_map, NULL);
 }
 
-void
+static void
 geo_read(void)
 {
 	xml_read();
 }
 #endif
 
-void
+static void
 geo_rd_deinit(void)
 {
 	xml_deinit();
 }
 
-void
+static void
 geo_wr_init(const char *fname)
 {
 	ofd = xfopen(fname, "w", MYNAME);
 }
 
-void
+static void
 geo_wr_deinit(void)
 {
 	fclose(ofd);
@@ -188,7 +200,7 @@ geo_waypt_pr(const waypoint *waypointp)
 	fprintf(ofd, "</waypoint>\n");
 }
 
-void
+static void
 geo_write(void)
 {
 	fprintf(ofd, "<?xml version=\"1.0\"?><loc version=\"1.0\" src=\"EasyGPS\">\n");
@@ -206,5 +218,6 @@ ff_vecs_t geo_vecs = {
 	geo_read,
 	geo_write,
 	NULL, 
-	geo_args
+	geo_args,
+	CET_CHARSET_UTF8, 0	/* CET-REVIEW */
 };

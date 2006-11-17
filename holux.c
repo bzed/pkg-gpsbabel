@@ -34,7 +34,7 @@ History:
 
 static  FILE *file_in;
 static 	unsigned char *HxWFile;
-static  void *mkshort_handle;
+static  short_handle mkshort_handle;
 static  char fOutname[256];
 #define MYNAME "Holux"
 
@@ -70,7 +70,7 @@ wr_init(const char *fname)
 
 static void wr_deinit(void)
 {   
-        mkshort_del_handle(mkshort_handle);
+        mkshort_del_handle(&mkshort_handle);
 
 }
 
@@ -90,6 +90,7 @@ static void data_read(void)
 	struct tm tm;
 	struct tm *ptm;
 
+    memset(&tm, 0, sizeof(tm));
 
     HxWpt = xcalloc(GM100_WPO_FILE_SIZE, 1);
 
@@ -124,15 +125,25 @@ static void data_read(void)
   		wpt_tmp->creation_time = 0;
         if (pWptHxTmp->date.year)
         {
+#if 0
+	/* Unless there's some endian swapping that I don't see,
+	 * this can't be right.  Then again, the definition of the
+	 * the structure itself has a pretty serious disregard for
+	 * host word size issues... - rjl
+	 */
             ptm = gmtime((time_t*)&pWptHxTmp->time);
-		    tm.tm_hour = ptm->tm_hour; 
-            tm.tm_min = ptm->tm_min;
-		    tm.tm_sec = ptm->tm_sec;
+#else
+		time_t wt = le_read32(&pWptHxTmp->time);
+		ptm = gmtime(&wt);
+#endif
+		tm.tm_hour = ptm->tm_hour; 
+		tm.tm_min = ptm->tm_min;
+		tm.tm_sec = ptm->tm_sec;
 
-            tm.tm_mday = pWptHxTmp->date.day;
-		    tm.tm_mon = pWptHxTmp->date.month - 1;
-		    tm.tm_year = pWptHxTmp->date.year - 1900;
-            wpt_tmp->creation_time = mktime(&tm); 
+		tm.tm_mday = pWptHxTmp->date.day;
+		tm.tm_mon = pWptHxTmp->date.month - 1;
+		tm.tm_year = pWptHxTmp->date.year - 1900;
+		wpt_tmp->creation_time = mktime(&tm); 
         }
 
         lon = le_read32(&pWptHxTmp->pt.iLongitude) / 36000.0; 
@@ -187,9 +198,8 @@ static void holux_disp(const waypoint *wpt)
 
 
     /* round it to increase the accuracy */
-    lon += (double)((int)lon/abs((int)lon)) * .5;
-    lat += (double)((int)lat/abs((int)lat)) * .5;
-
+    if (lon != 0) lon += (double)((int)lon/abs((int)lon)) * .5;
+    if (lat != 0) lat += (double)((int)lat/abs((int)lat)) * .5;
 
     sIndex =  le_read16(&((WPTHDR *)HxWFile)->num);
     ((WPTHDR *)HxWFile)->idx[sIndex] = sIndex;         /* set the waypoint index  */
@@ -298,5 +308,7 @@ ff_vecs_t holux_vecs = {
 	wr_deinit,
 	data_read,
 	data_write,
-	NULL
+	NULL,
+	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

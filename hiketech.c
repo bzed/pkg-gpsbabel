@@ -31,7 +31,7 @@ static route_head *trk_head;
 
 static
 arglist_t hiketech_args[] = {
-	{0, 0, 0, 0, 0}
+	ARG_TERMINATOR
 };
 
 /* Waypoints */
@@ -79,24 +79,25 @@ hiketech_rd_init(const char *fname)
 	xml_init(fname, ht_map, NULL);
 }
 
-void
+static void
 hiketech_read(void)
 {
 	xml_read();
 }
 
-void
+static void
 hiketech_rd_deinit(void)
 {
+	xml_deinit();
 }
 
-void
+static void
 hiketech_wr_init(const char *fname)
 {
         ofd = xfopen(fname, "w", MYNAME);
 }
 
-void
+static void
 hiketech_wr_deinit(void)
 {
         fclose(ofd);
@@ -240,7 +241,7 @@ void	ht_trk_pnt_s(const char *args, const char **unused)
 static
 void	ht_trk_pnt_e(const char *args, const char **unused)
 {
-	route_add_wpt(trk_head, wpt_tmp);
+	track_add_wpt(trk_head, wpt_tmp);
 }
 
 static
@@ -292,6 +293,7 @@ ff_vecs_t hiketech_vecs = {
         hiketech_read,
         hiketech_write,
         NULL,
-        hiketech_args
+        hiketech_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
 

@@ -31,7 +31,7 @@ static route_head *trk_head;
 
 static
 arglist_t glogbook_args[] = {
-	{0, 0, 0, 0, 0}
+	ARG_TERMINATOR
 };
 
 /* Tracks */
@@ -54,31 +54,31 @@ static xg_tag_mapping gl_map[] = {
  { NULL, 	0,         NULL}
 };
 
-void
+static void
 glogbook_rd_init(const char *fname)
 {
 	xml_init(fname, gl_map, NULL);
 }
 
-void
+static void
 glogbook_read(void)
 {
 	xml_read();
 }
 
-void
+static void
 glogbook_rd_deinit(void)
 {
 	xml_deinit();
 }
 
-void
+static void
 glogbook_wr_init(const char *fname)
 {
         ofd = xfopen(fname, "w", MYNAME);
 }
 
-void
+static void
 glogbook_wr_deinit(void)
 {
         fclose(ofd);
@@ -100,19 +100,19 @@ glogbook_waypt_pr(const waypoint *wpt)
 	fprintf(ofd, "            </Trackpoint>\n");
 }
 
-void
+static void
 glogbook_hdr( const route_head *rte)
 {
 	fprintf(ofd, "        <Track>\n");
 }
 
-void
+static void
 glogbook_ftr(const route_head *rte)
 {
 	fprintf(ofd, "        </Track>\n");
 }
 
-void
+static void
 glogbook_write(void)
 {
 	fprintf(ofd, "<?xml version=\"1.0\" ?>\n");
@@ -142,7 +142,7 @@ void	gl_trk_pnt_s(const char *args, const char **unused)
 
 void	gl_trk_pnt_e(const char *args, const char **unused)
 {
-	route_add_wpt(trk_head, wpt_tmp);
+	track_add_wpt(trk_head, wpt_tmp);
 }
 
 void	gl_trk_utc(const char *args, const char **unused)
@@ -169,7 +169,7 @@ void	gl_trk_alt(const char *args, const char **unused)
 
 ff_vecs_t glogbook_vecs = {
         ff_type_file,
-	FF_CAP_RW_ALL,
+	{ ff_cap_none, ff_cap_read | ff_cap_write, ff_cap_none},
         glogbook_rd_init,
         glogbook_wr_init,
         glogbook_rd_deinit,
@@ -177,6 +177,6 @@ ff_vecs_t glogbook_vecs = {
         glogbook_read,
         glogbook_write,
         NULL,
-        glogbook_args
+        glogbook_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
-

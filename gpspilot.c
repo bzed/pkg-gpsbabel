@@ -20,6 +20,7 @@
  */
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 
@@ -48,14 +49,14 @@ struct runways {
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-struct pdb *opdb;
-struct pdb_record *opdb_rec;
+static struct pdb *opdb;
+static struct pdb_record *opdb_rec;
 static char *dbname = NULL;
 
 static
 arglist_t gpspilot_args[] = {
-        {"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING},
-        {0, 0, 0, 0, 0}
+        {"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+        ARG_TERMINATOR
 };
 
 static void
@@ -255,5 +256,7 @@ ff_vecs_t gpspilot_vecs = {
 	data_read,
 	data_write,
 	NULL, 
-	gpspilot_args
+	gpspilot_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

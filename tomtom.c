@@ -29,6 +29,12 @@
     supposed to contain.  Thus, they are not currently supported.  (The one
     I saw was due to an errant pair of double-quotes in the input to
     makeov2.exe.)   -- Ron Parker, 28 April 2005
+    
+    Because they've been seen in the wild, I have updated the reader to 
+    deal with type 3 as if they were type 2.  I still haven't seen any 
+    records that fill in the other two strings, so until I know for sure
+    that they are indeed strings, I'm just putting them on the end of the 
+    description string beyond the NUL terminator.  -- Ron Parker, 17 July 2006
 */
    
 
@@ -41,7 +47,7 @@ static FILE *file_out;
 
 static
 arglist_t tomtom_args[] = {
-	{0, 0, 0, 0 }
+	ARG_TERMINATOR
 };
 
 static void
@@ -104,7 +110,7 @@ data_read(void)
 			read_long( file_in );
 			read_long( file_in );
 		}
-		else if ( rectype == 2 ) {
+		else if ( rectype == 2 || rectype == 3 ) {
 			recsize = read_long( file_in );
 			x = read_long( file_in );
 			y = read_long( file_in );
@@ -348,4 +354,5 @@ ff_vecs_t tomtom_vecs = {
 	data_write,
 	NULL,
 	tomtom_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

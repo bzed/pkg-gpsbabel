@@ -26,6 +26,7 @@
 
 #define MYNAME "vitosmt"
 #include "defs.h"
+#include "grtcirc.h"
 
 static FILE				*infile	=0;
 static FILE				*ofs	=0;
@@ -52,11 +53,8 @@ static double
 ReadDouble(FILE * f)
 {
 	unsigned char buffer[8] = "\0\0\0\0\0\0\0\0";
-	double result=0;
-
 	fread(buffer, sizeof (buffer), 1, f);
-	le_read64(&result,buffer);
-	return result;
+	return le_read_double(buffer );
 }
 
 
@@ -74,11 +72,8 @@ static void
 WriteDouble(void* ptr, double d)
 {
   unsigned char result[8]="\0\0\0\0\0\0\0\0";
-
-  le_read64(result, &d);
+  le_write_double(result,d);
   memcpy(ptr, result, 8);
-
-  return;
 }
 
 
@@ -108,7 +103,7 @@ vitosmt_read(void)
 	double			lonrad			=0;
 	double			elev			=0;
 	unsigned char*	timestamp		=0;
-	struct tm		tmStruct		={0,0,0,0,0,0,0,0,0};
+	struct tm		tmStruct;
 	double			seconds			=0.0;
 	double			speed			=0.0;
 	double			course			=0.0;
@@ -118,7 +113,8 @@ vitosmt_read(void)
 	unsigned char	gpssats			=0;
 	int				serial			=0;
 
-		
+	
+	memset(&tmStruct, 0, sizeof(tmStruct));
 	/* 
 	 * 24 bytes header 
 	 */
@@ -174,8 +170,8 @@ vitosmt_read(void)
 
 		wpt_tmp = waypt_new();
 		
-		wpt_tmp->latitude	=(latrad * 180) / M_PI;
-		wpt_tmp->longitude	=(lonrad * 180) / M_PI;
+		wpt_tmp->latitude	=DEG(latrad);
+		wpt_tmp->longitude	=DEG(lonrad);
 		wpt_tmp->altitude	=elev;
 
 		tmStruct.tm_year	=timestamp[0]+100;
@@ -235,7 +231,7 @@ vitosmt_read(void)
 				route_head = route_head_alloc();
 				track_add_head(route_head);
 			}
-			route_add_wpt(route_head, wpt_tmp);
+			track_add_wpt(route_head, wpt_tmp);
 		}
 
 		xfree(timestamp);
@@ -269,9 +265,9 @@ vitosmt_waypt_pr(const waypoint *waypointp)
 	++count;
 	workbuffer = xcalloc(vitosmt_datasize,1);
 
-	WriteDouble(&workbuffer[position], (M_PI*waypointp->latitude)/180 ); 
+	WriteDouble(&workbuffer[position], RAD(waypointp->latitude) ); 
 	position += sizeof(double);
-	WriteDouble(&workbuffer[position], (M_PI*waypointp->longitude)/180 );
+	WriteDouble(&workbuffer[position], RAD(waypointp->longitude) );
 	position += sizeof(double);
 	if ( waypointp->altitude-1 > unknown_alt)
 		WriteDouble(&workbuffer[position], waypointp->altitude );
@@ -409,5 +405,6 @@ ff_vecs_t vitosmt_vecs = {
 	vitosmt_read,
 	vitosmt_write,
 	NULL, 
-	NULL
+	NULL,
+	CET_CHARSET_UTF8, 1	/* do nothing | CET-REVIEW */
 };

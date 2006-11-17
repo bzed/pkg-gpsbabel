@@ -26,30 +26,31 @@
 
 #include "defs.h"
 #include "garmin_tables.h"
+#include "jeeps/gpsmath.h"
 #include <ctype.h>
 
 static	FILE	*mps_file_in;
 static	FILE	*mps_file_out;
 static	FILE	*mps_file_temp;
-static	void	*mkshort_handle;
+static	short_handle mkshort_handle;
 
 static	int		mps_ver_in = 0;
 static	int		mps_ver_out = 0;
 static	int		mps_ver_temp = 0;
 
 /* Temporary pathname used when merging gpsbabel output with an existing file */
-static	char	tempname[256];
-static	char	origname[256];
+static char *tempname;
+static char *fin_name;
 
 static	const waypoint	*prevRouteWpt;
 /* Private queues of written out waypoints */
 static queue written_wpt_head;
 static queue written_route_wpt_head;
-static void *written_wpt_mkshort_handle;
+static short_handle written_wpt_mkshort_handle;
 
 /* Private queue of read in waypoints assumed to be used only for routes */
 static queue read_route_wpt_head;
-static void *read_route_wpt_mkshort_handle;
+static short_handle read_route_wpt_mkshort_handle;
 
 #define MPSDEFAULTWPTCLASS		0
 #define MPSHIDDENROUTEWPTCLASS	8
@@ -68,53 +69,48 @@ static void *read_route_wpt_mkshort_handle;
 char *snlen = NULL;
 char *snwhiteopt = NULL;
 char *mpsverout = NULL;
-char *mpsmergeout = NULL;
+char *mpsmergeouts = NULL;
+int   mpsmergeout;
 char *mpsusedepth = NULL;
 char *mpsuseprox = NULL;
 
 static
 arglist_t mps_args[] = {
-	{"snlen", &snlen, "Length of generated shortnames", NULL, ARGTYPE_INT },
-	{ "snwhite", &snwhiteopt, "(0/1) Allow whitespace synth. shortnames",
-		NULL, ARGTYPE_BOOL},
+	{"snlen", &snlen, "Length of generated shortnames", "10", ARGTYPE_INT, "1", NULL },
+	{ "snwhite", &snwhiteopt, "Allow whitespace synth. shortnames",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"mpsverout", &mpsverout, 
 		"Version of mapsource file to generate (3,4,5)", NULL,
-		ARGTYPE_INT },
-	{"mpsmergeout", &mpsmergeout, "Merge output with existing file", 
-		NULL, ARGTYPE_BOOL },
+		ARGTYPE_INT, ARG_NOMINMAX },
+	{"mpsmergeout", &mpsmergeouts, "Merge output with existing file", 
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"mpsusedepth", &mpsusedepth, 
 		"Use depth values on output (default is ignore)", NULL,
-		ARGTYPE_BOOL },
+		ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"mpsuseprox", &mpsuseprox, 
 		"Use proximity values on output (default is ignore)", 
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 /*
  * A wrapper to ensure the doubles we fwrite are in correct endianness.
  */
 
-void
-le_fwrite64(void *ptr, int sz, int ct, FILE *stream)
+static void
+le_fwrite_double(double d, FILE *stream)
 {
 	unsigned char cbuf[8];
-
-	if ((sz != 8) || (ct != 1)) {
-		fatal(MYNAME ": Bad internal arguments to le_fwrite64.\n");
-	}
-
-	le_read64(cbuf, ptr);
+	le_write_double(cbuf,d);
 	fwrite(cbuf, 8, 1, stream);
 }
 
-void
-le_fread64(void *ptr, int sz, int ct, FILE *stream)
+static double
+le_fread_double( FILE *stream)
 {
 	unsigned char cbuf[8];
-
 	fread(cbuf, 8, 1, stream);
-	le_read64(ptr, cbuf);
+	return le_read_double(cbuf);
 }
 
 static void 
@@ -170,65 +166,8 @@ mps_wpt_q_add(const queue *whichQueue, const waypoint *wpt)
 	ENQUEUE_TAIL(whichQueue, &written_wpt->Q);
 }
 
-const char *
-mps_find_desc_from_icon_number(const int icon, garmin_formats_e garmin_format)
-{
-	icon_mapping_t *i;
-
-	for (i = garmin_icon_table; i->icon; i++) {
-		switch (garmin_format) {
-			case MAPSOURCE:
-				if (icon == i->mpssymnum)
-					return i->icon;
-				break;
-			case PCX:
-			case GARMIN_SERIAL:
-				if (icon == i->pcxsymnum)
-					return i->icon;
-				break;
-			default:
-				fatal(MYNAME ": unknown garmin format.\n");
-		}
-	}
-	return DEFAULTICONDESCR;
-}
-
-int
-mps_find_icon_number_from_desc(const char *desc, garmin_formats_e garmin_format)
-{
-	icon_mapping_t *i;
-	int def_icon = DEFAULTICONVALUE;
-	int n;
-
-	if (!desc)
-		return def_icon;
-
-	/*
-	 * If we were given a numeric icon number as a description 
-	 * (i.e. 8255), just return that.
-	 */
-	n = atoi(desc);
-	if (n)  {
-		return n;
-	}
-
-	for (i = garmin_icon_table; i->icon; i++) {
-		if (case_ignore_strcmp(desc,i->icon) == 0) {
-			switch (garmin_format) {
-			case MAPSOURCE:
-				return i->mpssymnum;
-			case PCX:
-			case GARMIN_SERIAL:
-				return i->pcxsymnum;
-			default:
-				fatal(MYNAME ": unknown garmin format.\n");
-			}
-		}
-	}
-	return def_icon;
-}
-
-int mps_converted_icon_number(const int icon_num, const int mpsver, garmin_formats_e garmin_format)
+static int 
+mps_converted_icon_number(const int icon_num, const int mpsver, garmin_formats_e garmin_format)
 {
 	int def_icon = DEFAULTICONVALUE;
 
@@ -287,7 +226,7 @@ mps_rd_deinit(void)
 {
 	fclose(mps_file_in);
 	if ( read_route_wpt_mkshort_handle ) {
-		mkshort_del_handle( read_route_wpt_mkshort_handle );
+		mkshort_del_handle( &read_route_wpt_mkshort_handle );
 	}
 	/* flush the "private" queue of waypoints read for routes */
 	mps_wpt_q_deinit(&read_route_wpt_head);
@@ -296,10 +235,15 @@ mps_rd_deinit(void)
 static void
 mps_wr_init(const char *fname)
 {
+	fin_name = xstrdup(fname);
+	if (mpsmergeouts) {
+		mpsmergeout = atoi(mpsmergeouts);
+	}
+
 	if (mpsmergeout) {
 		mps_file_out = xfopen(fname, "rb", MYNAME);
 		if (mps_file_out == NULL) {
-			mpsmergeout = NULL;
+			mpsmergeout = 0;
 		}
 		else {
 			fclose(mps_file_out);
@@ -309,14 +253,13 @@ mps_wr_init(const char *fname)
 				/* create a temporary name  based on a random char and the existing name */
 				/* then test if it already exists, if so try again with another rand num */
 				/* yeah, yeah, so there's probably a library function for this           */
-				sprintf(tempname, "%s.%08x", fname, rand());
+				xasprintf(&tempname, "%s.%08x", fname, rand());
 				mps_file_temp = fopen(tempname, "rb");
 				if (mps_file_temp == NULL) break;
 				fclose(mps_file_temp);
 			}
 			rename(fname, tempname);
 			mps_file_temp = xfopen(tempname, "rb", MYNAME);
-			strcpy(origname, fname);	/* save in case we need to revert the renamed file */
 		}
 	}
 
@@ -336,14 +279,16 @@ mps_wr_deinit(void)
 	if (mpsmergeout) {
 		fclose(mps_file_temp);
 		remove(tempname);
+		xfree(tempname);
 	}
 
 	if ( written_wpt_mkshort_handle ) {
-		mkshort_del_handle( written_wpt_mkshort_handle );
+		mkshort_del_handle( &written_wpt_mkshort_handle );
 	}
 	/* flush the "private" queue of waypoints written */
 	mps_wpt_q_deinit(&written_wpt_head);
 	mps_wpt_q_deinit(&written_route_wpt_head);
+	xfree(fin_name);
 }
 
 /*
@@ -471,7 +416,8 @@ mps_mapsegment_r(FILE *mps_file, int mps_ver)
 {
 	int reclen;
 
-	/* At the moment we're not doing anything with map segments, but here's the template code as if we were
+#if 0
+	/* At the moment we're not doing anything with map segments, but here's the template code as if we were */
 	char hdr[100];
 	fread(&CDid, 4, 1, mps_file);
 	reclen = le_read32(&CDid);
@@ -484,6 +430,7 @@ mps_mapsegment_r(FILE *mps_file, int mps_ver)
 	mps_readstr(mps_file, CDAreaName, sizeof(CDAreaName));
 
 	fread(hdr, 4, 1, mps_file); /* trailing long value */
+#endif	
 	
 	fseek(mps_file, -5, SEEK_CUR);
 	fread(&reclen, 4, 1, mps_file);
@@ -554,6 +501,7 @@ mps_waypoint_r(FILE *mps_file, int mps_ver, waypoint **wpt, unsigned int *mpscla
 	int lat;
 	int lon;
 	int	icon;
+	int dynamic;
 
  	waypoint	*thisWaypoint = NULL;
 	double	mps_altitude = unknown_alt;
@@ -582,22 +530,22 @@ mps_waypoint_r(FILE *mps_file, int mps_ver, waypoint **wpt, unsigned int *mpscla
 	
 	fread(tbuf, 1, 1, mps_file);				/* altitude validity */
 	if (tbuf[0] == 1) {
-		le_fread64(&mps_altitude,sizeof(mps_altitude),1,mps_file);
+		mps_altitude = le_fread_double(mps_file);
 	}
 	else {
 		mps_altitude = unknown_alt;
-		le_fread64(tbuf,sizeof(mps_altitude),1, mps_file);
+		fseek( mps_file, 8, SEEK_CUR );
 	}
 
 	mps_readstr(mps_file, wptdesc, sizeof(wptdesc));
 
 	fread(tbuf, 1, 1, mps_file);				/* proximity validity */
 	if (tbuf[0] == 1) {
-		le_fread64(&mps_proximity,sizeof(mps_proximity),1,mps_file);
+		mps_proximity = le_fread_double(mps_file);
 	}
 	else {
 		mps_proximity = unknown_alt;
-		le_fread64(tbuf,sizeof(mps_proximity),1, mps_file);
+		fseek( mps_file, 8, SEEK_CUR );
 	}
 
 	fread(tbuf, 4, 1, mps_file);					/* display flag */
@@ -613,11 +561,11 @@ mps_waypoint_r(FILE *mps_file, int mps_ver, waypoint **wpt, unsigned int *mpscla
 
 	fread(tbuf, 1, 1, mps_file);					/* depth validity */
 	if (tbuf[0] == 1) {
-		le_fread64(&mps_depth,sizeof(mps_depth),1,mps_file);
+		mps_depth = le_fread_double( mps_file );
 	}
 	else {
 		mps_depth = unknown_alt;
-		le_fread64(tbuf,sizeof(mps_depth),1, mps_file);
+		fseek( mps_file, 8, SEEK_CUR );
 	}
 
 	if ((mps_ver == 4) || (mps_ver == 5)) {
@@ -631,14 +579,15 @@ mps_waypoint_r(FILE *mps_file, int mps_ver, waypoint **wpt, unsigned int *mpscla
 	thisWaypoint->shortname = xstrdup(wptname);
 	thisWaypoint->description = xstrdup(wptdesc);
 	thisWaypoint->notes = xstrdup(wptnotes);
-	thisWaypoint->latitude = lat / 2147483648.0 * 180.0;
-	thisWaypoint->longitude = lon / 2147483648.0 * 180.0;
+	thisWaypoint->latitude = GPS_Math_Semi_To_Deg(lat);
+	thisWaypoint->longitude = GPS_Math_Semi_To_Deg(lon);
 	thisWaypoint->altitude = mps_altitude;
 	thisWaypoint->proximity = mps_proximity;
 	thisWaypoint->depth = mps_depth;
 
 	/* might need to change this to handle version dependent icon handling */
-	thisWaypoint->icon_descr = mps_find_desc_from_icon_number(icon, MAPSOURCE);
+	thisWaypoint->icon_descr = gt_find_desc_from_icon_number(icon, MAPSOURCE, &dynamic);
+	thisWaypoint->wpt_flags.icon_descr_is_dynamic = dynamic;
 
 	/* The following Now done elsewhere since it can be useful to read in and 
 	  perhaps not add to the list */
@@ -656,10 +605,9 @@ mps_waypoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt, const int isRou
 {
 	unsigned char hdr[100];
 	int reclen;
-	int lat = wpt->latitude  / 180.0 * 2147483648.0;
-	int lon = wpt->longitude  / 180.0 * 2147483648.0;
-	int	icon;
-	char *src;
+	int lat, lon;
+	int icon;
+	char *src = "";         /* default to empty string */
 	char *ident;
 	char *ascii_description;
 	char zbuf[25];
@@ -671,6 +619,9 @@ mps_waypoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt, const int isRou
 	double	mps_proximity = (mpsuseprox ? wpt->proximity : unknown_alt);
 	double	mps_depth = (mpsusedepth ? wpt->depth : unknown_alt);
 	
+	lat = GPS_Math_Deg_To_Semi(wpt->latitude);
+	lon = GPS_Math_Deg_To_Semi(wpt->longitude);
+
 	if(wpt->description) src = wpt->description;
 	if(wpt->notes) src = wpt->notes;
 	ident = global_opts.synthesize_shortnames ?
@@ -681,16 +632,16 @@ mps_waypoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt, const int isRou
 	memset(ffbuf, 0xff, sizeof(ffbuf));
 
 	/* might need to change this to handle version dependent icon handling */
-	icon = mps_find_icon_number_from_desc(wpt->icon_descr, MAPSOURCE);
+	icon = gt_find_icon_number_from_desc(wpt->icon_descr, MAPSOURCE);
 
 	if (get_cache_icon(wpt) /* && wpt->icon_descr && (strcmp(wpt->icon_descr, "Geocache Found") != 0)*/) {
-		icon = mps_find_icon_number_from_desc(get_cache_icon(wpt), MAPSOURCE);
+		icon = gt_find_icon_number_from_desc(get_cache_icon(wpt), MAPSOURCE);
 	}
 
 	icon = mps_converted_icon_number(icon, mps_ver, MAPSOURCE);
 
 	/* two NULL (0x0) bytes at end of each string */
-	ascii_description = wpt->description ? str_utf8_to_ascii(wpt->description) : xstrdup("");
+	ascii_description = wpt->description ? xstrdup(wpt->description) : xstrdup("");
 	reclen = strlen(ident) + strlen(ascii_description) + 2;	
 	if ((mps_ver == 4) || (mps_ver == 5)) {
 		/* v4.06 & V5.0*/
@@ -747,7 +698,7 @@ mps_waypoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt, const int isRou
 	else {
 		hdr[0] = 1;
 		fwrite(hdr, 1 , 1, mps_file);
-		le_fwrite64(&mps_altitude, 8 , 1, mps_file);
+		le_fwrite_double( mps_altitude, mps_file );
 	}
 	if (wpt->description) fputs(ascii_description, mps_file);
 	fwrite(zbuf, 1, 1, mps_file);	/* NULL termination */
@@ -760,7 +711,7 @@ mps_waypoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt, const int isRou
 	else {
 		hdr[0] = 1;
 		fwrite(hdr, 1 , 1, mps_file);
-		le_fwrite64(&mps_proximity, 8 , 1, mps_file);
+		le_fwrite_double( mps_proximity, mps_file );
 	}
 
 	le_write32(&display, display);
@@ -782,7 +733,7 @@ mps_waypoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt, const int isRou
 	else {
 		hdr[0] = 1;
 		fwrite(hdr, 1 , 1, mps_file);
-		le_fwrite64(&mps_depth, 8 , 1, mps_file);
+		le_fwrite_double(mps_depth, mps_file);
 	}
 
 	fwrite(zbuf, 2, 1, mps_file);		/* unknown */
@@ -916,7 +867,7 @@ mps_route_r(FILE *mps_file, int mps_ver, route_head **rte)
 	char wptname[MPSNAMEBUFFERLEN];
 	int lat;
 	int lon;
-	short int	rte_autoname = 0;
+	char rte_autoname;
 	int	interlinkStepCount;
 	int	thisInterlinkStep;
 	unsigned int	mpsclass;
@@ -935,35 +886,38 @@ mps_route_r(FILE *mps_file, int mps_ver, route_head **rte)
 	fprintf(stderr, "mps_route_r: reading route %s\n", rtename);
 #endif
 
-	fread(&rte_autoname, 2, 1, mps_file);	/* autoname flag */
-	rte_autoname = le_read16(&rte_autoname);
+	fread(&rte_autoname, 1, 1, mps_file);	/* autoname flag */
 
-	fread(&lat, 4, 1, mps_file); 
-	fread(&lon, 4, 1, mps_file); 
-	lat = le_read32(&lat);			/* max lat of whole route */
-	lon = le_read32(&lon);			/* max lon of whole route */
+	fread(tbuf, 1, 1, mps_file);		/* skip min/max values */
+	if (tbuf[0] == 0) {
 
-	fread(tbuf, 1, 1, mps_file);			/* altitude validity */
-	if (tbuf[0] == 1) {
-		le_fread64(&mps_altitude,sizeof(mps_altitude),1,mps_file);	/* max alt of the whole route */
-	}
-	else {
-		mps_altitude = unknown_alt;
-		le_fread64(tbuf,sizeof(mps_altitude),1, mps_file);
-	}
+		fread(&lat, 4, 1, mps_file); 
+		fread(&lon, 4, 1, mps_file); 
+		lat = le_read32(&lat);			/* max lat of whole route */
+		lon = le_read32(&lon);			/* max lon of whole route */
 
-	fread(&lat, 4, 1, mps_file); 
-	fread(&lon, 4, 1, mps_file); 
-	lat = le_read32(&lat);			/* min lat of whole route */
-	lon = le_read32(&lon);			/* min lon of whole route */
+		fread(tbuf, 1, 1, mps_file);			/* altitude validity */
+		if (tbuf[0] == 1) {
+			mps_altitude = le_fread_double(mps_file);
+		}
+		else {
+			mps_altitude = unknown_alt;
+			fseek( mps_file, 8, SEEK_CUR );
+		}
 
-	fread(tbuf, 1, 1, mps_file);			/* altitude validity */
-	if (tbuf[0] == 1) {
-		le_fread64(&mps_altitude,sizeof(mps_altitude),1,mps_file);	/* min alt of the whole route */
-	}
-	else {
-		mps_altitude = unknown_alt;
-		le_fread64(tbuf,sizeof(mps_altitude),1, mps_file);
+		fread(&lat, 4, 1, mps_file); 
+		fread(&lon, 4, 1, mps_file); 
+		lat = le_read32(&lat);			/* min lat of whole route */
+		lon = le_read32(&lon);			/* min lon of whole route */
+
+		fread(tbuf, 1, 1, mps_file);			/* altitude validity */
+		if (tbuf[0] == 1) {
+			mps_altitude = le_fread_double(mps_file);
+		}
+		else {
+			mps_altitude = unknown_alt;
+			fseek( mps_file, 8, SEEK_CUR );
+		}
 	}
 
 	fread(&rte_count, 4, 1, mps_file);			/* number of waypoints in route */
@@ -1040,11 +994,11 @@ mps_route_r(FILE *mps_file, int mps_ver, route_head **rte)
 	
 		fread(tbuf, 1, 1, mps_file);			/* altitude validity */
 		if (tbuf[0] == 1) {
-			le_fread64(&mps_altitude,sizeof(mps_altitude),1,mps_file);
+			mps_altitude = le_fread_double(mps_file);
 		}
 		else {
 			mps_altitude = unknown_alt;
-			le_fread64(tbuf,sizeof(mps_altitude),1, mps_file);
+			fseek( mps_file, 8, SEEK_CUR );
 		}
 
 		/* with MapSource routes, the real waypoint details are held as a separate waypoint, so copy from there
@@ -1067,8 +1021,8 @@ mps_route_r(FILE *mps_file, int mps_ver, route_head **rte)
 #endif
 				thisWaypoint = waypt_new();
 				thisWaypoint->shortname = xstrdup(wptname);
-				thisWaypoint->latitude = lat / 2147483648.0 * 180.0;
-				thisWaypoint->longitude = lon / 2147483648.0 * 180.0;
+				thisWaypoint->latitude = GPS_Math_Semi_To_Deg(lat);
+				thisWaypoint->longitude = GPS_Math_Semi_To_Deg(lon);
 				thisWaypoint->altitude = mps_altitude;
 				thisWaypoint->depth = mps_depth;
 			}
@@ -1088,11 +1042,11 @@ mps_route_r(FILE *mps_file, int mps_ver, route_head **rte)
 		
 			fread(tbuf, 1, 1, mps_file);			/* altitude validity */
 			if (tbuf[0] == 1) {
-				le_fread64(&mps_altitude,sizeof(mps_altitude),1,mps_file);
+				mps_altitude = le_fread_double( mps_file );
 			}
 			else {
 				mps_altitude = unknown_alt;
-				le_fread64(tbuf,sizeof(mps_altitude),1, mps_file);
+				fseek( mps_file, 8, SEEK_CUR );
 			}
 		}
 
@@ -1157,8 +1111,8 @@ mps_route_r(FILE *mps_file, int mps_ver, route_head **rte)
 			/* should never reach here, but we do need a fallback position */
 			thisWaypoint = waypt_new();
 			thisWaypoint->shortname = xstrdup(wptname);
-			thisWaypoint->latitude = lat / 2147483648.0 * 180.0;
-			thisWaypoint->longitude = lon / 2147483648.0 * 180.0;
+			thisWaypoint->latitude = GPS_Math_Semi_To_Deg(lat);
+			thisWaypoint->longitude = GPS_Math_Semi_To_Deg(lon);
 			thisWaypoint->altitude = mps_altitude;
 		}
 	}
@@ -1181,11 +1135,11 @@ mps_routehdr_w(FILE *mps_file, int mps_ver, const route_head *rte)
 	char		*rname;
 	char		hdr[20];
 	char		zbuf[20];
-	char		*src;
+	char		*src = "";
 	char		*ident;
 
 	waypoint	*testwpt;
-	time_t		uniqueValue;
+	time_t		uniqueValue = 0;
 	int			allWptNameLengths;
 
 	double		maxlat=-90.0;
@@ -1241,7 +1195,7 @@ mps_routehdr_w(FILE *mps_file, int mps_ver, const route_head *rte)
 
 		/* route name */
 		if (!rte->rte_name) {
-			sprintf(hdr, "Route%04x", uniqueValue);
+			sprintf(hdr, "Route%04x", (unsigned) uniqueValue);
 			rname = xstrdup(hdr);
 		}
 		else
@@ -1285,8 +1239,8 @@ mps_routehdr_w(FILE *mps_file, int mps_ver, const route_head *rte)
 		hdr[2] = 0;						/* MSB of don't autoname */
 		fwrite(hdr, 3, 1, mps_file);	/* NULL string terminator + route autoname flag */
 
-		lat = maxlat / 180.0 * 2147483648.0;
-		lon = maxlon / 180.0 * 2147483648.0;
+		lat = GPS_Math_Deg_To_Semi(maxlat);
+		lon = GPS_Math_Deg_To_Semi(maxlon);
 
 		le_write32(&lat, lat);
 		le_write32(&lon, lon);
@@ -1300,11 +1254,11 @@ mps_routehdr_w(FILE *mps_file, int mps_ver, const route_head *rte)
 		else {
 			hdr[0] = 1;
 			fwrite(hdr, 1 , 1, mps_file);
-			le_fwrite64(&maxalt, 8 , 1, mps_file);
+			le_fwrite_double(maxalt, mps_file);
 		}
 
-		lat = minlat / 180.0 * 2147483648.0;
-		lon = minlon / 180.0 * 2147483648.0;
+		lat = GPS_Math_Deg_To_Semi(minlat);
+		lon = GPS_Math_Deg_To_Semi(minlon);
 
 		le_write32(&lat, lat);
 		le_write32(&lon, lon);
@@ -1319,7 +1273,7 @@ mps_routehdr_w(FILE *mps_file, int mps_ver, const route_head *rte)
 			hdr[0] = 1;
 
 			fwrite(hdr, 1 , 1, mps_file);
-			le_fwrite64(&minalt, 8 , 1, mps_file);
+			le_fwrite_double(minalt, mps_file);
 		}
 
 		le_write32(&rte_datapoints, rte_datapoints);
@@ -1346,7 +1300,7 @@ mps_routedatapoint_w(FILE *mps_file, int mps_ver, const waypoint *rtewpt)
 	int			lon;
 	char		zbuf[20];
 	char		ffbuf[20];
-	char		*src;
+	char		*src = "";
 	char		*ident;
 	int			reclen;
 
@@ -1370,8 +1324,8 @@ mps_routedatapoint_w(FILE *mps_file, int mps_ver, const waypoint *rtewpt)
 		fwrite(&reclen, 4, 1, mps_file);
 
 		/* output end point 1 */
-		lat = prevRouteWpt->latitude  / 180.0 * 2147483648.0;
-		lon = prevRouteWpt->longitude  / 180.0 * 2147483648.0;
+		lat = GPS_Math_Deg_To_Semi(prevRouteWpt->latitude);
+		lon = GPS_Math_Deg_To_Semi(prevRouteWpt->longitude);
 		le_write32(&lat, lat);
 		le_write32(&lon, lon);
 
@@ -1385,12 +1339,12 @@ mps_routedatapoint_w(FILE *mps_file, int mps_ver, const waypoint *rtewpt)
 		else {
 			hdr[0] = 1;
 			fwrite(hdr, 1 , 1, mps_file);
-			le_fwrite64(&mps_altitude, 8 , 1, mps_file);
+			le_fwrite_double(mps_altitude, mps_file );
 		}
 
 		/* output end point 2 */
-		lat = rtewpt->latitude  / 180.0 * 2147483648.0;
-		lon = rtewpt->longitude  / 180.0 * 2147483648.0;
+		lat = GPS_Math_Deg_To_Semi(rtewpt->latitude);
+		lon = GPS_Math_Deg_To_Semi(rtewpt->longitude);
 		le_write32(&lat, lat);
 		le_write32(&lon, lon);
 
@@ -1404,25 +1358,25 @@ mps_routedatapoint_w(FILE *mps_file, int mps_ver, const waypoint *rtewpt)
 		else {
 			hdr[0] = 1;
 			fwrite(hdr, 1 , 1, mps_file);
-			le_fwrite64(&mps_altitude, 8 , 1, mps_file);
+			le_fwrite_double(mps_altitude, mps_file);
 		}
 
 		if (rtewpt->latitude > prevRouteWpt->latitude) {
-			maxlat = rtewpt->latitude  / 180.0 * 2147483648.0;
-			minlat = prevRouteWpt->latitude  / 180.0 * 2147483648.0;
+			maxlat = GPS_Math_Deg_To_Semi(rtewpt->latitude);
+			minlat = GPS_Math_Deg_To_Semi(prevRouteWpt->latitude);
 		}
 		else {
-			minlat = rtewpt->latitude  / 180.0 * 2147483648.0;
-			maxlat = prevRouteWpt->latitude  / 180.0 * 2147483648.0;
+			minlat = GPS_Math_Deg_To_Semi(rtewpt->latitude);
+			maxlat = GPS_Math_Deg_To_Semi(prevRouteWpt->latitude);
 		}
 
 		if (rtewpt->longitude > prevRouteWpt->longitude) {
-			maxlon = rtewpt->longitude  / 180.0 * 2147483648.0;
-			minlon = prevRouteWpt->longitude  / 180.0 * 2147483648.0;
+			maxlon = GPS_Math_Deg_To_Semi(rtewpt->longitude);
+			minlon = GPS_Math_Deg_To_Semi(prevRouteWpt->longitude);
 		}
 		else {
-			minlon = rtewpt->longitude  / 180.0 * 2147483648.0;
-			maxlon = prevRouteWpt->longitude  / 180.0 * 2147483648.0;
+			minlon = GPS_Math_Deg_To_Semi(rtewpt->longitude);
+			maxlon = GPS_Math_Deg_To_Semi(prevRouteWpt->longitude);
 		}
 
 		if (rtewpt->altitude != unknown_alt) maxalt = rtewpt->altitude;
@@ -1449,7 +1403,7 @@ mps_routedatapoint_w(FILE *mps_file, int mps_ver, const waypoint *rtewpt)
 		else {
 			hdr[0] = 1;
 			fwrite(hdr, 1 , 1, mps_file);
-			le_fwrite64(&maxalt, 8 , 1, mps_file);
+			le_fwrite_double(maxalt, mps_file);
 		}
 
 		/* output min coords of the link */
@@ -1465,7 +1419,7 @@ mps_routedatapoint_w(FILE *mps_file, int mps_ver, const waypoint *rtewpt)
 		else {
 			hdr[0] = 1;
 			fwrite(hdr, 1 , 1, mps_file);
-			le_fwrite64(&minalt, 8 , 1, mps_file);
+			le_fwrite_double(minalt, mps_file );
 		}
 
 	}
@@ -1600,11 +1554,11 @@ mps_track_r(FILE *mps_file, int mps_ver, route_head **trk)
 	
 		fread(tbuf, 1, 1, mps_file);			/* altitude validity */
 		if (tbuf[0] == 1) {
-			le_fread64(&mps_altitude,sizeof(mps_altitude),1,mps_file);
+			mps_altitude = le_fread_double( mps_file );
 		}
 		else {
 			mps_altitude = unknown_alt;
-			le_fread64(tbuf,sizeof(mps_altitude),1, mps_file);
+			fseek( mps_file, 8, SEEK_CUR );
 		}
 
 		fread(tbuf, 1, 1, mps_file);			/* date/time validity */
@@ -1617,21 +1571,21 @@ mps_track_r(FILE *mps_file, int mps_ver, route_head **trk)
 
 		fread(tbuf, 1, 1, mps_file);			/* depth validity */
 		if (tbuf[0] == 1) {
-			le_fread64(&mps_depth,sizeof(mps_depth),1,mps_file);
+			mps_depth = le_fread_double(mps_file );
 		}
 		else {
 			mps_depth = unknown_alt;
-			le_fread64(tbuf,sizeof(mps_depth),1, mps_file);
+			fseek( mps_file, 8, SEEK_CUR );
 		}
 
 		thisWaypoint = waypt_new();
-		thisWaypoint->latitude = lat / 2147483648.0 * 180.0;
-		thisWaypoint->longitude = lon / 2147483648.0 * 180.0;
+		thisWaypoint->latitude = GPS_Math_Semi_To_Deg(lat);
+		thisWaypoint->longitude = GPS_Math_Semi_To_Deg(lon);
 		thisWaypoint->creation_time = le_read32(&dateTime);
 		thisWaypoint->centiseconds = 0;
 		thisWaypoint->altitude = mps_altitude;
 		thisWaypoint->depth = mps_depth;
-		route_add_wpt(track_head, thisWaypoint);
+		track_add_wpt(track_head, thisWaypoint);
 
 	}		/* while (trk_count--) */
 
@@ -1653,7 +1607,7 @@ mps_trackhdr_w(FILE *mps_file, int mps_ver, const route_head *trk)
 	char		*tname;
 	char		hdr[20];
 	waypoint	*testwpt;
-	time_t		uniqueValue;
+	time_t		uniqueValue = 0;
 
 	queue *elem, *tmp;
 
@@ -1674,7 +1628,7 @@ mps_trackhdr_w(FILE *mps_file, int mps_ver, const route_head *trk)
 
 		/* track name */
 		if (!trk->rte_name) {
-			sprintf(hdr, "Track%04x", uniqueValue);
+			sprintf(hdr, "Track%04x", (unsigned) uniqueValue);
 			tname = xstrdup(hdr);
 		}
 		else
@@ -1723,13 +1677,15 @@ static void
 mps_trackdatapoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt)
 {
 	unsigned char hdr[10];
-	int lat = wpt->latitude  / 180.0 * 2147483648.0;
-	int lon = wpt->longitude  / 180.0 * 2147483648.0;
+	int lat, lon;
 	time_t	t = wpt->creation_time;
 	char zbuf[10];
 
 	double	mps_altitude = wpt->altitude;
 	double	mps_depth = (mpsusedepth ? wpt->depth : unknown_alt);
+
+	lat = GPS_Math_Deg_To_Semi(wpt->latitude);
+	lon = GPS_Math_Deg_To_Semi(wpt->longitude);
 
 	memset(zbuf, 0, sizeof(zbuf));
 
@@ -1744,7 +1700,7 @@ mps_trackdatapoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt)
 	else {
 		hdr[0] = 1;
 		fwrite(hdr, 1 , 1, mps_file);
-		le_fwrite64(&mps_altitude, 8 , 1, mps_file);
+		le_fwrite_double(mps_altitude, mps_file);
 	}
 
 	if (t > 0) {					/* a valid time is assumed to > 0 */
@@ -1763,7 +1719,7 @@ mps_trackdatapoint_w(FILE *mps_file, int mps_ver, const waypoint *wpt)
 	else {
 		hdr[0] = 1;
 		fwrite(hdr, 1 , 1, mps_file);
-		le_fwrite64(&mps_depth, 8 , 1, mps_file);
+		le_fwrite_double(mps_depth, mps_file );
 	}
 }
 
@@ -1907,7 +1863,8 @@ mps_write(void)
 
 	char			recType;
 	int				reclen;
-	int				reclen2;
+    /* TODO: This kills a compiler warning but I'm not sure it's right */
+	int				reclen2 = 0;
 	unsigned int	tocopy;
 	unsigned int	block;
 	
@@ -1916,10 +1873,7 @@ mps_write(void)
 
 	unsigned char	copybuf[8192];
 
-	if (snlen)
-		short_length = atoi(snlen);
-	else
-		short_length = 10;
+	short_length = atoi(snlen);
 
 	if (mpsmergeout) {
 		/* need to skip over the merging header and test merge version */
@@ -1932,8 +1886,8 @@ mps_write(void)
 				/* then delete the "real" file and rename the temporarily renamed file back */
 				fclose(mps_file_temp);
 				fclose(mps_file_out);
-				remove(origname);
-				rename(tempname,origname);
+				remove(fin_name);
+				rename(tempname, fin_name);
 				fatal (MYNAME ": merge source version is %d, requested out version is %d\n", mps_ver_temp, atoi(mpsverout));
 			}
 		}
@@ -2165,7 +2119,7 @@ mps_write(void)
 	}
 	else mps_mapsetname_w(mps_file_out, mps_ver_out);
 
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 
 }
 
@@ -2179,5 +2133,6 @@ ff_vecs_t mps_vecs = {
 	mps_read,
 	mps_write,
 	NULL,
-	mps_args
+	mps_args,
+	CET_CHARSET_MS_ANSI	/* CET-REVIEW */
 };
