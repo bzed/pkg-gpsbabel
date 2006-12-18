@@ -1,3 +1,9 @@
+gpsbabel (1.3.2-2) unstable; urgency=low
+
+  * Fix doc generation.  Closes: #403092.
+
+ -- John Goerzen <jgoerzen@complete.org>  Mon, 18 Dec 2006 05:53:16 -0600
+
 gpsbabel (1.3.2-1) unstable; urgency=low
 
   * New upstream version.  Closes: #383899, #380533, #304178.
