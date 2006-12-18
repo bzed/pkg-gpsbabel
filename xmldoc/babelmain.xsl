@@ -4,7 +4,7 @@
                 exclude-result-prefixes="exsl">
 
 
-<xsl:import href="http://docbook.sourceforge.net/release/xsl/current/xhtml/chunk.xsl"/>
+<xsl:import href="file:///usr/share/xml/docbook/stylesheet/nwalsh/xhtml/chunk.xsl"/>
 
 <xsl:param name="html.stylesheet">http://www.gpsbabel.org/style3.css</xsl:param>
 <xsl:param name="use.id.as.filename">1</xsl:param>
