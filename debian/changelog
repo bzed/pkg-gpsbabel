@@ -1,4 +1,4 @@
-gpsbabel (1.3.2-2) unstable; urgency=low
+gpsbabel (1.3.2-2) unstable; urgency=high
 
   * Fix doc generation.  Closes: #403092.
 
