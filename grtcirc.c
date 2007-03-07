@@ -18,8 +18,12 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
+#include <errno.h>
 #include <stdio.h>
 #include "defs.h"
+#include "grtcirc.h"
+
+static const double EARTH_RAD = 6378137.0;
 
 static void crossproduct( double x1, double y1, double z1, 
 		   double x2, double y2, double z2,
@@ -45,14 +49,71 @@ static double dotproduct( double x1, double y1, double z1,
  * time, so why not leave the expression human-readable?
  */
 
-double tomiles( double rads ) {
-    const double radmiles = 6378137.0*100.0/2.54/12.0/5280.0;
+double radtomiles( double rads ) {
+    const double radmiles = EARTH_RAD*100.0/2.54/12.0/5280.0;
     return (rads*radmiles);
 }
 
-double gcdist( double lat1, double lon1, double lat2, double lon2 ) {
-  return acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon1-lon2));
+double radtometers( double rads ) {
+    return ( rads * EARTH_RAD );
 }
+
+double gcdist( double lat1, double lon1, double lat2, double lon2 ) 
+{
+	double res;
+	double sdlat, sdlon;
+
+	errno = 0;
+
+	sdlat = sin((lat1 - lat2) / 2.0);
+	sdlon = sin((lon1 - lon2) / 2.0);
+
+	res = sqrt(sdlat * sdlat + cos(lat1) * cos(lat2) * sdlon * sdlon);
+
+	if (res > 1.0) {
+		res = 1.0;
+	} else if (res < -1.0) {
+		res = -1.0;
+	}
+
+	res = asin(res);
+
+	if (
+#if defined isnan
+		/* This is a C99-ism. */
+	    (isnan(res)) ||
+#endif
+	    (errno == EDOM)) { /* this should never happen: */
+		errno = 0;         /* Math argument out of domain of
+		function, */
+		return 0;          /* or value returned is not a number */
+	}
+
+	return 2.0 * res;
+}
+
+/* This value is the heading you'd leave point 1 at to arrive at point 2. 
+ * Inputs and outputs are in radians.
+ */
+double heading( double lat1, double lon1, double lat2, double lon2 ) {
+  double v1, v2;
+  v1 = sin(lon1 - lon2) * cos(lat2);
+  v2 = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(lon1 - lon2);
+  /* rounding error protection */
+  if (fabs(v1) < 1e-15) v1 = 0.0;
+  if (fabs(v2) < 1e-15) v2 = 0.0;     
+  return atan2(v1, v2);
+}
+
+/* As above, but outputs is in degrees from 0 - 359.  Inputs are still radians. */
+double heading_true_degrees( double lat1, double lon1, double lat2, double lon2 ) 
+{
+  double h = 360.0 - DEG(heading(lat1, lon1, lat2, lon2));
+  if (h >= 360.0) h -= 360.0;
+
+  return h;
+}
+
  
 double linedist(double lat1, double lon1,
 		double lat2, double lon2,
@@ -81,9 +142,9 @@ double linedist(double lat1, double lon1,
   int newpoints;
   
   /* degrees to radians */
-  lat1 *= M_PI/180.0;  lon1 *= M_PI/180.0;
-  lat2 *= M_PI/180.0;  lon2 *= M_PI/180.0;
-  lat3 *= M_PI/180.0;  lon3 *= M_PI/180.0;
+  lat1 = RAD(lat1);  lon1 = RAD(lon1);
+  lat2 = RAD(lat2);  lon2 = RAD(lon2);
+  lat3 = RAD(lat3);  lon3 = RAD(lon3);
 
   newpoints = 1;
   if ( lat1 == _lat1 && lat2 == _lat2 && lon1 == _lon1 && lon2 == _lon2) {
@@ -203,3 +264,85 @@ double linedist(double lat1, double lon1,
   return 0;
 }
 
+/* 
+ * Compute the position of a point partially along the geodesic from 
+ * lat1,lon1 to lat2,lon2
+ * 
+ * Ref: http://mathworld.wolfram.com/RotationFormula.html
+ */
+
+void linepart(double lat1, double lon1,
+		double lat2, double lon2,
+		double frac,
+		double *reslat, double *reslon ) {
+
+  double x1,y1,z1;
+  double x2,y2,z2;
+  double xa,ya,za,la;
+  double xr, yr, zr;
+  double xx, yx, zx;
+  
+  double theta = 0;
+  double phi = 0;
+  double cosphi = 0;
+  double sinphi = 0;
+
+  /* result must be in degrees */
+  *reslat = lat1;
+  *reslon = lon1;
+  
+  /* degrees to radians */
+  lat1 = RAD(lat1);  lon1 = RAD(lon1);
+  lat2 = RAD(lat2);  lon2 = RAD(lon2);
+
+  /* polar to ECEF rectangular */
+  x1 = cos(lon1)*cos(lat1); y1 = sin(lat1); z1 = sin(lon1)*cos(lat1);
+  x2 = cos(lon2)*cos(lat2); y2 = sin(lat2); z2 = sin(lon2)*cos(lat2);
+
+  /* 'a' is the axis; the line that passes through the center of the earth
+   * and is perpendicular to the great circle through point 1 and point 2 
+   * It is computed by taking the cross product of the '1' and '2' vectors.*/
+  crossproduct( x1, y1, z1, x2, y2, z2, &xa, &ya, &za );
+  la = sqrt(xa*xa+ya*ya+za*za);
+
+  if ( la ) {
+    xa /= la;
+    ya /= la;
+    za /= la;
+  }
+  /* if la is zero, the points are either equal or directly opposite 
+   * each other.  Either way, there's no single geodesic, so we punt. */
+  if ( la ) {
+    crossproduct( x1, y1, z1, xa, ya, za, &xx, &yx, &zx );
+   
+    
+    theta = atan2( dotproduct(xx,yx,zx,x2,y2,z2),
+		   dotproduct(x1,y1,z1,x2,y2,z2));
+    
+    phi = frac * theta;
+    cosphi = cos(phi);
+    sinphi = sin(phi);
+    
+    
+    /* The second term of the formula from the mathworld reference is always
+     * zero, because r (lat1,lon1) is always perpendicular to n (a here) */
+    xr = x1*cosphi + xx * sinphi;
+    yr = y1*cosphi + yx * sinphi;
+    zr = z1*cosphi + zx * sinphi;
+    
+    if ( xr > 1 ) xr = 1;
+    if ( xr < -1 ) xr = -1;
+    if ( yr > 1 ) yr = 1;
+    if ( yr < -1 ) yr = -1;
+    if ( zr > 1 ) zr = 1;
+    if ( zr < -1 ) zr = -1;
+    
+    *reslat = DEG(asin(yr));
+    if( xr == 0 && zr == 0 ) {
+      *reslon = 0;
+    }
+    else {
+      *reslon = DEG(atan2( zr, xr ));
+    } 
+  }
+}

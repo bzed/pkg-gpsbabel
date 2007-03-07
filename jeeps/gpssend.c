@@ -4,6 +4,7 @@
 ** @author Copyright (C) 1999 Alan Bleasby
 ** @version 1.0 
 ** @modified Dec 28 1999 Alan Bleasby. First version
+** @modified Copyright (C) 2006 Robert Lipe
 ** @@
 ** 
 ** This library is free software; you can redistribute it and/or
@@ -22,8 +23,11 @@
 ** Boston, MA  02111-1307, USA.
 ********************************************************************/
 #include "gps.h"
+#include "gpsserial.h"
+
 #include <stdio.h>
 #include <errno.h>
+#include <ctype.h>
 
 
 /* @func GPS_Make_Packet ***********************************************
@@ -38,7 +42,7 @@
 ** @return [void]
 ************************************************************************/
 
-void GPS_Make_Packet(GPS_PPacket *packet, UC type, UC *data, int16 n)
+void GPS_Serial_Make_Packet(GPS_PPacket *packet, UC type, UC *data, int16 n)
 {
     UC *p;
     UC *q;
@@ -50,15 +54,10 @@ void GPS_Make_Packet(GPS_PPacket *packet, UC type, UC *data, int16 n)
     p = data;
     q = (*packet)->data;
 
-    if (gps_is_usb) {
-	    GPS_Make_Packet_usb(packet, type, data, n);
-	    return;
-    }
-    
     (*packet)->dle   = DLE;
     (*packet)->edle  = DLE;
     (*packet)->etx   = ETX;
-    (*packet)->n     = n;
+    (*packet)->n     = (UC) n;
     (*packet)->type  = type;
     (*packet)->bytes = 0;
 
@@ -127,13 +126,11 @@ DiagS(void *buf, size_t sz)
 ** @return [int32] number of bytes in the packet
 ************************************************************************/
 
-int32 GPS_Write_Packet(int32 fd, GPS_PPacket packet)
+int32 GPS_Serial_Write_Packet(gpsdevh *fd, GPS_PPacket packet)
 {
     size_t ret;
     const char *m1, *m2;
-
-    if (gps_is_usb) 
-	    return GPS_Write_Packet_usb(fd, packet);
+    
 
     GPS_Diag("Tx Data:");
     Diag(&packet->dle, 3);    
@@ -199,13 +196,10 @@ int32 GPS_Write_Packet(int32 fd, GPS_PPacket packet)
 ** @return [int32] success
 ************************************************************************/
 
-int32 GPS_Send_Ack(int32 fd, GPS_PPacket *tra, GPS_PPacket *rec)
+int32 GPS_Serial_Send_Ack(gpsdevh *fd, GPS_PPacket *tra, GPS_PPacket *rec)
 {
     UC data[2];
 
-    if (gps_is_usb) 
-	    return 1;
-    
     GPS_Util_Put_Short(data,(US)(*rec)->type);
     GPS_Make_Packet(tra,LINK_ID[0].Pid_Ack_Byte,data,2);
     if(!GPS_Write_Packet(fd,*tra))

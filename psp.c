@@ -21,7 +21,9 @@
  */
 
 #include "defs.h"
+#include "cet_util.h"
 #include <ctype.h>
+#include "grtcirc.h"
 
 #define MYNAME	"PSP"
 
@@ -30,7 +32,7 @@
 
 static FILE *psp_file_in;
 static FILE *psp_file_out;
-static FILE *mkshort_handle;
+static short_handle mkshort_handle;
 
 static int
 psp_fread(void *buff, size_t size, size_t members, FILE * fp) 
@@ -40,7 +42,8 @@ psp_fread(void *buff, size_t size, size_t members, FILE * fp)
     br = fread(buff, size, members, fp);
 
     if (br != members) {
-        fatal(MYNAME ": requested to read %d bytes, read %d bytes.\n", members, br);
+        fatal(MYNAME ": requested to read %ld bytes, read %ld bytes.\n", 
+                            (unsigned long) members, (unsigned long) br);
     }
 
     return (br);
@@ -50,20 +53,15 @@ static double
 psp_fread_double(FILE *fp)
 {
 	unsigned char buf[8];
-	unsigned char sbuf[8];
-
 	psp_fread(buf, 1, 8, fp);
-	le_read64(sbuf, buf);
-	return *(double *) sbuf;
+	return le_read_double(buf);
 }
 
 static void
 psp_fwrite_double(double x, FILE *fp)
 {
-	unsigned char *cptr = (unsigned char *)&x;
 	unsigned char cbuf[8];
-
-	le_read64(cbuf, cptr);
+	le_write_double(cbuf,x);
 	fwrite(cbuf, 8, 1, fp);
 }
 
@@ -154,16 +152,22 @@ valid_psp_header(char * header)
 static char *
 buffer_washer(char * buff, int buffer_len)
 {
+/* original code
     int i;
 
     for (i = 0 ; i < buffer_len - 1; i++) {
 	if (buff[i] == '\0') {
-	    memcpy(&buff[i], &buff[i+1], buffer_len - i);
+	    memmove(&buff[i], &buff[i+1], buffer_len - i);
 	    buffer_len--;
 	    buff[buffer_len] = '\0';
 	}
     }
 
+    return (buff);
+*/
+    char *c = cet_str_uni_to_any((const short *)buff, buffer_len >> 1, global_opts.charset);
+    strncpy(buff, c, buffer_len);
+    xfree(c);
     return (buff);
 }
 
@@ -189,7 +193,7 @@ psp_wr_init(const char *fname)
 static void
 psp_wr_deinit(void)
 {
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 	fclose(psp_file_out);
 }
 
@@ -215,7 +219,7 @@ psp_read(void)
 	pincount = le_read16(&buff[12]);
 
 	while (pincount--) {
-	    wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+	    wpt_tmp = waypt_new();
 
             wpt_tmp->altitude = unknown_alt;
             
@@ -231,11 +235,11 @@ psp_read(void)
 
             /* 8 bytes - latitude in radians */
 	    radians = psp_fread_double(psp_file_in);
-            lat = (radians * 180.0) / M_PI;
+            lat = DEG(radians);
 
             /* 8 bytes - longitude in radians */
 	    radians = psp_fread_double(psp_file_in);
-            lon = (radians * 180.0) / M_PI;
+            lon = DEG(radians);
 
             /* since we don't know the origin of this PSP file, we use  */
             /* the grid byte adjust longitude, if necessary, mimicing   */
@@ -327,7 +331,7 @@ psp_waypt_pr(const waypoint *wpt)
         if ((! wpt->shortname) || (global_opts.synthesize_shortnames)) {
             if (wpt->description) {
                 if (global_opts.synthesize_shortnames)
-                    shortname = mkshort(mkshort_handle, wpt->description);
+                    shortname = mkshort_from_wpt(mkshort_handle, wpt);
                 else
                     shortname = xstrdup(wpt->description);
             } else {
@@ -349,8 +353,8 @@ psp_waypt_pr(const waypoint *wpt)
         }
 
         /* convert lat/long back to radians */
-	lat = (wpt->latitude * M_PI) / 180.0;
-        lon = (wpt->longitude * M_PI) / 180.0;
+	lat = RAD(wpt->latitude);
+        lon = RAD(wpt->longitude);
         
 	pindex++;
 	le_write16(tbuf, pindex);
@@ -459,11 +463,14 @@ psp_write(void)
 
 ff_vecs_t psp_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	psp_rd_init,
 	psp_wr_init,
 	psp_rd_deinit,
 	psp_wr_deinit,
 	psp_read,
 	psp_write,
-	NULL
+	NULL,
+	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

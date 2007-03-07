@@ -1,6 +1,8 @@
 /* This file is machine-generated from the contents of style/ */
 /* by mkstyle.sh.   Editing it by hand is an exeedingly bad idea. */
 
+#include "defs.h"
+#if CSVFMTS_ENABLED
 static char arc[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
@@ -21,13 +23,36 @@ static char arc[] =
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
 "#\n"
-"IFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
-"IFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"IFIELD	LAT_HUMAN_READABLE, \"\", \"%08.5f\"\n"
+"IFIELD	LON_HUMAN_READABLE, \"\", \"%08.5f\"\n"
+
+"OFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+;
+static char cambridge[] = 
+"DESCRIPTION     Cambridge/Winpilot glider software\n"
+"SHORTLEN        8\n"
+"EXTENSION dat\n"
+"#\n"
+"#\n"
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER         COMMA\n"
+"RECORD_DELIMITER        NEWLINE\n"
+"BADCHARS                COMMA\n"
+
+"IFIELD INDEX,\"1\",\"%d\"\n"
+"IFIELD LAT_HUMAN_READABLE,\"\",\"%d:%06.3f%c\"\n"
+"IFIELD LON_HUMAN_READABLE,\"\",\"%03d:%06.3f%c\"\n"
+"IFIELD ALT_METERS,\"\",\"%3.0fM\"\n"
+"IFIELD CONSTANT,\"\",\"T\"\n"
+"IFIELD SHORTNAME,\"\",\"%s\"\n"
+"IFIELD DESCRIPTION,\"\",\"%s\"\n"
 ;
 static char csv[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
-"# Format: Delorme SA 9.0 CSV\n"
+"# Format: DeLorme SA 9.0 CSV\n"
 "# Author: Alex Mottram\n"
 "#   Date: 12/09/2002\n"
 "#\n"
@@ -45,9 +70,61 @@ static char csv[] =
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
 "#\n"
-"IFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
-"IFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"IFIELD	LAT_HUMAN_READABLE, \"\", \"%08.5f\"\n"
+"IFIELD	LON_HUMAN_READABLE, \"\", \"%08.5f\"\n"
 "IFIELD	DESCRIPTION, \"\", \"%s\"\n"
+
+"OFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	DESCRIPTION, \"\", \"%s\"\n"
+;
+static char cup[] = 
+"#\n"
+"# (c) 2006, Robert Lipe, based on  sample files by Krzysztof Wojtas\n"
+"# Reference info: http://www.seeyou.ws/thankyou.php?fname=cup_format.pdf\n"
+"#\n"
+
+"DESCRIPTION      See You flight analysis data\n"
+"SHORTLEN  8\n"
+"EXTENSION cup\n"
+"#\n"
+"#\n"
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER         COMMA\n"
+"RECORD_DELIMITER        NEWLINE\n"
+"BADCHARS                ,\"\n"
+"PROLOGUE name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc\n"
+"EPILOGUE -----Related Tasks-----\n"
+
+
+"IFIELD SHORTNAME,\"\", \"\"%s\"\"\n"
+"IFIELD SHORTNAME,\"\", \"%s\"\n"
+"IFIELD CONSTANT,\"\", \"\"\n"
+"IFIELD LAT_NMEA, \"%f\", \"%08.3f\", \"absolute\"\n"
+"IFIELD LON_NMEA, \"%f\", \"%09.3f\", \"absolute\"\n"
+"IFIELD ALT_METERS,\"\", \"%dm\"\n"
+"IFIELD CONSTANT,\"\", \"1\"\n"
+"IFIELD CONSTANT,\"\", \"\"\n"
+"IFIELD CONSTANT,\"\", \"\"\n"
+"IFIELD CONSTANT,\"\", \"\"\n"
+"IFIELD DESCRIPTION,\"\", \"\"%s\"\"\n"
+
+"OFIELD SHORTNAME,\"\", \"\"%s\"\"\n"
+"OFIELD SHORTNAME,\"\", \"%s\"\n"
+"OFIELD CONSTANT,\"\", \"\"\n"
+"OFIELD LAT_NMEA, \"%f\", \"%08.3f\", \"absolute\"\n"
+"OFIELD LAT_DIR, \"\", \"%c\", \"no_delim_before\"\n"
+"OFIELD LON_NMEA, \"%f\", \"%09.3f\", \"absolute\"\n"
+"OFIELD LON_DIR, \"\", \"%c\", \"no_delim_before\"\n"
+"OFIELD ALT_METERS,\"\", \"%3.1fm\"\n"
+"OFIELD CONSTANT,\"\", \"1\"\n"
+"OFIELD CONSTANT,\"\", \"\"\n"
+"OFIELD CONSTANT,\"\", \"\"\n"
+"OFIELD CONSTANT,\"\", \"\"\n"
+"OFIELD DESCRIPTION,\"\", \"\"%s\"\"\n"
+
+
 ;
 static char custom[] = 
 "# gpsbabel XCSV style file\n"
@@ -76,7 +153,7 @@ static char custom[] =
 "#\n"
 "# INDIVIDUAL DATA FIELDS:\n"
 "#\n"
-"IFIELD	CONSTANT, \"\", \"CONSTANT\"\n"
+"IFIELD	CONSTANT, \"CONSTANT\", \"%s\"\n"
 "IFIELD	INDEX, \"\", \"%d\"\n"
 "IFIELD	LAT_DECIMAL, \"\", \"%f\"\n"
 "IFIELD	LAT_DIR, \"\", \"%c\"\n"
@@ -137,8 +214,8 @@ static char fugawi[] =
 "# fugawi XCSV style file\n"
 "#\n"
 "# Format: Fugawi\n"
-"# Author: Robert Lipe\n"
-"#   Date: 03/10/2003\n"
+"# Author: Robert Lipe, Patrick Ohly\n"
+"#   Date: 07/24/2005\n"
 "#\n"
 "# \n"
 
@@ -162,7 +239,7 @@ static char fugawi[] =
 "PROLOGUE \\# Waypoint description\n"
 "PROLOGUE \\# Latitude in Degree and decimals (soutern hemisphere has neg. degrees)\n"
 "PROLOGUE \\# Longitude in degree and decimals (neg. numbers: west of Greenwich)\n"
-"PROLOGUE \\# Height in meters\n"
+"PROLOGUE \\# Height in meters [optional when importing, always present when exporting: Date (GMT) as ISO YYYYMMDD, Time of the day relative to the date as HHMMSS\n"
 
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
@@ -173,6 +250,131 @@ static char fugawi[] =
 "IFIELD	LAT_DECIMAL, \"\", \"%-.7f\"\n"
 "IFIELD	LON_DECIMAL, \"\", \"%-.7f\"\n"
 "IFIELD	ALT_METERS, \"\", \"%-7.1f\"\n"
+"IFIELD  GMT_TIME, \"\", \"%Y%m%d\"\n"
+"IFIELD  HMSG_TIME, \"\", \"%02d%02d%02d\"\n"
+;
+static char garmin301[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: Garmin 301 Position + Heartrate data\n"
+"# Author: Jeff Kalikstein\n"
+"#   Date: 08/29/2005\n"
+"#\n"
+
+"DESCRIPTION		Garmin 301 Custom position and heartrate\n"
+
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		COMMA\n"
+"RECORD_DELIMITER	NEWLINE\n"
+"BADCHARS		COMMA\n"
+"#FORMAT_TYPE		INTERNAL\n"
+
+"#\n"
+"# HEADER STUFF:\n"
+"#\n"
+"PROLOGUE	Garmin 301 data __FILE__ \n"
+"PROLOGUE	Timestamp,Latitude, Longitude, Altitude(ft), heart rate\n"
+"#\n"
+"# INDIVIDUAL DATA FIELDS:\n"
+"#\n"
+"IFIELD	TIMET_TIME,\"\",\"%ld\"\n"
+"IFIELD	LAT_DECIMAL, \"\", \"%f\"\n"
+"IFIELD	LON_DECIMAL, \"\", \"%f\"\n"
+"IFIELD	ALT_FEET, \"\", \"%fF\"\n"
+"IFIELD  HEART_RATE,\"\",\" %d\"	# beats per minute\n"
+
+
+"# EPILOGUE: \n"
+"#EPILOGUE	Epilogue Line 1\n"
+"#EPILOGUE	Epilogue Line 2\n"
+;
+static char garmin_poi[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: Garmin POI\n"
+"# Author: Robert Lipe\n"
+"# Date: 10/07/2005\n"
+"# Reference: http://forums.groundspeak.com/GC/index.php?showtopic=110641&st=0&#entry1752204\n"
+"#\n"
+"DESCRIPTION Garmin POI database\n"
+"#\n"
+"#\n"
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER COMMA\n"
+"RECORD_DELIMITER NEWLINE\n"
+"BADCHARS COMMA\n"
+"SHORTLEN 24\n"
+"# PROLOGUE Longitude,Latitude,Name, comment\n"
+
+"#\n"
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+"#\n"
+"IFIELD LON_HUMAN_READABLE, \"\", \"%08.5f\"\n"
+"IFIELD LAT_HUMAN_READABLE, \"\", \"%08.5f\"\n"
+"IFIELD SHORTNAME, \"\", \"%s\"\n"
+"IFIELD DESCRIPTION, \"\", \"%s\"\n"
+
+"OFIELD LON_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD LAT_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD SHORTNAME, \"\", \"%-.24s\"\n"
+"OFIELD GEOCACHE_TYPE, \"\", \" %-.4s\", \"no_delim_before,optional\"\n"
+"OFIELD GEOCACHE_CONTAINER, \"\", \"/%-.4s \", \"no_delim_before,optional\"\n"
+"OFIELD GEOCACHE_DIFF, \"\", \"(%3.1f\", \"no_delim_before,optional\"\n"
+"OFIELD GEOCACHE_TERR, \"\", \"/%3.1f)\", \"no_delim_before,optional\"\n"
+"OFIELD DESCRIPTION, \"\", \"%-.50s\"\n"
+;
+static char geonet[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: GEOnet Names Server (GNS) (http://earth-info.nga.mil/gns/html/cntry_files.html)\n"
+"# Author: Olaf Klein\n"
+"#   Date: 08/20/2002\n"
+"#\n"
+
+"DESCRIPTION		GEOnet Names Server (GNS)\n"
+"EXTENSION		txt\n"
+
+"#\n"
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+
+"FIELD_DELIMITER		TAB\n"
+"RECORD_DELIMITER	CRNEWLINE\n"
+"BADCHARS		TAB\n"
+"ENCODING		UTF-8\n"
+
+"PROLOGUE		RC	UFI	UNI	LAT	LONG	DMS_LAT	DMS_LONG	UTM	JOG	FC	DSG	PC	CC1	ADM1	ADM2	DIM	CC2	NT	LC	SHORT_FORM	GENERIC	SORT_NAME	FULL_NAME	FULL_NAME_ND	MODIFY_DATE\n"
+
+"#\n"
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+"#\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# RC		( http://earth-info.nga.mil/gns/html/gis_contryfiles.html )\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# UFI\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# UNI\n"
+"IFIELD	LAT_DECIMAL, \"\", \"%03.7f\"	# LAT\n"
+"IFIELD	LON_DECIMAL, \"\", \"%03.7f\"	# LONG\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# DMS_LAT\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# DMS_LONG\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# UTM\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# JOG\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# FC\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# DSG\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# PC\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# CC1\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# ADM1\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# ADM2\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# DIM\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# CC2\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# NT\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# LC\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# SHORT_FORM\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# GENERIC\n"
+"IFIELD	SHORTNAME, \"\", \"%s\"		# SHORT_NAME\n"
+"IFIELD	DESCRIPTION, \"\", \"%s\"		# FULL_NAME\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# FULL_NAME_ND\n"
+"IFIELD	IGNORE, \"\", \"%s\"		# MOD_DATE\n"
 ;
 static char gpsdrive[] = 
 "# gpsbabel XCSV style file\n"
@@ -207,6 +409,35 @@ static char gpsdrive[] =
 "OFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
 "OFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
 "OFIELD	ICON_DESCR, \"\", \"%s\"\n"
+;
+static char gpsdrivetrack[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: GPSDriveTrack\n"
+"# Author: Tobias Minich\n"
+"#   Date: 12/07/2005\n"
+"#\n"
+"# \n"
+"#\n"
+
+"DESCRIPTION		GpsDrive Format for Tracks\n"
+
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		WHITESPACE\n"
+"RECORD_DELIMITER	NEWLINE\n"
+"BADCHARS		,'\"\n"
+
+"SHORTLEN          	20\n"
+"SHORTWHITE              0\n"
+
+"#\n"
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+
+"IFIELD	LAT_DECIMAL, \"\", \"%10.6f\"\n"
+"IFIELD	LON_DECIMAL, \"\", \"%10.6f\"\n"
+"IFIELD	ALT_METERS, \"\", \"%10.0f\"\n"
+"IFIELD	GMT_TIME, \"\", \"%a %b %d %T %Y\"\n"
 ;
 static char gpsman[] = 
 "# gpsbabel XCSV style file\n"
@@ -243,6 +474,83 @@ static char gpsman[] =
 "IFIELD	IGNORE, \"\", \"%s\"\n"
 
 "# gpsman.c likes mkshort len = 8, whitespace = 0.\n"
+;
+static char ktf2[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: Kartex KTF 2.0 Degrees with decimals\n"
+"# Author: Harald Nordius\n"
+"#   Date: 4/13 2006\n"
+"#\n"
+"# \n"
+"DESCRIPTION	Kartex 5 Track File\n"
+"EXTENSION	ktf\n"
+"SHORTLEN	10\n"
+"SHORTWHITE	1\n"
+"#\n"
+"#\n"
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		COMMA\n"
+"RECORD_DELIMITER	CRNEWLINE\n"
+"#\n"
+"#\n"
+"# FILE HEADER\n"
+"#\n"
+"PROLOGUE //Kartex Track File created by GPSBabel\n"
+"PROLOGUE &KTF 2.0,sweref 99 lat long,0\n"
+"#\n"
+"#\n"
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+"#\n"
+"IFIELD	CONSTANT, %, \"%s\"\n"
+"IFIELD	INDEX, \"\", \"%d\"\n"
+"IFIELD	LATLON_HUMAN_READABLE, \"\", \"%c%f°\"\n"
+"IFIELD	ALT_METERS, \"\", \"%.2f\"\n"
+"IFIELD	GMT_TIME, \"\", \"%Y-%m-%d %H:%M:%S\"\n"
+"IFIELD	IGNORE, \"\", \"%s\" #Empty field\n"
+"IFIELD	IGNORE, \"\", \"%s\" #Empty field\n"
+"IFIELD	CONSTANT, \"$\", \"%s\"\n"
+;
+static char kwf2[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: Kartex KWF 2.0 Degrees with decimals\n"
+"# Author: Harald Nordius\n"
+"#   Date: 12/08 2004\n"
+"#\n"
+"# \n"
+"DESCRIPTION	Kartex 5 Waypoint File\n"
+"EXTENSION	kwf\n"
+"SHORTLEN	10\n"
+"SHORTWHITE	1\n"
+"#\n"
+"#\n"
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		COMMA\n"
+"RECORD_DELIMITER	CRNEWLINE\n"
+"ENCODING		CP1252\n"
+"#\n"
+"#\n"
+"# FILE HEADER\n"
+"#\n"
+"PROLOGUE //Kartex Waypoint File created by GPSBabel\n"
+"PROLOGUE &KWF 2.0,sweref 99 lat long,0\n"
+"#\n"
+"#\n"
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+"#\n"
+"IFIELD	CONSTANT, \\#, \"%s\"\n"
+"IFIELD	INDEX,\"\",\"%d\"\n"
+"IFIELD	SHORTNAME,\"\",\"%s\"\n"
+"IFIELD	LATLON_HUMAN_READABLE,\"\",\"%c%f°\"\n"
+"IFIELD	ALT_METERS,\"\",\"%.2f\"\n"
+"IFIELD	IGNORE, \"\",\"%s\" #Empty field\n"
+"IFIELD	IGNORE, \"\",\"%s\" #Empty field\n"
+"IFIELD	CONSTANT, \"0\",\"%s\" #Waypoint symbol code\n"
+"IFIELD	DESCRIPTION, \"\", \"%s\"\n"
+"IFIELD	CONSTANT, \"$\", \"%s\"\n"
 ;
 static char mapconverter[] = 
 "# Format: Mapopolis.com Mapconverter\n"
@@ -301,15 +609,15 @@ static char mxf[] =
 "#\n"
 "FIELD_DELIMITER		COMMASPACE\n"
 "RECORD_DELIMITER	NEWLINE\n"
-"BADCHARS		\",\n"
+"BADCHARS		,\"\n"
 
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
 "#\n"
 "IFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
 "IFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
-"IFIELD	DESCRIPTION, \"\", \"%s\"\n"
-"IFIELD	SHORTNAME, \"\", \"%s\"\n"
+"IFIELD	DESCRIPTION, \"\", \"\"%s\"\"\n"
+"IFIELD	SHORTNAME, \"\", \"\"%s\"\"\n"
 "IFIELD	IGNORE, \"\", \"%s\"\n"
 "IFIELD	CONSTANT, \"ff0000\", \"%s\"	# COLOR\n"
 "IFIELD	CONSTANT, \"47\", \"%s\"		# ICON\n"
@@ -369,6 +677,55 @@ static char nima[] =
 "IFIELD	DESCRIPTION, \"\", \"%s\"		# FULL_NAME_ND\n"
 "IFIELD	IGNORE, \"\", \"%s\"		# MODIFY_DATE\n"
 ;
+static char openoffice[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: Tab delimited useful for OpenOffice, Ploticus etc.\n"
+"# Author: Tobias Minich\n"
+"#   Date: 07/18/2005\n"
+"#\n"
+"#\n"
+
+"DESCRIPTION		Tab delimited fields useful for OpenOffice, Ploticus etc.\n"
+
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		TAB\n"
+"RECORD_DELIMITER	NEWLINE\n"
+"BADCHARS		TAB\n"
+
+"#\n"
+"# HEADER STUFF:\n"
+"#\n"
+"PROLOGUE	Index	Lat			Lon			Icon	Name	Description	Notes	URL	Link Text	Altitude (m)	Distance (km)	Speed (m/s)	Course (°)	Time	HDOP	VDOP	PDOP	Satellites	Fix\n"
+
+"#\n"
+"# INDIVIDUAL DATA FIELDS:\n"
+"#\n"
+"IFIELD	INDEX, \"\", \"%d\"\n"
+"IFIELD	LAT_DECIMAL, \"\", \"%f\"\n"
+"IFIELD	LAT_DIR, \"\", \"%c\"\n"
+"IFIELD	LAT_HUMAN_READABLE, \"\", \"%d° %f' %c\"\n"
+"IFIELD	LON_DECIMAL, \"\", \"%f\"\n"
+"IFIELD	LON_DIR, \"\", \"%c\"\n"
+"IFIELD	LON_HUMAN_READABLE, \"\", \"%d° %f' %c\"\n"
+"IFIELD	ICON_DESCR, \"\", \"%s\"\n"
+"IFIELD	SHORTNAME, \"\", \"%s\"\n"
+"IFIELD	DESCRIPTION, \"\", \"%s\"\n"
+"IFIELD	NOTES, \"\", \"%s\"\n"
+"IFIELD	URL, \"\", \"%s\" 		\n"
+"IFIELD	URL_LINK_TEXT, \"\", \"%s\"\n"
+"IFIELD	ALT_METERS, \"\", \"%f\"\n"
+"IFIELD	PATH_DISTANCE_KM, \"\", \"%f\"\n"
+"IFIELD	PATH_SPEED, \"\", \"%f\"\n"
+"IFIELD	PATH_COURSE, \"\", \"%f\"\n"
+"IFIELD	EXCEL_TIME, \"\", \"%f\"\n"
+"IFIELD	GPS_HDOP, \"\", \"%f\"\n"
+"IFIELD	GPS_VDOP, \"\", \"%f\"\n"
+"IFIELD	GPS_PDOP, \"\", \"%f\"\n"
+"IFIELD	GPS_SAT, \"\", \"%d\"\n"
+"IFIELD	GPS_FIX, \"\", \"%s\"\n"
+;
 static char s_and_t[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
@@ -384,16 +741,18 @@ static char s_and_t[] =
 "# GC171C,44.70605,-85.62265,The Michigan Frog by RealDcoy & LRB,http://www.geocaching.com/seek/cache_details.aspx?ID=5916,Traditional Cache\n"
 "#\n"
 
-"DESCRIPTION 		Microsoft Streets and Trips 2002/2003\n"
+"DESCRIPTION 		Microsoft Streets and Trips 2002-2006\n"
+"EXTENSION               txt\n"
+
 
 "#\n"
 "# FILE LAYOUT DEFINITIIONS:\n"
 "#\n"
-"FIELD_DELIMITER		COMMA\n"
+"FIELD_DELIMITER		TAB\n"
 "RECORD_DELIMITER	NEWLINE\n"
 "BADCHARS		,\"\n"
 
-"PROLOGUE	Name,Latitude,Longitude,Name 2,URL,Type\n"
+"PROLOGUE	Name	Latitude	Longitude	Description	URL	Type	Container	Diff	Terr\n"
 
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
@@ -405,7 +764,10 @@ static char s_and_t[] =
 "IFIELD	LON_DECIMAL, \"\", \"%f\"		# Longitude\n"
 "IFIELD	DESCRIPTION, \"\", \"%s\"		# Name 2 (Big Description)\n"
 "IFIELD	URL, \"\", \"%s\"			# URL\n"
-"IFIELD	IGNORE, \"\", \"\"			# Holder for Geocache Type\n"
+"IFIELD	GEOCACHE_TYPE, \"\", \"%s\"		# Geocache Type\n"
+"IFIELD	GEOCACHE_CONTAINER, \"\", \"%s\"	# Geocache Type\n"
+"IFIELD	GEOCACHE_DIFF, \"\", \"%3.1f\"	# Geocache Type\n"
+"IFIELD	GEOCACHE_TERR, \"\", \"%3.1f\"	# Geocache Type\n"
 ;
 static char saplus[] = 
 "# gpsbabel XCSV style file\n"
@@ -415,7 +777,7 @@ static char saplus[] =
 "#   Date: 02/22/04\n"
 "#\n"
 
-"DESCRIPTION             Delorme Street Atlas Plus\n"
+"DESCRIPTION             DeLorme Street Atlas Plus\n"
 
 "#\n"
 "# FILE LAYOUT DEFINITIIONS:\n"
@@ -436,6 +798,40 @@ static char saplus[] =
 "IFIELD  URL, \"\", \"%s\"                   # URL\n"
 "IFIELD  IGNORE, \"\", \"\"                  # Holder for Geocache Type\n"
 
+;
+static char sportsim[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: Sportsim track files\n"
+"# Author: Olaf Klein\n"
+"#   Date: 07/05/2006\n"
+"#\n"
+"DESCRIPTION	Sportsim track files (part of zipped .ssz files) \n"
+"EXTENSION	txt\n"
+
+"#\n"
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		SEMICOLON\n"
+"RECORD_DELIMITER	CRNEWLINE\n"
+"BADCHARS		TAB\n"
+
+"#\n"
+"# FILE HEADER\n"
+"#\n"
+"PROLOGUE	ï»¿SportsimVersion:01\n"
+"PROLOGUE	\\#Sportsim TrackFile\n"
+
+"#\n"
+"# INDIVIDUAL DATA FIELDS:\n"
+"#\n"
+"IFIELD	INDEX, \"\", \"%05d\"\n"
+"IFIELD	CONSTANT, \"0\", \"%s\"\n"
+"IFIELD	LAT_DECIMAL, \"\", \"%f\"\n"
+"IFIELD	LON_DECIMAL, \"\", \"%f\"\n"
+"IFIELD	ALT_FEET, \"\", \"%.f\"\n"
+"IFIELD	TIMET_TIME, \"\", \"%ld\"\n"
+"IFIELD	CONSTANT, \";\", \"%s\"\n"
 ;
 static char tabsep[] = 
 "# gpsbabel XCSV style file\n"
@@ -491,11 +887,52 @@ static char tabsep[] =
 "IFIELD  GEOCACHE_TYPE,\"\",\"%s\"\n"
 "IFIELD  PATH_DISTANCE_MILES,\"\",\"%f\"\n"
 "IFIELD  PATH_DISTANCE_KM, \"\", \"%f\"\n"
+"IFIELD  GEOCACHE_PLACER,\"\",\"%s\"\n"
+"IFIELD  YYYYMMDD_TIME,\"\",\"%ld\"\n"
+;
+static char xmap2006[] = 
+"# gpsbabel XCSV style file\n"
+"#\n"
+"# Format: DeLorme Xmap/Street Atlas Handheld 2006 Conduit\n"
+"# Author: Pasha Phares\n"
+"#   Date: 5/5/2006\n"
+"#\n"
+"# Amazingly, 2006 won't read the \"COMMASPACE\" that we used in \n"
+"# in Xmap prior to this and versions before 2006 won't read files\n"
+"# separated by only a comma.\n"
+"# \n"
+
+"DESCRIPTION			DeLorme XMap/SAHH 2006 Native .TXT\n"
+"EXTENSION			txt\n"
+
+"#\n"
+"# FILE LAYOUT DEFINITIIONS:\n"
+"#\n"
+"FIELD_DELIMITER		COMMA\n"
+"RECORD_DELIMITER	NEWLINE\n"
+"BADCHARS			COMMA\n"
+
+"PROLOGUE	BEGIN SYMBOL\n"
+"EPILOGUE	END\n"
+"#\n"
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+"#\n"
+"IFIELD				LAT_HUMAN_READABLE, \"\", \"%.12g\"\n"
+"IFIELD				LON_HUMAN_READABLE, \"\", \"%.12g\"\n"
+"IFIELD				SHORTNAME, \"\", \"%s\"\n"
+
+"OFIELD				LAT_DECIMAL, \"\", \"%.12g\"\n"
+"OFIELD				LON_DECIMAL, \"\", \"%.12g\"\n"
+"OFIELD				SHORTNAME, \"\", \"%s\"\n"
+
+
+
+
 ;
 static char xmap[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
-"# Format: Delorme Xmap Conduit\n"
+"# Format: DeLorme Xmap Conduit\n"
 "# Author: Alex Mottram\n"
 "#   Date: 12/09/2002\n"
 "#\n"
@@ -503,7 +940,7 @@ static char xmap[] =
 "# As defined in csv.c/xmap\n"
 "#\n"
 
-"DESCRIPTION		Delorme XMap HH Native .WPT\n"
+"DESCRIPTION		DeLorme XMap HH Native .WPT\n"
 "EXTENSION		wpt\n"
 
 "#\n"
@@ -518,19 +955,23 @@ static char xmap[] =
 "#\n"
 "# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
 "#\n"
-"IFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
-"IFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"IFIELD	LAT_HUMAN_READABLE, \"\", \"%08.5f\"\n"
+"IFIELD	LON_HUMAN_READABLE, \"\", \"%08.5f\"\n"
 "IFIELD	DESCRIPTION, \"\", \"%s\"\n"
+
+"OFIELD	LAT_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	LON_DECIMAL, \"\", \"%08.5f\"\n"
+"OFIELD	DESCRIPTION, \"\", \"%s\"\n"
 ;
 static char xmapwpt[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
-"# Format: Delorme Xmap HH Street Atlas USA .WPT (PocketPC)\n"
+"# Format: DeLorme Xmap HH Street Atlas USA .WPT (PocketPC)\n"
 "# Author: Alex Mottram\n"
 "#   Date: 12/09/2002\n"
 "#\n"
 "# \n"
-"DESCRIPTION 		Delorme XMat HH Street Atlas USA .WPT (PPC)\n"
+"DESCRIPTION 		DeLorme XMat HH Street Atlas USA .WPT (PPC)\n"
 "SHORTLEN		32\n"
 "SHORTWHITE		0\n"
 
@@ -554,6 +995,9 @@ static char xmapwpt[] =
 "IFIELD	IGNORE, \"\", \"%-.31s\"\n"
 "IFIELD	DESCRIPTION, \"\", \"%-.78s\"\n"
 ;
-#include "defs.h"
-style_vecs_t style_list[] = {{ "xmapwpt", xmapwpt } , { "xmap", xmap } , { "tabsep", tabsep } , { "saplus", saplus } , { "s_and_t", s_and_t } , { "nima", nima } , { "mxf", mxf } , { "mapconverter", mapconverter } , { "gpsman", gpsman } , { "gpsdrive", gpsdrive } , { "fugawi", fugawi } , { "dna", dna } , { "custom", custom } , { "csv", csv } , { "arc", arc } ,  {0,0}};
-size_t nstyles = 15;
+style_vecs_t style_list[] = {{ "xmapwpt", xmapwpt } , { "xmap", xmap } , { "xmap2006", xmap2006 } , { "tabsep", tabsep } , { "sportsim", sportsim } , { "saplus", saplus } , { "s_and_t", s_and_t } , { "openoffice", openoffice } , { "nima", nima } , { "mxf", mxf } , { "mapconverter", mapconverter } , { "kwf2", kwf2 } , { "ktf2", ktf2 } , { "gpsman", gpsman } , { "gpsdrivetrack", gpsdrivetrack } , { "gpsdrive", gpsdrive } , { "geonet", geonet } , { "garmin_poi", garmin_poi } , { "garmin301", garmin301 } , { "fugawi", fugawi } , { "dna", dna } , { "custom", custom } , { "cup", cup } , { "csv", csv } , { "cambridge", cambridge } , { "arc", arc } ,  {0,0}};
+size_t nstyles = 26;
+#else /* CSVFMTS_ENABLED */
+style_vecs_t style_list[] = {{0,0}};
+size_t nstyles = 0;
+#endif /* CSVFMTS_ENABLED */

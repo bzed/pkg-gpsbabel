@@ -33,6 +33,7 @@ extern int32 gps_warning;
 extern int32 gps_error;
 extern int32 gps_user;
 extern int32 gps_show_bytes;
+extern char gps_categories[16][17];
 
 
 typedef struct GPS_SPacket
@@ -86,8 +87,13 @@ typedef struct GPS_STrack
     time_t   Time;		/* Unix time */
     float    alt;		/* Altitude */
     float    dpth;		/* Depth    */
-    int32    tnew;		/* New track? */
-    int32    ishdr;		/* Track header? */
+    float    temperature;	/* Temperature.  Degrees Celsius. */
+    int      temperature_populated; /* True if above is valid. */
+    unsigned char  heartrate;		/* Heartrate as in Garmin 301 */
+    unsigned char  cadence;		/* Crank cadence as in Edge 305 */
+    unsigned int   tnew:1;	/* New track? */
+    unsigned int   ishdr:1;	/* Track header? */
+    unsigned int   no_latlon:1;	/* True if no valid lat/lon found. */
     int32    dspl;		/* Display on map? */
     int32    colour;		/* Colour */
     char     trk_ident[256];	/* Track identifier */
@@ -129,6 +135,7 @@ typedef struct GPS_SWay
     int32  colour;
     char   cc[2];
     UC     wpt_class;
+    UC     alt_is_unknown;
     float  alt;
     char   city[24];
     char   state[2];
@@ -149,12 +156,33 @@ typedef struct GPS_SWay
     int32  rte_link_class;
     char   rte_link_subclass[18];
     char   rte_link_ident[256];
+
+    char     time_populated;	/* 1 if true */
+    time_t   time;		/* Unix time */
+    char     temperature_populated;
+    float    temperature;		/* Degrees celsius. */
+    uint16   category;
+     
 } GPS_OWay, *GPS_PWay;
 
+/*
+ * Forerunner Lap data.
+ */
+typedef struct GPS_SLap_Data {
+	time_t	start_time;
+	uint32	total_time;	/* Hundredths of a second */
+	float	total_distance;	/* In meters */
+	double	begin_lat; 
+	double	begin_lon; 
+	double	end_lat;
+	double	end_lon;
+	int16	calories;
+	UC	track_index;
+} GPS_OLap_Data, *GPS_PLap_Data;
 
+typedef int (*pcb_fn) (int, struct GPS_SWay **);
 
-
-#include "gpsserial.h"
+#include "gpsdevice.h"
 #include "gpssend.h"
 #include "gpsread.h"
 #include "gpsutil.h"
@@ -163,13 +191,10 @@ typedef struct GPS_SWay
 #include "gpscom.h"
 #include "gpsfmt.h"
 #include "gpsmath.h"
-#include "gpsnmea.h"
 #include "gpsmem.h"
 #include "gpsrqst.h"
 #include "gpsinput.h"
 #include "gpsproj.h"
-#include "gpsnmeafmt.h"
-#include "gpsnmeaget.h"
 
 time_t gps_save_time;
 double gps_save_lat;
@@ -179,7 +204,6 @@ extern double gps_save_version;
 extern char   gps_save_string[GPS_ARB_LEN];
 extern int gps_is_usb;
 
-
 extern struct COMMANDDATA COMMAND_ID[2];
 extern struct LINKDATA LINK_ID[3];
 extern struct GPS_MODEL_PROTOCOL GPS_MP[];
@@ -188,7 +212,6 @@ extern char *gps_marine_sym[];
 extern char *gps_land_sym[];
 extern char *gps_aviation_sym[];
 extern char *gps_16_sym[];
-
 
 
 #endif

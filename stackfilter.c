@@ -18,12 +18,13 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-#include <stdio.h>
+
 #include "defs.h"
+#include "filterdefs.h"
+
+#if FILTERS_ENABLED
 
 #define MYNAME "Stack filter"
-
-extern queue waypt_head;
 
 static char *opt_push = NULL;
 static char *opt_copy = NULL;
@@ -40,27 +41,33 @@ static int  swapdepth = 0;
 static
 arglist_t stackfilt_args[] = {
 	{"push", &opt_push, "Push waypoint list onto stack", NULL, 
-		ARGTYPE_BOOL},
-	{"copy", &opt_copy, "Copy waypoint list when pushing", NULL,
-		ARGTYPE_BOOL},
+		ARGTYPE_BEGIN_EXCL | ARGTYPE_BEGIN_REQ | ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"pop", &opt_pop, "Pop waypoint list from stack", NULL,
-		ARGTYPE_BOOL},
-	{"append", &opt_append, "Append list when popping", NULL,
-		ARGTYPE_BOOL},
-	{"discard", &opt_discard, "Discard top of stack when popping", 
-		NULL, ARGTYPE_BOOL},
-	{"replace", &opt_replace, "Replace list with top of stack (default)", 
-		NULL, ARGTYPE_BOOL},
+		ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"swap", &opt_swap, "Swap waypoint list with <depth> item on stack", 
-		NULL, ARGTYPE_BOOL},
-	{"depth", &opt_depth, "Item to use when swapping", NULL, ARGTYPE_INT},
+		NULL, ARGTYPE_END_EXCL | ARGTYPE_END_REQ | ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"copy", &opt_copy, "(push) Copy waypoint list", NULL,
+		ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"append", &opt_append, "(pop) Append list", NULL,
+		ARGTYPE_BEGIN_EXCL | ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"discard", &opt_discard, "(pop) Discard top of stack", 
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"replace", &opt_replace, "(pop) Replace list (default)", 
+		NULL, ARGTYPE_END_EXCL | ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"depth", &opt_depth, "(swap) Item to use (default=1)", 
+		NULL, ARGTYPE_INT, "0", NULL},
 	{"nowarn", &nowarn, "Suppress cleanup warning", NULL, 
-		ARGTYPE_INT | ARGTYPE_HIDDEN},
-	{0, 0, 0, 0, 0}
+		ARGTYPE_BOOL | ARGTYPE_HIDDEN, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
 struct stack_elt {
 	queue waypts;
+        queue routes;
+        queue tracks;	
+	unsigned int waypt_ct;
+	int route_count;
+	int track_count;
 	struct stack_elt *next;
 } *stack = NULL;
 
@@ -72,11 +79,14 @@ stackfilt_process(void)
 	queue *elem = NULL;
 	queue *tmp = NULL;
 	queue tmp_queue;
-	waypoint *wpt_tmp;
+	unsigned int tmp_count;
 	
 	if ( opt_push ) {
 		tmp_elt = (struct stack_elt *)xmalloc(sizeof(struct stack_elt));
+		
 		QUEUE_MOVE(&(tmp_elt->waypts), &waypt_head);
+		tmp_elt->waypt_ct = waypt_count();
+		set_waypt_count(0);
 		tmp_elt->next = stack;
 		stack = tmp_elt;
 		if ( opt_copy ) {
@@ -84,6 +94,23 @@ stackfilt_process(void)
 				waypt_add( waypt_dupe((waypoint *)elem));
 			}
 		}	
+		
+		tmp = NULL;
+		route_backup( &(tmp_elt->route_count), &tmp );
+		QUEUE_MOVE( &(tmp_elt->routes), tmp );
+		xfree( tmp );
+		if ( !opt_copy ) {
+			route_flush_all_routes();
+		}
+		
+		tmp = NULL;
+	        track_backup( &(tmp_elt->track_count), &tmp );
+		QUEUE_MOVE( &(tmp_elt->tracks), tmp );
+		xfree( tmp );
+		if ( !opt_copy ) {
+			route_flush_all_tracks();
+		}
+		
 	}
 	else if ( opt_pop ) { 
 		tmp_elt = stack;
@@ -94,14 +121,25 @@ stackfilt_process(void)
 			QUEUE_FOR_EACH( &(stack->waypts), elem, tmp ) {
 				waypt_add( (waypoint *)elem);
 			}
+			route_append( &(stack->routes));
+			route_flush( &(stack->routes));
+			track_append( &(stack->tracks));
+			route_flush( &(stack->tracks));
 		}
 		else if ( opt_discard ) {
-			waypt_flush( &(stack->waypts) );
+			waypt_flush( &(stack->waypts));
+			route_flush( &(stack->routes));
+			route_flush( &(stack->tracks));
 		}
 		else {
 			waypt_flush( &waypt_head );
 			QUEUE_MOVE(&(waypt_head), &(stack->waypts) );
-		}
+			set_waypt_count(stack->waypt_ct);
+			
+			route_restore( &(stack->routes));
+			track_restore( &(stack->tracks));
+		} 
+
 		stack = tmp_elt->next;
 		xfree( tmp_elt );
 	}
@@ -117,6 +155,24 @@ stackfilt_process(void)
 		QUEUE_MOVE(&tmp_queue, &(tmp_elt->waypts) );
 		QUEUE_MOVE(&(tmp_elt->waypts), &waypt_head );
 		QUEUE_MOVE(&waypt_head, &tmp_queue );
+		
+		QUEUE_MOVE(&tmp_queue, &(tmp_elt->routes));
+		tmp = NULL;
+		route_backup( &(tmp_elt->route_count), &tmp);
+		QUEUE_MOVE(&(tmp_elt->routes), tmp );
+		xfree( tmp );
+		route_restore( &tmp_queue );
+		
+		QUEUE_MOVE(&tmp_queue, &(tmp_elt->tracks));
+		tmp = NULL;
+		track_backup( &(tmp_elt->track_count), &tmp);
+		QUEUE_MOVE(&(tmp_elt->tracks), tmp );
+		xfree( tmp );
+		track_restore( &tmp_queue );
+		
+		tmp_count = waypt_count();
+		set_waypt_count( tmp_elt->waypt_ct );
+		tmp_elt->waypt_ct = tmp_count;
 	}
 }
 
@@ -190,3 +246,5 @@ filter_vecs_t stackfilt_vecs = {
 	stackfilt_exit,
 	stackfilt_args
 };
+
+#endif // FILTERS_ENABLED

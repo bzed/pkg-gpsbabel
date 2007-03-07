@@ -1,7 +1,7 @@
 /*
     Read Netstumbler data files.
 
-    Copyright (C) 2004 Robert Lipe, robertlipe@usa.net and
+    Copyright (C) 2004, 2005 Robert Lipe, robertlipe@usa.net and
     John Temples; gpsns@xargs.com
 
     This program is free software; you can redistribute it and/or modify
@@ -24,12 +24,13 @@
 #include "csv_util.h"
 #include <ctype.h>
 
-static FILE *file_in;
+static gbfile *file_in;
 static char *nseicon = NULL;
 static char *nsneicon = NULL;
 static char *seicon = NULL;
 static char *sneicon = NULL;
 static char *snmac = NULL;
+static int macstumbler;
 
 static void	fix_netstumbler_dupes(void);
 
@@ -38,33 +39,35 @@ static void	fix_netstumbler_dupes(void);
 static
 arglist_t netstumbler_args[] = {
 	{"nseicon", &nseicon, "Non-stealth encrypted icon name", 
-		"Red Square", ARGTYPE_STRING },
+		"Red Square", ARGTYPE_STRING, ARG_NOMINMAX },
 	{"nsneicon", &nsneicon, "Non-stealth non-encrypted icon name", 
-		"Green Square", ARGTYPE_STRING },
+		"Green Square", ARGTYPE_STRING, ARG_NOMINMAX },
 	{"seicon", &seicon, "Stealth encrypted icon name", 
-		"Red Diamond", ARGTYPE_STRING },
+		"Red Diamond", ARGTYPE_STRING, ARG_NOMINMAX },
 	{"sneicon", &sneicon, "Stealth non-encrypted icon name", 
-		"Green Diamond", ARGTYPE_STRING },
-	{"snmac", &snmac, "Shortname is MAC address", NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+		"Green Diamond", ARGTYPE_STRING, ARG_NOMINMAX },
+	{"snmac", &snmac, "Shortname is MAC address", NULL, ARGTYPE_BOOL, 
+		ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 static void
 rd_init(const char *fname)
 {
-	file_in = xfopen(fname, "r", MYNAME);
+	file_in = gbfopen(fname, "rb", MYNAME);
+	macstumbler = 0;
 }
 
 static void
 rd_deinit(void)
 {
-	fclose(file_in);
+	gbfclose(file_in);
 }
 
 static void
 data_read(void)
 {
-	char ibuf[512];
+	char *ibuf;
 	char ssid[2 + 32 + 2 + 1];			/* "( " + SSID + " )" + null */
 	char mac[2 + 17 + 2 + 1];			/* "( " + MAC + " )" + null */
 	char desc[sizeof ssid - 1 + 15 + 1];	/* room for channel/speed */
@@ -75,11 +78,14 @@ data_read(void)
 	long flags = 0;
 	int speed = 0, channel = 0;
 	struct tm tm;
+	
+	memset(&tm, 0, sizeof(tm));
 
-	for(; fgets(ibuf, sizeof(ibuf), file_in);) {
+	while ((ibuf = gbfgetstr(file_in))) {
 		char *field;
 		int field_num, len, i, stealth = 0;
 		
+		ibuf = lrtrim(ibuf);
         /* A sharp in column zero might be a comment.  Or it might be
          * something useful, like the date.
 	 */
@@ -89,6 +95,14 @@ data_read(void)
 				tm.tm_year = atoi(&ibuf[12]) - 1900;
 				tm.tm_mon = atoi(&ibuf[17]) - 1;
 				tm.tm_mday = atoi(&ibuf[20]);
+			}
+
+			/*
+			 * Mac stumbler files are the same, except
+			 * use DDMM.mmm instad of DD.DDDD.
+			 */
+			if (strstr(ibuf, "Creator: MacStumbler")) {
+				macstumbler = 1;
 			}
 
 			continue;
@@ -104,12 +118,18 @@ data_read(void)
 					lat = atof(&field[2]);
 					if (field[0] == 'S')
 						lat = -lat;
+					if (macstumbler) {
+						lat = ddmm2degrees(lat);
+					}
 					break;
 
 				case 1:				/* long */
 					lon = atof(&field[2]);
 					if (field[0] == 'W')
 						lon = -lon;
+					if (macstumbler) {
+						lon = ddmm2degrees(lon);
+					}
 					break;
 
 				case 2:				/* ( SSID ) */
@@ -202,7 +222,6 @@ data_read(void)
 
 		waypt_add(wpt_tmp);
 	}
-
 	fix_netstumbler_dupes();
 }
 
@@ -255,7 +274,7 @@ fix_netstumbler_dupes(void)
 	queue *elem, *tmp;
 	extern queue waypt_head;
 	const char *snptr;
-	char *tmp_sn, *tmp_ptr;
+	char *tmp_sn;
 	unsigned long last_crc;
 	char ssid[32 + 5 + 1];
 
@@ -266,9 +285,7 @@ fix_netstumbler_dupes(void)
 	QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
 		bh->wpt = (waypoint *) elem;
 		snptr = bh->wpt->shortname;
-		tmp_sn = xstrdup(snptr);
-		for (tmp_ptr = tmp_sn; *tmp_ptr; tmp_ptr++)
-			*tmp_ptr = tolower(*tmp_ptr);
+		tmp_sn = strlower(xstrdup(snptr));
 		bh->crc = get_crc32(tmp_sn, strlen(snptr));
 		xfree(tmp_sn);
 		i ++;
@@ -293,6 +310,7 @@ fix_netstumbler_dupes(void)
 
 ff_vecs_t netstumbler_vecs = {
 	ff_type_file,
+	{ ff_cap_read, ff_cap_none, ff_cap_none },
 	rd_init,
 	NULL,
 	rd_deinit,
@@ -300,5 +318,6 @@ ff_vecs_t netstumbler_vecs = {
 	data_read,
 	NULL,
 	NULL,
-	netstumbler_args
+	netstumbler_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

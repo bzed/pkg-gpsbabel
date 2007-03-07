@@ -17,7 +17,8 @@
 
  */
 #include "defs.h"
-#if !NO_EXPAT
+#include "cet_util.h"
+#if HAVE_LIBEXPAT
 #include <expat.h>
 static XML_Parser psr;
 #endif
@@ -28,21 +29,22 @@ static int in_ChartWork = 0;
 static int in_Object = 0;
 
 static waypoint *wpt_tmp;
-char *routeName = "ROUTENAME";
+static char *routeName = "ROUTENAME";
 
 #define REPLACEMENT_SIRIUS_ATTR_SEPARATOR	';'
 #define ATTR_USRMRK							"usrmrk"
 #define ATTR_OBJECTNAME						"OBJNAM"
 #define ATTR_SHIPNAME						"shpnam"
 
-void readVersion4( FILE* pFile);
+static void readVersion4( FILE* pFile);
+static void getAttr(const char *data, const char *attr, char **val, char seperator);
 
-FILE *fd;
-FILE *ofd;
+static FILE *fd;
+static FILE *ofd;
 
 static
 arglist_t hsa_ndv_args[] = {
-	{0, 0, 0, 0, 0}
+	ARG_TERMINATOR
 };
 
 #define MYNAME "HsaNdv"
@@ -52,22 +54,24 @@ arglist_t hsa_ndv_args[] = {
 #define FALSE	0
 
 
-#if NO_EXPAT
-void
+#if ! HAVE_LIBEXPAT
+static void
 hsa_ndv_rd_init(const char *fname)
 {
 	fatal(MYNAME ": This build excluded HSA Endeavour support because expat was not installed.\n");
 }
 
-void
+static void
 hsa_ndv_read(void)
 {
 }
 #else
 
 static void
-hsa_ndv_start(void *data, const char *el, const char **attr)
+hsa_ndv_start(void *data, const XML_Char *xml_el, const XML_Char **attr)
 {
+	const char *el = xml_convert_to_char_string(xml_el);
+  
 //	printf("<%s>\n", el);
 	if (strcmp(el, "Export") == 0)
 	{//should only be one
@@ -88,38 +92,13 @@ hsa_ndv_start(void *data, const char *el, const char **attr)
 	}
 	//reset data :)
 	memset(cdatastr,0, MY_CBUF);
-}
-
-static void getAttr(const char *data, const char *attr, char **val, char seperator)
-{
-	char *start;
-	if ((start = strstr(data, attr)) != NULL)
-	{
-		char *end;
-		int len;
-
-		end = strchr(start, seperator);
-		if (end == NULL)
-		{
-			end = start + strlen(start);//assume we are teh last attr
-		}
-
-		len = end-start - strlen(attr);
-
-		*val = xcalloc(len+1, 1);
-		memcpy(*val, start+strlen(attr), len);
-		(*val)[len] = '\0';
-	}
-	else
-	{
-		*val = xcalloc(1, 1);
-		(*val)[0] = '\0';
-	}
+	xml_free_converted_string(el);
 }
 
 static void
-hsa_ndv_end(void *data, const char *el)
+hsa_ndv_end(void *data, const XML_Char *xml_el)
 {
+	const char *el = xml_convert_to_char_string(xml_el);
 	if (in_Route)
 	{
 		if (strcmp(el, "Version") == 0)
@@ -216,6 +195,7 @@ hsa_ndv_end(void *data, const char *el)
 	{
 		in_ChartWork--;
 	}
+	xml_free_converted_string(el);
 }
 
 static void
@@ -226,7 +206,7 @@ hsa_ndv_cdata(void *dta, const XML_Char *s, int len)
 	memcpy(estr, s, len); 
 }
 
-void
+static void
 hsa_ndv_rd_init(const char *fname)
 {
 	fd = xfopen(fname, "r", MYNAME);
@@ -236,12 +216,13 @@ hsa_ndv_rd_init(const char *fname)
 		fatal(MYNAME ":Cannot create XML parser\n");
 	}
 
+	XML_SetUnknownEncodingHandler(psr, cet_lib_expat_UnknownEncodingHandler, NULL);
 	XML_SetElementHandler(psr, hsa_ndv_start, hsa_ndv_end);
 	cdatastr = xcalloc(MY_CBUF,1);
 	XML_SetCharacterDataHandler(psr, hsa_ndv_cdata);
 }
 
-void
+static void
 hsa_ndv_read(void)
 {
 	int len;
@@ -252,6 +233,7 @@ hsa_ndv_read(void)
 	{
 		char *bad;
 
+		buf[len-1] = 0;
 		if (NULL != strstr(buf, "nver=1"))
 		{//its the older format, not xml
 			fseek(fd, 0, SEEK_SET);
@@ -265,7 +247,7 @@ hsa_ndv_read(void)
 		}
 		if (!XML_Parse(psr, buf, len, feof(fd))) {
 			fatal(MYNAME ":Parse error at %d: %s\n", 
-				XML_GetCurrentLineNumber(psr),
+				(int) XML_GetCurrentLineNumber(psr),
 				XML_ErrorString(XML_GetErrorCode(psr)));
 		}
 	}
@@ -275,7 +257,33 @@ hsa_ndv_read(void)
 
 #endif
 
-void
+static void getAttr(const char *data, const char *attr, char **val, char seperator)
+{
+	char *start;
+	if ((start = strstr(data, attr)) != NULL)
+	{
+		char *end;
+		int len;
+
+		end = strchr(start, seperator);
+		if (end == NULL)
+		{
+			end = start + strlen(start);//assume we are teh last attr
+		}
+
+		len = end-start - strlen(attr);
+
+		*val = xcalloc(len+1, 1);
+		memcpy(*val, start+strlen(attr), len);
+		(*val)[len] = '\0';
+	}
+	else
+	{
+		*val = xcalloc(1, 1);
+		(*val)[0] = '\0';
+	}
+}
+static void
 hsa_ndv_rd_deinit(void)
 {
 	if ( cdatastr ) {
@@ -284,13 +292,13 @@ hsa_ndv_rd_deinit(void)
 	fclose(fd);
 }
 
-void
+static void
 hsa_ndv_wr_init(const char *fname)
 {
 	ofd = xfopen(fname, "w", MYNAME);
 }
 
-void
+static void
 hsa_ndv_wr_deinit(void)
 {
 	fclose(ofd);
@@ -309,9 +317,8 @@ hsa_ndv_waypt_pr(const waypoint *waypointp)
 //	fprintf(ofd, "\t\t\t<FeatureNameAgency>0</FeatureNameAgency>\n");
 //	fprintf(ofd, "\t\t\t<FeatureNameSubDiv>1</FeatureNameSubDiv>\n");
 //	fprintf(ofd, "\t\t\t<FeatureNameNumber>1089009023</FeatureNameNumber>\n");
-	fprintf(ofd, "\t\t\t<Attr>attr=grpnam%s\x1ftrnrad50\x1fOBJNAM%s\x1flegnum%i\x1fusrmrk%s\x1fselect2</Attr>\n",
-				routeName, waypointp->shortname, legNum, waypointp->description);
-	fprintf(ofd, "\t\t\t<LegAttr>attr=grpnam%s\x1f</LegAttr>\n", routeName);
+	fprintf(ofd, "\t\t\t<Attr><![CDATA[attr=grpnam%s\x1ftrnrad50\x1fOBJNAM%s\x1flegnum%i\x1fusrmrk%s\x1fselect2]]></Attr>\n", routeName, waypointp->shortname, legNum, waypointp->description);
+	fprintf(ofd, "\t\t\t<LegAttr><![CDATA[attr=grpnam%s\x1f]]></LegAttr>\n", routeName);
 	fprintf(ofd, "\t\t\t<NumberOfVertexs>1</NumberOfVertexs>\n");
 	fprintf(ofd, "\t\t\t<Latitude>%lf</Latitude>\n", waypointp->latitude);
 	fprintf(ofd, "\t\t\t<Longitude>%lf</Longitude>\n", waypointp->longitude);
@@ -321,7 +328,7 @@ hsa_ndv_waypt_pr(const waypoint *waypointp)
 	legNum++;
 }
 
-void
+static void
 hsa_ndv_write(void)
 {
 	fprintf(ofd, "<?xml version=\"1.0\"?>\n");
@@ -345,6 +352,7 @@ hsa_ndv_write(void)
 
 ff_vecs_t HsaEndeavourNavigator_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	hsa_ndv_rd_init,	
 	hsa_ndv_wr_init,	
 	hsa_ndv_rd_deinit,
@@ -352,7 +360,8 @@ ff_vecs_t HsaEndeavourNavigator_vecs = {
 	hsa_ndv_read,
 	hsa_ndv_write,
 	NULL, 
-	hsa_ndv_args
+	hsa_ndv_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -370,16 +379,16 @@ ff_vecs_t HsaEndeavourNavigator_vecs = {
 #define INVALID_TIME -1L
 #define SOUNDARRAY_CHAR 'S'
 
-int readRecord( FILE* pFile, const char* pRecName, char *recData);
-int readPositionRecord( FILE* pFile, double* lat, double* lng, long* timeStamp);
+static int readRecord( FILE* pFile, const char* pRecName, char *recData);
+static int readPositionRecord( FILE* pFile, double* lat, double* lng, long* timeStamp);
 
-void readVersion4( FILE* pFile)
+static void readVersion4( FILE* pFile)
 {
 	while( TRUE )
 	{
-		char recData[256];
+		char recData[256] = {0};
 		// get the position
-		double  lat2, lng2;
+		double  lat2, lng2 = 0;
 
 		// set the pointer to the time stamp depending
 		// on whether we have a sounding array or not
@@ -388,12 +397,12 @@ void readVersion4( FILE* pFile)
 		long* pts2 = 0;
 
 		int soundArray = FALSE;
-		int numberOfVerticies;
+		int numberOfVerticies = 0;
 		char className[256];
 		char attr[1024];
 		int Vertex;
 
-		memset(attr, 0, 1024);
+		memset(attr, 0, sizeof(attr));
 
 		wpt_tmp = xcalloc(sizeof(*wpt_tmp), 1);
 		wpt_tmp->altitude = unknown_alt;
@@ -472,7 +481,7 @@ void readVersion4( FILE* pFile)
 }
 
 // read a record to a file
-int readRecord( FILE* pFile, const char* pRecName, char *recData)
+static int readRecord( FILE* pFile, const char* pRecName, char *recData)
 {
 	// get the rec name
 	int len;
@@ -517,11 +526,12 @@ int readRecord( FILE* pFile, const char* pRecName, char *recData)
 }
 
 // read position
-int readPositionRecord( FILE* pFile, double* lat, double* lng, 
+static int readPositionRecord( FILE* pFile, double* lat, double* lng, 
 						long* timeStamp)
 {
 	// read the lat record
-	char recData[256];
+	char recData[256] = {0};
+
 	if( !readRecord( pFile, EF_LAT_REC, recData) )
 		// no lat record then finished
 		return FALSE;

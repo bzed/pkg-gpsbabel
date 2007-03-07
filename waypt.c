@@ -1,7 +1,7 @@
 /*
     Perform various operations on waypoints.
 
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,10 +21,11 @@
 
 #include <stdio.h>
 #include "defs.h"
+#include "cet_util.h"
 
 queue waypt_head;
 static unsigned int waypt_ct;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 
 void
 waypt_init(void)
@@ -36,6 +37,9 @@ waypt_init(void)
 waypoint *
 waypt_dupe(const waypoint *wpt) 
 {
+	/*
+	 * This and waypt_free should be closely synced.
+	 */
 	waypoint * tmp;
 	tmp = waypt_new();
 	memcpy(tmp, wpt, sizeof(waypoint));
@@ -50,22 +54,29 @@ waypt_dupe(const waypoint *wpt)
 		tmp->url = xstrdup(wpt->url);
 	if (wpt->url_link_text)
 		tmp->url_link_text = xstrdup(wpt->url_link_text);
-	if (wpt->icon_descr && wpt->icon_descr_is_dynamic)
+	if (wpt->icon_descr && wpt->wpt_flags.icon_descr_is_dynamic)
 		tmp->icon_descr = xstrdup(wpt->icon_descr);
 	if (wpt->gc_data.desc_short.utfstring) {
 		tmp->gc_data.desc_short.utfstring = 
-			xstrdup(tmp->gc_data.desc_short.utfstring);
+			xstrdup(wpt->gc_data.desc_short.utfstring);
 	}
 	if (wpt->gc_data.desc_long.utfstring) {
 		tmp->gc_data.desc_long.utfstring = 
-			xstrdup(tmp->gc_data.desc_long.utfstring);
+			xstrdup(wpt->gc_data.desc_long.utfstring);
 	}
+	if (wpt->gc_data.placer) {
+                tmp->gc_data.placer = xstrdup(wpt->gc_data.placer);
+        }
+	if (wpt->gc_data.hint) {
+                tmp->gc_data.hint = xstrdup(wpt->gc_data.hint);
+        }
+
 	/*
 	 * It's important that this duplicated waypoint not appear
 	 * on the master Q.
 	 */
 	tmp->Q.next = tmp->Q.prev = NULL;
-	tmp->gpx_extras = NULL;
+	tmp->fs = fs_chain_copy( wpt->fs );
 
 	return tmp;
 }
@@ -76,12 +87,16 @@ waypt_add(waypoint *wpt)
 	ENQUEUE_TAIL(&waypt_head, &wpt->Q);
 	waypt_ct++;
 
+	if ((wpt->latitude < -90) || (wpt->latitude > 90.0))
+		fatal ("Invalid latitude %f in waypoint.\n", wpt->latitude);
+	if ((wpt->longitude < -180) || (wpt->longitude > 180.0))
+		fatal ("Invalid longitude %f in waypoint.\n", wpt->latitude);
+
 	/*
 	 * Some input may not have one or more of these types so we
 	 * try to be sure that we have these fields even if just by
 	 * copying them from elsewhere.
 	 */
-
 	if (wpt->shortname == NULL) {
 		if (wpt->description) {
 			wpt->shortname = xstrdup(wpt->description);
@@ -125,6 +140,10 @@ waypt_new(void)
 
 	wpt = (waypoint *) xcalloc(sizeof (*wpt), 1);
 	wpt->altitude = unknown_alt;
+	wpt->course = unknown_course;
+	wpt->speed = unknown_speed;
+	wpt->fix = fix_unknown;
+	wpt->sat = -1;
 
 	return wpt;
 }
@@ -133,6 +152,12 @@ unsigned int
 waypt_count(void)
 {
 	return waypt_ct;
+}
+
+void
+set_waypt_count(unsigned int nc)
+{
+	waypt_ct = nc;
 }
 
 void
@@ -146,7 +171,7 @@ waypt_disp(const waypoint *wpt)
 	printposn(wpt->longitude,0);
 
 	if ( wpt->description ) {	
-		tmpdesc = str_utf8_to_ascii( wpt->description);
+		tmpdesc = xstrdup( wpt->description);
 		printf("%s/%s", 
 			global_opts.synthesize_shortnames ? 
 			mkshort(mkshort_handle, tmpdesc) : 
@@ -188,6 +213,40 @@ waypt_disp_all(waypt_cb cb)
 	}
 }
 
+void
+waypt_init_bounds(bounds *bounds)
+{
+	/* Set data out of bounds so that even one waypoint will reset */
+	bounds->max_lat = -9999;
+	bounds->max_lon = -9999;
+	bounds->min_lat = 9999;
+	bounds->min_lon = 9999;
+}
+
+int
+waypt_bounds_valid(bounds *bounds)
+{
+	/* Returns true if bb has any 'real' data in it */
+	return bounds->max_lat > -9999;
+}
+
+/*
+ * Recompund bounding box based on new position point.
+ */
+void 
+waypt_add_to_bounds(bounds *bounds, const waypoint *waypointp)
+{
+	if (waypointp->latitude > bounds->max_lat)
+		bounds->max_lat = waypointp->latitude;
+	if (waypointp->longitude > bounds->max_lon)
+		bounds->max_lon = waypointp->longitude;
+	if (waypointp->latitude < bounds->min_lat)
+		bounds->min_lat = waypointp->latitude;
+	if (waypointp->longitude < bounds->min_lon)
+		bounds->min_lon = waypointp->longitude;
+}
+
+
 /*
  *  Makes another pass over the data to compute bounding
  *  box data and populates bounding box information.
@@ -199,22 +258,11 @@ waypt_compute_bounds(bounds *bounds)
 	queue *elem, *tmp;
 	waypoint *waypointp;
 
-	/* Set data out of bounds so that even one waypoint will reset */
-	bounds->max_lat = -9999;
-	bounds->max_lon = -9999;
-	bounds->min_lat = 9999;
-	bounds->min_lon = 9999;
+	waypt_init_bounds(bounds);
 
 	QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
 		waypointp = (waypoint *) elem;
-		if (waypointp->latitude > bounds->max_lat)
-			bounds->max_lat = waypointp->latitude;
-		if (waypointp->longitude > bounds->max_lon)
-			bounds->max_lon = waypointp->longitude;
-		if (waypointp->latitude < bounds->min_lat)
-			bounds->min_lat = waypointp->latitude;
-		if (waypointp->longitude < bounds->min_lon)
-			bounds->min_lon = waypointp->longitude;
+		waypt_add_to_bounds(bounds, waypointp);
 	}
 }
 
@@ -237,6 +285,9 @@ find_waypt_by_name(const char *name)
 void 
 waypt_free( waypoint *wpt )
 {
+	/*
+	 * This and waypt_dupe should be closely synced.
+	 */
 	if (wpt->shortname) {
 		xfree(wpt->shortname);
 	}
@@ -252,11 +303,8 @@ waypt_free( waypoint *wpt )
 	if (wpt->url_link_text) {
 		xfree(wpt->url_link_text);
 	}
-	if (wpt->icon_descr && wpt->icon_descr_is_dynamic) {
+	if (wpt->icon_descr && wpt->wpt_flags.icon_descr_is_dynamic) {
 		xfree((char *)(void *)wpt->icon_descr);
-	}
-	if (wpt->gpx_extras) {
-		free_gpx_extras(wpt->gpx_extras);
 	}
 	if (wpt->gc_data.desc_short.utfstring) {
 		xfree(wpt->gc_data.desc_short.utfstring);
@@ -264,6 +312,13 @@ waypt_free( waypoint *wpt )
 	if (wpt->gc_data.desc_long.utfstring) {
 		xfree(wpt->gc_data.desc_long.utfstring);
 	}
+	if (wpt->gc_data.placer) {
+		xfree(wpt->gc_data.placer);
+	}
+	if (wpt->gc_data.hint) {
+		xfree (wpt->gc_data.hint);
+	} 
+	fs_chain_destroy( wpt->fs );
 	xfree(wpt);	
 }
 
@@ -275,6 +330,9 @@ waypt_flush( queue *head )
 	QUEUE_FOR_EACH(head, elem, tmp) {
 		waypoint *q = (waypoint *) dequeue(elem);
 		waypt_free(q);
+		if (head == &waypt_head) {
+			waypt_ct--;
+		}
 	}
 }
 
@@ -282,7 +340,45 @@ void
 waypt_flush_all()
 {
 	if ( mkshort_handle ) {
-		mkshort_del_handle( mkshort_handle );
+		mkshort_del_handle( &mkshort_handle );
 	}
 	waypt_flush(&waypt_head);
+}
+
+void
+waypt_backup(signed int *count, queue **head_bak)
+{
+	queue *elem, *tmp, *qbackup;
+	waypoint *wpt;
+	int no = 0;
+
+	qbackup = (queue *) xcalloc(1, sizeof(*qbackup));
+	QUEUE_INIT(qbackup);
+	
+	QUEUE_MOVE(qbackup, &waypt_head);
+	QUEUE_INIT(&waypt_head);
+
+	waypt_ct = 0;
+
+	QUEUE_FOR_EACH(qbackup, elem, tmp)
+	{
+	    wpt = (waypoint *)elem;
+	    waypt_add(waypt_dupe(wpt));
+	    no++;
+	}
+
+	*head_bak = qbackup;
+	*count = no;
+}
+
+void
+waypt_restore(signed int count, queue *head_bak)
+{
+	if (head_bak == NULL) return;
+	
+	waypt_flush(&waypt_head);
+	QUEUE_INIT(&waypt_head);
+	QUEUE_MOVE(&waypt_head, head_bak);
+	waypt_ct = count;
+	xfree(head_bak);
 }

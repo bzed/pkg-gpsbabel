@@ -20,6 +20,7 @@
  */
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 
@@ -52,10 +53,10 @@ struct record {
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
 
-struct pdb *opdb;
-struct pdb_record *opdb_rec;
+static struct pdb *opdb;
+static struct pdb_record *opdb_rec;
 
 static void
 rd_init(const char *fname)
@@ -82,7 +83,7 @@ static void
 wr_deinit(void)
 {
 	fclose(file_out);
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 }
 
 static void
@@ -105,8 +106,8 @@ data_read(void)
 		char *vdata;
 		struct tm tm;
 
-		memset (&tm, sizeof(tm), 0);
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+		memset (&tm, 0, sizeof(tm));
+		wpt_tmp = waypt_new();
 		rec = (struct record *) pdb_rec->data;
 		wpt_tmp->altitude = be_read32(&rec->elevation); 
 
@@ -145,7 +146,7 @@ my_writewpt(const waypoint *wpt)
 	char *vdata;
 	time_t tm_t;
 	const char *sn = global_opts.synthesize_shortnames ?
-		mkshort(mkshort_handle, wpt->description) :
+		mkshort_from_wpt(mkshort_handle, wpt) :
 		wpt->shortname;
 
 	rec = xcalloc(sizeof(*rec)+56,1);
@@ -179,7 +180,7 @@ my_writewpt(const waypoint *wpt)
 	
 	be_write32(&rec->longitude, si_round(wpt->longitude * 100000.0));
 	be_write32(&rec->latitude, si_round(wpt->latitude * 100000.0));
-	be_write32(&rec->elevation, wpt->altitude);
+	be_write32(&rec->elevation, (unsigned int) (wpt->altitude));
 
 	rec->plot = 0;
 	rec->unknown3 = 'a';
@@ -205,7 +206,7 @@ my_writewpt(const waypoint *wpt)
 	vdata[1] = '\0';
 	vdata += 2;
 	
-	opdb_rec = new_Record (0, 0, ct++, vdata-(char *)rec, (const ubyte *)rec);
+	opdb_rec = new_Record (0, 0, ct++, (uword) (vdata-(char *)rec), (const ubyte *)rec);
 
 	if (opdb_rec == NULL) {
 		fatal(MYNAME ": libpdb couldn't create record\n");
@@ -263,11 +264,15 @@ data_write(void)
 
 ff_vecs_t magnav_vec = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,
 	wr_deinit,
 	data_read,
 	data_write,
-	NULL
+	NULL,
+	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

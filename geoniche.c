@@ -2,6 +2,7 @@
     Read and write GeoNiche files.
 
     Copyright (C) 2003 Rick Richardson <rickr@mn.rr.com>
+    Copyright (C) 2006 Robert Lipe <robertlipe@usa.net>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,12 +21,21 @@
  */
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
+#include "jeeps/gpsmath.h"
+#include "garmin_tables.h"
+
+#include <math.h>
+#include <stdlib.h>
 
 #define MYNAME		"Geoniche"
-#define MYTYPE 		0x50454e44  	/* PEND */
+#define MYTYPE_ASC	0x50454e44  	/* PEND */
+#define MYTYPE_BIN	0x44415441  	/* DATA */
 #define MYCREATOR	0x47656f4e 	/* GeoN */
+
+#undef GEONICHE_DBG
 
 static FILE		*FileIn;
 static FILE		*FileOut;
@@ -40,10 +50,10 @@ static char *Arg_category = NULL;
 static
 arglist_t Args[] = {
 	{"dbname", &Arg_dbname,
-	    "Database name (filename)", NULL, ARGTYPE_STRING },
+	    "Database name (filename)", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
 	{"category", &Arg_category,
-	    "Category name (Cache)", NULL, ARGTYPE_STRING },
-	{0, 0, 0, 0 }
+	    "Category name (Cache)", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 #define	ARG_FREE(X) do { if (X) { xfree(X); X = NULL; } } while (0)
@@ -180,20 +190,13 @@ eof:
 }
 
 static void
-data_read(void)
+geoniche_read_asc(const struct pdb *pdb)
 {
-    struct pdb *pdb;
     struct pdb_record *pdb_rec;
-
-    if (NULL == (pdb = pdb_Read(fileno(FileIn))))
-	fatal(MYNAME ": pdb_Read failed\n");
-
-    if ((pdb->creator != MYCREATOR) || (pdb->type != MYTYPE))
-	fatal(MYNAME ": Not a GeoNiche file.\n");
 
     /* Process record 0 */
     pdb_rec = pdb->rec_index.rec;
-    if (strcmp(pdb_rec->data, Rec0Magic))
+    if (strcmp((char *) pdb_rec->data, Rec0Magic))
 	fatal(MYNAME ": Bad record 0, not a GeoNiche file.\n");
     pdb_rec = pdb_rec->next;
 
@@ -215,8 +218,10 @@ data_read(void)
 	char		*notes;
 	char		gid[6+1];
 	struct tm	tm;
+	
+	memset(&tm, 0, sizeof(tm));
 
-	wpt = xcalloc(sizeof(*wpt), 1);
+	wpt = waypt_new();
 	if (!wpt)
 	    fatal(MYNAME ": Couldn't allocate waypoint.\n");
 	vdata = (char *) pdb_rec->data;
@@ -224,7 +229,7 @@ data_read(void)
 
 	/* Field 1: Target */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 1.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 1 (target).\n");
 	if (strcmp(p, "Route") == 0)
 	    fatal(MYNAME ": Route record type is not implemented.\n");
 	if (strcmp(p, "Target"))
@@ -233,100 +238,102 @@ data_read(void)
 
 	/* Field 2: Import ID number */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 2.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 2 (ID).\n");
 	id = atoi(p);
 	xfree(p);
 
 	/* Field 3: Title */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 3.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 3 (Title).\n");
 	title = p;
 
 	/* Field 4: Route ID number */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 4.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 4 (Route ID).\n");
 	route_id = atoi(p);
 	xfree(p);
 
 	/* Field 5: Category */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 5.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 5 (Category).\n");
 	category = p;
 
 	/* Field 6: Latitude */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 6.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 6 (Latitude).\n");
 	lat = atof(p);
 	xfree(p);
 
 	/* Field 7: Longitude */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 7.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 7 (Longitude).\n");
 	lon = atof(p);
 	xfree(p);
 
 	/* Field 8: Altitude */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 8.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 8 (Altitude).\n");
 	alt = atof(p);
 	xfree(p);
 
 	/* Field 9: Creation date */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 9.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 9 (Creation date).\n");
 	datestr = p;
 
 	/* Field 10: Creation time */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 10.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 10 (Creation time).\n");
 	timestr = p;
 
 	/* Field 11: Visited date */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 11.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 11 (Visited date).\n");
 	xfree(p);
 
 	/* Field 12: Visited time */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 12.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 12 (Visited time).\n");
 	xfree(p);
 
 	/* Field 13: Icon color (R G B) */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 13.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 13 (Icon color).\n");
 	xfree(p);
 
 	/* Field 14: icon number */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 14.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 14 (Icon number).\n");
 	icon = atoi(p);
 	xfree(p);
 
 	/* Field 15: unused */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 15.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 15 (unused1).\n");
 	xfree(p);
 
 	/* Field 16: unused */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 16.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 16 (unused2).\n");
 	xfree(p);
 
 	/* Field 17: unused */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 17.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 17 (unused3).\n");
 	xfree(p);
 
 	/* Field 18: Notes */
 	p = field(&vdata, &vlen);
-	if (!p) fatal(MYNAME ": Premature EOD processing field 18.\n");
+	if (!p) fatal(MYNAME ": Premature EOD processing field 18 (Notes).\n");
 	notes = p;
 
 	sscanf(datestr, "%d/%d/%d", &tm.tm_mon, &tm.tm_mday, &tm.tm_year);
 	tm.tm_mon -= 1;
 	tm.tm_year -= 1900;
 	sscanf(timestr, "%d:%d:%d", &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
-	wpt->creation_time = mktime(&tm);
+	if (tm.tm_year >= 1970) {
+	    wpt->creation_time = mktime(&tm);
+	}
 	xfree(datestr);
 	xfree(timestr);
 
@@ -335,7 +342,7 @@ data_read(void)
 	wpt->longitude = lon;
 	wpt->altitude = alt;
 	wpt->icon_descr = category;
-	wpt->icon_descr_is_dynamic = 1;
+	wpt->wpt_flags.icon_descr_is_dynamic = 1;
 
 	if (gid[0])
 	{
@@ -352,6 +359,183 @@ data_read(void)
 
 	waypt_add(wpt);
     } 
+}
+
+static char *geoniche_icon_map[] = 			/* MPS */
+{
+	 /* 21 */ "Cross",
+	 /* 22 */ "Cross (light)",			
+	 /* 23 */ "Cross (little)",
+	 /* 24 */ "Cross (straight)",
+	 /* 25 */ "Cross (light straight)",
+	 /* 26 */ "Cross (little straight)",
+	 /* 27 */ NULL,
+	 /* 28 */ NULL,
+	 /* 29 */ NULL,
+	 /* 2A */ "Flag",
+	 /* 2B */ "Car",				/* 56 */
+	 /* 2C */ "Gas Station",			/* 8 */
+	 /* 2D */ "Observation Point",
+	 /* 2E */ "Scenic Area",			/* 48 */
+	 /* 2F */ "City",
+	 /* 30 */ "Mountains",
+	 /* 31 */ "Park",				/* 46 */
+	 /* 32 */ "Forest",				/* 105 */
+	 /* 33 */ "Campground",				/* 38 */
+	 /* 34 */ NULL,
+	 /* 35 */ "Men",
+	 /* 36 */ "Woman",
+	 /* 37 */ "Hotel",				/* 59 */
+	 /* 38 */ "Residence",				/* 10 */
+	 /* 39 */ "Restaurant",				/* 11 */
+	 /* 3A */ "Cafe",
+	 /* 3B */ NULL,
+	 /* 3C */ "Airport",				/* 107 */
+	 /* 3D */ "Medical Facility",			/* 43 */
+	 /* 3E */ "Ropeway",
+	 /* 3F */ "Sailing Area",
+	 /* 40 */ "Anchor",
+	 /* 41 */ NULL, /* Half Anchor ??? */
+	 /* 42 */ "Fishing Area",			/* 7 */
+	 /* 43 */ "Stop Sign",
+	 /* 44 */ "Question Sign",
+	 /* 45 */ NULL,
+	 /* 46 */ NULL,
+	 /* 47 */ "Euro Sign",
+	 /* 48 */ "Bank",				/* 6 */
+	 /* 49 */ NULL,
+	 /* 4A */ "Left Arrow",
+	 /* 4B */ "Right Arrow",
+	 /* 4C */ "Traditional Cache",
+	 /* 4D */ "Multi-Cache",			/* 86 */
+	 /* 4E */ "Virtual Cache",			/* 48 */
+	 /* 4F */ "Letterbox Cache",	 		
+	 /* 50 */ "Event Cache",			/* 47 */
+	 /* 51 */ "Webcam Cache",			/* 90 */
+	 /* 52 */ "Mystery or puzzle Cache",
+};
+
+static char *
+geoniche_icon_to_descr(const int no)
+{
+    char *result = NULL;
+
+    if (no >= 0x21) 
+    {
+	int i = no - 0x21;
+	if (i <= 49) 
+	{
+	    result = geoniche_icon_map[i];
+	}
+    }
+    if (result != NULL) 
+    {
+	result = xstrdup(result);
+    }
+    return result;
+}
+
+static void
+geoniche_read_bin(const struct pdb *pdb)
+{
+    struct pdb_record *pdb_rec;
+
+    /* Process records */
+    
+    for (pdb_rec = pdb->rec_index.rec; pdb_rec != NULL; pdb_rec = pdb_rec->next)
+    {
+	char *vdata = (char *) pdb_rec->data;
+	struct tm created, visited;
+	int icon_nr, selected;
+	int latdeg, londeg;
+	double lat, lon, altitude;
+	waypoint *waypt;
+	
+	memset(&visited, 0, sizeof(visited));
+	memset(&created, 0, sizeof(created));
+	
+	latdeg = be_read16(vdata + 0);
+	lat = be_read32(vdata + 2);
+	londeg = be_read16(vdata + 6);
+	lon = be_read32(vdata + 8);
+	altitude = (float) be_read32(vdata + 12);
+	selected = vdata[16];
+	created.tm_min = be_read16(vdata + 20);
+	created.tm_hour = be_read16(vdata + 22);
+	created.tm_mday = be_read16(vdata + 24);
+	created.tm_mon = be_read16(vdata + 26);
+	created.tm_year = be_read16(vdata + 28);
+	visited.tm_min = be_read16(vdata + 34);
+	visited.tm_hour = be_read16(vdata + 36);
+	visited.tm_mday = be_read16(vdata + 38);
+	visited.tm_mon = be_read16(vdata + 40);
+	visited.tm_year = be_read16(vdata + 42);
+
+#ifdef GEONICHE_DBG
+	printf(MYNAME "-date: %04d/%02d/%02d, %02d:%02d (%04d/%02d/%02d, %02d:%02d)\n", 
+	    created.tm_year, created.tm_mon, created.tm_mday, created.tm_hour, created.tm_min,
+	    visited.tm_year, visited.tm_mon, visited.tm_mday, visited.tm_hour, visited.tm_min);
+#endif
+	icon_nr = vdata[62];
+	
+	latdeg = 89 - latdeg;
+	lat = lat * (double) 0.0000006;
+	if (latdeg >= 0) 
+	    lat = (double) 60.0 - lat;
+	else
+	    latdeg++;
+
+	lon = lon * (double) 0.0000006;
+	while (londeg >= 360) londeg-=360;
+	if (londeg > 180)
+	{
+	    lon = (double) 60.0 - lon;
+	    londeg = londeg - 359;
+	}
+
+	created.tm_year-=1900;
+	created.tm_mon--;
+
+	waypt = waypt_new();
+	
+	waypt->shortname = xstrdup(vdata + 63);
+	waypt->altitude = altitude;
+	waypt->creation_time = mkgmtime(&created);
+	
+	GPS_Math_DegMin_To_Deg(latdeg, lat, &waypt->latitude);
+	GPS_Math_DegMin_To_Deg(londeg, lon, &waypt->longitude);
+	
+	waypt->icon_descr = geoniche_icon_to_descr(icon_nr);
+	if (waypt->icon_descr != NULL)
+		waypt->wpt_flags.icon_descr_is_dynamic = 1;
+	
+	waypt_add(waypt);
+    }
+}
+
+static void
+data_read(void)
+{
+    struct pdb *pdb;
+
+    if (NULL == (pdb = pdb_Read(fileno(FileIn))))
+	fatal(MYNAME ": pdb_Read failed\n");
+
+    if (pdb->creator != MYCREATOR)
+	fatal(MYNAME ": Not a GeoNiche file.\n");
+	
+    switch(pdb->type)
+    {
+	case MYTYPE_ASC:
+	    geoniche_read_asc(pdb);
+	    break;
+	case MYTYPE_BIN:
+	    geoniche_read_bin(pdb);
+	    break;
+	default:
+	    fatal(MYNAME ": Unsupported GeoNiche file.\n");
+    }
+
     free_pdb(pdb);
 }
 
@@ -369,9 +553,24 @@ enscape(char *s)
     buf = d = xmalloc(strlen(s) * 2 + 1);
     for (; *s; ++s)
     {
-	if (*s == '\\' || *s == ',')
+
+/*
+ * 3 May 06: need to escape single quotes for v1.40 release
+ */
+
+	if (*s == '\\' || *s == ',' || *s == '\'')
+	{
 	    *d++ = '\\';
-	*d++ = *s;
+	    *d++ = *s;
+	}
+
+/* 3 May 06: stop stripping for better readability
+ *
+ *	else if ((*s == '\r') || (*s == '\n'))
+ *	*d++ = ' ';
+ */
+	else
+	    *d++ = *s;
     }
 
     *d = 0;
@@ -398,34 +597,99 @@ wpt2icon(const waypoint *wpt)
     else if (strstr(desc, "hyb")) return 47;
     else if (strstr(desc, "unk")) return 48;
     else if (strstr(desc, "cam")) return 49;
-    else return 0;
+
+    switch (wpt->gc_data.type) {
+	case gt_traditional: return 43;
+	case gt_multi: return 44;
+	case gt_locationless: return 45;
+	case gt_earth: return 45;
+	case gt_virtual: return 45;
+	case gt_letterbox: return 46;
+	case gt_event: return 47;
+	case gt_cito: return 47;
+	case gt_suprise: return 48;
+	case gt_webcam: return 49;
+	case gt_unknown: return 0;
+	case gt_benchmark: return 0;
+	case gt_ape: return 0;
+	case gt_mega: return 0;
+    }
+
+    return 0;
+}
+
+static char *
+geoniche_geostuff(const waypoint *wpt)
+{
+	char *gs = NULL, *tmp1, *tmp2, *tmp3;
+	char tbuf[10240];
+
+	if (!wpt->gc_data.terr) {
+		return NULL;
+	}
+
+	snprintf(tbuf, sizeof(tbuf), "\n%s by %s\n\n", gs_get_cachetype(wpt->gc_data.type), wpt->gc_data.placer);
+	gs = xstrappend(gs, tbuf);
+
+/*
+ * 3 May 06: Removed duplicated information
+ *
+ * 	snprintf(tbuf, sizeof(tbuf), "Waypoint: %s %s\n", wpt->shortname, wpt->description);	
+ *	gs = xstrappend(gs, tbuf);
+ */
+
+/*
+ * 3 May 06: Added container type
+ */
+	snprintf(tbuf, sizeof(tbuf), "Container: %s\nDifficulty: %3.1f\nTerrain: %3.1f\n\n", gs_get_container(wpt->gc_data.container), wpt->gc_data.diff/10.0, wpt->gc_data.terr/10.0);
+	gs = xstrappend(gs, tbuf);
+
+	tmp1 = strip_html(&wpt->gc_data.desc_short);
+	tmp2 = strip_html(&wpt->gc_data.desc_long);
+	gs = xstrappend(gs, tmp1);
+	gs = xstrappend(gs, tmp2);
+
+	tmp3 = rot13(wpt->gc_data.hint);
+	snprintf(tbuf, sizeof(tbuf), "\n\nHint: %s\n", tmp3);
+	gs = xstrappend(gs, tbuf);
+
+	xfree(tmp1);
+	xfree(tmp2);
+	xfree(tmp3);
+
+	tmp1 = enscape(gs);
+	xfree(gs);
+
+	return tmp1;
 }
 
 static void
-copilot_writewpt(const waypoint *wpt)
+geoniche_writewpt(const waypoint *wpt)
 {
     static int		ct = 0;
     struct pdb_record	*opdb_rec;
     int			vlen;
     static int		vsize = 4096;
-    char		*vdata;
+    ubyte		*vdata;
     char		*title;
     struct tm		tm;
     char		datestr[10+1];
     char		timestr[8+1];
     char		*notes;
     int			id;
+    time_t		tx;
+    char 		*gs;
 
     if (ct == 0)
     {
-	opdb_rec = new_Record (0, 0, ct++, sizeof(Rec0Magic), Rec0Magic);	       
+	opdb_rec = new_Record (0, 0, ct++, sizeof(Rec0Magic), (ubyte *) Rec0Magic);	       
 	if (opdb_rec == NULL)
 	    fatal(MYNAME ": libpdb couldn't create record\n");
 	if (pdb_AppendRecord(PdbOut, opdb_rec))
 	    fatal(MYNAME ": libpdb couldn't append record\n");
     }
 
-    if (wpt->description[0])
+    if ( wpt->description && wpt->description[0] )
 	title = enscape(wpt->description);
     else
 	title = enscape(wpt->shortname);
@@ -433,24 +697,39 @@ copilot_writewpt(const waypoint *wpt)
     id = gid2id(wpt->shortname);
     if (id < 0)
 	id = ct;
-
-    tm = *localtime(&wpt->creation_time);
-    strftime(datestr, sizeof(datestr), "%m/%d/%Y", &tm);
-    strftime(timestr, sizeof(timestr), "%H:%M:%S", &tm);
+	
+    tx = (wpt->creation_time != 0) ? wpt->creation_time : gpsbabel_time;
+    if (tx == 0) {	/* maybe zero during testo (freezed time) */
+	strcpy(datestr, "01/01/1904");	/* this seems to be the uninitialized date value for geoniche */
+	strcpy(timestr, "00:00:00");
+    }
+    else  {
+	tm = *localtime(&tx);
+	strftime(datestr, sizeof(datestr), "%m/%d/%Y", &tm);
+	strftime(timestr, sizeof(timestr), "%H:%M:%S", &tm);
+    }
 
     /* Notes field MUST have soemthing in it */
     if (!wpt->notes || wpt->notes[0] == 0)
 	notes = xstrdup(title);
     else
 	notes = enscape(wpt->notes);
+	
+    gs = geoniche_geostuff(wpt);
+    if (gs) {
+	notes = xstrappend(notes, gs);
+	xfree (gs);
+    }
+    /* last chance to fill notes with something */
+    if (*notes == '\0') notes = xstrappend(notes, "(notes)");
 
-    vdata = (char *) xmalloc(vsize);
+    vdata = (ubyte *) xmalloc(vsize);
     if (vdata == NULL)
 	fatal(MYNAME ": libpdb couldn't get record memory\n");
 
     for (;;)
     {
-	vlen = snprintf(vdata, vsize,
+	vlen = snprintf((char *) vdata, vsize,
 	    "Target,%d,%s,,%s,%f,%f,%f,%s,%s,,,,%d,,,,%s"
 	    , id
 	    , title
@@ -479,12 +758,12 @@ copilot_writewpt(const waypoint *wpt)
 	    vsize = vlen + 1;
 	else
 	    vsize *= 2;
-	vdata = (char *) xrealloc(vdata, vsize);
+	vdata = (ubyte *) xrealloc(vdata, vsize);
 	if (vdata == NULL)
 	    fatal(MYNAME ": libpdb couldn't get record memory\n");
     }
 
-    opdb_rec = new_Record (0, 0, ct++, vlen+1, vdata);	       
+    opdb_rec = new_Record (0, 0, ct++, (uword) (vlen+1), vdata);	       
 
     if (opdb_rec == NULL)
 	fatal(MYNAME ": libpdb couldn't create record\n");
@@ -502,20 +781,23 @@ data_write(void)
     if (NULL == (PdbOut = new_pdb()))
 	fatal (MYNAME ": new_pdb failed\n");
 
-    if (Arg_dbname)
+    if (Arg_dbname) {
+	if (case_ignore_strcmp(Arg_dbname, "GeoNiche Targets") == 0)
+	    fatal(MYNAME ": Reserved database name!\n");
 	strncpy(PdbOut->name, Arg_dbname, PDB_DBNAMELEN);
+    }
     else
 	strncpy(PdbOut->name, FilenameOut, PDB_DBNAMELEN);
     PdbOut->name[PDB_DBNAMELEN-1] = 0;
 
     PdbOut->attributes = PDB_ATTR_BACKUP;
     PdbOut->ctime = PdbOut->mtime = current_time() + (49*365 + 17*366) * (60*60*24);
-    PdbOut->type = MYTYPE;
+    PdbOut->type = MYTYPE_ASC;
     PdbOut->creator = MYCREATOR; 
     PdbOut->version = 0;
     PdbOut->modnum = 1;
 
-    waypt_disp_all(copilot_writewpt);
+    waypt_disp_all(geoniche_writewpt);
     
     pdb_Write(PdbOut, fileno(FileOut));
 
@@ -526,6 +808,7 @@ data_write(void)
 ff_vecs_t geoniche_vecs =
 {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,
@@ -533,5 +816,7 @@ ff_vecs_t geoniche_vecs =
 	data_read,
 	data_write,
 	NULL, 
-	Args
+	Args,
+	CET_CHARSET_MS_ANSI, 0	/* CET-REVIEW */
 };
+#endif

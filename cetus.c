@@ -19,13 +19,26 @@
 
  */
 
+/*
+
+    History:
+    
+	2005/08/03:	Added track_read by O.K.
+			(Thanx to Adam Schneider for additional information)
+
+*/
+    
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
-
+#
 #define MYNAME "Cetus"
-#define MYTYPE  0x43577074  	/* CWpt */
-#define MYCREATOR 0x63475053 	/* cGPS */
+#define MYTYPE_WPT  	0x43577074  	/* CWpt */
+#define MYTYPE_TRK 	0x7374726d	/* strm */
+
+#define MYCREATOR 	0x63475053 	/* cGPS */
+#define MYTRACK		0x44424c4b	/* DBLK */
 
 #define NOTESZ 4096
 #define DESCSZ 4096
@@ -43,7 +56,7 @@ typedef enum {
 			/* the icon field contains the garmin symbol number */
 } wpt_type;
 
-struct record {
+struct cetus_wpt_s {
 	char type;	
 	
 	char   readonly;
@@ -60,7 +73,7 @@ struct record {
 	unsigned char sec;
 	
 	/* accuracy and precision information for use where applicable */
-	char  sat; /* ff if averaged or unknown */
+	unsigned char  sat; /* ff if averaged or unknown */
 	pdb_16 pdop; /* pdop * 100 */
 	pdb_16 hdop;
 	pdb_16 vdop;
@@ -88,23 +101,270 @@ struct record {
 	pdb_16 category;
 };
 
+typedef struct cetus_track_head_s
+{
+	char 		id[2];
+	char 		version;
+	unsigned char 	interval;
+	unsigned short 	gps;
+	char 		year;
+	char 		month;
+	char 		day;
+	char 		hour;
+	char 		min;
+	char 		sec;
+	char 		dsec;
+	char 		tz;
+	char 		desc;
+} cetus_track_head_t;
+
+#define TRACK_HEAD_SIZE sizeof(struct cetus_track_head_s)
+
+typedef struct cetus_track_point_s
+{
+	char hour;
+	char min;
+	char sec;
+	char msec;
+	char sat;
+	char hdop;
+	pdb_32 latitude;
+	pdb_32 longitude;
+	short speed;
+	short course;
+	pdb_32 elevation;
+} cetus_track_point_t;
+
+#define TRACK_POINT_SIZE sizeof(struct cetus_track_point_s)
+
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-struct pdb *opdb;
-struct pdb_record *opdb_rec;
-static void *mkshort_wr_handle;
+static struct pdb *opdb;
+static struct pdb_record *opdb_rec;
+static short_handle mkshort_wr_handle;
 
 static char *dbname = NULL;
 static char *appendicon = NULL;
 
 static
 arglist_t cetus_args[] = {
-	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING },
-	{"appendicon", &appendicon, "Append icon_descr to description.",
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0 }
+	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING, 
+		ARG_NOMINMAX },
+	{"appendicon", &appendicon, "Append icon_descr to description",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
+
+static waypoint *
+read_track_point(cetus_track_point_t *data, const time_t basetime)
+{
+	int i, ilat, ilon;
+	waypoint *wpt;
+
+	ilat = be_read32(&data->latitude);
+	ilon = be_read32(&data->longitude); 
+	
+	if (data->hour == -1 || data->min == -1 || data->sec == -1 ||
+	    ilat == 2000000000 || ilon == 2000000000) return NULL;	/* At least one of basic data is not available */
+
+	wpt = waypt_new();
+		    
+	wpt->latitude = (double)ilat / 10000000.0;
+	wpt->longitude = (double)ilon / 10000000.0; 
+
+	i = be_read32(&data->elevation);
+	wpt->altitude = (i == -100000000) ? unknown_alt : (double) i / 100.0;
+	
+	if (data->sat != -1) wpt->sat = data->sat;
+	if (data->hdop != -1) wpt->hdop = (float) data->hdop / 10;
+	
+	i = be_read16(&data->speed);
+	if (i != 10000) wpt->speed = ((float) i / 10) * 0.514444;	/* meters/second */
+	i = be_read16(&data->course);
+	if (i != 4000) wpt->course = (float) i / 10;
+	
+	switch(data->hour / 32)	/* extract fix */
+	{
+	    case 0: break;			/* no GPS */
+	    case 1: wpt->fix = fix_none; break;
+	    case 2: wpt->fix = fix_2d; break;
+	    case 3: wpt->fix = fix_3d; break;
+	    case 4: wpt->fix = fix_dgps; break;
+	}
+	
+	wpt->creation_time = basetime +
+	    ((data->hour % 32) * 3600) + (data->min * 60) + data->sec;
+
+	return wpt;
+}
+
+	
+static void
+read_tracks(const struct pdb *pdb)
+{
+	struct pdb_record *pdb_rec;
+	int reclen, records, total, points, dropped;
+	char descr[(2 * TRACK_POINT_SIZE) + 1];
+	char temp_descr[TRACK_POINT_SIZE + 1];
+	cetus_track_head_t *head;
+	waypoint *wpt, *prev;
+	route_head *track;
+	time_t basetime;
+	
+	track = route_head_alloc();
+	track_add_head(track);
+
+	total = 0;
+	points = 0;
+	dropped = 0;
+	basetime = 0;
+	
+	for (pdb_rec = pdb->rec_index.rec; pdb_rec != NULL; pdb_rec = pdb_rec->next) 
+	{
+	    int i, magic;
+	    char *c = (char *)pdb_rec->data;
+
+	    magic = be_read32(c);
+	    if (magic != MYTRACK) 
+		fatal(MYNAME ": Invaid track data or unsupported version!\n");
+	    
+	    reclen = be_read32(c+4);
+	    records = reclen / TRACK_POINT_SIZE;
+
+	    c += 8;
+	    prev = NULL;
+	    
+	    for (i = 0; i < records; i++, c += TRACK_POINT_SIZE)
+	    {
+		switch(total++)
+		{
+		    struct tm tm;
+		    
+		    case 0: 	/* track header */
+			head = (cetus_track_head_t *)c; 
+			if (head->id[0] != 'C' || head->id[1] != 'G') fatal(MYNAME ": Invalid track header!\n");
+			
+			memset(&tm, 0, sizeof(tm));
+			tm.tm_mday = head->day;
+			tm.tm_mon = head->month - 1;
+			tm.tm_year = head->year + 100;
+			basetime = mkgmtime(&tm);
+			break;
+			
+		    case 1: 	/* first part of description */
+			strncpy(descr, c, TRACK_POINT_SIZE);
+			break;	
+			
+		    case 2: 	/* continued description */
+			strncpy(temp_descr, c, TRACK_POINT_SIZE);
+			strcat(descr, temp_descr);	/* here is no need to check target size */
+			if (strlen(descr) > 0)
+			    track->rte_desc = xstrdup(descr);
+			break;	
+			
+		    default:
+			wpt = read_track_point((cetus_track_point_t *)c, basetime);
+			if (wpt != NULL)
+			{
+			    track_add_wpt(track, wpt);
+			    points++;
+			    
+			    /* Did we run over midnight ? */
+			    if ((prev != NULL) && (prev->creation_time > wpt->creation_time))
+			    {
+				basetime += (24 * 3600);
+				wpt->creation_time += (24 * 3600);
+			    }
+			    prev = wpt;
+			}
+			else
+			    dropped++;
+		}
+	    
+	    }
+	}
+
+	if (global_opts.verbose_status > 0)
+	{
+	    printf(MYNAME ": Loaded %d track point(s) from source.\n", points);
+	    if (dropped > 0)
+		printf(MYNAME ": ! %d dropped because of missing data (no time, no coordinates) !\n", dropped);
+	}
+}
+
+static void
+read_waypts(const struct pdb *pdb)
+{
+	struct cetus_wpt_s *rec;
+	struct pdb_record *pdb_rec;
+	char *vdata;
+
+	for(pdb_rec = pdb->rec_index.rec; pdb_rec; pdb_rec=pdb_rec->next) 
+	{
+		waypoint *wpt_tmp;
+		int i;
+
+		wpt_tmp = waypt_new();
+
+		rec = (struct cetus_wpt_s *) pdb_rec->data;
+		if ( be_read32(&rec->elevation) == -100000000 ) {
+			wpt_tmp->altitude = unknown_alt;
+		}
+		else {
+			wpt_tmp->altitude = be_read32(&rec->elevation) / 100.0;
+		}
+			
+		wpt_tmp->latitude = be_read32(&rec->latitude) / 10000000.0;
+		wpt_tmp->longitude = be_read32(&rec->longitude) / 10000000.0; 
+		
+		if (rec->sat != 0xff) 
+			wpt_tmp->sat = rec->sat;
+
+		i = be_read16(&rec->pdop);
+		if (i != 0xffff) wpt_tmp->pdop = i / 100.0;
+		i = be_read16(&rec->hdop);
+		if (i != 0xffff) wpt_tmp->hdop = i / 100.0;
+		i = be_read16(&rec->vdop);
+		if (i != 0xffff) wpt_tmp->vdop = i / 100.0;
+
+		switch (rec->type) {
+			case WptGPS2D:  wpt_tmp->fix = fix_2d; break;
+			case WptGPS3D:  wpt_tmp->fix = fix_3d; break;
+			case WptDGPS2D: wpt_tmp->fix = fix_dgps; break;
+			case WptDGPS3D: wpt_tmp->fix = fix_dgps; break;
+		}
+	        	
+		if (be_read16(&rec->year) != 0xff) {
+			struct tm tm;
+
+			memset (&tm, 0, sizeof(tm));
+			tm.tm_min = rec->min;
+			tm.tm_hour = rec->hour;
+			tm.tm_mday = rec->day;
+			tm.tm_mon = rec->mon - 1;
+			tm.tm_year = be_read16(&rec->year) - 1900;
+
+			wpt_tmp->creation_time = mkgmtime(&tm); 
+			
+		}
+
+		vdata = (char *) pdb_rec->data + sizeof(*rec);
+		
+		wpt_tmp->shortname = xstrdup(vdata);
+		vdata = vdata + strlen(vdata) + 1;
+		
+		wpt_tmp->description = xstrdup(vdata);
+		vdata = vdata + strlen(vdata) + 1;
+		
+		wpt_tmp->notes = xstrdup(vdata);
+		
+		waypt_add(wpt_tmp);
+
+	} 
+}
+
+/* --------------------------------------------------------------------------- */
 
 static void
 rd_init(const char *fname)
@@ -142,69 +402,24 @@ wr_deinit(void)
 static void
 data_read(void)
 {
-	struct record *rec;
 	struct pdb *pdb;
-	struct pdb_record *pdb_rec;
-	char *vdata;
 
 	if (NULL == (pdb = pdb_Read(fileno(file_in)))) {
 		fatal(MYNAME ": pdb_Read failed\n");
 	}
 
-	if ((pdb->creator != MYCREATOR) || (pdb->type != MYTYPE)) {
-		fatal(MYNAME ": Not a Cetus file.\n");
+	if (pdb->creator != MYCREATOR) fatal(MYNAME ": Not a Cetus file.\n");
+
+	switch(pdb->type)
+	{
+	    case MYTYPE_TRK:
+		read_tracks(pdb);
+		break;
+		
+	    case MYTYPE_WPT:
+		read_waypts(pdb);
+		break;
 	}
-	
-	if (pdb->version < 1) {
-	       fatal(MYNAME ": This file is from an obsolete beta version of Cetus GPS and is unsupported.\n");
-        }
-        if (pdb->version > 1) {
-	       fatal(MYNAME ": This file is from an unsupported newer version of Cetus GPS.  It may be supported in a newer version of GPSBabel.\n");
-	}
-
-	for(pdb_rec = pdb->rec_index.rec; pdb_rec; pdb_rec=pdb_rec->next) {
-		waypoint *wpt_tmp;
-
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
-
-		rec = (struct record *) pdb_rec->data;
-		if ( be_read32(&rec->elevation) == -100000000 ) {
-			wpt_tmp->altitude = unknown_alt;
-		}
-		else {
-			wpt_tmp->altitude = be_read32(&rec->elevation) / 100.0;
-		}
-			
-		wpt_tmp->longitude = be_read32(&rec->longitude) / 10000000.0; 
-		wpt_tmp->latitude = be_read32(&rec->latitude) / 10000000.0;
-	        	
-		if (be_read16(&rec->year) != 0xff) {
-			struct tm tm;
-
-			memset (&tm, sizeof(tm), 0);
-			tm.tm_min = rec->min;
-			tm.tm_hour = rec->hour;
-			tm.tm_mday = rec->day;
-			tm.tm_mon = rec->mon - 1;
-			tm.tm_year = be_read16(&rec->year) - 1900;
-
-			wpt_tmp->creation_time = mktime(&tm); 
-			
-		}
-
-		vdata = (char *) pdb_rec->data + sizeof(*rec);
-		
-		wpt_tmp->shortname = xstrdup(vdata);
-		vdata = vdata + strlen(vdata) + 1;
-		
-		wpt_tmp->description = xstrdup(vdata);
-		vdata = vdata + strlen(vdata) + 1;
-		
-		wpt_tmp->notes = xstrdup(vdata);
-		
-		waypt_add(wpt_tmp);
-
-	} 
 	free_pdb(pdb);
 }
 
@@ -212,7 +427,7 @@ data_read(void)
 static void
 cetus_writewpt(const waypoint *wpt)
 {
-	struct record *rec;
+	struct cetus_wpt_s *rec;
 	static int ct;
 	struct tm *tm;
 	char *vdata;
@@ -238,18 +453,18 @@ cetus_writewpt(const waypoint *wpt)
 		be_write16(&rec->year, 0xff);
 	}
 
-	be_write32(&rec->longitude, wpt->longitude * 10000000.0);
-	be_write32(&rec->latitude, wpt->latitude * 10000000.0);
+	be_write32(&rec->longitude, (unsigned int) (wpt->longitude * 10000000.0));
+	be_write32(&rec->latitude, (unsigned int) (wpt->latitude * 10000000.0));
 	if ( wpt->altitude == unknown_alt ) {
-		be_write32(&rec->elevation, -100000000U);
+		be_write32(&rec->elevation, -100000000);
 	}
 	else {
-		be_write32(&rec->elevation, wpt->altitude * 100.0);
+		be_write32(&rec->elevation, (unsigned int) (wpt->altitude * 100.0));
 	}
 	
-	be_write16( &rec->pdop, 0xffff );
-	be_write16( &rec->hdop, 0xffff );
-	be_write16( &rec->vdop, 0xffff );
+	be_write16( &rec->pdop, wpt->pdop ? wpt->pdop * 100 : 0xffff );
+	be_write16( &rec->hdop, wpt->hdop ? wpt->hdop * 100 : 0xffff );
+	be_write16( &rec->vdop, wpt->vdop ? wpt->vdop * 100 : 0xffff );
 	be_write16( &rec->dgpstime, 0xffff );	
 	be_write32( &rec->distance, 0xffffffff );
 	
@@ -260,11 +475,11 @@ cetus_writewpt(const waypoint *wpt)
 	rec->vmon = 0xff;
 	be_write16(&rec->vyear, 0xff);
 	
-	rec->sat = 0xff;
+	rec->sat = wpt->sat ? wpt->sat : 0xff;
 
 	vdata = (char *)rec + sizeof(*rec);
 	if ( wpt->shortname ) {
-			char *sn = str_utf8_to_cp1252(wpt->shortname);
+			char *sn = xstrdup(wpt->shortname);
 		        strncpy( vdata, sn, 16 );
 		        vdata[15] = '\0';
 			xfree(sn);
@@ -277,7 +492,7 @@ cetus_writewpt(const waypoint *wpt)
 	if (wpt->gc_data.desc_short.utfstring) {
 		char *stripped_html = strip_html(&wpt->gc_data.desc_short);
 		desc_short = xstrdup("\n\n");
-		desc_short = xstrappend(desc_short, str_utf8_to_cp1252(stripped_html));
+		desc_short = xstrappend(desc_short, xstrdup(stripped_html));
 		xfree(stripped_html);
 	} else {
 		desc_short = xstrdup("");
@@ -286,13 +501,13 @@ cetus_writewpt(const waypoint *wpt)
 	if (wpt->gc_data.desc_long.utfstring) {
 		char *stripped_html = strip_html(&wpt->gc_data.desc_long);
 		desc_long = xstrdup("\n\n");
-		desc_long = xstrappend(desc_long, str_utf8_to_cp1252(stripped_html));
+		desc_long = xstrappend(desc_long, xstrdup(stripped_html));
 		xfree(stripped_html);
 	} else {
 		desc_long = xstrdup("");
 	}
 
-	desc = wpt->description ? str_utf8_to_cp1252(wpt->description) : 
+	desc = wpt->description ? xstrdup(wpt->description) : 
 		xstrdup("");
 
 	snprintf(vdata, DESCSZ, "%s%s%s", 
@@ -316,7 +531,7 @@ cetus_writewpt(const waypoint *wpt)
 	vdata += strlen( vdata ) + 1;
 
 	if (wpt->gc_data.hint) {
-		char *hint = str_utf8_to_cp1252(wpt->gc_data.hint);
+		char *hint = xstrdup(wpt->gc_data.hint);
 		rec->type = WptCache;
 		strncpy( vdata, hint, NOTESZ + 1 ) ;
 		xfree(hint);
@@ -327,7 +542,7 @@ cetus_writewpt(const waypoint *wpt)
 	}
 	vdata += strlen( vdata ) + 1;
 	
-	opdb_rec = new_Record (0, 2, ct++, vdata-(char *)rec, (const ubyte *)rec);
+	opdb_rec = new_Record (0, 2, ct++, (uword) (vdata-(char *)rec), (const ubyte *)rec);
 	
 	if (opdb_rec == NULL) {
 		fatal(MYNAME ": libpdb couldn't create record\n");
@@ -379,7 +594,7 @@ data_write(void)
 	opdb->name[PDB_DBNAMELEN-1] = 0;
 	opdb->attributes = PDB_ATTR_BACKUP;
 	opdb->ctime = opdb->mtime = current_time() + 2082844800U;
-	opdb->type = MYTYPE;  /* CWpt */
+	opdb->type = MYTYPE_WPT;  /* CWpt */
 	opdb->creator = MYCREATOR; /* cGPS */
 	opdb->version = 1;
 
@@ -397,7 +612,7 @@ data_write(void)
 	    if (global_opts.synthesize_shortnames && waypointp->description) {
 		if (waypointp->shortname)
 		    xfree(waypointp->shortname);
-		waypointp->shortname = mkshort(mkshort_wr_handle, waypointp->description);
+		waypointp->shortname = mkshort_from_wpt(mkshort_wr_handle, waypointp);
 	    }
 	    bh->wpt_name = waypointp->shortname;
 	    bh ++;
@@ -410,12 +625,13 @@ data_write(void)
 
 	pdb_Write(opdb, fileno(file_out));
 	xfree(htable);
-	mkshort_del_handle(mkshort_wr_handle);
+	mkshort_del_handle(&mkshort_wr_handle);
 }
 
 
 ff_vecs_t cetus_vecs = {
 	ff_type_file,
+	{ ff_cap_write | ff_cap_read, ff_cap_read, ff_cap_none },
 	rd_init,
 	wr_init,
 	rd_deinit,
@@ -424,4 +640,6 @@ ff_vecs_t cetus_vecs = {
 	data_write,
 	NULL,
 	cetus_args,
+	CET_CHARSET_MS_ANSI, 0	/* CET-REVIEW */
 };
+#endif

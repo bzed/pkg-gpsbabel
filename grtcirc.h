@@ -18,10 +18,30 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
+ 
+#ifndef GRTCIRC_H
+#define GRTCIRC_H
+
 double gcdist( double lat1, double lon1, double lat2, double lon2 );
+double heading( double lat1, double lon1, double lat2, double lon2 );
+double heading_true_degrees( double lat1, double lon1, double lat2, double lon2 );
 
 double linedist(double lat1, double lon1,
 		double lat2, double lon2,
 		double lat3, double lon3 );
 
-double tomiles( double rads );
+double radtometers( double rads );
+double radtomiles( double rads );
+
+void linepart(double lat1, double lon1,
+               double lat2, double lon2,
+               double frac,
+               double *reslat, double *reslon ); 
+
+/* Degrees to radians */
+#define DEG(x) ((x)*180.0/M_PI)
+
+/* Radians to degrees */
+#define RAD(x) ((x)*M_PI/180.0)
+
+#endif

@@ -1,7 +1,7 @@
 /*
     Generic queueing utilities.
 
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,16 +27,23 @@ typedef struct queue {
 void enqueue(queue *new_el, queue *old);
 queue * dequeue(queue *element);
 
-#define QUEUE_INIT(head) (head)->next = (head)->prev = head
-#define QUEUE_FIRST(head) (head)->next
-#define QUEUE_NEXT(element) (element)->next
-#define QUEUE_LAST(head) (head)->prev
-#define QUEUE_EMPTY (head)->next == head
+void sortqueue (queue *qh, int (*cmp)(const queue *, const queue *));
+
+#define QUEUE_INIT(head) (head)->next = ((head)->prev = head)
+#define QUEUE_FIRST(head) ((head)->next)
+#define QUEUE_NEXT(element) ((element)->next)
+#define QUEUE_LAST(head) ((head)->prev)
+#define QUEUE_EMPTY(head) ((head)->next == (head))
 #define QUEUE_MOVE(newhead,oldhead) \
-	(newhead)->next = (oldhead)->next; \
-	(newhead)->prev = (oldhead)->prev; \
-	(newhead)->next->prev = (newhead); \
-	(newhead)->prev->next = (newhead); \
+        if ( (oldhead)->next == (oldhead) ) {\
+		(newhead)->next = (newhead)->prev = (newhead); \
+	} \
+	else { \
+		(newhead)->next = (oldhead)->next; \
+		(newhead)->prev = (oldhead)->prev; \
+		(newhead)->next->prev = (newhead); \
+		(newhead)->prev->next = (newhead); \
+	} \
 	(oldhead)->next = (oldhead)->prev = (oldhead)
 
 #define ENQUEUE_TAIL(listhead, element) \

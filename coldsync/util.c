@@ -12,10 +12,12 @@
  * native format, convert them to Palm (big-endian) format, and write
  * them to a ubyte string.
  *
- * $Id: util.c,v 1.3 2004/01/18 01:24:41 robertl Exp $
+ * $Id: util.c,v 1.6 2006/05/07 02:14:35 robertl Exp $
  */
 
 #include "config.h"
+#include "cs-config.h"
+#if PDBFMTS_ENABLED
 #include <stdio.h>
 #include <ctype.h>	/* For isprint() */
 #include <pconn/util.h>
@@ -65,7 +67,7 @@ get_ubyte(const ubyte **buf)
 }
 
 INLINE void
-put_ubyte(ubyte **buf, ubyte value)
+put_ubyte(ubyte **buf, const ubyte value)
 {
 	**buf = value;
 	++(*buf);
@@ -83,7 +85,7 @@ get_uword(const ubyte **buf)
 }
 
 INLINE void
-put_uword(ubyte **buf, uword value)
+put_uword(ubyte **buf, const uword value)
 {
 	**buf = (value >> 8) & 0xff;
 	++(*buf);
@@ -103,15 +105,15 @@ get_udword(const ubyte **buf)
 }
 
 INLINE void
-put_udword(ubyte **buf, udword value)
+put_udword(ubyte **buf, const udword value)
 {
-	**buf = (value >> 24) & 0xff;
+	**buf = (ubyte) ((value >> 24) & 0xff);
 	++(*buf);
-	**buf = (value >> 16) & 0xff;
+	**buf = (ubyte) ((value >> 16) & 0xff);
 	++(*buf);
-	**buf = (value >>  8) & 0xff;
+	**buf = (ubyte) ((value >>  8) & 0xff);
 	++(*buf);
-	**buf = value & 0xff;
+	**buf = (ubyte) (value & 0xff);
 	++(*buf);
 }
 #if TIME
@@ -288,3 +290,4 @@ debug_dump(FILE *outfile, const char *prefix,
  * fill-column:	75 ***
  * End: ***
  */
+#endif

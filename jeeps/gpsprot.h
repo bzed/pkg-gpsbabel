@@ -33,6 +33,7 @@ struct LINKDATA
     UC Pid_Protocol_Array;
     UC Pid_Product_Rqst;
     UC Pid_Product_Data;
+    UC Pid_Wpt_Cat_Data;
 }
 ;
 
@@ -52,17 +53,21 @@ int32 gps_device_command;
 
 struct COMMANDDATA
 {
-    UC Cmnd_Abort_Transfer;
-    UC Cmnd_Transfer_Alm;
-    UC Cmnd_Transfer_Posn;
-    UC Cmnd_Transfer_Prx;
-    UC Cmnd_Transfer_Rte;
-    UC Cmnd_Transfer_Time;
-    UC Cmnd_Transfer_Trk;
-    UC Cmnd_Transfer_Wpt;
-    UC Cmnd_Turn_Off_Pwr;
-    UC Cmnd_Start_Pvt_Data;
-    UC Cmnd_Stop_Pvt_Data;
+    US Cmnd_Abort_Transfer;
+    US Cmnd_Transfer_Alm;
+    US Cmnd_Transfer_Posn;
+    US Cmnd_Transfer_Prx;
+    US Cmnd_Transfer_Rte;
+    US Cmnd_Transfer_Time;
+    US Cmnd_Transfer_Trk;
+    US Cmnd_Transfer_Wpt;
+    US Cmnd_Turn_Off_Pwr;
+    US Cmnd_Start_Pvt_Data;
+    US Cmnd_Stop_Pvt_Data;
+    US Cmnd_FlightBook_Transfer;
+    US Cmnd_Transfer_Lap;
+    US Cmnd_Transfer_Wpt_Cats;
+    US Cmnd_Transfer_Runs;
 }
 ;
 
@@ -75,6 +80,11 @@ struct COMMANDDATA
 #define pA100 100
 int32 gps_waypt_transfer;
 
+/*
+ * Waypoint category transfer protocol
+ */
+#define pA101 101
+int32 gps_category_transfer;
 
 /*
  * Route Transfer Protocol
@@ -89,6 +99,7 @@ int32 gps_route_transfer;
 #define pA300 300
 #define pA301 301
 #define pA302 302
+#define pA304 304
 int32 gps_trk_transfer;
 
 /*
@@ -124,7 +135,14 @@ int32 gps_position_transfer;
 #define pA800 800
 int32 gps_pvt_transfer;
 
+/*
+ * Lap Data Transfer
+ */
+#define pA906 906
+int32 gps_lap_transfer;
 
+#define pA1000 1000
+int32 gps_run_transfer;
 
 
 
@@ -141,6 +159,7 @@ int32 gps_pvt_transfer;
 #define pD107 107
 #define pD108 108
 #define pD109 109
+#define pD110 110
 #define pD150 150
 #define pD151 151
 #define pD152 152
@@ -150,6 +169,11 @@ int32 gps_pvt_transfer;
 int32 gps_rte_type;
 int32 gps_waypt_type;
 
+/*
+ * Waypoint category types
+ */
+#define pD120 120
+int32 gps_category_type;
 
 /*
  * Rte Header Type
@@ -173,6 +197,8 @@ int32 gps_rte_link_type;
 #define pD300 300
 #define pD301 301
 #define pD302 302
+#define pD303 303
+#define pD304 304
 int32 gps_trk_type;
 
 
@@ -232,6 +258,12 @@ int32 gps_position_type;
 
 int32 gps_pvt_type;
 
+/*
+ * Lap Data Type
+ */
+#define pD906 906
+
+int32 gps_lap_type;
 
 /*
  * Link protocol type
@@ -246,7 +278,7 @@ int32 gps_link_type;
 
 struct GPS_MODEL_PROTOCOL
 {
-    int32 id;
+    US    id;
     int32 link;
     int32 command;
     int32 wayptt;

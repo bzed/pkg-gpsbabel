@@ -4,7 +4,9 @@ checkit() {
 	export ECODE
 	TYPE=$1
 	STY=$2
-	if ! grep -q $TYPE ~/src/babelweb/capabilities.html
+	DIR=${2}s
+
+	if ! grep -q $TYPE ~/src/babelweb/capabilities.html ~/src/babelweb/capabilities.inc
 	then
 		echo $STY $TYPE is not documented in capabilities.html.
 		ECODE=1
@@ -15,12 +17,14 @@ checkit() {
 		echo $STY $TYPE is not documented in changes.html.
 		ECODE=1
 	fi
-	
-	if ! grep -qi "^    $TYPE$" README 
+
+	DOCF=xmldoc/$DIR/${TYPE}.xml	
+	if ! test  -f $DOCF ;
 	then
-		echo $STY $TYPE is not documented in README.
+		echo $STY $TYPE is not documented in $DOCF
 		ECODE=1
 	fi
+
 }
 
 ./gpsbabel -^ |
@@ -38,6 +42,26 @@ do
 	TYPE=$1
 	checkit $TYPE filter
 done
+
+#
+# See if they're in testo.
+#
+./gpsbabel -^2 | 
+while read FMT
+do
+	set -- $FMT
+	case $1 in
+	file) 
+	TYPE=$3
+	if ! grep -qi "$TYPE" testo
+	then
+		echo $STY $TYPE is not in testo.
+		ECODE=1
+	fi
+
+	esac
+done
+
 
 
 exit $ECODE

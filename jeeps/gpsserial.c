@@ -5,6 +5,7 @@
 ** @version 1.0
 ** @modified December 28th 1999 Alan Bleasby. First version
 ** @modified June 29th 2000 Alan Bleasby. NMEA additions
+** @modified Copyright (C) 2006 Robert Lipe
 ** @@
 ** 
 ** This library is free software; you can redistribute it and/or
@@ -23,6 +24,8 @@
 ** Boston, MA  02111-1307, USA.
 ********************************************************************/
 #include "gps.h"
+#include "gpsserial.h"
+#include "../gbser.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -38,7 +41,7 @@ char *rxdata[] = {
 	"10 f8 0e 56 45 52 53 4d 41 50 31 20 4e 6f 6e 65 00 fb 10 03",
 
 	/* Guessing from here down */
-	/* "10 06 02 fe 00 fa 10 03", /* Ack the unknown packet */
+	"10 06 02 fe 00 fa 10 03", /* Ack the unknown packet */
 	"10 fd 24 50 00 00 4c 01 00 41 0a 00 41 64 00 44 6d 00 41 c9 00 44 ca 00 44 6d 00 44 d2 00 41 2d 01 44 36 01 44 2d 01 66 10 03", /* PTR Array */
 	"10 06 02 0a 00 ee 10 03", /* Ack */
 	"10 0e 08 06 04 d4 07 00 17 3a 30 84 10 03", /* DATTIME */
@@ -55,47 +58,46 @@ char *rxdata[] = {
 #if defined (__WIN32__) || defined (__CYGWIN__)
 
 #include <windows.h>
-/*
- *  Rather than teaching the rest of this code about Windows serial APIs
- *  we'll weenie out, violate good layering, and just keep our handle
- *  internal.   This means we ignore that 'fd' number that gets passed in.
- */
 
-void GPS_Serial_Error(char *hdr)
+typedef struct {
+        HANDLE comport;
+} win_serial_data;
+
+/*
+ * Display an error from the serial subsystem.
+ */
+void GPS_Serial_Error(const char *mb, ...)
 {
+	va_list ap;
 	char msg[200];
 	char *s;
+	int b;
 
-	strcpy(msg, hdr);
-	s = msg + strlen(hdr);
+	va_start(ap, mb);
+	b = vsnprintf(msg, sizeof(msg), mb, ap);
+	s = msg + b;
 	*s++ = ':';
 	*s++ = ' ';
 
 	FormatMessage( FORMAT_MESSAGE_FROM_SYSTEM, 0, 
-			GetLastError(), 0, s, sizeof(msg) - strlen(hdr) - 2, 0 );
+			GetLastError(), 0, s, sizeof(msg) - b - 2, 0 );
 	GPS_Error(msg);
 }
 
-static HANDLE comport;
-
-int32 GPS_Serial_On(const char *port, int32 *fd)
+int32 GPS_Serial_On(const char *port, gpsdevh **dh)
 {
 	DCB tio;
 	COMMTIMEOUTS timeout;
-
-	if (gps_is_usb) {
-	    switch (gusb_open(port)) {
-		    case 0: return 0;
-		    case 1: return 1;
-		    case 2: exit(0);
-	    }
-	}
-
-	comport = CreateFile(port, GENERIC_READ|GENERIC_WRITE, 0, NULL,
+	HANDLE comport;
+	const char *xname = fix_win_serial_name(port);
+	win_serial_data *wsd = xcalloc(sizeof (win_serial_data), 1);
+	*dh = (gpsdevh*) wsd;
+	GPS_Diag("Opening %s\n", xname);
+	comport = CreateFile(xname, GENERIC_READ|GENERIC_WRITE, 0, NULL,
 					  OPEN_EXISTING, 0, NULL);
 
 	if (comport == INVALID_HANDLE_VALUE) {
-		GPS_Serial_Error("CreateFile");
+		GPS_Serial_Error("CreateFile on '%s' failed", xname);
 		gps_errno = SERIAL_ERROR;
 		return 0;
 	}
@@ -121,7 +123,7 @@ int32 GPS_Serial_On(const char *port, int32 *fd)
 	tio.StopBits = ONESTOPBIT;
 
 	if (!SetCommState (comport, &tio)) {
-		GPS_Serial_Error("SetCommState");
+		GPS_Serial_Error("SetCommState on port '%s' failed", port);
 		CloseHandle(comport);
 		comport = INVALID_HANDLE_VALUE;
 		gps_errno = SERIAL_ERROR;
@@ -135,6 +137,7 @@ int32 GPS_Serial_On(const char *port, int32 *fd)
 	 * (i.e. cable unplugged, unit not turned on) values.
 	 */
 	GetCommTimeouts (comport, &timeout);
+
 	timeout.ReadIntervalTimeout = 1000; /*like vtime.  In MS. */
 	timeout.ReadTotalTimeoutMultiplier = 1000;
 	timeout.ReadTotalTimeoutConstant = 1000;
@@ -147,57 +150,76 @@ int32 GPS_Serial_On(const char *port, int32 *fd)
 		gps_errno = SERIAL_ERROR;
 		return 0;
 	}
-	*fd = 1;
+	wsd->comport = comport;
 	return 1;
 }
 
-int32 GPS_Serial_Off(const char *port, int32 fd)
+int32 GPS_Serial_Off(gpsdevh *dh)
 {
-	if (gps_is_usb) {
-		gusb_close(port);
-	} else {
-		CloseHandle(comport);
-		comport = INVALID_HANDLE_VALUE;
-	}
+	win_serial_data *wsd = (win_serial_data*)dh;
+	CloseHandle(wsd->comport);
+	wsd->comport = INVALID_HANDLE_VALUE;
+	xfree(wsd);
 	return 1;
 }
 
-int32 GPS_Serial_Chars_Ready(int32 fd)
+int32 GPS_Serial_Chars_Ready(gpsdevh *dh)
+{
+	COMSTAT lpStat;
+	DWORD lpErrors;
+	win_serial_data *wsd = (win_serial_data*)dh;
+
+	ClearCommError(wsd->comport, &lpErrors, &lpStat);
+	return (lpStat.cbInQue > 0);
+}
+
+int32 GPS_Serial_Wait(gpsdevh *fd)
+{
+	/* Wait a short time before testing if data is ready.
+	 * The GPS II, in particular, has a noticable time responding
+	 * with a response to the device inquiry and if we give up on this
+	 * too soon, we fail to read the response to the A001 packet and
+	 * blow our state machines when it starts streaming the capabiilties
+	 * response packet.
+	 */
+	Sleep(usecDELAY / 1000);
+	return GPS_Serial_Chars_Ready(fd);
+}
+
+int32 GPS_Serial_Flush(gpsdevh *fd)
 {
 	return 1;
 }
 
-int32 GPS_Serial_Wait(int32 fd)
+int32 GPS_Serial_Write(gpsdevh *dh, const void *obuf, int size)
 {
-	return 1;
-}
-
-int32 GPS_Serial_Flush(int32 fd)
-{
-	return 1;
-}
-
-int32 GPS_Serial_Write(int32 ignored, const void *obuf, int size)
-{
+	win_serial_data *wsd = (win_serial_data*)dh;
 	DWORD len;
-	WriteFile (comport, obuf, size, &len, NULL);
-	if (len != size) {
-		fatal ("Write error.   Wrote %d of %d bytes.", len, size);
+
+	/* 
+	 * Unbelievably, the Keyspan PDA serial driver 3.2, a "Windows 
+	 * Certified driver", will crash the OS on a write of zero bytes.
+	 * We get such writes from upstream when there are zero payload
+	 * bytes.  SO we trap those here to stop Keyspan & Windows from
+	 * nuking the system.
+	 */
+	if (size == 0) {
+		return 0;
+	}
+	WriteFile (wsd->comport, obuf, size, &len, NULL);
+	if (len != (DWORD) size) {
+		fatal ("Write error.   Wrote %d of %d bytes.\n", len, size);
 	}
 	return len;
 }
 
-int32 GPS_Serial_Read(int32 ignored, void *ibuf, int size)
+int32 GPS_Serial_Read(gpsdevh * dh, void *ibuf, int size)
 {
 	DWORD cnt  = 0;
+	win_serial_data *wsd = (win_serial_data*)dh;
 
-	ReadFile(comport, ibuf, size, &cnt, NULL);
+	ReadFile(wsd->comport, ibuf, size, &cnt, NULL);
 	return cnt;
-}
-
-int32 GPS_Serial_Close(int32 fd, const char *port)
-{
-	return 1;
 }
 
 #else
@@ -207,82 +229,10 @@ int32 GPS_Serial_Close(int32 fd, const char *port)
 #include <termios.h>
 #include <unistd.h>
 
-static struct termios gps_ttysave;
-
-/* @func GPS_Serial_Restoretty ***********************************************
-**
-** Save tty information for the serial post to be used
-**
-** @param [r] port [const char *] port e.g. ttyS1
-**
-** @return [int32] false upon error
-************************************************************************/
-
-int32 GPS_Serial_Savetty(const char *port)
-{
-    int32 fd;
-    
-    if((fd = open(port, O_RDWR|O_NDELAY))==-1)
-    {
-	perror("open");
-	gps_errno = SERIAL_ERROR;
-	GPS_Error("SERIAL: Cannot open serial port");
-	return 0;
-    }
-    
-    if(tcgetattr(fd,&gps_ttysave)==-1)
-    {
-	perror("tcgetattr");
-	gps_errno = HARDWARE_ERROR;
-	GPS_Error("SERIAL: tcgetattr error");
-	return 0;
-    }
-
-
-    if(!GPS_Serial_Close(fd,port))
-    {
-	gps_errno = SERIAL_ERROR;
-	GPS_Error("GPS_Serial_Savetty: Close error");
-	return 0;
-    }
-
-    return 1;
-}
-
-
-/* @func GPS_Serial_Restoretty ***********************************************
-**
-** Restore serial post to condition before AJBGPS called
-**
-** @param [r] port [const char *] port e.g. ttyS1
-**
-** @return [int32] false upon error
-************************************************************************/
-
-int32 GPS_Serial_Restoretty(const char *port)
-{
-    int32 fd;
-    
-    if((fd = open(port, O_RDWR|O_NDELAY))==-1)
-    {
-	perror("open");
-	gps_errno = HARDWARE_ERROR;
-	GPS_Error("SERIAL: Cannot open serial port");
-	return 0;
-    }
-    
-    if(tcsetattr(fd, TCSAFLUSH, &gps_ttysave)==-1)
-    {
-	perror("ioctl");
-	gps_errno = HARDWARE_ERROR;
-	GPS_Error("SERIAL: tcsetattr error");
-	return 0;
-    }
-
-    return 1;
-}
-
-
+typedef struct {
+        int fd;		/* File descriptor */
+	struct termios gps_ttysave;
+} posix_serial_data;
 
 /* @func GPS_Serial_Open ***********************************************
 **
@@ -294,9 +244,10 @@ int32 GPS_Serial_Restoretty(const char *port)
 ** @return [int32] false upon error
 ************************************************************************/
 
-int32 GPS_Serial_Open(int32 *fd, const char *port)
+int32 GPS_Serial_Open(gpsdevh *dh, const char *port)
 {
     struct termios tty;
+    posix_serial_data *psd = (posix_serial_data *)dh;
     
     /*
      * This originally had O_NDELAY | O_NOCTTY in here, but this
@@ -304,22 +255,20 @@ int32 GPS_Serial_Open(int32 *fd, const char *port)
      * and the rest of the code doesn't _REALLY_ handle the partial 
      * write/retry case anyway.  - robertl
      */
-    if((*fd = open(port, O_RDWR))==-1)
+    if((psd->fd = open(port, O_RDWR))==-1)
     {
-	perror("open");
-	GPS_Error("SERIAL: Cannot open serial port");
+	GPS_Serial_Error("XSERIAL: Cannot open serial port '%s'", port);
 	gps_errno = SERIAL_ERROR;
 	return 0;
     }
 
-
-    if(tcgetattr(*fd,&tty)==-1)
+    if(tcgetattr(psd->fd,&psd->gps_ttysave)==-1)
     {
-	perror("tcgetattr");
-	GPS_Error("SERIAL: tcgetattr error");
-	gps_errno = SERIAL_ERROR;
+	gps_errno = HARDWARE_ERROR;
+	GPS_Serial_Error("SERIAL: tcgetattr error");
 	return 0;
     }
+    tty = psd->gps_ttysave;
 
     tty.c_cflag &= ~(CSIZE);
     tty.c_cflag |= (CREAD | CS8 | CLOCAL);
@@ -332,18 +281,40 @@ int32 GPS_Serial_Open(int32 *fd, const char *port)
     tty.c_cc[VMIN] = 1;
     tty.c_cc[VTIME] = 0;
 
-    if(tcsetattr(*fd,TCSANOW,&tty)==-1)
+    if(tcsetattr(psd->fd,TCSANOW,&tty)==-1)
     {
-	perror("tcsetattr");
-	GPS_Error("SERIAL: tcsetattr error");
+	GPS_Serial_Error("SERIAL: tcsetattr error");
 	return 0;
     }
 
     return 1;
 }
 
-int32 GPS_Serial_Read(int32 handle, void *ibuf, int size)
+/*
+ * Display an error from the serial subsystem.
+ */
+void GPS_Serial_Error(const char *mb, ...)
 {
+	va_list ap;
+	char msg[200];
+	char *s;
+	int b;
+
+	va_start(ap, mb);
+	b = vsnprintf(msg, sizeof(msg), mb, ap);
+	s = msg + b;
+	*s++ = ':';
+	*s++ = ' ';
+
+//	FormatMessage( FORMAT_MESSAGE_FROM_SYSTEM, 0, 
+//			GetLastError(), 0, s, sizeof(msg) - b - 2, 0 );
+        strcat(msg, strerror(errno));
+	GPS_Error(msg);
+}
+
+int32 GPS_Serial_Read(gpsdevh *dh, void *ibuf, int size)
+{
+	posix_serial_data *psd = (posix_serial_data *)dh;
 #if GARMULATOR
 	static int l;
 	static char *rp;
@@ -365,13 +336,14 @@ int32 GPS_Serial_Read(int32 handle, void *ibuf, int size)
 	return 1;
 
 #else
-	return read(handle, ibuf, size);
+	return read(psd->fd, ibuf, size);
 #endif
 }
 
-int32 GPS_Serial_Write(int32 handle, const void *obuf, int size)
+int32 GPS_Serial_Write(gpsdevh *dh, const void *obuf, int size)
 {
-	return write(handle, obuf, size);
+	posix_serial_data *psd = (posix_serial_data *)dh;
+	return write(psd->fd, obuf, size);
 }
 
 
@@ -383,13 +355,13 @@ int32 GPS_Serial_Write(int32 handle, const void *obuf, int size)
 **
 ** @return [int32] false upon error
 ************************************************************************/
-int32 GPS_Serial_Flush(int32 fd)
+int32 GPS_Serial_Flush(gpsdevh *fd)
 {
-    
-    if(tcflush(fd,TCIOFLUSH))
+    posix_serial_data *psd = (posix_serial_data *)fd;
+
+    if(tcflush(psd->fd,TCIOFLUSH))
     {
-	perror("tcflush");
-	GPS_Error("SERIAL: tcflush error");
+	GPS_Serial_Error("SERIAL: tcflush error");
 	gps_errno = SERIAL_ERROR;
 	return 0;
     }
@@ -409,12 +381,20 @@ int32 GPS_Serial_Flush(int32 fd)
 ** @return [int32] false upon error
 ************************************************************************/
 
-int32 GPS_Serial_Close(int32 fd, const char *port)
+int32 GPS_Serial_Close(gpsdevh *fd)
 {
-    if(close(fd)==-1)
+    posix_serial_data *psd = (posix_serial_data *)fd;
+
+    if(tcsetattr(psd->fd, TCSAFLUSH, &psd->gps_ttysave)==-1)
     {
-	perror("close");
-	GPS_Error("SERIAL: Error closing serial port");
+	gps_errno = HARDWARE_ERROR;
+	GPS_Serial_Error("SERIAL: tcsetattr error");
+	return 0;
+    }
+
+    if(close(psd->fd)==-1)
+    {
+	GPS_Serial_Error("SERIAL: Error closing serial port");
 	gps_errno = SERIAL_ERROR;
 	return 0;
     }
@@ -432,10 +412,13 @@ int32 GPS_Serial_Close(int32 fd, const char *port)
 ** @return [int32] true if chars waiting
 ************************************************************************/
 
-int32 GPS_Serial_Chars_Ready(int32 fd)
+int32 GPS_Serial_Chars_Ready(gpsdevh *dh)
 {
     fd_set rec;
     struct timeval t;
+    posix_serial_data *psd = (posix_serial_data *)dh;
+    int32 fd = psd->fd;
+
 #if GARMULATOR
     static foo;
     /* Return sporadic reads just to torment the rest of the code. */
@@ -449,7 +432,7 @@ int32 GPS_Serial_Chars_Ready(int32 fd)
     FD_SET(fd,&rec);
 
     t.tv_sec  = 0;
-    t.tv_usec = 0;
+    t.tv_usec = 1000;
     (void) select(fd+1,&rec,NULL,NULL,&t);
     if(FD_ISSET(fd,&rec))
 	return 1;
@@ -470,21 +453,20 @@ int32 GPS_Serial_Chars_Ready(int32 fd)
 ** @return [int32] true if serial chars waiting
 ************************************************************************/
 
-int32 GPS_Serial_Wait(int32 fd)
+int32 GPS_Serial_Wait(gpsdevh *dh)
 {
     fd_set rec;
     struct timeval t;
-
-    if (gps_is_usb) return 1;
+    posix_serial_data *psd = (posix_serial_data *)dh;
 
     FD_ZERO(&rec);
-    FD_SET(fd,&rec);
+    FD_SET(psd->fd,&rec);
 
     t.tv_sec  = 0;
-    t.tv_usec = usecDELAY;
+    t.tv_usec = 180000;	/* Microseconds before GPS sends A001 */
 
-    (void) select(fd+1,&rec,NULL,NULL,&t);
-    if(FD_ISSET(fd,&rec))
+    (void) select(psd->fd+1,&rec,NULL,NULL,&t);
+    if(FD_ISSET(psd->fd,&rec))
 	return 1;
 
     return 0;
@@ -502,21 +484,14 @@ int32 GPS_Serial_Wait(int32 fd)
 ** @return [int32] success
 ************************************************************************/
 
-int32 GPS_Serial_On(const char *port, int32 *fd)
+int32 GPS_Serial_On(const char *port, gpsdevh **dh)
 {
-    if (gps_is_usb) {
-	    return gusb_init();
-    }
-    if(!GPS_Serial_Savetty(port))
-    {
-	GPS_Error("Cannot access serial port");
-	gps_errno = SERIAL_ERROR;
-	return 0;
-    }
+    posix_serial_data *psd = xcalloc(sizeof (posix_serial_data), 1);
+    *dh = (gpsdevh*) psd;
     
-    if(!GPS_Serial_Open(fd,port))
+    if(!GPS_Serial_Open((gpsdevh *) psd,port))
     {
-	GPS_Error("Cannot open serial port");
+	GPS_Error("Cannot open serial port '%s'", port);
 	gps_errno = SERIAL_ERROR;
 	return 0;
     }
@@ -536,115 +511,18 @@ int32 GPS_Serial_On(const char *port, int32 *fd)
 ** @return [int32] success
 ************************************************************************/
 
-int32 GPS_Serial_Off(const char *port, int32 fd)
+int32 GPS_Serial_Off(gpsdevh *dh)
 {
-    if(!GPS_Serial_Close(fd,port))
+
+    if(!GPS_Serial_Close(dh))
     {
 	GPS_Error("Error Closing port");
 	gps_errno = HARDWARE_ERROR;
 	return 0;
     }
+    dh = NULL;
     
-    if(!GPS_Serial_Restoretty(port))
-    {
-	GPS_Error("Error restoring port");
-	gps_errno = HARDWARE_ERROR;
-	return 0;
-    }
-
     return 1;
 }
 
-
-
-
-
-
-
-/* @func GPS_Serial_Open_NMEA ******************************************
-**
-** Open a serial port 8bits 1 stop bit 4800 baud
-**
-** @param [w] fd [int32 *] file descriptor
-** @param [r] port [const char *] port e.g. ttyS1
-**
-** @return [int32] false upon error
-************************************************************************/
-
-int32 GPS_Serial_Open_NMEA(int32 *fd, const char *port)
-{
-    struct termios tty;
-    
-
-    if((*fd = open(port, O_RDWR | O_NDELAY | O_NOCTTY))==-1)
-    {
-	perror("open");
-	GPS_Error("SERIAL: Cannot open serial port");
-	gps_errno = SERIAL_ERROR;
-	return 0;
-    }
-
-
-    if(tcgetattr(*fd,&tty)==-1)
-    {
-	perror("tcgetattr");
-	GPS_Error("SERIAL: tcgetattr error");
-	gps_errno = SERIAL_ERROR;
-	return 0;
-    }
-
-    
-    tty.c_cflag |= (CREAD | CS8 | CSIZE | CLOCAL);
-    cfsetospeed(&tty,B4800);
-    cfsetispeed(&tty,B4800);
-    
-    tty.c_lflag &= 0x0;
-    tty.c_iflag &= 0x0;
-    tty.c_oflag &= 0x0;
-    
-    
-    if(tcsetattr(*fd,TCSANOW,&tty)==-1)
-    {
-	perror("tcsetattr");
-	GPS_Error("SERIAL: tcsetattr error");
-	return 0;
-    }
-
-    return 1;
-}
-
-
-
-
-
-
-
-/* @func GPS_Serial_On_NMEA ********************************************
-**
-** Set up port for NMEA
-**
-** @param [r] port [const char *] port
-** @param [w] fd [int32 *] file descriptor
-**
-** @return [int32] success
-************************************************************************/
-int32 GPS_Serial_On_NMEA(const char *port, int32 *fd)
-{
-
-    if(!GPS_Serial_Savetty(port))
-    {
-	GPS_Error("Cannot access serial port");
-	gps_errno = SERIAL_ERROR;
-	return 0;
-    }
-    
-    if(!GPS_Serial_Open_NMEA(fd,port))
-    {
-	GPS_Error("Cannot open serial port");
-	gps_errno = SERIAL_ERROR;
-	return 0;
-    }
-
-    return 1;
-}
 #endif /* __WIN32__ */

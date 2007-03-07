@@ -21,10 +21,11 @@
 
 #include "quovadis.h"
 
+#if PDBFMTS_ENABLED
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-struct pdb *opdb;
+static struct pdb *opdb;
 
 static int ct;
 static ubyte* rec_ptr = NULL;
@@ -35,8 +36,8 @@ static char *dbname = NULL;
 
 static
 arglist_t quovadis_args[] = {
-	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING},
-	{0, 0, 0, 0, 0}
+	{"dbname", &dbname, "Database name", NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
 static struct qv_icon_mapping mapping[] = {
@@ -173,9 +174,9 @@ quovadis_writewpt(waypoint *wpt)
 
     rec = (struct record *) xcalloc(sizeof(*rec),1);
 
-    be_write32(&rec->longitude, (wpt->longitude +
-				 180.0) * 1000000.0);
-    be_write32(&rec->latitude, (90.0 - wpt->latitude) * 1000000.0);
+    be_write32(&rec->longitude, (unsigned int) ((wpt->longitude +
+				 180.0) * 1000000.0));
+    be_write32(&rec->latitude, (unsigned int) ((90.0 - wpt->latitude) * 1000000.0));
     if ( wpt->shortname ) {
 	strncpy(rec->name, wpt->shortname, 32 );
 	rec->name[31] = '\0';
@@ -197,8 +198,8 @@ quovadis_writewpt(waypoint *wpt)
     xfree(rec);
 
     if (rec_index == MAXRECORDS) {
-	fatal(MYNAME ": cannot store more than %d records at this time.\n",
-	      MAXRECORDS);
+	fatal(MYNAME ": cannot store more than %lu records at this time.\n",
+	      (unsigned long) MAXRECORDS);
     }
 }
 
@@ -265,8 +266,8 @@ data_write(void)
 
 	if (rec_index != 0) {
 	    struct pdb_record* pdb_rec;
-	    pdb_rec = new_Record(0, 0, ct++, rec_index *
-				 sizeof(struct record), current_rec);
+	    pdb_rec = new_Record(0, 0, ct++, (uword) (rec_index *
+				 sizeof(struct record)), current_rec);
 	
 	    if (pdb_rec == NULL) {
 		fatal(MYNAME ": libpdb couldn't create record\n");
@@ -285,6 +286,7 @@ data_write(void)
 
 ff_vecs_t quovadis_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,
@@ -292,5 +294,7 @@ ff_vecs_t quovadis_vecs = {
 	data_read,
 	data_write,
 	NULL, 
-	quovadis_args
+	quovadis_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

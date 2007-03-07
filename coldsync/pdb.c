@@ -6,7 +6,7 @@
  *	You may distribute this file under the terms of the Artistic
  *	License, as specified in the README file.
  *
- * $Id: pdb.c,v 1.6 2004/04/16 16:47:51 parkrrrr Exp $
+ * $Id: pdb.c,v 1.12 2006/07/13 03:27:53 robertl Exp $
  */
 /* XXX - The way zero-length records are handled is a bit of a kludge. They
  * shouldn't normally exist, with the exception of expunged records. But,
@@ -21,8 +21,10 @@
  * with them.
  * Debugging messages should go to 'FILE *pdb_logfile'.
  */
-
 #include "config.h"
+#if PDBFMTS_ENABLED
+
+#include "cs-config.h"
 #include <stdio.h>
 #include <fcntl.h>		/* For open() */
 #include <sys/types.h>
@@ -33,7 +35,13 @@
  * but doesn't have it prototyped.  Systems with 64-bit file I/O but
  * based on LP64 model (i.e. OS/X) _require_ the prototype for lseek.
  */
-#if !defined (__WIN32__)
+#if defined (__WIN32__)
+#include <io.h>
+#define lseek _lseek
+#define write _write
+#define read _read
+#define close _close
+#else
 #include <unistd.h>
 #endif
 #include <stdlib.h>
@@ -434,7 +442,7 @@ pdb_Write(const struct pdb *db,
 	wptr = header_buf;
 	memcpy(wptr, db->name, PDB_DBNAMELEN);
 	wptr += PDB_DBNAMELEN;
-	put_uword(&wptr, (db->attributes & ~PDB_ATTR_OPEN));
+	put_uword(&wptr, (uword) (db->attributes & ~PDB_ATTR_OPEN));
 				/* Clear the 'open' flag before writing */
 	put_uword(&wptr, db->version);
 	put_udword(&wptr, db->ctime);
@@ -553,7 +561,7 @@ pdb_Write(const struct pdb *db,
 					_("\"%.*s\" record 0x%08lx has "
 					  "length 0.\n"),
 					PDB_DBNAMELEN, db->name,
-					rec->id);
+					(unsigned long) rec->id);
 			}
 
 			put_udword(&wptr, offset);
@@ -964,7 +972,7 @@ new_Record(const ubyte flags,
 		fprintf(stderr, "new_Record: Creating new record:\n");
 		fprintf(stderr, "\tflags == 0x%02x\n", flags);
 		fprintf(stderr, "\tcategory == 0x%02x\n", category);
-		fprintf(stderr, "\tid == 0x%08lx\n", id);
+		fprintf(stderr, "\tid == 0x%08lx\n", (unsigned long) id);
 		fprintf(stderr, "\tlen == %d\n", len);
 		debug_dump(stderr, "NEW", data, len);
 	}
@@ -1030,12 +1038,12 @@ new_Resource(const udword type,
 	{
 		fprintf(stderr, "new_Resource: Creating new resource:\n");
 		fprintf(stderr, "\ttype == 0x%08lx (%c%c%c%c)\n",
-			type,
+			(unsigned long) type,
 			(int) ((type >> 24) & 0xff),
 			(int) ((type >> 16) & 0xff),
 			(int) ((type >>  8) & 0xff),
 			(int)  (type        & 0xff));
-		fprintf(stderr, "\tid == 0x%04x\n", id);
+		fprintf(stderr, "\tid == 0x%04x\n", (unsigned) id);
 		fprintf(stderr, "\tlen == %d\n", len);
 		debug_dump(stderr, "NEW", data, len);
 	}
@@ -1200,7 +1208,7 @@ get_file_length(int fd)
 	/* And return to where we were before */
 	lseek(fd, here, SEEK_SET);
 
-	return eof - here;
+	return (uword) (eof - here);
 }
 
 /* pdb_LoadHeader
@@ -1264,32 +1272,33 @@ pdb_LoadHeader(int fd,
 		fprintf(stderr, "\n");
 		fprintf(stderr, "\tversion: %u\n", db->version);
 		t = db->ctime - EPOCH_1904;
-		fprintf(stderr, "\tctime: %lu %s", db->ctime,
+		fprintf(stderr, "\tctime: %lu %s", (unsigned long) db->ctime,
 			ctime(&t));
 		t = db->mtime - EPOCH_1904;
-		fprintf(stderr, "\tmtime: %lu %s", db->mtime,
+		fprintf(stderr, "\tmtime: %lu %s", (unsigned long) db->mtime,
 			ctime(&t));
 		t = db->baktime - EPOCH_1904;
-		fprintf(stderr, "\tbaktime: %lu %s", db->baktime,
+		fprintf(stderr, "\tbaktime: %lu %s", (unsigned long) db->baktime,
 			ctime(&t));
-		fprintf(stderr, "\tmodnum: %ld\n", db->modnum);
+		fprintf(stderr, "\tmodnum: %lu\n", (unsigned long) db->modnum);
 		fprintf(stderr, "\tappinfo_offset: 0x%08lx\n",
-			db->appinfo_offset);
+			(unsigned long) db->appinfo_offset);
 		fprintf(stderr, "\tsortinfo_offset: 0x%08lx\n",
-			db->sortinfo_offset);
+			(unsigned long) db->sortinfo_offset);
 		fprintf(stderr, "\ttype: '%c%c%c%c' (0x%08lx)\n",
 			(char) (db->type >> 24) & 0xff,
 			(char) (db->type >> 16) & 0xff,
 			(char) (db->type >> 8) & 0xff,
 			(char) db->type & 0xff,
-			db->type);
+			(unsigned long) db->type);
 		fprintf(stderr, "\tcreator: '%c%c%c%c' (0x%08lx)\n",
 			(char) (db->creator >> 24) & 0xff,
 			(char) (db->creator >> 16) & 0xff,
 			(char) (db->creator >> 8) & 0xff,
 			(char) db->creator & 0xff,
-			db->creator);
-		fprintf(stderr, "\tuniqueIDseed: %ld\n", db->uniqueIDseed);
+			(unsigned long) db->creator);
+		fprintf(stderr, "\tuniqueIDseed: %lu\n",
+		    (unsigned long) db->uniqueIDseed);
 	}
 
 	return 0;		/* Success */
@@ -1321,7 +1330,7 @@ pdb_LoadRecListHeader(int fd,
 
 	PDB_TRACE(6)
 	{
-		fprintf(stderr, "\tnextID: %ld\n", db->next_reclistID);
+		fprintf(stderr, "\tnextID: %ld\n", (long) db->next_reclistID);
 		fprintf(stderr, "\tlen: %u\n", db->numrecs);
 	}
 
@@ -1395,9 +1404,9 @@ pdb_LoadRsrcIndex(int fd,
 				(char) (rsrc->type >> 16) & 0xff,
 				(char) (rsrc->type >> 8) & 0xff,
 				(char) rsrc->type & 0xff,
-				rsrc->type,
+				(unsigned long) rsrc->type,
 				rsrc->id,
-				rsrc->offset);
+				(unsigned long) rsrc->offset);
 		}
 
 		/* Append the new resource to the list */
@@ -1496,10 +1505,10 @@ pdb_LoadRecIndex(int fd,
 				"\tRecord %d: offset 0x%08lx, flags 0x%02x, "
 				" category 0x%02x, ID 0x%08lx\n",
 				i,
-				rec->offset,
-				rec->flags,
+				(unsigned long) rec->offset,
+				(unsigned) rec->flags,
 				rec->category,
-				rec->id);
+				(unsigned long) rec->id);
 
 		/* Append the new record to the database */
 		pdb_AppendRecord(db, rec); 	/* XXX - Error-checking */
@@ -1519,7 +1528,7 @@ pdb_LoadAppBlock(int fd,
 		 struct pdb *db)
 {
 	int err;
-	localID next_off;		/* Offset of the next thing in the file
+	udword next_off;		/* Offset of the next thing in the file
 				 * after the AppInfo block */
 	off_t offset;		/* Offset into file, for checking */
 
@@ -1585,7 +1594,7 @@ pdb_LoadAppBlock(int fd,
 	offset = lseek(fd, 0L, SEEK_CUR);	/* Find out where we are */
 	if (offset != db->appinfo_offset)
 	{
-		if (offset > db->appinfo_offset)
+		if (offset > (off_t) db->appinfo_offset)
 		{
 			/* Oops! We're in the wrong place */
 			fprintf(stderr, _("Warning: AppInfo block in \"%.*s\" "
@@ -1594,7 +1603,7 @@ pdb_LoadAppBlock(int fd,
 					  "Expected 0x%lx, but we're at "
 					  "0x%lx.\n"),
 				PDB_DBNAMELEN, db->name,
-				db->appinfo_offset, (long) offset);
+				(unsigned long) db->appinfo_offset, (unsigned long) offset);
 		}
 
 		/* Try to recover */
@@ -1698,7 +1707,7 @@ pdb_LoadSortBlock(int fd,
 	offset = lseek(fd, 0L, SEEK_CUR);	/* Find out where we are */
 	if (offset != db->sortinfo_offset)
 	{
-		if (offset > db->sortinfo_offset)
+		if (offset > (off_t) db->sortinfo_offset)
 		{
 			/* Oops! We're in the wrong place */
 			fprintf(stderr, _("Warning: sort block in \"%.*s\" "
@@ -1707,7 +1716,8 @@ pdb_LoadSortBlock(int fd,
 					  "Expected 0x%lx, but we're at "
 					  "0x%lx.\n"),
 				PDB_DBNAMELEN, db->name,
-				db->sortinfo_offset, (long) offset);
+				(unsigned long) db->sortinfo_offset, 
+				(unsigned long) offset);
 		}
 
 		/* Try to recover */
@@ -1789,7 +1799,7 @@ pdb_LoadResources(int fd,
 					/* Find out where we are now */
 		if (offset != rsrc->offset)
 		{
-			if (offset > rsrc->offset)
+			if (offset > (off_t) rsrc->offset)
 			{
 				fprintf(stderr, _("Warning: resource %d in "
 						  "\"%.*s\" isn't where "
@@ -1798,7 +1808,8 @@ pdb_LoadResources(int fd,
 						  "at 0x%lx.\n"),
 					i,
 					PDB_DBNAMELEN, db->name,
-					rsrc->offset, (long) offset);
+					(unsigned long) rsrc->offset, 
+					(unsigned long) offset);
 			}
 
 			/* Try to recover */
@@ -1843,7 +1854,7 @@ pdb_LoadResources(int fd,
 		/* Subtract this resource's index from that of the next
 		 * thing, to get the size of this resource.
 		 */
-		rsrc->data_len = next_off - rsrc->offset;
+		rsrc->data_len = (uword) (next_off - rsrc->offset);
 
 		/* Allocate space for this resource */
 		if ((rsrc->data = (ubyte *) malloc(rsrc->data_len)) == NULL)
@@ -1910,7 +1921,7 @@ pdb_LoadRecords(int fd,
 
 		PDB_TRACE(5)
 			fprintf(stderr, "Reading record %d (id 0x%08lx)\n",
-				i, rec->id);
+				i, (unsigned long) rec->id);
 
 		/* Out of paranoia, make sure we're in the right place.
 		 * Since the two NULs may or may not have appeared in the
@@ -1922,7 +1933,7 @@ pdb_LoadRecords(int fd,
 					/* Find out where we are now */
 		if (offset != rec->offset)
 		{
-			if (offset > rec->offset)
+			if (offset > (off_t) rec->offset)
 			{
 				fprintf(stderr, _("Warning: record %d in "
 						  "\"%.*s\" isn't where "
@@ -1931,7 +1942,8 @@ pdb_LoadRecords(int fd,
 						  "at 0x%lx.\n"),
 					i,
 					PDB_DBNAMELEN, db->name,
-					rec->offset, (long) offset);
+					(unsigned long) rec->offset, 
+					(unsigned long) offset);
 			}
 
 			/* Try to recover */
@@ -1975,7 +1987,7 @@ pdb_LoadRecords(int fd,
 		/* Subtract this record's index from that of the next one,
 		 * to get the size of this record.
 		 */
-		rec->data_len = next_off - rec->offset;
+		rec->data_len = (uword) (next_off - rec->offset);
 
 		/* Allocate space for this record
 		 * If there's a record with length zero, don't pass that to
@@ -2023,3 +2035,4 @@ pdb_LoadRecords(int fd,
  * fill-column:	75 ***
  * End: ***
  */
+#endif /* PDBFMTS_DISABLED */

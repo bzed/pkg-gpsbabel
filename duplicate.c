@@ -20,9 +20,9 @@
  */
 #include <stdio.h>
 #include "defs.h"
+#include "filterdefs.h"
 
-extern queue waypt_head;
-
+#if FILTERS_ENABLED
 static char *snopt = NULL;
 static char *lcopt = NULL;
 static char *purge_duplicates = NULL;
@@ -31,14 +31,14 @@ static char *correct_coords = NULL;
 static
 arglist_t dup_args[] = {
 	{"shortname", &snopt, "Suppress duplicate waypoints based on name",
-		NULL, ARGTYPE_BOOL},
+		NULL, ARGTYPE_BEGIN_REQ | ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"location", &lcopt, "Suppress duplicate waypoint based on coords",
-		NULL, ARGTYPE_BOOL},
+		NULL, ARGTYPE_END_REQ | ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"all", &purge_duplicates, "Suppress all instances of duplicates",
-		NULL, ARGTYPE_BOOL},
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"correct", &correct_coords, "Use coords from duplicate points", 
-		NULL, ARGTYPE_BOOL},
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
 
@@ -159,7 +159,8 @@ compare(const void *a, const void *b)
 
 }
 
-void
+
+static void
 duplicate_process(void)
 {
 	waypoint * waypointp;
@@ -172,7 +173,6 @@ duplicate_process(void)
 	int i, ct = waypt_count();
 	wpt_ptr *htable, *bh;
 	queue *elem, *tmp;
-	extern queue waypt_head;
 
 	htable = (wpt_ptr *) xmalloc(ct * sizeof(*htable));
 	bh = htable;
@@ -250,20 +250,11 @@ duplicate_process(void)
 	}
 }
 
-void
-duplicate_init(const char *args) 
-{
-}
-
-void
-duplicate_deinit(void) 
-{
-}
-
 filter_vecs_t duplicate_vecs = {
-	duplicate_init,
+	NULL,
 	duplicate_process,
-	duplicate_deinit,
+	NULL,
 	NULL,
 	dup_args
 };
+#endif

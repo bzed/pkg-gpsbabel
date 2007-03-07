@@ -17,42 +17,43 @@
 
  */
 #include "defs.h"
-#if !NO_EXPAT
+#include "cet_util.h"
+#if HAVE_LIBEXPAT
 #include <expat.h>
 static XML_Parser psr;
 #endif
 
 static waypoint *wpt_tmp;
 
-FILE *fd;
-FILE *ofd;
+static FILE *fd;
+static FILE *ofd;
 
 static char *noretired = NULL;
 
 static
 arglist_t nav_args[] = {
-	{"noretired", &noretired, "Suppress retired geocaches.",
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+	{"noretired", &noretired, "Suppress retired geocaches",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 #define MYNAME "navicache"
 #define MY_CBUF 4096
 
-#if NO_EXPAT
-void
+#if ! HAVE_LIBEXPAT
+static void
 nav_rd_init(const char *fname)
 {
 	fatal(MYNAME ": This build excluded GPX support because expat was not installed.\n");
 }
 
-void
+static void
 nav_read(void)
 {
 }
 #else
 
-struct
+static struct
 nc_type_mapping{
 	geocache_type type;
 	const char *name;
@@ -64,7 +65,7 @@ nc_type_mapping{
 	{ gt_event, "event" }
 };
 
-struct
+static struct
 nc_container_mapping{
 	geocache_container type;
 	const char *name;
@@ -107,8 +108,13 @@ nc_mkcont(const char *t)
 }
 
 static void
-nav_start(void *data, const char *el, const char **attr)
+nav_start(void *data, const XML_Char *xml_el, const XML_Char **xml_attr)
 {
+	const char *el;
+	const char **attr;
+
+	el = xml_convert_to_char_string(xml_el);
+	attr = xml_convert_attrs_to_char_string(xml_attr);
 	if (0 == strcmp(el, "CacheDetails")) {
 		const char **ap;
 		wpt_tmp = waypt_new();
@@ -191,14 +197,17 @@ nav_start(void *data, const char *el, const char **attr)
 		}
 		waypt_add(wpt_tmp);
 	}
+
+	xml_free_converted_attrs(attr);
+	xml_free_converted_string(el);
 }
 
 static void
-nav_end(void *data, const char *el)
+nav_end(void *data, const XML_Char *el)
 {
 }
 
-void
+static void
 nav_rd_init(const char *fname)
 {
 	fd = xfopen(fname, "r", MYNAME);
@@ -208,10 +217,11 @@ nav_rd_init(const char *fname)
 		fatal(MYNAME ":Cannot create XML parser\n");
 	}
 
+	XML_SetUnknownEncodingHandler(psr, cet_lib_expat_UnknownEncodingHandler, NULL);
 	XML_SetElementHandler(psr, nav_start, nav_end);
 }
 
-void
+static void
 nav_read(void)
 {
 	int len;
@@ -220,7 +230,7 @@ nav_read(void)
 	while ((len = fread(buf, 1, sizeof(buf), fd))) {
 		if (!XML_Parse(psr, buf, len, feof(fd))) {
 			fatal(MYNAME ":Parse error at %d: %s\n", 
-				XML_GetCurrentLineNumber(psr),
+				(int) XML_GetCurrentLineNumber(psr),
 				XML_ErrorString(XML_GetErrorCode(psr)));
 		}
 	}
@@ -230,32 +240,33 @@ nav_read(void)
 
 #endif
 
-void
+static void
 nav_rd_deinit(void)
 {
 	fclose(fd);
 }
 
-void
+static void
 nav_wr_init(const char *fname)
 {
 	fatal(MYNAME ": Does not support writing Navicache files.\n");
 	ofd = xfopen(fname, "w", MYNAME);
 }
 
-void
+static void
 nav_wr_deinit(void)
 {
 	fclose(ofd);
 }
 
-void
+static void
 nav_write(void)
 {
 }
 
 ff_vecs_t navicache_vecs = {
 	ff_type_file,
+	{ ff_cap_read, ff_cap_none, ff_cap_none },
 	nav_rd_init,	
 	nav_wr_init,	
 	nav_rd_deinit,
@@ -264,4 +275,5 @@ ff_vecs_t navicache_vecs = {
 	nav_write,
 	NULL, 
 	nav_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

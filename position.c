@@ -19,24 +19,20 @@
 
  */
 #include "defs.h"
+#include "filterdefs.h"
 #include "grtcirc.h"
+
+#if FILTERS_ENABLED
 
 #ifndef M_PI
 #  define M_PI 3.14159265358979323846
 #endif
 
-extern queue waypt_head;
 static route_head *cur_rte = NULL;
 
 static double pos_dist;
 static char *distopt = NULL;
 static char *purge_duplicates = NULL;
-static char *latopt = NULL;
-static char *lonopt = NULL;
-static char *exclopt = NULL;
-static char *nosort = NULL;
-
-waypoint * home_pos;
 
 typedef struct {
 	double distance;
@@ -45,36 +41,21 @@ typedef struct {
 static
 arglist_t position_args[] = {
 	{"distance", &distopt, "Maximum positional distance",
-		NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED },
+		NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED, ARG_NOMINMAX },
 	{"all", &purge_duplicates, 
 		"Suppress all points close to other points", 
-		NULL, ARGTYPE_BOOL }, 
-	{0, 0, 0, 0, 0}
-};
-
-static
-arglist_t radius_args[] = {
-	{"lat", &latopt,       "Latitude for center point (D.DDDDD)",
-		NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED },
-	{"lon", &lonopt,       "Longitude for center point (D.DDDDD)",
-		NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED },
-	{"distance", &distopt, "Maximum distance from center",
-		NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED },
-	{"exclude", &exclopt,  "Exclude points close to center",
-		NULL, ARGTYPE_BOOL },
-	{"nosort", &nosort,    "Inhibit sort by distance to center.",
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX }, 
+	ARG_TERMINATOR
 };
 
 static double
 gc_distance(double lat1, double lon1, double lat2, double lon2)
 {
 	return gcdist( 
-	    (lat1 * M_PI) / 180.0,
-	    (lon1 * M_PI) / 180.0,
-	    (lat2 * M_PI) / 180.0,
-	    (lon2 * M_PI) / 180.0
+	    RAD(lat1),
+	    RAD(lon1),
+	    RAD(lat2),
+	    RAD(lon2)
 	    );
 }
 
@@ -107,22 +88,6 @@ position_comp(const void * a, const void * b)
 	return(0);
 }
 
-static int
-dist_comp(const void * a, const void * b)
-{
-	const waypoint *x1 = *(waypoint **)a;
-	const waypoint *x2 = *(waypoint **)b;
-	extra_data *x1e = (extra_data *) x1->extra_data;
-	extra_data *x2e = (extra_data *) x2->extra_data;
-
-	if (x1e->distance > x2e->distance)
-		return 1;
-	if (x1e->distance < x2e->distance)
-		return -1;
-	return 0;
-
-}
-
 /* tear through a waypoint queue, processing points by distance */
 static void 
 position_runqueue(queue *q, int nelems, int qtype)
@@ -152,7 +117,7 @@ position_runqueue(queue *q, int nelems, int qtype)
 				   comp[i]->longitude);
 
 		/* convert radians to integer feet */
-		dist = (int)(5280*tomiles(dist));
+		dist = (int)(5280*radtomiles(dist));
 		
 		if (dist <= pos_dist) {
 			switch (qtype) {
@@ -162,6 +127,9 @@ position_runqueue(queue *q, int nelems, int qtype)
 					del = !!purge_duplicates;
 					break;
 				case trkdata:
+					track_del_wpt(cur_rte, comp[i]);
+					del = !!purge_duplicates;
+					break;
 				case rtedata:
 					route_del_wpt(cur_rte, comp[i]);
 					del = !!purge_duplicates;
@@ -170,34 +138,40 @@ position_runqueue(queue *q, int nelems, int qtype)
 					break;
 			}
 		}
-		else if (del ) {
-			switch (qtype) {
+		else {
+			if (del ) {
+			    switch (qtype) {
 				case wptdata:
-					waypt_del(comp[i]);
-					waypt_free(comp[i]);
+					waypt_del(comp[j]);
+					waypt_free(comp[j]);
 					del = 0;
 					break;
 				case trkdata:
+					track_del_wpt(cur_rte, comp[j]);
+					del = 0;
+					break;
 				case rtedata:
-					route_del_wpt(cur_rte, comp[i]);
+					route_del_wpt(cur_rte, comp[j]);
 					del = 0;
 					break;
 				default:
 					break;
+			    }
 			}
-		} else {
-			j = i; /* advance last use point */
+			j = i;
 		}
 	}
 	if ( del ) {
 		switch (qtype) {
 			case wptdata:
-				waypt_del(comp[nelems-1]);
-				waypt_free(comp[nelems-1]);
+				waypt_del(comp[j]);
+				waypt_free(comp[j]);
 				break;
 			case trkdata:
+				track_del_wpt(cur_rte, comp[j]);
+				break;
 			case rtedata:
-				route_del_wpt(cur_rte, comp[i]);
+				route_del_wpt(cur_rte, comp[j]);
 				break;
 			default:
 				break;
@@ -221,18 +195,24 @@ position_process_route(const route_head * rh) {
 }
 
 static void 
-position_noop(){
+position_noop_w(const waypoint *w)
+{
 }
 
-void position_process() 
+static void 
+position_noop_t(const route_head *h)
+{
+}
+
+void position_process(void) 
 {
 	int i = waypt_count();
 	
 	if (i)
 		position_runqueue(&waypt_head, i, wptdata);
 	
-	route_disp_all(position_process_route, position_noop, position_noop);
-	track_disp_all(position_process_route, position_noop, position_noop);
+	route_disp_all(position_process_route, position_noop_t, position_noop_w);
+	track_disp_all(position_process_route, position_noop_t, position_noop_w);
 }
 
 void
@@ -246,113 +226,13 @@ position_init(const char *args) {
 
 		if ((*fm == 'm') || (*fm == 'M')) {
 			 /* distance is meters */
-			pos_dist *= 3.2802;
+			 pos_dist *= 3.2802;
 		}
 	}
 }
 
 void
 position_deinit(void) {
-}
-
-void 
-radius_process(void)
-{
-	queue * elem, * tmp;
-	waypoint * waypointp;
-	double dist;
-	waypoint ** comp;
-	int i, wc;
-	queue temp_head;
-
-	QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-		extra_data *ed;
-
-		waypointp = (waypoint *)elem;
-		dist = gc_distance(waypointp->latitude,
-				   waypointp->longitude,
-				   home_pos->latitude,
-				   home_pos->longitude);
-
-		/* convert radians to float point statute miles */
-		dist = tomiles(dist);
-
-		if ((dist >= pos_dist) == (exclopt == NULL)) {
-			waypt_del(waypointp);
-			waypt_free(waypointp);
-			continue;
-		}
-
-		ed = (extra_data *) xcalloc(1, sizeof(*ed));
-		ed->distance = dist;
-		waypointp->extra_data = ed;
-	}
-
-	wc = waypt_count();
-	QUEUE_INIT(&temp_head);
-
-	comp = (waypoint **) xcalloc(wc, sizeof(*comp));
-
-	i = 0;
-
-	/*
-	 * Create an array of remaining waypoints, popping them off the
-	 * master queue as we go.   This gives us something reasonable 
-	 * for qsort.
-	 */
-
-	QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-		waypoint *wp = (waypoint *) elem;
-		comp[i] = wp;
-		waypt_del(wp);
-		i++;
-	}
-
-	if (!nosort) {
-		qsort(comp, wc, sizeof(waypoint *), dist_comp);
-	}
-
-	/*
-	 * The comp array is now sorted by distance.   As we run through it,
-	 * we push them back onto the master wp list, letting us pass them
-	 * on through in the modified order.
- 	 */
-	for (i = 0; i < wc; i++) {
-		waypoint * wp = comp[i];
-		waypt_add(wp);
-		xfree(wp->extra_data);
-	}
-
-	xfree(comp);
-}
-
-void
-radius_init(const char *args) {
-	char *fm;
-
-	pos_dist = 0;
-
-	if (distopt) {
-		pos_dist = strtod(distopt, &fm);
-
-		if ((*fm == 'k') || (*fm == 'K')) {
-			 /* distance is kilometers, convert to feet */
-			pos_dist *= .6214;
-		}
-	}
-
-	home_pos = (waypoint *) xcalloc(sizeof(*home_pos), 1);
-
-	if (latopt)
-		home_pos->latitude = atof(latopt);
-	if (lonopt)
-		home_pos->longitude = atof(lonopt);
-}
-
-void
-radius_deinit(void) {
-	if (home_pos)
-		xfree(home_pos);
 }
 
 filter_vecs_t position_vecs = {
@@ -363,10 +243,4 @@ filter_vecs_t position_vecs = {
 	position_args
 };
 
-filter_vecs_t radius_vecs = {
-	radius_init,
-	radius_process,
-	radius_deinit,
-	NULL,
-	radius_args
-};
+#endif // FILTERS_ENABLED

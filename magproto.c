@@ -1,7 +1,7 @@
 /*
     Communicate Thales/Magellan serial protocol.
 
-    Copyright (C) 2002, 2003, 2004 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2003, 2004, 2005, 2006 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,24 +24,43 @@
 
 #include "defs.h"
 #include "magellan.h"
+#include "gbser.h"
 
-int bitrate = 4800;
+static int bitrate = 4800;
+static int wptcmtcnt;
+static int wptcmtcnt_max;
+static int explorist;
 #define MYNAME "MAGPROTO"
+#define MAXCMTCT 200
 
 #define debug_serial  (global_opts.debug_level > 1)
 
-static char * termread(char *ibuf, int size);
+static char *termread(char *ibuf, int size);
 static void termwrite(char *obuf, int size);
-static void mag_readmsg(void);
+static void mag_readmsg(gpsdata_type objective);
 static void mag_handon(void);
 static void mag_handoff(void);
-static void *mkshort_handle = NULL;
+static short_handle mkshort_handle = NULL;
 static char *deficon = NULL;
 static char *bs = NULL;
+static char *cmts = NULL;
 static char *noack = NULL;
 static char *nukewpt = NULL;
 static int route_out_count;
 static int waypoint_read_count;
+static int wpt_len = 8;
+static const char *curfname;
+static int extension_hint;
+
+/*
+ * Magellan's firmware is *horribly* slow to send the next packet after
+ * we turn around an ack while we are reading from the device.  It's
+ * quite spiffy when we're writing to the device.   Since we're *way*
+ * less likely to lose data while reading from it than it is to lose data
+ * when we write to it, we turn off the acks when we are predominatly
+ *  reading.
+ */
+static int suppress_ack;
 
 typedef enum {
 	mrs_handoff = 0,
@@ -63,14 +82,13 @@ typedef struct mag_rte_elem {
  */
 typedef struct mag_rte_head {
 	queue Q;			/* Queue head for child rte_elems */
+	char *rte_name;
 	int nelems;
 } mag_rte_head;
 
 static queue rte_wpt_tmp; /* temporary PGMNWPL msgs for routes */
 
-static FILE *magfile_in;
-static FILE *magfile_out;
-static int magfd;
+static FILE *magfile_h;
 static mag_rxstate magrxstate;
 static int mag_error;
 static unsigned int last_rx_csum;
@@ -171,13 +189,17 @@ pid_to_model_t pid_to_model[] =
 	{ mm_meridian, 35, "ProMark 2" },
 	{ mm_sportrak, 36, "SporTrak Map/Pro" },
 	{ mm_sportrak, 37, "SporTrak" },
+	{ mm_meridian, 38, "FX324 Plotter" },
 	{ mm_meridian, 39, "Meridian Color" },
+	{ mm_meridian, 40, "FX324C Plotter" },
 	{ mm_sportrak, 41, "Sportrak Color" },
 	{ mm_sportrak, 42, "Sportrak Marine" },
 	{ mm_meridian, 43, "Meridian Marine" },
 	{ mm_sportrak, 44, "Sportrak Topo" },
 	{ mm_sportrak, 45, "Mystic" },
 	{ mm_meridian, 46, "MobileMapper" },
+	{ mm_meridian, 110, "Explorist 100" },
+	{ mm_meridian, 111, "Explorist 200" },
 	{ mm_unknown, 0, NULL }
 };
 
@@ -207,7 +229,7 @@ m315_cleanse(char *istring)
 /*
  * Do same for 330, Meridian, and SportTrak.
  */
-static char *
+char *
 m330_cleanse(char *istring)
 {
 	static char m330_valid_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ "
@@ -229,7 +251,7 @@ m330_cleanse(char *istring)
  * Given a protocol message, compute the checksum as needed by 
  * the Magellan protocol.
  */
-static unsigned int 
+unsigned int 
 mag_checksum(const char * const buf)
 {
 	int csum = 0;
@@ -256,7 +278,7 @@ static void
 mag_writemsg(const char * const buf)
 {
 	unsigned int osum = mag_checksum(buf);
-	int retry_cnt = 20;
+	int retry_cnt = 5;
 	int i;
 	char obuf[1000];
 
@@ -270,7 +292,7 @@ mag_writemsg(const char * const buf)
 	termwrite(obuf, i);
 	if (magrxstate == mrs_handon || magrxstate == mrs_awaiting_ack) {
 		magrxstate = mrs_awaiting_ack;
-		mag_readmsg();
+		mag_readmsg(trkdata);
 		if (last_rx_csum != osum) {
 			if (debug_serial) {
 				warning("COMM ERROR: Expected %02x, got %02x", 
@@ -359,7 +381,7 @@ mag_verparse(char *ibuf)
 		case mm_meridian:
 		case mm_sportrak:
 			icon_mapping = map330_icon_table;
-			setshort_length(mkshort_handle, 8);
+			setshort_length(mkshort_handle, wpt_len);
 			setshort_mustupper(mkshort_handle, 0);
 			mag_cleanse = m330_cleanse;
 			break;
@@ -371,7 +393,7 @@ mag_verparse(char *ibuf)
 #define IS_TKN(x) (strncmp(ibuf,x, sizeof(x)-1) == 0)
 
 static void
-mag_readmsg(void)
+mag_readmsg(gpsdata_type objective)
 {
 	char ibuf[200];
 	int isz;
@@ -438,16 +460,24 @@ retry:
 			waypt_status_disp(waypoint_read_count, 
 					waypoint_read_count);
 		}
-		switch (global_opts.objective)
-		{
-			case wptdata:
+
+		if (extension_hint) {
+			if (extension_hint == WPTDATAMASK) {
 				waypt_add(wpt);
-				break;
-			case rtedata:
-				ENQUEUE_TAIL(&rte_wpt_tmp, &wpt->Q);
-				break;
-			default:
-				break;
+			} else if (extension_hint == RTEDATAMASK) {
+					ENQUEUE_TAIL(&rte_wpt_tmp, &wpt->Q);
+			}
+		} else {
+			switch (objective) {
+				case wptdata:
+					waypt_add(wpt);
+					break;
+				case rtedata:
+					ENQUEUE_TAIL(&rte_wpt_tmp, &wpt->Q);
+					break;
+				default:
+					break;
+			}
 		}
 	}
 	if (strncmp(ibuf, "$PMGNTRK,", 7) == 0) {
@@ -456,11 +486,30 @@ retry:
 		 * Allow lazy allocation of track head.
 		 */
 		if (trk_head == NULL) {
+			/* These tracks don't have names, so derive one
+			 * from input filename.
+			 */
+			const char *s = strrchr(curfname, GB_PATHSEP);
+			char *e;
 			trk_head = route_head_alloc();
+
+			if (s) {
+				s++; /* Skip path delim */
+			}  else {
+				s = curfname;/* use name intact */
+			}
+
+			/* Whack trailing extension if present. */
+			trk_head->rte_name = xstrdup(s);
+			e = strrchr(trk_head->rte_name, '.');
+			if (e) {
+				*e = '\0';
+			}
+			
 			track_add_head(trk_head);
 		}
 
-		route_add_wpt(trk_head, wpt);
+		track_add_wpt(trk_head, wpt);
 	}
 	if (strncmp(ibuf, "$PMGNRTE,", 7) == 0) {
 		mag_rteparse(ibuf);
@@ -476,270 +525,158 @@ retry:
 		ignore_unable = 0;
 		return;
 	}
-	if (IS_TKN("$PMGNCMD,END") || (is_file && (feof(magfile_in)))) {
+	if (IS_TKN("$PMGNCMD,END") || (is_file && (feof(magfile_h)))) {
 		found_done = 1;
 		return;
 	} 
-	if (magrxstate != mrs_handoff)
+
+	if (magrxstate != mrs_handoff) {
 		mag_writeack(isum);
-}
-
-/* 
- * termio on Cygwin is apparently broken, so we revert to Windows serial.
- */
-#if defined (__WIN32__) || defined (__CYGWIN__)
-
-#include <windows.h>
-
-DWORD 
-mkspeed(bitrate)
-{
-	switch (bitrate) {
-		case 1200: return CBR_1200;
-		case 2400: return CBR_2400;
-		case 4800: return CBR_4800;
-		case 9600: return CBR_9600;
-		case 19200: return CBR_19200;
-		case 57600: return CBR_57600;
-		case 115200: return CBR_115200;
-		default: return CBR_4800;
 	}
 }
 
-HANDLE comport = NULL;
+static void *serial_handle = NULL;
 
-#define xCloseHandle(a) if (a) { CloseHandle(a); } a = NULL;
-
-static
-int
-terminit(const char *portname, int create_ok)
+static int 
+terminit(const char *portname, int create_ok) 
 {
-	DCB tio;	
-	COMMTIMEOUTS timeout;
-
-        is_file = 0;
-
-	xCloseHandle(comport);
-
-	comport = CreateFile(portname, GENERIC_READ|GENERIC_WRITE, 0, NULL,
-			  OPEN_EXISTING, 0, NULL);
-
-	if (comport == INVALID_HANDLE_VALUE) {
-		goto try_as_file;
-	}
-	tio.DCBlength = sizeof(DCB);
-	GetCommState (comport, &tio);
-	tio.BaudRate = mkspeed(bitrate);
-	tio.fBinary = TRUE;
-	tio.fParity = TRUE;
-	tio.fOutxCtsFlow = FALSE;
-	tio.fOutxDsrFlow = FALSE;
-	tio.fDtrControl = DTR_CONTROL_ENABLE;
-	tio.fDsrSensitivity = FALSE;
-	tio.fTXContinueOnXoff = TRUE;
-	tio.fOutX = FALSE;
-	tio.fInX = FALSE;
-	tio.fErrorChar = FALSE;
-	tio.fNull = FALSE;
-	tio.fRtsControl = RTS_CONTROL_ENABLE;
-	tio.fAbortOnError = FALSE;
-	tio.ByteSize = 8;
-	tio.Parity = NOPARITY;
-	tio.StopBits = ONESTOPBIT;
-
-	if (!SetCommState (comport, &tio)) {
-		xCloseHandle(comport);
-
-		/*
-		 *  Probably not a com port.   Try it as a file.
-		 */
-try_as_file:
-		magfile_in = xfopen(portname, create_ok ? "w+b" : "rb", MYNAME);
+	if (gbser_is_serial(portname)) {
+		if (serial_handle = gbser_init(portname), NULL != serial_handle) {
+			int rc;
+			if (rc = gbser_set_port(serial_handle, bitrate, 8, 0, 1), gbser_OK != rc) {
+				fatal(MYNAME ": Can't configure port\n");
+			}
+		}
+		is_file = 0;
+		if (serial_handle == NULL) {
+			fatal(MYNAME ": Could not open serial port %s\n", portname);
+		}
+		return 1;
+	} else {
+		/* Does this check for an error? */
+		magfile_h = xfopen(portname, create_ok ? "w+b" : "rb", MYNAME);
 		is_file = 1;
 		icon_mapping = map330_icon_table;
 		mag_cleanse = m330_cleanse;
 		got_version = 1;
 		return 0;
 	}
-
-	GetCommTimeouts (comport, &timeout);
-	/* We basically do single character reads and simulate line input
-	 * mode, so these values are kind of fictional.
-	 */
-	timeout.ReadIntervalTimeout = 1000;
-	timeout.ReadTotalTimeoutMultiplier = 1000;
-	timeout.ReadTotalTimeoutConstant = 1000;
-	timeout.WriteTotalTimeoutMultiplier = 1000;
-	timeout.WriteTotalTimeoutConstant = 1000;
-	if (!SetCommTimeouts (comport, &timeout)) {
-		xCloseHandle (comport);
-		fatal(MYNAME ": set timeouts\n");
-	}
-	return 1;
 }
 
-static char * 
-termread(char *ibuf, int size)
+static char *termread(char *ibuf, int size) 
 {
-	int i=0;
-	DWORD cnt;
-
 	if (is_file) {
-		return fgets(ibuf, size, magfile_in);
-	}
-
-	ibuf[i]='a';
-	for(;i < size;i++) {
-		if (ReadFile (comport, &ibuf[i], 1, &cnt, NULL) != TRUE)
-			break;
-		if (cnt < 1) 
-			return NULL;
-		if (ibuf[i] == '\n') 
-			break;
-	}
-	ibuf[i] = 0;
-	return ibuf;
-}
-
-static void
-termwrite(char *obuf, int size)
-{
-	DWORD len;
-
-	if (is_file) {
-		fwrite(obuf, size, 1, magfile_out);
-		return;
-	}
-	WriteFile (comport, obuf, size, &len, NULL);
-	if (len != size) {
-		fatal(MYNAME ":.  Wrote %d of %d bytes.\n", len, size);
+		return fgets(ibuf, size, magfile_h);
+	} else {
+		int rc;
+		rc = gbser_read_line(serial_handle, ibuf, size, 2000, 0x0a, 0x0d);
+		if (rc != gbser_OK) {
+			fatal(MYNAME ": Read error\n");
+		}
+		return ibuf;
 	}
 }
 
+/* Though not documented in the protocol spec, if the unit itself
+ * wants to create a field containing a comma, it will encode it 
+ * as <escape>2C.  We extrapolate that any 2 digit hex encoding may
+ * be valid.  We don't do this in termread() since we need to do it 
+ * after the scanf.  This means we have to do it field-by-field
+ * basis.
+ *
+ * The buffer is modified in place and shortened by copying the remaining
+ * string including the terminator.
+ */
 static
 void
-termdeinit()
+mag_dequote(char *ibuf) 
 {
-        xCloseHandle(comport);
-}
+	char *esc = NULL;
 
-#else
-
-#include <termios.h>
-#include <unistd.h>
-
-speed_t 
-mkspeed(unsigned br)
-{
-	switch (br) {
-		case 1200: return B1200;
-		case 2400: return B2400;
-		case 4800: return B4800;
-		case 9600: return B9600;
-		case 19200: return B19200;
-#if defined B57600
-		case 57600: return B57600;
-#endif
-#if defined B115200
-		case 115200: return B115200;
-#endif
-		default: return B4800;
+	while ((esc = strchr (ibuf, 0x1b))) {
+		int nremains = strlen(esc);
+		if (nremains >= 3) {
+			static const char hex[16] = "0123456789ABCDEF";
+			char *c1 = strchr(hex, esc[1]);
+			char *c2 = strchr(hex, esc[2]);
+			if (c1 && c2) {
+				int escv = (c1 - hex) * 16 + (c2 - hex);
+				*esc++ = escv;
+				/* buffers overlap */
+				memmove(esc, esc+2, nremains - 2);
+			}
+		}
 	}
 }
 
-
-static struct termios orig_tio;
-static void
-terminit(const char *portname, int create_ok)
+static void 
+termwrite(char *obuf, int size) 
 {
-	struct termios new_tio;
-
-        magfile_in = xfopen(portname, "rb", MYNAME);
-
-	is_file = !isatty(fileno(magfile_in));
 	if (is_file) {
-		icon_mapping = map330_icon_table;
-		mag_cleanse = m330_cleanse;
-		got_version = 1;
-		return;
-	} 
-
-	magfile_out = xfopen(portname, "w+b", MYNAME);
-	magfd = fileno(magfile_in);
-
-	tcgetattr(magfd, &orig_tio);
-	new_tio = orig_tio;
-	new_tio.c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|
-		IGNCR|ICRNL|IXON);
-	new_tio.c_oflag &= ~OPOST;
-	new_tio.c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
-	new_tio.c_cflag &= ~(CSIZE|PARENB);
-	new_tio.c_cflag |= CS8;
-	new_tio.c_cc[VTIME] = 10;
-	new_tio.c_cc[VMIN] = 0;
-
-	cfsetospeed(&new_tio, mkspeed(bitrate));
-	cfsetispeed(&new_tio, mkspeed(bitrate));
-	tcsetattr(magfd, TCSAFLUSH, &new_tio);
-}
-
-static void
-termdeinit()
-{
-	if (!is_file) {
-		tcsetattr(magfd, TCSANOW, &orig_tio);
+		size_t nw;
+		if (nw = fwrite(obuf, 1, size, magfile_h), nw < (size_t) size) {
+			fatal(MYNAME ": Write error");
+		}
+	} else {
+		int rc;
+		if (rc = gbser_write(serial_handle, obuf, size), rc < 0) {
+			fatal(MYNAME ": Write error");
+		}
 	}
 }
 
-static char * 
-termread(char *ibuf, int size)
+static void termdeinit() 
 {
-	return fgets(ibuf, size, magfile_in);
+	if (is_file) {
+		fclose(magfile_h);
+		magfile_h = NULL;
+	} else {
+		gbser_deinit(serial_handle);
+		serial_handle = NULL;
+	}
 }
-
-static void
-termwrite(char *obuf, int size)
-{
-	fwrite(obuf, size, 1, magfile_out);
-}
-#endif
 
 /*
  *  Arg tables are doubled up so that -? can output appropriate help
  */
 static
 arglist_t mag_sargs[] = {
+	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING,
+		ARG_NOMINMAX },
+	{"maxcmts", &cmts, "Max number of comments to write (maxcmts=200)", 
+		NULL, ARGTYPE_INT, ARG_NOMINMAX },
 	{"baud", &bs, "Numeric value of bitrate (baud=4800)", NULL,
-		ARGTYPE_INT },
+		ARGTYPE_INT, ARG_NOMINMAX },
 	{"noack", &noack, "Suppress use of handshaking in name of speed",
-		NULL, ARGTYPE_BOOL},
-	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING },
-	{"nukewpt", &nukewpt, "Delete all waypoints", NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{"nukewpt", &nukewpt, "Delete all waypoints", NULL, ARGTYPE_BOOL,
+		ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 static
 arglist_t mag_fargs[] = {
-	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING },
-	{0, 0, 0, 0, 0}
+	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING,
+		ARG_NOMINMAX },
+	{"maxcmts", &cmts, "Max number of comments to write (maxcmts=200)", 
+		NULL, ARGTYPE_INT, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
+/* 
+ * The part of the serial init that's common to read and write.
+ */
 static void
-mag_rd_init(const char *portname)
+mag_serial_init_common(const char *portname)
 {
 	time_t now, later;
-	waypoint_read_count = 0;
 
-	if (bs) {
-		bitrate=atoi(bs);
+	if (is_file) {
+		return;
 	}
 
-	terminit(portname, 0);
-	if (!mkshort_handle) {
-		mkshort_handle = mkshort_new_handle();
-	}
-
-	if (!noack)
+	mag_handoff();
+	if (!noack && !suppress_ack) 
 		mag_handon();
 
 	now = current_time();
@@ -748,20 +685,18 @@ mag_rd_init(const char *portname)
 	 * commands.   Time out on the side of caution.
 	 */
 	later = now + 6;
-	if (!is_file) {
-		got_version = 0;
-		mag_writemsg("PMGNCMD,VERSION");
-	}
+	got_version = 0;
+	mag_writemsg("PMGNCMD,VERSION");
 
 	while (!got_version) {
-		mag_readmsg();
+		mag_readmsg(trkdata);
 		if (current_time() > later) {
 			fatal(MYNAME ": No acknowledgment from GPS on %s\n",
 				portname);
 		}
 	}
 
-	if (!is_file && (icon_mapping != gps315_icon_table)) {
+	if ((icon_mapping != gps315_icon_table)) {
 		/*
 		 * The 315 can't handle this command, so we set a global
 		 * to ignore the NAK on it.
@@ -770,57 +705,133 @@ mag_rd_init(const char *portname)
 		mag_writemsg("PMGNCMD,NMEAOFF");
 		ignore_unable = 0;
 	}
+
 	if (nukewpt) {
 		/* The unit will send us an "end" message upon completion */
 		mag_writemsg("PMGNCMD,DELETE,WAYPOINT");
-		mag_readmsg();
+		mag_readmsg(trkdata);
 		if (!found_done) {
 			fatal(MYNAME ": Unexpected response to waypoint delete command.\n");
 		}
 		found_done = 0;
 	}
 
+}
+static void
+mag_rd_init_common(const char *portname)
+{
+	char *ext;
+	waypoint_read_count = 0;
+
+	if (bs) {
+		bitrate=atoi(bs);
+	}
+
+	if (!mkshort_handle) {
+		mkshort_handle = mkshort_new_handle();
+	}
+
+	terminit(portname, 0);
+	mag_serial_init_common(portname);
+
 	QUEUE_INIT(&rte_wpt_tmp);
+
+	/* find the location of the tail of the path name,
+	 * make a copy of it, then lop off the file extension
+	 */
+
+	curfname = strrchr(portname, GB_PATHSEP);
+	if (curfname) {
+		curfname++;  /* skip over path delimiter */
+	} else {
+		curfname = portname;
+	}
+
+	/*
+	 * I'd rather not derive behaviour from filenames but since
+	 * we can't otherwise tell if we should put a WPT on the route
+	 * queue or the WPT queue in the presence of (-w -r -t) we 
+	 * divine a hint from the filename extension when we can.
+	 */
+	ext = strrchr(curfname, '.');
+	if (ext) {
+		ext++;
+		if (0 == case_ignore_strcmp(ext, "upt")) {
+			extension_hint = WPTDATAMASK;
+		} else if (0 == case_ignore_strcmp(ext, "log")) {
+			extension_hint = TRKDATAMASK;
+		} else if (0 == case_ignore_strcmp(ext, "rte")) {
+			extension_hint = RTEDATAMASK;
+		} 
+	}
 
 	return;
 }
 
 static void
-mag_wr_init(const char *portname)
+mag_rd_init(const char *portname)
 {
-#if __WIN32__
-	if (!terminit(portname, 1)) {
-		is_file = 1;
+	explorist = 0;
+	suppress_ack = 1;
+	mag_rd_init_common(portname);
+}
+
+static void
+magX_rd_init(const char *portname)
+{
+	explorist = 1;
+	mag_rd_init_common(portname);
+}
+
+static void
+mag_wr_init_common(const char *portname)
+{
+	suppress_ack = 0;
+	if (bs) {
+		bitrate=atoi(bs);
 	}
-#else
-	magfile_out = xfopen(portname, "w+b", MYNAME);
-	is_file = !isatty(fileno(magfile_out));
-#endif
+
+	if (cmts) {
+		wptcmtcnt_max = atoi(cmts);
+	} else {
+		wptcmtcnt_max = MAXCMTCT ;
+	}
 
 	if (!mkshort_handle) {
 		mkshort_handle = mkshort_new_handle();
 	}
-	if (is_file) {
-		magfile_out = xfopen(portname, "w+b", MYNAME);
-		icon_mapping = map330_icon_table;
-		mag_cleanse = m330_cleanse;
-		got_version = 1;
-	} else {
-		/*
-		 *  This is a serial device.   The line has to be open for
-		 *  reading and writing, so we let rd_init do the dirty work.
-		 */
-		if (magfile_out) {
-			fclose(magfile_out);
-		}
-#if __WIN32__
-		if (comport) {
-			xCloseHandle(comport);
-		}
-#endif
-		mag_rd_init(portname);
-	}
+
+	terminit(portname, 1);
+	mag_serial_init_common(portname);
+
 	QUEUE_INIT(&rte_wpt_tmp);
+}
+
+/*
+ * Entry point for extended (explorist) points.
+ */
+static void
+magX_wr_init(const char *portname)
+{
+	wpt_len = 20;
+	explorist = 1;
+	mag_wr_init_common(portname);
+	setshort_length(mkshort_handle, wpt_len);
+	setshort_whitespace_ok(mkshort_handle, 1);
+}
+
+static void
+mag_wr_init(const char *portname)
+{
+	explorist = 0;
+	wpt_len = 8;
+	mag_wr_init_common(portname);
+	/* 
+	 * Whitespace is actually legal, but since waypoint name length is
+	 * only 8 bytes, we'll conserve them.
+	 */
+
+	setshort_whitespace_ok(mkshort_handle, 0);
 }
 
 static void
@@ -828,16 +839,42 @@ mag_deinit(void)
 {
 	mag_handoff();
 	termdeinit();
-	if(magfile_in)
-		fclose(magfile_in);
-	magfile_in = NULL;
 	if(mkshort_handle)
-		mkshort_del_handle(mkshort_handle);
-	mkshort_handle = NULL;
+		mkshort_del_handle(&mkshort_handle);
 
 	waypt_flush(&rte_wpt_tmp);
+
+	trk_head = NULL;
 }
 
+/*
+ * I'm tired of arguing with scanf about optional fields .  Detokenize 
+ * an incoming string that may contain empty fields.
+ * 
+ * Probably should be cleaned up and moved to common code, but
+ * making it deal with an arbitrary number of fields of arbitrary
+ * size is icky.  We don't have to solve the general case here...
+ */
+
+static char ifield[20][100];
+static
+void parse_istring(char *istring)
+{
+	int f = 0;
+	int n,x;
+	while (istring[0]) {
+	    char *fp = ifield[f];
+		x = sscanf(istring, "%[^,]%n", fp, &n);
+		f++;
+		if (x) {
+			istring += n;
+			/* IF more in this string, skip delim */
+			if (istring[0]) istring++;
+		} else {
+			istring ++;
+		}
+	}
+}
 
 /*
  * Given an incoming track messages of the form:
@@ -857,14 +894,25 @@ mag_trkparse(char *trkmsg)
 	struct tm tm;
 	waypoint *waypt;
 
-	waypt  = xcalloc(sizeof *waypt, 1);
+	waypt  = waypt_new();
 
 	memset(&tm, 0, sizeof(tm));
 
-	sscanf(trkmsg,"$PMGNTRK,%lf,%c,%lf,%c,%d,%c,%d.%d,A,,%d", 
-		&latdeg,&latdir,
-		&lngdeg,&lngdir,
-		&alt,&altunits,&hms,&fracsecs,&dmy);
+	/* 
+	 * As some of the fields are optional, sscanf works badly
+	 * for us.
+	 */
+	parse_istring(trkmsg);
+	latdeg = atof(ifield[1]);
+	latdir = ifield[2][0];
+	lngdeg = atof(ifield[3]);
+	lngdir = ifield[4][0];
+	alt = atof(ifield[5]);
+	altunits = ifield[6][0];
+	sscanf(ifield[7], "%d.%d", &hms, &fracsecs);
+	/* Field 8 is constant */
+	/* Field nine is optional track name */
+	dmy = atoi(ifield[10]);
 
 	tm.tm_sec = hms % 100;
 	hms = hms / 100;
@@ -878,7 +926,7 @@ mag_trkparse(char *trkmsg)
 	dmy = dmy / 100;
 	tm.tm_mday = dmy % 100; 
 
-	waypt->creation_time = mktime(&tm) + get_tz_offset();
+	waypt->creation_time = mkgmtime(&tm);
 	waypt->centiseconds = fracsecs;
 
 	if (latdir == 'S') latdeg = -latdeg;
@@ -909,11 +957,26 @@ mag_rteparse(char *rtemsg)
 	static mag_rte_head *mag_rte_head;
 	mag_rte_elem *rte_elem;
 	char *p;
+	char *rte_name = NULL;
 	
 	descr[0] = 0;
-
+#if 0
 	sscanf(rtemsg,"$PMGNRTE,%d,%d,%c,%d%n", 
 		&frags,&frag,xbuf,&rtenum,&n);
+#else
+	sscanf(rtemsg,"$PMGNRTE,%d,%d,%c,%d%n", 
+		&frags,&frag,xbuf,&rtenum,&n);
+
+	/* Explorist has a route name here */
+	if (explorist) {
+		char rten[1024];
+		int n2;
+		sscanf(rtemsg + n, ",%[^,]%n", rten, &n2);
+		n += n2;
+		rte_name = xstrdup(rten);
+	}
+
+#endif
 
 	/*
 	 * This is the first component of a route.  Allocate a new
@@ -962,6 +1025,7 @@ mag_rteparse(char *rtemsg)
 		rte_head = route_head_alloc();
 		route_add_head(rte_head);
 		rte_head->rte_num = rtenum;
+		rte_head->rte_name = xstrdup(rte_name);
 
 		/* 
 		 * It is quite feasible that we have 200 waypoints,
@@ -993,6 +1057,7 @@ mag_rteparse(char *rtemsg)
 		}
 		xfree(mag_rte_head);
 	}
+	if (rte_name) xfree(rte_name);
 }
 
 const char *
@@ -1005,6 +1070,7 @@ mag_find_descr_from_token(const char *token)
 	}
 
 	for (i = icon_mapping; i->token; i++) {
+		if (token[0] == 0) break;
 		if (case_ignore_strcmp(token, i->token) == 0)
 			return i->icon;
 	}
@@ -1052,7 +1118,7 @@ mag_wptparse(char *trkmsg)
 	descr[0] = 0;
 	icon_token[0] = 0;
 
-	waypt  = xcalloc(sizeof *waypt, 1);
+	waypt  = waypt_new();
 
 	sscanf(trkmsg,"$PMGNWPL,%lf,%c,%lf,%c,%d,%c,%[^,],%[^,]", 
 		&latdeg,&latdir,
@@ -1060,6 +1126,8 @@ mag_wptparse(char *trkmsg)
 		&alt,&altunits,shortname,descr);
 	icone = strrchr(trkmsg, '*');
 	icons = strrchr(trkmsg, ',')+1;
+
+	mag_dequote(descr);
 	
 	for (blah = icons ; blah < icone; blah++)
 		icon_token[i++] = *blah;
@@ -1083,59 +1151,57 @@ static void
 mag_read(void)
 {
 	found_done = 0;
+        if (global_opts.masked_objective & TRKDATAMASK) {
+		  magrxstate = mrs_handoff;
+          if (!is_file) 
+            mag_writemsg("PMGNCMD,TRACK,2");
+          
+          while (!found_done) {
+            mag_readmsg(trkdata);
+          }
+        }
 
-	switch (global_opts.objective)
-	{
-		case trkdata:
-			if (!is_file) 
-				mag_writemsg("PMGNCMD,TRACK,2");
+	found_done = 0;
+        if (global_opts.masked_objective & WPTDATAMASK) {
+		  magrxstate = mrs_handoff;
+          if (!is_file) 
+            mag_writemsg("PMGNCMD,WAYPOINT");
+          
+          while (!found_done) {
+            mag_readmsg(wptdata);
+          }
+        }
 
-			while (!found_done) {
-				mag_readmsg();
-			}
-
-			break;
-		case wptdata:
-			if (!is_file) 
-				mag_writemsg("PMGNCMD,WAYPOINT");
-
-			while (!found_done) {
-				mag_readmsg();
-			}
-
-			break;
-		case rtedata:
-			if (!is_file) {
-				/* 
-				 * serial routes require waypoint & routes 
-				 * messages commands.
-				 */
-				mag_writemsg("PMGNCMD,WAYPOINT");
-
-				while (!found_done) {
-					mag_readmsg();
-				}
-
-				mag_writemsg("PMGNCMD,ROUTE");
-
-				found_done = 0;
-				while (!found_done) {
-					mag_readmsg();
-				}
-			} else {
-				/*
-				 * SD routes are a stream of PMGNWPL and 
-				 * PMGNRTE messages, in that order.
-				 */
-				while (!found_done) {
-					mag_readmsg();
-				}
-			}
-
-			break;
-		default:
-			fatal(MYNAME ": Unknown objective\n");
-	}
+	found_done = 0;
+        if (global_opts.masked_objective & RTEDATAMASK) {
+		  magrxstate = mrs_handoff;
+          if (!is_file) {
+            /* 
+             * serial routes require waypoint & routes 
+             * messages commands.
+             */
+            mag_writemsg("PMGNCMD,WAYPOINT");
+            
+            while (!found_done) {
+              mag_readmsg(rtedata);
+            }
+            
+            mag_writemsg("PMGNCMD,ROUTE");
+            
+            found_done = 0;
+            while (!found_done) {
+              mag_readmsg(rtedata);
+            }
+          } else {
+            /*
+             * SD routes are a stream of PMGNWPL and 
+             * PMGNRTE messages, in that order.
+             */
+            while (!found_done) {
+              mag_readmsg(rtedata);
+            }
+          }
+        }          
 }
 
 static
@@ -1150,7 +1216,7 @@ mag_waypt_pr(const waypoint *waypointp)
 	const char *icon_token=NULL;
 	char *owpt;
 	char *odesc;
-	char *isrc;
+	char *isrc = NULL;
 
 	ilat = waypointp->latitude;
 	ilon = waypointp->longitude;
@@ -1179,11 +1245,12 @@ mag_waypt_pr(const waypoint *waypointp)
 
 	isrc = waypointp->notes ? waypointp->notes : waypointp->description;
 	owpt = global_opts.synthesize_shortnames ?
-                        mkshort(mkshort_handle, isrc) : waypointp->shortname;
+                        mkshort_from_wpt(mkshort_handle, waypointp) : waypointp->shortname;
 	odesc = isrc ? isrc : "";
 	owpt = mag_cleanse(owpt);
 
-	if (waypointp->gc_data.diff && waypointp->gc_data.terr) {
+	if (!global_opts.no_smart_icons &&
+	    waypointp->gc_data.diff && waypointp->gc_data.terr) {
 		sprintf(ofmtdesc, "%d/%d %s", waypointp->gc_data.diff, 
 			waypointp->gc_data.terr, odesc);
 		odesc = mag_cleanse(ofmtdesc);
@@ -1191,11 +1258,20 @@ mag_waypt_pr(const waypoint *waypointp)
 		odesc = mag_cleanse(odesc);
 	}
 
-	sprintf(obuf, "PMGNWPL,%4.3f,%c,%09.3f,%c,%07.lf,M,%-.8s,%-.30s,%s",
+	/*
+	 * For the benefit of DirectRoute (which uses waypoint comments
+	 * to deliver turn-by-turn popups for street routing) allow a 
+	 * cap on the comments delivered so we leave space for it to route.
+	 */
+	if (odesc && /* !is_file && */ (wptcmtcnt++ >= wptcmtcnt_max))
+		odesc[0] = 0;
+
+	sprintf(obuf, "PMGNWPL,%4.3f,%c,%09.3f,%c,%07.0f,M,%-.*s,%-.46s,%s",
 		lat, ilat < 0 ? 'S' : 'N',
 		lon, ilon < 0 ? 'W' : 'E',
 		waypointp->altitude == unknown_alt ?
 			0 : waypointp->altitude,
+		wpt_len,
 		owpt,
 		odesc,
 		icon_token);
@@ -1258,7 +1334,7 @@ void mag_track_disp(const waypoint *waypointp)
 	lon = (lon_deg * 100.0 + lon);
 	lat = (lat_deg * 100.0 + lat);
 
-	sprintf(obuf,"PMGNTRK,%4.3f,%c,%09.3f,%c,%05.f,%c,%06d.%02d,A,,%06d", 
+	sprintf(obuf,"PMGNTRK,%4.3f,%c,%09.3f,%c,%05.0f,%c,%06d.%02d,A,,%06d", 
 		lat, ilat < 0 ? 'S' : 'N',
 		lon, ilon < 0 ? 'W' : 'E',
 		waypointp->altitude == unknown_alt ?
@@ -1329,10 +1405,17 @@ mag_route_trl(const route_head * rte)
 		xfree(owpt);
 		
 		if ((tmp == &rte->waypoint_list) || ((i % 2) == 0)) {
+			char expbuf[1024];
 			thisline++;
-
-			sprintf(obuff, "PMGNRTE,%d,%d,c,%d,%s,%s", 
-				numlines, thisline, route_out_count,
+			expbuf[0] = 0;
+			if (explorist) {
+				snprintf(expbuf, sizeof(expbuf), "%s,",
+					rte->rte_name ? rte->rte_name : "");
+			}
+			sprintf(obuff, "PMGNRTE,%d,%d,c,%d,%s%s,%s", 
+				numlines, thisline, 
+				rte->rte_num ? rte->rte_num : route_out_count,
+				expbuf,
 				buff1, buff2);
 
 			mag_writemsg(obuff);
@@ -1359,11 +1442,9 @@ mag_route_pr()
 static void
 mag_write(void)
 {
-	/* 
-	 * Whitespace is actually legal, but since waypoint name length is
-	 * only 8 bytes, we'll conserve them.
-	 */
-	setshort_whitespace_ok(mkshort_handle, 0);
+
+	wptcmtcnt = 0;
+
 	switch (global_opts.objective)
 	{
 		case trkdata:
@@ -1386,6 +1467,7 @@ mag_write(void)
  */
 ff_vecs_t mag_svecs = {
 	ff_type_serial,
+	FF_CAP_RW_ALL,
 	mag_rd_init,	
 	mag_wr_init,	
 	mag_deinit,	
@@ -1393,11 +1475,13 @@ ff_vecs_t mag_svecs = {
 	mag_read,
 	mag_write,
 	NULL, 
-	mag_sargs
+	mag_sargs,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
 
 ff_vecs_t mag_fvecs = {
 	ff_type_file,
+	FF_CAP_RW_ALL,
 	mag_rd_init,	
 	mag_wr_init,	
 	mag_deinit,	
@@ -1405,5 +1489,23 @@ ff_vecs_t mag_fvecs = {
 	mag_read,
 	mag_write,
 	NULL, 
-	mag_fargs
+	mag_fargs,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+};
+
+/*
+ * Extended (Explorist) entry tables.
+ */
+ff_vecs_t magX_fvecs = {
+	ff_type_file,
+	FF_CAP_RW_ALL,
+	magX_rd_init,	
+	magX_wr_init,	
+	mag_deinit,	
+	mag_deinit,	
+	mag_read,
+	mag_write,
+	NULL,
+	mag_fargs,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

@@ -18,13 +18,12 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-#include <stdio.h>
 #include "defs.h"
+#include "filterdefs.h"
 #include "grtcirc.h"
 
+#if FILTERS_ENABLED
 #define MYNAME "Arc filter"
-
-extern queue waypt_head;
 
 static double pos_dist;
 static char *distopt = NULL;
@@ -39,14 +38,14 @@ typedef struct {
 static
 arglist_t arcdist_args[] = {
 	{"file", &arcfileopt,  "File containing vertices of arc", 
-		NULL, ARGTYPE_FILE | ARGTYPE_REQUIRED},
+		NULL, ARGTYPE_FILE | ARGTYPE_REQUIRED, ARG_NOMINMAX},
 	{"distance", &distopt, "Maximum distance from arc", 
-		NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED},
+		NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED, ARG_NOMINMAX},
 	{"exclude", &exclopt, "Exclude points close to the arc", NULL,
-		ARGTYPE_BOOL},
+		ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"points", &ptsopt, "Use distance from vertices not lines", 
-		NULL, ARGTYPE_BOOL},
-	{0, 0, 0, 0, 0}
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	ARG_TERMINATOR
 };
 
 #define BADVAL 999999
@@ -60,21 +59,25 @@ arcdist_process(void)
 	extra_data *ed;
         double lat1, lon1, lat2, lon2;
 	int fileline = 0;
+	char *line;
+	gbfile *file_in;
 
-	FILE *arcfile = xfopen( arcfileopt, "r", MYNAME );
+	file_in = gbfopen(arcfileopt, "r", MYNAME);
 	
         lat1 = lon1 = lat2 = lon2 = BADVAL;
-	while ( !feof(arcfile)) {
-	    char line[200];
+	while ((line = gbfgetstr(file_in))) {
 	    char *pound = NULL;
 	    int argsfound = 0;
 	    
-	    fgets( line, sizeof(line), arcfile );
-	   
 	    fileline++;
 	    
 	    pound = strchr( line, '#' );
-	    if ( pound ) *pound = '\0';
+	    if ( pound ) {
+		if ( 0 == strncmp( pound, "#break", 6)) {
+		    lat1 = lon1 = BADVAL;
+		}
+		*pound = '\0';
+	    }
 	    
 	    lat2 = lon2 = BADVAL;
 	    argsfound = sscanf( line, "%lf %lf", &lat2, &lon2 );
@@ -87,20 +90,6 @@ arcdist_process(void)
   	      QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
 
 		waypointp = (waypoint *)elem;
-		if ( ptsopt ) {
-		   dist = gcdist( lat2*M_PI/180.0, lon2*M_PI/180.0, 
-				   waypointp->latitude*M_PI/180.0, 
-				   waypointp->longitude*M_PI/180.0 );
-		}
-		else {
-		   dist = linedist(lat1, lon1, lat2, lon2, 
-				waypointp->latitude,
-				waypointp->longitude );
-		}
-
-		/* convert radians to float point statute miles */
-		dist = tomiles(dist);
-
 		if ( waypointp->extra_data ) {
 			ed = (extra_data *) waypointp->extra_data;
 		}
@@ -108,18 +97,33 @@ arcdist_process(void)
 			ed = (extra_data *) xcalloc(1, sizeof(*ed));
 			ed->distance = BADVAL;
 		}
-		if ( ed->distance > dist ) {
+		if ( ed->distance == BADVAL || ed->distance >= pos_dist ) {
+		   if ( ptsopt ) {
+		      dist = gcdist( RAD(lat2), RAD(lon2), 
+				   RAD(waypointp->latitude), 
+				   RAD(waypointp->longitude) );
+		   }
+		   else {
+		      dist = linedist(lat1, lon1, lat2, lon2, 
+				waypointp->latitude,
+				waypointp->longitude );
+		   }
+
+		   /* convert radians to float point statute miles */
+		   dist = radtomiles(dist);
+
+		   if ( ed->distance > dist ) {
 			ed->distance = dist;
+		   }
+		   waypointp->extra_data = ed;
 		}
-		waypointp->extra_data = ed;
 	      }
 	    }
 	    lat1 = lat2;
 	    lon1 = lon2;
 	}
 	    
-	fclose(arcfile);
-
+	gbfclose(file_in);
 
 	QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
 		waypoint *wp = (waypoint *) elem;
@@ -163,3 +167,4 @@ filter_vecs_t arcdist_vecs = {
 	NULL,
 	arcdist_args
 };
+#endif // FILTERS_ENABLED

@@ -158,7 +158,8 @@ void GPS_Math_Deg_To_DegMinSec(double v, int32 *d, int32 *m, double *s)
     
     *d = (int32)v;
     t  = (v -(double)*d) * (double)60.0;
-    *s = (t-(double)*m) * (double)60.0;
+    *m = (v-(double)*d) * (double)60.0;
+    *s = (t - (int32)t) * (double)60.0;
 
     if(*s>(double)59.999)
     {
@@ -250,7 +251,7 @@ double GPS_Math_Feet_To_Metres(double v)
 
 int32 GPS_Math_Deg_To_Semi(double v)
 {
-    return ((1U<<31) / 180) * v;
+    return ( (double)(1U<<31) / (double)180) * v;
 }
 
 
@@ -266,7 +267,7 @@ int32 GPS_Math_Deg_To_Semi(double v)
 
 double GPS_Math_Semi_To_Deg(int32 v)
 {
-    return (double) (((double)v/(double)(1U<<31)) * (double)180);
+    return (double) (((double)v / (double)(1U<<31)) * (double)180);
 }
 
 
@@ -1796,4 +1797,22 @@ int32 GPS_Math_UTM_EN_To_WGS84(double *lat, double *lon, double E,
     GPS_Math_Known_Datum_To_WGS84_M(phi,lambda,0,lat,lon,&H,77);
 
     return 1;
+}
+
+int32 GPS_Lookup_Datum_Index(const char *n)
+{
+	GPS_PDatum dp;
+	const char *name;
+	
+	if (case_ignore_strcmp(n, "WGS84") == 0) name = "WGS 84";
+	else if (case_ignore_strcmp(n, "WGS72") == 0) name = "WGS 72";
+	else name = n;
+
+	for (dp = GPS_Datum; dp->name; dp++) {
+		if (0 == case_ignore_strcmp(dp->name, name)) {
+			return dp - GPS_Datum;
+		}
+	}
+
+	return -1;
 }

@@ -1,16 +1,33 @@
 -- MacGPSBabel: MacGPSBabel.applescript
 
 --  File created by Jeremy Atherton on Sunday, September 28, 2003.
---  Last modified by Jeremy Atherton on Tuesday, September 7, 2004.
+--  Last modified by Jeremy Atherton on Sunday, January 16, 2005.
 
---  MacGPSBabel is part of the gpsbabel project and is Copyright (c) 2004 Robert Lipe.
+--  MacGPSBabel is part of the gpsbabel project:
+
+--		Copyright (C) 2003 - 2005 Robert Lipe
+
+--		This program is free software; you can redistribute it and/or modify
+--		it under the terms of the GNU General Public License as published by
+--		the Free Software Foundation; either version 2 of the License, or
+--		(at your option) any later version.
+
+--		This program is distributed in the hope that it will be useful,
+--		but WITHOUT ANY WARRANTY; without even the implied warranty of
+--		MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--		GNU General Public License for more details.
+
+--		You should have received a copy of the GNU General Public License
+--		along with this program; if not, write to the Free Software
+--		Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
+
 -- see http://gpsbabel.sourceforge.net/ for more details
 
 -- PROPERTIES AND GLOBALS --
 property fileList : {}
 property startIndex : 0
 property startState : false
-global theFiles, typeList, extList, aFile
+global theFiles, inFormatList, outFormatList, inRWList, outRWList, inTypeList, outTypeList, extList, aFile
 
 -- EVENT HANDLERS --
 
@@ -23,22 +40,19 @@ on will finish launching theObject
 	make new default entry at end of default entries of user defaults with properties {name:"gpsIN", contents:startState}
 	make new default entry at end of default entries of user defaults with properties {name:"gpsOUT", contents:startState}
 	make new default entry at end of default entries of user defaults with properties {name:"gpsReceiver", contents:startIndex}
+	make new default entry at end of default entries of user defaults with properties {name:"filterNSSelect", contents:startIndex}
+	make new default entry at end of default entries of user defaults with properties {name:"filterEWSelect", contents:startIndex}
+	make new default entry at end of default entries of user defaults with properties {name:"filterNDeg", contents:0}
+	make new default entry at end of default entries of user defaults with properties {name:"filterNMin", contents:0.0}
+	make new default entry at end of default entries of user defaults with properties {name:"filterWDeg", contents:0}
+	make new default entry at end of default entries of user defaults with properties {name:"filterWMin", contents:0.0}
 end will finish launching
 
 on awake from nib theObject
 	log "awake from nib - " & name of theObject
 	if theObject is window "MacGPSBabel" then
-		-- get supported file types from gpsbabel and use these to populate the file types popup lists
-		tell window "MacGPSBabel"
-			set popList to my getFormats()
-			repeat with i in popList
-				make new menu item at the end of menu items of menu of popup button "inPop" with properties {title:i, enabled:true}
-				make new menu item at the end of menu items of menu of popup button "outPop" with properties {title:i, enabled:true}
-			end repeat
-		end tell
-		
-		-- read current user defaults and set window controls as needed
-		my readSettings()
+		-- get supported file types from gpsbabel and use these to populate the file types popup list
+		my getFormats()
 		
 		-- deal with changes to MacGPSBabel window needed if any of the GPS check boxes are checked by default
 		if state of button "GPSswitchIN" of window "MacGPSBabel" is equal to 1 then
@@ -53,6 +67,7 @@ end awake from nib
 -- Deal with the opening and closing of windows
 
 on will open theObject
+	
 	log "will open - " & name of theObject
 	-- Main Window
 	if theObject is window "MacGPSBabel" then
@@ -71,6 +86,7 @@ on will open theObject
 		repeat with i in popList
 			make new menu item at the end of menu items of menu of popup button "serialPop" of window "SelectGPS" with properties {title:i, enabled:true}
 		end repeat
+		make new menu item at the end of menu items of menu of popup button "serialPop" of window "SelectGPS" with properties {title:"Garmin USB", enabled:true}
 		
 		-- read user defaults for this window
 		tell user defaults
@@ -84,7 +100,8 @@ on will open theObject
 	
 end will open
 
-on will close theObject
+-- to work around the NSReceiverEvaluationScriptError we need to use should close instead of will close
+on should close theObject
 	log "will close - " & name of theObject
 	if theObject is window "SelectGPS" then
 		-- store user defaults for this window
@@ -96,12 +113,23 @@ on will close theObject
 		-- unhide MacGPSBabel window
 		set visible of window "MacGPSBabel" to true
 	end if
-end will close
+	
+	if theObject is window "filterWindow" then
+		set the title of button "filterButton" of window "MacGPSBabel" to "Setup Filters"
+	end if
+	
+	-- workarund NSReceiverEvaluationScriptError bug
+	set visible of theObject to false
+	return false
+	
+end should close
 
 
 -- handler for the File>Open menu item
 on choose menu item theObject
 	log "choose menu item - " & name of theObject
+	
+	-- mainMenu File>Open
 	if name of theObject is "open" then
 		if visible of window "MacGPSBabel" is true then
 			if contents of text field "inputFile" of window "MacGPSBabel" is equal to "" then
@@ -127,6 +155,10 @@ on choose menu item theObject
 			end if
 			my addFile()
 		end if
+	end if
+	
+	if name of theObject is "modePop" then
+		my getFormats()
 	end if
 end choose menu item
 
@@ -245,6 +277,8 @@ on clicked theObject
 			set editable of text field "wDeg" of window "filterWindow" to true
 			set enabled of text field "wMin" of window "filterWindow" to true
 			set editable of text field "wMin" of window "filterWindow" to true
+			set enabled of button "makeHomeButton" of window "filterWindow" to true
+			set enabled of button "useHomeButton" of window "filterWindow" to true
 			tell window "filterWindow"
 				set first responder to text field "dist2"
 			end tell
@@ -262,6 +296,61 @@ on clicked theObject
 			set editable of text field "wDeg" of window "filterWindow" to false
 			set enabled of text field "wMin" of window "filterWindow" to false
 			set editable of text field "wMin" of window "filterWindow" to false
+			set enabled of button "makeHomeButton" of window "filterWindow" to false
+			set enabled of button "useHomeButton" of window "filterWindow" to false
+		end if
+	end if
+	
+	-- Filter Window - Make Home Button
+	if theObject is button "makeHomeButton" of window "filterWindow" then
+		set newNSIndex to contents of popup button "nsSelect" of window "filterWindow"
+		set newEWIndex to contents of popup button "ewSelect" of window "filterWindow"
+		set newNDeg to contents of text field "nDeg" of window "filterWindow"
+		set newNMin to contents of text field "nMin" of window "filterWindow"
+		set newWDeg to contents of text field "wDeg" of window "filterWindow"
+		set newWMin to contents of text field "wMin" of window "filterWindow"
+		tell user defaults
+			set contents of default entry "filterNSSelect" to newNSIndex as integer
+			set contents of default entry "filterEWSelect" to newEWIndex as integer
+			set contents of default entry "filterNDeg" to newNDeg as integer
+			set contents of default entry "filterNMin" to newNMin as number
+			set contents of default entry "filterWDeg" to newWDeg as integer
+			set contents of default entry "filterWMin" to newWMin as number
+		end tell
+	end if
+	
+	-- Filter Window - Use Home Button
+	if theObject is button "useHomeButton" of window "filterWindow" then
+		tell user defaults
+			set homeNSSelectIndex to contents of default entry "filterNSSelect" as integer
+			set homeEWSelectIndex to contents of default entry "filterEWSelect" as integer
+			set homeNDeg to contents of default entry "filterNDeg" as integer
+			set homeWDeg to contents of default entry "filterWDeg" as integer
+			set homeNMin to contents of default entry "filterNMin" as number
+			set homeWMin to contents of default entry "filterWMin" as number
+		end tell
+		set contents of popup button "nsSelect" of window "filterWindow" to homeNSSelectIndex
+		set contents of popup button "ewSelect" of window "filterWindow" to homeEWSelectIndex
+		set contents of text field "nDeg" of window "filterWindow" to homeNDeg
+		set contents of text field "wDeg" of window "filterWindow" to homeWDeg
+		set contents of text field "nMin" of window "filterWindow" to homeNMin
+		set contents of text field "wMin" of window "filterWindow" to homeWMin
+	end if
+	
+	-- Filter Window - Duplicate filter check boxes
+	if theObject is the button "locationFilter" of window "filterWindow" then
+		if state of button "locationFilter" of window "filterWindow" is equal to 1 then
+			set enabled of button "allSwitch" of window "filterWindow" to 1
+		else if state of button "shortFilter" of window "filterWindow" is equal to 0 then
+			set enabled of button "allSwitch" of window "filterWindow" to 0
+		end if
+	end if
+	
+	if theObject is the button "shortFilter" of window "filterWindow" then
+		if state of button "shortFilter" of window "filterWindow" is equal to 1 then
+			set enabled of button "allSwitch" of window "filterWindow" to 1
+		else if state of button "locationFilter" of window "filterWindow" is equal to 0 then
+			set enabled of button "allSwitch" of window "filterWindow" to 0
 		end if
 	end if
 	
@@ -278,12 +367,14 @@ on clicked theObject
 			set enabled of text field "arcDist" of window "filterWindow" to true
 			set editable of text field "arcDist" of window "filterWindow" to true
 			set enabled of popup button "arcUnits" of window "filterWindow" to true
+			set enabled of button "arcPointsSwitch" of window "filterWindow" to true
 		else
 			set contents of text field "arcFile" of window "filterWindow" to ""
 			set contents of text field "arcDist" of window "filterWindow" to ""
 			set enabled of text field "arcDist" of window "filterWindow" to false
 			set editable of text field "arcDist" of window "filterWindow" to false
 			set enabled of popup button "arcUnits" of window "filterWindow" to false
+			set enabled of button "arcPointsSwitch" of window "filterWindow" to false
 		end if
 	end if
 	
@@ -369,8 +460,6 @@ on sendFile(fileList)
 		return 0
 	else if state of button "GPSswitchOUT" of window "MacGPSBabel" = 1 then
 		set visible of window "SelectGPS" to true
-		set state of button "trackSwitch" of window "SelectGPS" to 0
-		set enabled of button "trackSwitch" of window "SelectGPS" to false
 		return 0
 	else if the title of current menu item of popup button "inPop" of window "MacGPSBabel" = "Select Input File Type" then
 		display dialog "Please select an input file type" buttons {"OK"} default button 1
@@ -393,18 +482,27 @@ on convertFile(fileList)
 		set filterText to ""
 	end if
 	
+	-- waypoint, routes or tracks
+	if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Tracks" then
+		set trackText to " -t"
+	else if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Routes" then
+		set trackText to " -r"
+	else
+		set trackText to ""
+	end if
+	
 	-- create string for input files
 	set fileText to ""
 	repeat with theItem in fileList
 		set currentInIndex to item 2 of theItem
-		set inType to item (currentInIndex) of typeList
+		set inType to item (currentInIndex) of inTypeList
 		set inputFile to quoted form of item 1 of theItem
 		set fileText to fileText & " -i " & inType & " -f " & inputFile
 	end repeat
 	
 	-- create strings for output file
 	set currentOutIndex to contents of popup button "outPop" of window "MacGPSBabel"
-	set outType to item (currentOutIndex) of typeList
+	set outType to item (currentOutIndex) of outTypeList
 	if visible of window "filterWindow" is true then
 		if state of button "smartSwitch" of window "filterWindow" is equal to 1 then
 			set smartSwitch to " -s"
@@ -443,7 +541,7 @@ on convertFile(fileList)
 	end if
 	-- do the script
 	set thePath to POSIX path of (path to me) as string
-	set theConvertScript to (quoted form of thePath & "Contents/Resources/gpsbabel" & smartSwitch & fileText & " " & filterText & "-o " & outType & " -F " & quoted form of outputFile) as string
+	set theConvertScript to (quoted form of thePath & "Contents/Resources/gpsbabel" & smartSwitch & trackText & fileText & " " & filterText & "-o " & outType & " -F " & quoted form of outputFile) as string
 	if (my runBabel(theConvertScript)) then
 		display dialog "File conversion is complete" buttons {"OK"} default button 1
 	else
@@ -459,7 +557,6 @@ on GPSSend()
 		display dialog "Please select an output file type" buttons {"OK"} default button 1
 	else
 		set visible of window "SelectGPS" to true
-		set enabled of button "trackSwitch" of window "selectGPS" to true
 	end if
 end GPSSend
 -- deal with uploading files to GPS receiver
@@ -471,45 +568,66 @@ on uploadFile(fileList)
 		set filterText to ""
 	end if
 	
+	-- waypoint, routes or tracks
+	if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Tracks" then
+		set trackText to " -t"
+	else if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Routes" then
+		set trackText to " -r"
+	else
+		set trackText to ""
+	end if
+	
 	-- create string for input files
 	set fileText to ""
 	repeat with theItem in fileList
 		set currentInIndex to item 2 of theItem
-		set inType to item (currentInIndex) of typeList
+		set inType to item (currentInIndex) of inTypeList
 		set inputFile to quoted form of item 1 of theItem
 		set fileText to fileText & " -i " & inType & " -f " & inputFile
 	end repeat
 	
 	-- create string for GPS unit
 	if the title of popup button "gpsPop" of window "selectGPS" is equal to "Garmin" then
-		set gpsText to " garmin "
+		set gpsRText to "garmin"
 	else
-		set gpsText to " magellan "
+		set gpsRText to "magellan"
 	end if
 	if visible of window "filterWindow" is true then
 		if state of button "smartSwitch" of window "filterWindow" is equal to 1 then
 			set smartSwitch to " -s"
 			if contents of text field "smartLen" of window "filterWindow" is not equal to "" then
-				set gpsText to gpsText & ",snlen=" & ((contents of text field "smartLen" of window "filterWindow") as integer) & " "
+				set gpsText to gpsRText & ",snlen=" & ((contents of text field "smartLen" of window "filterWindow") as integer)
+			else
+				set gpsText to gpsRText
 			end if
 		else
 			set smartSwitch to ""
+			set gpsText to gpsRText
 		end if
 	else
 		set smartSwitch to ""
+		set gpsText to gpsRText
+	end if
+	
+	-- get the port
+	if the the title of popup button "serialPop" of window "selectGPS" is equal to "Garmin USB" then
+		set serialText to "usb:"
+	else
+		set serialText to quoted form of ("/dev/cu." & (the title of popup button "serialPop" of window "selectGPS"))
 	end if
 	
 	-- run the script
 	set thePath to POSIX path of (path to me) as string
 	set visible of window "SelectGPS" to false
 	set visible of window "MacGPSBabel" to true
-	set serialText to "-F /dev/cu." & (the title of popup button "serialPop" of window "selectGPS")
-	set theConvertScript to (quoted form of thePath & "Contents/Resources/gpsbabel" & smartSwitch & fileText & " " & filterText & "-o " & gpsText & serialText)
+	
+	set theConvertScript to (quoted form of thePath & "Contents/Resources/gpsbabel" & smartSwitch & trackText & fileText & " " & filterText & "-o " & gpsText & " -F " & serialText)
 	if (my runBabel(theConvertScript)) then
-		display dialog "Upload to" & gpsText & "GPS receiver is complete" buttons {"OK"} default button 1
+		display dialog "Upload to " & gpsRText & " GPS receiver is complete" buttons {"OK"} default button 1
 	else
-		display dialog "Sorry, upload to" & gpsText & "GPS receiver failed" buttons {"OK"} default button 1
+		display dialog "Sorry, upload to " & gpsRText & " GPS receiver failed" buttons {"OK"} default button 1
 	end if
+	my clearFiles()
 end uploadFile
 -- deal with downloading files from GPS receiver
 on downloadFile()
@@ -519,9 +637,14 @@ on downloadFile()
 	else
 		set filterText to ""
 	end if
-	if state of button "trackSwitch" of window "selectGPS" is equal to 1 then
+	
+	-- waypoint, routes or tracks
+	if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Tracks" then
 		set trackText to " -t"
 		set outName to "Tracks."
+	else if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Routes" then
+		set trackText to " -r"
+		set outName to "Routes."
 	else
 		set trackText to ""
 	end if
@@ -534,7 +657,7 @@ on downloadFile()
 	end tell
 	
 	set currentOutIndex to contents of popup button "outPop" of window "MacGPSBabel"
-	set outType to item (currentOutIndex) of typeList
+	set outType to item (currentOutIndex) of outTypeList
 	if visible of window "filterWindow" is true then
 		if state of button "smartSwitch" of window "filterWindow" is equal to 1 then
 			set smartSwitch to " -s"
@@ -557,10 +680,15 @@ on downloadFile()
 		else
 			set gpsText to " magellan "
 		end if
-		set serialText to "/dev/cu." & (the title of popup button "serialPop" of window "selectGPS")
+		-- get the port
+		if the the title of popup button "serialPop" of window "selectGPS" is equal to "Garmin USB" then
+			set serialText to "usb:"
+		else
+			set serialText to quoted form of ("/dev/cu." & (the title of popup button "serialPop" of window "selectGPS"))
+		end if
 		set visible of window "SelectGPS" to false
 		set visible of window "MacGPSBabel" to true
-		set theConvertScript to (quoted form of thePath & "Contents/Resources/gpsbabel" & smartSwitch & trackText & " -i" & gpsText & "-f " & serialText & " " & filterText & " -o " & outType & " -F " & quoted form of outputFile)
+		set theConvertScript to (quoted form of thePath & "Contents/Resources/gpsbabel" & smartSwitch & trackText & " -i" & gpsText & "-f " & serialText & filterText & " -o " & outType & " -F " & quoted form of outputFile)
 		if (my runBabel(theConvertScript)) then
 			display dialog "Download from" & gpsText & "GPS receiver is complete" buttons {"OK"} default button 1
 		else
@@ -569,6 +697,7 @@ on downloadFile()
 	else
 		set outputFile to ""
 	end if
+	my clearFiles()
 end downloadFile
 
 -- Send the call to gpsbabel
@@ -579,10 +708,12 @@ on runBabel(theConvertScript)
 	try
 		set scriptOut to do shell script theConvertScript as string
 		set babelHappy to true
+		set convertYN to "ran successfully"
 		log "Success! gpsbabel returned: " & scriptOut
 	on error
 		set scriptOut to "gpsbabel encountered an error"
 		set babelHappy to false
+		set convertYN to "failed"
 		log "Error! gpsbabel returned: " & scriptOut
 	end try
 	feedbackBusy(false)
@@ -607,6 +738,7 @@ on showFilters()
 		set the title of button "filterButton" of window "MacGPSBabel" to "Setup Filters"
 	end if
 end showFilters
+
 -- create the filter code
 on applyFilters()
 	set filterText to ""
@@ -672,7 +804,11 @@ on applyFilters()
 				set aUnit to "K"
 			end if
 			set arcDistance to (contents of text field "arcDist" of window "filterWindow") & aUnit
-			set arcText to "-x arc,file=\"" & (contents of text field "arcFile" of window "filterWindow") & "\",distance=" & arcDistance & " "
+			set arcText to "-x arc,file='" & (contents of text field "arcFile" of window "filterWindow") & "',distance=" & arcDistance
+			if the state of button "arcPointsSwitch" of window "filterWindow" is equal to 1 then
+				set arcText to arcText & ",points"
+			end if
+			set arcText to arcText & " "
 		else
 			display dialog "Please input a distance for the arc filter" buttons ["OK"] default button 1
 			set arcText to ""
@@ -682,7 +818,7 @@ on applyFilters()
 		set arcText to ""
 	end if
 	if state of button "polySwitch" of window "filterWindow" is equal to 1 then
-		set polyText to "-x polygon,file=\"" & (contents of text field "arcFile" of window "filterWindow") & "\" "
+		set polyText to "-x polygon,file='" & (contents of text field "polyFile" of window "filterWindow") & "'"
 	else
 		set polyText to ""
 	end if
@@ -743,15 +879,13 @@ on clearFiles()
 	
 	-- reset controls to user defaults
 	-- read current user defaults and set window controls as needed
-	my readSettings()
+	if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Waypoints" then
+		my readSettings()
+	end if
 	
 	-- deal with changes to MacGPSBabel window needed if any of the GPS check boxes are checked by default
-	if state of button "GPSswitchIN" of window "MacGPSBabel" is equal to 1 then
-		my gpsIN()
-	end if
-	if state of button "GPSswitchOUT" of window "MacGPSBabel" is equal to 1 then
-		my gpsOUT()
-	end if
+	my gpsIN()
+	my gpsOUT()
 end clearFiles
 
 
@@ -763,8 +897,6 @@ on readSettings()
 		set defaultgpsIN to contents of default entry "gpsIN" as boolean
 		set defaultgpsOUT to contents of default entry "gpsOUT" as boolean
 	end tell
-	-- call method "setObjectValue:" of object (popup button "inPop" of window "MacGPSBabel") with parameter defaultInputIndex
-	-- call method "synchronizeTitleAndSelectedItem" of object (popup button "inPop" of window "MacGPSBabel")
 	set contents of popup button "inPop" of window "MacGPSBabel" to defaultInputIndex
 	set contents of popup button "outPop" of window "MacGPSBabel" to defaultOutputIndex
 	set state of button "GPSswitchIN" of window "MacGPSBabel" to defaultgpsIN
@@ -816,24 +948,79 @@ on getSerial()
 	return myList
 end getSerial
 
--- handler (called at startup) to check with GPS Babel which file formats it can handle. Return the result as a list
+-- handler (called at startup) to check with GPS Babel which file formats it can handle.
+-- Populates global lists with file types and capabilities
 on getFormats()
-	set myList to {}
-	set typeList to {}
+	set inFormatList to {}
+	set outFormatList to {}
+	set inTypeList to {}
+	set outTypeList to {}
 	set extList to {}
 	set thePath to POSIX path of (path to me) as string
-	set scriptOut to (do shell script quoted form of thePath & "Contents/Resources/gpsbabel -^1") as string
+	set scriptOut to (do shell script quoted form of thePath & "Contents/Resources/gpsbabel -^2") as string
 	set theCount to count of paragraphs in scriptOut
 	set defaultDelimiters to AppleScript's text item delimiters
 	set AppleScript's text item delimiters to tab
 	repeat with i from 1 to theCount
 		set theLine to paragraph i of scriptOut
 		if (first text item of theLine) is equal to "file" then
-			set the end of typeList to the second text item of theLine
-			set the end of extList to the third text item of theLine
-			set the end of myList to the last text item of theLine
+			if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Waypoints" then
+				if the first character of the second text item of theLine is equal to "r" then
+					set the end of inTypeList to the third text item of theLine
+					set the end of inFormatList to the last text item of theLine
+				end if
+				if the second character of the second text item of theLine is equal to "w" then
+					set the end of extList to the 4th text item of theLine
+					set the end of outTypeList to the third text item of theLine
+					set the end of outFormatList to the last text item of theLine
+				end if
+			end if
+			if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Tracks" then
+				if the third character of the second text item of theLine is equal to "r" then
+					set the end of inTypeList to the third text item of theLine
+					set the end of inFormatList to the last text item of theLine
+				end if
+				if the 4th character of the second text item of theLine is equal to "w" then
+					set the end of extList to the 4th text item of theLine
+					set the end of outTypeList to the third text item of theLine
+					set the end of outFormatList to the last text item of theLine
+				end if
+			end if
+			if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Routes" then
+				if the 5th character of the second text item of theLine is equal to "r" then
+					set the end of inTypeList to the third text item of theLine
+					set the end of inFormatList to the last text item of theLine
+				end if
+				if the 6th character of the second text item of theLine is equal to "w" then
+					set the end of extList to the 4th text item of theLine
+					set the end of outTypeList to the third text item of theLine
+					set the end of outFormatList to the last text item of theLine
+				end if
+			end if
 		end if
 	end repeat
 	set AppleScript's text item delimiters to defaultDelimiters
-	return myList
+	
+	-- set current menu item of popup button "inPop" of window "MacGPSBabel" to menu item 1 of menu of popup button "inPop" of window "MacGPSBabel"
+	-- set current menu item of popup button "outPop" of window "MacGPSBabel" to menu item 1 of menu of popup button "outPop" of window "MacGPSBabel"
+	
+	tell window "MacGPSBabel"
+		if (count of menu items of popup button "inPop") is greater than 0 then
+			delete every menu item of menu of popup button "inPop"
+			make new menu item at the end of menu items of menu of popup button "inPop" with properties {title:"Select Input File Type", enabled:true}
+			delete every menu item of menu of popup button "outPop"
+			make new menu item at the end of menu items of menu of popup button "outPop" with properties {title:"Select Output File Type", enabled:true}
+		end if
+		repeat with i in inFormatList
+			make new menu item at the end of menu items of menu of popup button "inPop" with properties {title:i, enabled:true}
+		end repeat
+		repeat with i in outFormatList
+			make new menu item at the end of menu items of menu of popup button "outPop" with properties {title:i, enabled:true}
+		end repeat
+	end tell
+	
+	if the title of popup button "modePop" of window "MacGPSBabel" is equal to "Waypoints" then
+		my readSettings()
+	end if
+	
 end getFormats

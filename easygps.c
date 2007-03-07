@@ -24,8 +24,8 @@
 
 static FILE *file_in;
 static FILE *file_out;
-static void *mkshort_handle;
-static char *deficon = NULL;
+static short_handle mkshort_handle;
+/* static char *deficon = NULL; */
 
 #define MYNAME "EasyGPS"
 
@@ -33,7 +33,7 @@ static
 arglist_t easygps_args[] = {
 /*	{"deficon", &deficon, "Default icon name", "Waypoint", 
   	ARGTYPE_STRING}, */
-	{0, 0, 0, 0 }
+	ARG_TERMINATOR
 };
 
 static void
@@ -69,7 +69,7 @@ static void
 wr_deinit(void)
 {
 	fclose(file_out);
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 }
 
 /*
@@ -77,7 +77,7 @@ wr_deinit(void)
  *  storage.
  */
 static void *
-pread(void)
+pas_read(void)
 {
 	char *d;
 	int ilen;
@@ -96,7 +96,6 @@ data_read(void)
 	char ibuf[10];
 	char bbuf[4096];
 	char *bbufp;
-	double d;
 	do {
 		unsigned char tag;
 		waypoint *wpt_tmp;
@@ -106,20 +105,21 @@ data_read(void)
 		for (tag = fgetc(file_in); tag != 0xff; tag = fgetc(file_in)) {
 		switch (tag) {
 			case 1:
-				wpt_tmp->shortname = (char *) pread();
+				wpt_tmp->shortname = (char *) pas_read();
 				break;
 			case 2:
 			case 3:
-				wpt_tmp->description = (char *) pread();
+				wpt_tmp->description = (char *) pas_read();
 				break;
 			case 5:
-				wpt_tmp->notes = (char *) pread();
+				wpt_tmp->notes = (char *) pas_read();
 				break;
 			case 6:
-				wpt_tmp->url_link_text = (char *) pread();
+				wpt_tmp->url_link_text = (char *) pas_read();
 				break;
 			case 7:
-				wpt_tmp->icon_descr = (char *) pread();
+				wpt_tmp->icon_descr = (char *) pas_read();
+				wpt_tmp->wpt_flags.icon_descr_is_dynamic = 1;
 				break;
 			case 8:  /* NULL Terminated (vs. pascal) descr */
 				bbufp = bbuf;
@@ -156,13 +156,11 @@ data_read(void)
 				break;
 			case 0x63:
 				fread(ibuf, 8, 1, file_in);
-				le_read64(&d, ibuf);
-				wpt_tmp->latitude = d;
+				wpt_tmp->latitude = le_read_double(ibuf);
 				break;
 			case 0x64:
 				fread(ibuf, 8, 1, file_in);
-				le_read64(&d, ibuf);
-				wpt_tmp->longitude = d;
+				wpt_tmp->longitude = le_read_double(ibuf);
 				break;
 			case 0x65:
 			case 0x66:
@@ -219,10 +217,10 @@ ez_disp(const waypoint *wpt)
 		write_pstring(wpt->icon_descr);
 	}
 	fputc(0x63, file_out);
-	le_read64(tbuf, &wpt->latitude);
+	le_write_double(tbuf, wpt->latitude);
 	fwrite(tbuf, 8, 1, file_out);
 	fputc(0x64, file_out);
-	le_read64(tbuf, &wpt->longitude);
+	le_write_double(tbuf, wpt->longitude);
 	fwrite(tbuf, 8, 1, file_out);
 	if (wpt->notes) {
 		fputc(5, file_out);
@@ -263,6 +261,7 @@ data_write(void)
 
 ff_vecs_t easygps_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,
@@ -270,5 +269,6 @@ ff_vecs_t easygps_vecs = {
 	data_read,
 	data_write,
 	NULL, 
-	easygps_args
+	easygps_args,
+	CET_CHARSET_ASCII, 0	/* CET REVIEW */
 };

@@ -20,10 +20,10 @@
  */
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
-
-static double conv = 180.0 / M_PI;
+#include "grtcirc.h"
 
 #define MYNAME		"CoPilot Waypoint"
 #define MYTYPE 		0x77617970  	/* wayp */
@@ -41,8 +41,8 @@ struct record {
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-struct pdb *opdb;
-struct pdb_record *opdb_rec;
+static struct pdb *opdb;
+static struct pdb_record *opdb_rec;
 
 static void
 rd_init(const char *fname)
@@ -88,13 +88,13 @@ data_read(void)
 		waypoint *wpt_tmp;
 		char *vdata;
 
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+		wpt_tmp = waypt_new();
 
 		rec = (struct record *) pdb_rec->data;
 		wpt_tmp->longitude =
-		  -pdb_read_double(&rec->longitude) * conv;
+		  DEG(-pdb_read_double(&rec->longitude));
 		wpt_tmp->latitude =
-		  pdb_read_double(&rec->latitude) * conv;
+		  DEG(pdb_read_double(&rec->latitude));
 		wpt_tmp->altitude =
 		  pdb_read_double(&rec->elevation) * .3048;
 
@@ -124,9 +124,8 @@ copilot_writewpt(const waypoint *wpt)
 
 	rec = xcalloc(sizeof(*rec)+1141,1);
 
-	pdb_write_double(&rec->latitude, wpt->latitude / conv);
-	pdb_write_double(&rec->longitude,
-		-wpt->longitude / conv);
+	pdb_write_double(&rec->latitude, RAD(wpt->latitude));
+	pdb_write_double(&rec->longitude, RAD(-wpt->longitude));
 	pdb_write_double(&rec->elevation,
 		wpt->altitude / .3048);
 	pdb_write_double(&rec->magvar, 0);
@@ -158,7 +157,7 @@ copilot_writewpt(const waypoint *wpt)
 	}
 	vdata += strlen( vdata ) + 1;
 
-	opdb_rec = new_Record (0, 2, ct++, vdata-(char *)rec, (const ubyte *)rec);	       
+	opdb_rec = new_Record (0, 2, ct++, (uword) (vdata-(char *)rec), (const ubyte *)rec);	       
 
 	if (opdb_rec == NULL) {
 		fatal(MYNAME ": libpdb couldn't create record\n");
@@ -193,11 +192,15 @@ data_write(void)
 
 ff_vecs_t copilot_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,
 	wr_deinit,
 	data_read,
 	data_write,
-	NULL
+	NULL,
+	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

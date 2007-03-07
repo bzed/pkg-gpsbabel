@@ -30,6 +30,9 @@ CSV_STRINGTRIM(const char *string, const char *enclosure, int strip_max, DEBUG_P
 char *
 csv_lineparse(const char *stringstart, const char *delimited_by, const char *enclosed_in, const int line_no);
 
+void
+human_to_dec( const char *instr, double *outlat, double *outlon, int which );
+
 char *
 #ifndef DEBUG_MEM
 csv_stringclean(const char *string, const char *chararray);
@@ -57,21 +60,28 @@ void
 xcsv_ifield_add(char *, char *, char *);
 
 void 
-xcsv_ofield_add(char *, char *, char *);
+xcsv_ofield_add(char *, char *, char *, int options);
 
 void 
 xcsv_destroy_style(void);
+
+const char *
+xcsv_get_char_from_constant_table(char *key);
 
 /****************************************************************************/
 /* types required for various xcsv functions                                */
 /****************************************************************************/
 
 /* something to map fields to waypts */
+#define OPTIONS_NODELIM 1
+#define OPTIONS_ABSOLUTE 2
+#define OPTIONS_OPTIONAL 3
 typedef struct field_map {
 	queue Q;
 	char * key;
 	char * val;
 	char * printfc;
+	int options;
 } field_map_t;
 
 /* a queuing struct for prologues / epilogues */
@@ -113,13 +123,13 @@ typedef struct {
     int ifield_ct;		/* actual # of ifields */
     int ofield_ct;		/* actual # of ofields */
     
-    FILE * xcsvfp;		/* ptr to current *open* data file */
+    gbfile * xcsvfp;		/* ptr to current *open* data file */
     char * fname;                /* ptr to filename of above. */
 
     char * description;		/* Description for help text */
     char * extension;		/* preferred filename extension (for wrappers)*/
     
-    void * mkshort_handle;	/* handle for mkshort() */
+    short_handle mkshort_handle;/* handle for mkshort() */
     ff_type type;		/* format type for GUI wrappers. */
     
 } xcsv_file_t;
@@ -128,4 +138,4 @@ typedef struct {
 /****************************************************************************/
 /* obligatory global struct                                                 */
 /****************************************************************************/
-xcsv_file_t xcsv_file;
+extern xcsv_file_t xcsv_file;

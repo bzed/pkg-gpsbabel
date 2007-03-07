@@ -20,6 +20,7 @@
  */
 
 #include "defs.h"
+#if PDBFMTS_ENABLED
 #include "coldsync/palm.h"
 #include "coldsync/pdb.h"
 
@@ -50,8 +51,8 @@ struct dbrec {
 static FILE *file_in;
 static FILE *file_out;
 static const char *out_fname;
-struct pdb *opdb;
-struct pdb_record *opdb_rec;
+static struct pdb *opdb;
+static struct pdb_record *opdb_rec;
 
 static char *tbuf = NULL;
 static char *tbufp = NULL;
@@ -293,7 +294,7 @@ gcdb_write_wpt(const waypoint *wpt)
 	 */
 	reclen = gcdb_add_to_rec(rec, NULL, 0, NULL);
 
-	opdb_rec = new_Record(0, 2, ct++, reclen, (const ubyte *)rec);
+	opdb_rec = new_Record(0, 2, ct++, (uword) reclen, (const ubyte *)rec);
 
 	if (opdb_rec == NULL) {
 		fatal(MYNAME ": libpdb couldn't create record\n");
@@ -331,11 +332,15 @@ data_write(void)
 
 ff_vecs_t gcdb_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,
 	wr_deinit,
 	data_read,
 	data_write,
-	NULL
+	NULL,
+	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif

@@ -1,7 +1,7 @@
 /*
     Generate unique short names.
 
-    Copyright (C) 2003, 2004 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2003, 2004, 2005, 2006 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 static const char vowels[] = "aeiouAEIOU";
 
 #define DEFAULT_TARGET_LEN 8
-#define DEFAULT_BADCHARS "\"$.,'!-"
+static const char *DEFAULT_BADCHARS = "\"$.,'!-";
 
 /*
  * Hash table tunings.   The reality is that our hash doesn't have to be 
@@ -39,13 +39,17 @@ static const char vowels[] = "aeiouAEIOU";
 #define PRIME 37
 
 typedef struct {
-	int mustupper;
-	int whitespaceok;
 	unsigned int target_len;
 	char *badchars;
-	int must_uniq;
+	char *goodchars;
+	char *defname;
 	queue namelist[PRIME];
-	int depth[PRIME];
+
+	/* Various internal flags at end to allow alignment flexibility. */
+	unsigned int mustupper:1;
+	unsigned int whitespaceok:1;
+	unsigned int repeating_whitespaceok:1;
+	unsigned int must_uniq:1;
 } mkshort_handle;
 
 typedef struct {
@@ -53,6 +57,23 @@ typedef struct {
 	char *orig_shortname;
 	int conflictctr;
 } uniq_shortname;
+
+static struct replacements {
+	const char *orig;
+	const char *replacement;
+} replacements[] = {
+	{"zero", 	"0"},
+	{"one", 	"1"},
+	{"two", 	"2"},
+	{"three", 	"3"},
+	{"four", 	"4"},
+	{"five", 	"5"},
+	{"six", 	"6"},
+	{"seven", 	"7"},
+	{"eight", 	"8"},
+	{"nine", 	"9"},
+	{NULL, 		NULL}
+};
 
 /* 
  * We hash all strings as upper case.
@@ -81,9 +102,10 @@ mkshort_new_handle()
 		QUEUE_INIT(&h->namelist[i]);
 
 	h->whitespaceok = 1;
-	h->badchars = DEFAULT_BADCHARS;
+	h->badchars = xstrdup(DEFAULT_BADCHARS);
 	h->target_len = DEFAULT_TARGET_LEN;
-	h->must_uniq=1;
+	h->must_uniq = 1;
+	h->defname = xstrdup("WPT");
 
 	return h;
 }
@@ -144,23 +166,40 @@ mkshort_add_to_list(mkshort_handle *h, char *name)
 }
 
 void
-mkshort_del_handle(void *h)
+mkshort_del_handle(short_handle *h)
 {
-	mkshort_handle *hdr = h;
+	mkshort_handle *hdr = (mkshort_handle*) *h;
 	int i;
 
-	if (hdr) {
-		for (i = 0; i < PRIME; i++) {
-			queue *e, *t;
-			QUEUE_FOR_EACH(&hdr->namelist[i], e, t) {
-				uniq_shortname *s = (uniq_shortname *) e;
-				dequeue(e);
-				xfree(s->orig_shortname);
-				xfree(s);
+	if (!h || !hdr)
+		return;
+
+	for (i = 0; i < PRIME; i++) {
+		queue *e, *t;
+		QUEUE_FOR_EACH(&hdr->namelist[i], e, t) {
+			uniq_shortname *s = (uniq_shortname *) e;
+#if 0
+			if (global_opts.verbose_status >= 2 && s->conflictctr) {
+				fprintf(stderr, "%d Output name conflicts: '%s'\n",  
+					s->conflictctr, s->orig_shortname);
 			}
+#endif
+			dequeue(e);
+			xfree(s->orig_shortname);
+			xfree(s);
 		}
-		xfree(hdr);
 	}
+	/* setshort_badchars(*h, NULL); ! currently setshort_badchars() always allocates something ! */
+	if (hdr->badchars != NULL) {
+		xfree(hdr->badchars);
+	}
+	setshort_goodchars(*h, NULL);
+	if (hdr->defname) {
+		xfree(hdr->defname);
+	} 
+
+	xfree(hdr);
+	*h = NULL;
 }
 
 /*
@@ -179,8 +218,10 @@ delete_last_vowel(int start, char *istring, int *replaced)
 	*replaced = 0;
 	for (l = strlen(istring); l > start; l--) {
 		if (strchr(vowels, istring[l-1])) {
-			char *ostring = xstrdup(istring);
-
+			char *ostring;
+			/* If vowel is the first letter of a word, keep it.*/
+			if (istring[l-2] == ' ') continue;
+			ostring = xstrdup(istring);
 			strncpy(&ostring[l-1], &istring[l], 1+strlen(istring)-l);
 			ostring[strlen(istring)-1] = 0;
 			*replaced = 1;
@@ -190,17 +231,42 @@ delete_last_vowel(int start, char *istring, int *replaced)
 		}
 	}
 	return istring;
-
 }
+
+/*
+ * Open the slippery slope of literal replacement.   Right now, replacements
+ * are made only at the end of the string.
+ */
+void
+replace_constants(char *s)
+{
+	struct replacements *r;
+	int origslen = strlen(s);
+
+	for (r = replacements; r->orig; r++) {
+		int rl = strlen(r->orig);
+		/*
+		 * If word is in replacement list and preceeded by a 
+		 * space, replace it.
+		 */
+		if ((origslen - rl > 1) && 
+		    (0 == case_ignore_strcmp(r->orig, &s[origslen - rl])) &&
+		    (s[origslen - rl - 1] == ' ')) {
+			strcpy(&s[origslen - rl], r->replacement);
+			return ;
+}
+	}
+}
+
 
 /*
  * Externally callable function to set the max length of the
  * strings returned by mkshort().  0 resets to default.
  */
 void
-setshort_length(void *h, int l)
+setshort_length(short_handle h, int l)
 {
-	mkshort_handle *hdl = h;
+	mkshort_handle *hdl = (mkshort_handle *) h;
 	if (l == 0) {
 		hdl->target_len = DEFAULT_TARGET_LEN;
 	} else {
@@ -208,11 +274,43 @@ setshort_length(void *h, int l)
 	}
 }
 
+/*
+ * Call with L nonzero if whitespace in the generated shortname is wanted.
+ */
+ 
 void
-setshort_whitespace_ok(void *h, int l)
+setshort_whitespace_ok(short_handle h, int l)
 {
-	mkshort_handle *hdl = h;
+	mkshort_handle *hdl = (mkshort_handle *) h;
 	hdl->whitespaceok = l;
+}
+
+/*
+ * Call with L nonzero if multiple consecutive whitespace in the 
+ * generated shortname is wanted.
+ */
+
+void
+setshort_repeating_whitespace_ok(short_handle h, int l)
+{
+	mkshort_handle *hdl = (mkshort_handle *) h;
+	hdl->repeating_whitespaceok = l;
+}
+
+/*
+ * Set default name given to a waypoint if no valid is possible
+ * becuase it was filtered by charsets or null or whatever.
+ */
+void
+setshort_defname(short_handle h, const char *s)
+{
+	mkshort_handle *hdl = (mkshort_handle *) h;
+	if (s == NULL) {
+		fatal("setshort_defname called without a valid name.");
+	}
+	if (hdl->defname != NULL)
+		xfree(hdl->defname);
+	hdl->defname = xstrdup(s);
 }
 
 /*
@@ -221,36 +319,59 @@ setshort_whitespace_ok(void *h, int l)
  * resets to default.
  */
 void
-setshort_badchars(void *h, const char *s)
+setshort_badchars(short_handle h, const char *s)
 {
-	mkshort_handle *hdl = h;
-	if (s == NULL) {
-		hdl->badchars = DEFAULT_BADCHARS;
-	} else {
-		hdl->badchars = xstrdup(s);
-	}
+	mkshort_handle *hdl = (mkshort_handle *) h;
+
+	if ((hdl->badchars != NULL))
+		xfree(hdl->badchars);
+	hdl->badchars = xstrdup (s ? s : DEFAULT_BADCHARS);
 }
 
+/*
+ * Only characters that appear in *s are "whitelisted" to appear 
+ * in generated names.
+ */
 void
-setshort_mustupper(void *h, int i)
+setshort_goodchars(short_handle h, const char *s)
 {
-	mkshort_handle *hdl = h;
+	mkshort_handle *hdl = (mkshort_handle *) h;
+
+	if (hdl->goodchars != NULL)
+		xfree(hdl->goodchars);
+	if (s != NULL)
+		hdl->goodchars = xstrdup(s);
+	else
+		hdl->goodchars = NULL;
+}
+
+/*
+ *  Call with i non-zero if generated names must be uppercase only.
+ */
+void
+setshort_mustupper(short_handle h, int i)
+{
+	mkshort_handle *hdl = (mkshort_handle *) h;
 	hdl->mustupper = i;
 }
 
+
+/* 
+ *  Call with i zero if the generated names don't have to be unique.
+ *  (By default, they are.)
+ */
 void
-setshort_mustuniq(void *h, int i)
+setshort_mustuniq(short_handle h, int i)
 {
-	mkshort_handle *hdl = h;
+	mkshort_handle *hdl = (mkshort_handle *) h;
 	hdl->must_uniq = i;
 }
 
-
 char *
 #ifdef DEBUG_MEM
-MKSHORT(void *h, const char *istring, DEBUG_PARAMS )
+MKSHORT(short_handle h, const char *istring, DEBUG_PARAMS )
 #else
-mkshort(void *h, const char *istring)
+mkshort(short_handle h, const char *istring)
 #endif
 {
 	char *ostring = xxstrdup(istring, file, line);
@@ -259,7 +380,7 @@ mkshort(void *h, const char *istring)
 	char *cp;
 	char *np;
 	int i, l, nlen, replaced;
-	mkshort_handle *hdl = h;
+	mkshort_handle *hdl = (mkshort_handle *) h;
 
 	/* 
 	 * Whack leading "[Tt]he",
@@ -272,21 +393,14 @@ mkshort(void *h, const char *istring)
 		ostring = nstring;
 	}
 
-	/*
-	 * Look at the back of the string for " by BLAH" and whack 
-	 * it there.
-	 */
-	nstring = xxstrdup(ostring, file, line);
-	l = strlen (nstring);
-	while (l > 0) {
-		if (strncmp(&nstring[l], " by ",4) == 0)  {
-			nstring[l] = 0;
-			break;
-		}
-		l --;
+	/* Eliminate leading whitespace in all cases */
+	while (ostring[0] && isspace(ostring[0])) {
+		/* If orig string has N bytes, we want to copy N-1 bytes
+		 * of the string itself plus the string terminator (which 
+		 * matters if the string consists of nothing but spaces) 
+		 */
+		memmove(&ostring[0], &ostring[1], strlen(ostring));
 	}
-	xfree(ostring);
-	ostring = nstring;
 
 	if (!hdl->whitespaceok) {
 		/* 
@@ -309,21 +423,41 @@ mkshort(void *h, const char *istring)
 			*tstring = toupper(*tstring);
 		}
 	}
+
+	/* Before we do any of the vowel or character removal, look for
+	 * constants to replace.
+	 */
+	
+	replace_constants(ostring);
+
 	/*
 	 * Eliminate chars on the blacklist.
-	 * Characters that aren't ASCII are never OK.
  	 */
 	tstring = xxstrdup(ostring, file, line);
 	l = strlen (tstring);
 	cp = ostring;
 	for (i=0;i<l;i++) {
-		if (strchr(hdl->badchars, tstring[i]) || !isascii(tstring[i]))
+		if (strchr(hdl->badchars, tstring[i]))
+			continue;
+		if (hdl->goodchars && (!strchr(hdl->goodchars, tstring[i])))
 			continue;
 		*cp++ = tstring[i];
 	}
 	*cp = 0;
 	xfree(tstring);
 
+	/* 
+	 * Eliminate repeated whitespace.  This can only shorten the string
+ 	 * so we do it in place.
+	 */
+	if (!hdl->repeating_whitespaceok) {
+		for (i = 0; i < l-1; i++) {
+			if (ostring[i] == ' ' && ostring[i+1] == ' ') {
+				memmove(&ostring[i], &ostring[i+1], l-i);
+			}
+		}
+	}
+	
 	/*
 	 * Toss vowels to approach target length, but don't toss them 	
 	 * if we don't have to.  We always keep the leading two letters
@@ -338,8 +472,19 @@ mkshort(void *h, const char *istring)
 	/*
 	 * Delete vowels starting from the end.  If it fits, quit stomping
 	 * them.  If we run out of string, give up.
+	 * 
+	 * Skip this test is our target length is arbitrarily considered 
+	 * "long" as it turns out a truncated string of full words is easier
+	 * to read than a full string of vowelless words. 
+	 *
+	 * It also helps units with speech synthesis.
 	 */
-	replaced = 1;
+	if ( hdl->target_len < 15) {
+		replaced = 1;
+	} else {
+		replaced = 0;
+	}
+	
 	while (replaced && strlen(ostring) > hdl->target_len) {
 		ostring = delete_last_vowel(2, ostring, &replaced);
 	}
@@ -350,8 +495,9 @@ mkshort(void *h, const char *istring)
 	 * Walk in the Woods 1.
 	 * Walk in the Woods 2.
 	 */
+
 	np = ostring + strlen(ostring);
-	while (isdigit(*(np-1) )) {
+	while ((np != ostring) && *(np-1) && isdigit(*(np-1) )) {
 		np--;
 	}
 	if (np) {
@@ -361,9 +507,23 @@ mkshort(void *h, const char *istring)
 	/*
 	 * Now brutally truncate the resulting string, preserve trailing 
 	 * numeric data.
+	 * If the numeric component alone is longer than our target string
+	 * length, use only what'll fit.
  	 */
 	if ((/*i = */strlen(ostring)) > hdl->target_len) {
-		strcpy(&ostring[hdl->target_len] - strlen(np), np);
+		char *dp = &ostring[hdl->target_len] - strlen(np);
+		if (dp < ostring) dp = ostring;
+		memmove(dp, np, strlen(np));
+		dp[strlen(np)] = 0;
+	}
+
+	/* 
+	 * If, after all that, we have an empty string, punt and
+	 * let the must_uniq code handle it.
+	 */
+	if (ostring[0] == '\0') {
+		xfree(ostring);
+		ostring = xstrdup(hdl->defname);
 	}
 
 	if (hdl->must_uniq) {
@@ -371,6 +531,36 @@ mkshort(void *h, const char *istring)
 	}
 	return ostring;
 }
+
+/*
+ * As above, but arg list is a waypoint so we can centralize
+ * the code that considers the alternate sources.
+ */
+char *
+mkshort_from_wpt(short_handle h, const waypoint *wpt)
+{
+	/* This probably came from a Groundspeak Pocket Query
+	 * so use the 'cache name' instead of the description field
+	 * which contains placer name, diff, terr, and generally way
+	 * more stuff than should be in any one field...
+ 	 */
+	if (wpt->gc_data.diff && wpt->gc_data.terr && 
+		wpt->notes && wpt->notes[0]) {
+		return mkshort(h, wpt->notes);
+	}
+
+	if (wpt->description) {
+		return mkshort(h, wpt->description);
+	}
+
+	if (wpt->notes) {
+		return mkshort(h, wpt->notes);
+	}
+
+	/* Should probably never actually happen... */
+	return NULL;
+}
+
 
 #if 0
 char *foo[] =  {

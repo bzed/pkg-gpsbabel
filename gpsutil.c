@@ -21,72 +21,89 @@
 #include "defs.h"
 #include "magellan.h"
 
-static FILE *file_in;
-static FILE *file_out;
-static void *mkshort_handle;
+static gbfile *file_in, *file_out;
+static short_handle mkshort_handle;
 
 #define MYNAME "GPSUTIL"
 
 static void
 rd_init(const char *fname)
 {
-	file_in = xfopen(fname, "r", MYNAME);
+	file_in = gbfopen(fname, "rb", MYNAME);
 }
 
 static void
 rd_deinit(void)
 {
-	fclose(file_in);
+	gbfclose(file_in);
 }
 
 static void
 wr_init(const char *fname)
 {
-	file_out = xfopen(fname, "w", MYNAME);
+	file_out = gbfopen(fname, "w", MYNAME);
 	mkshort_handle = mkshort_new_handle();
 }
 
 static void
 wr_deinit(void)
 {
-	fclose(file_out);
-	mkshort_del_handle(mkshort_handle);
+	gbfclose(file_out);
+	mkshort_del_handle(&mkshort_handle);
 }
 
 static void
 data_read(void)
 {
-	char ibuf[100];
-	char name[9], desc[30];
+	char *ibuf;
+	char desc[31];
 	double lat,lon;
 	char latdir, londir;
 	int ilat, ilon;
 	long alt; 
 	char alttype;
-	char icon[3] = {0};
+	char icon[3];
 	waypoint *wpt_tmp;
+
 	/*
 	 * Make sure that all waypoints in single read have same 
 	 * timestamp.
 	 */
 	time_t now = current_time();
-
-
-	for(;fgets(ibuf, sizeof(ibuf), file_in);) {
+	icon[0] = 0;
+	
+	while ((ibuf = gbfgetstr(file_in))) {
+		int n, len;
+		char *sn;
 	/*  A sharp in column zero or an blank line is a comment */
-	if (ibuf[0] == '#' || ibuf[0] == '\n') continue;
-	sscanf(ibuf, "%s %le%c %le%c %ld%c %30[^,] %c",
-			name, &lat, &latdir, &lon, &londir,
+		ibuf = lrtrim(ibuf);
+		len = strlen(ibuf);
+		if ((len == 0) || (*ibuf == '#')) continue;
+		
+		if (len > 71) {
+			int offs = len - 71;
+			sn = xstrndup(ibuf, offs + 8);
+			ibuf += (offs + 9);
+		}
+		else {
+			sn = xstrndup(ibuf, 8);
+			ibuf += 9;
+		}
+		
+		n = sscanf(ibuf, "%lf%c %lf%c %ld%c %30[^,]s %2s",
+			&lat, &latdir, &lon, &londir,
 			&alt, &alttype, desc, icon);
-		desc[0] = '\0';
-		icon[0] = '\0';
-		sscanf(&ibuf[39], "%30c", desc);
-		sscanf(&ibuf[70], "%2c", icon);
+		/* Require at least first threee fields, otherwise ignore */
+		if (n < 2) { 
+			xfree(sn);
+			continue;
+		}
+		rtrim(sn);
 		rtrim(desc);
 		rtrim(icon);
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+		wpt_tmp = waypt_new();
 		wpt_tmp->altitude = alt;
-		wpt_tmp->shortname = xstrdup(name);
+		wpt_tmp->shortname = sn;
 		wpt_tmp->description = xstrdup(desc);
 		wpt_tmp->creation_time = now;
 
@@ -109,22 +126,23 @@ gpsutil_disp(const waypoint *wpt)
 {
 	double lon,lat;
 	const char *icon_token;
-	char *tdesc = str_utf8_to_ascii(wpt->description);
+	char *tdesc = xstrdup(wpt->description);
 
 	icon_token = mag_find_token_from_descr(wpt->icon_descr);
 
 	lon = degrees2ddmm(wpt->longitude);
 	lat = degrees2ddmm(wpt->latitude);
 
-	fprintf(file_out, "%-8s %08.3f%c %09.3f%c %07.0f%c %-30.30s %s\n",
+	gbfprintf(file_out, "%-8.8s %08.3f%c %09.3f%c %07.0f%c %-30.30s %s\n",
                 global_opts.synthesize_shortnames ?
-                        mkshort(mkshort_handle, wpt->description) : 
+                        mkshort_from_wpt(mkshort_handle, wpt) : 
 			wpt->shortname,
 		fabs(lat),
 		lat < 0.0 ? 'S' : 'N',
 		fabs(lon),
 		lon < 0.0 ? 'W' : 'E',
-		wpt->altitude == unknown_alt ? 0 : wpt->altitude,
+		((wpt->altitude == unknown_alt) || 
+		 (wpt->altitude < 0.0)) ? 0 : wpt->altitude,
 		'm', 
 		wpt->description ? tdesc : "",
 		icon_token);
@@ -141,11 +159,14 @@ data_write(void)
 
 ff_vecs_t gpsutil_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	rd_init,
 	wr_init,
 	rd_deinit,
 	wr_deinit,
 	data_read,
 	data_write,
-	NULL
+	NULL,
+	NULL,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

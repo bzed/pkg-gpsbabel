@@ -17,36 +17,27 @@
 
  */
 #include "defs.h"
-#if !NO_EXPAT
-#include <expat.h>
-static XML_Parser psr;
-#endif
+#include "xmlgeneric.h"
 
-static int in_wpt;
-static int in_name;
-static int in_link;
-static int in_type;
-static int in_cdata;
-static char *cdatastr;
-static char *typestr;
 static char *deficon = NULL;
+static char *nuke_placer;
 
 static waypoint *wpt_tmp;
 
-FILE *fd;
-FILE *ofd;
+static FILE *ofd;
 
 static
 arglist_t geo_args[] = {
-	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING },
-	{0, 0, 0, 0, 0}
+	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
+	{"nuke_placer", &nuke_placer, "Omit Placer name", NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 #define MYNAME "geo"
 #define MY_CBUF 4096
 
-#if NO_EXPAT
-void
+#if ! HAVE_LIBEXPAT
+static void
 geo_rd_init(const char *fname)
 {
 	fatal(MYNAME ": This build excluded GEO support because expat was not installed.\n");
@@ -57,194 +48,126 @@ geo_read(void)
 {
 }
 #else
-static void
-tag_coord(const char **attrv)
+
+static xg_callback	wpt_s, wpt_e;
+static xg_callback	wpt_link_s, wpt_link;
+static xg_callback	wpt_name, wpt_name_s, wpt_type, wpt_coord;
+
+static 
+xg_tag_mapping loc_map[] = {
+	{ wpt_s, 	cb_start, 	"/loc/waypoint" },
+	{ wpt_e, 	cb_end, 	"/loc/waypoint" },
+	{ wpt_name_s, 	cb_start, 	"/loc/waypoint/name" },
+	{ wpt_name, 	cb_cdata, 	"/loc/waypoint/name" },
+	{ wpt_type, 	cb_cdata, 	"/loc/waypoint/type" },
+	{ wpt_link_s, 	cb_start, 	"/loc/waypoint/link" },
+	{ wpt_link, 	cb_cdata, 	"/loc/waypoint/link" },
+	{ wpt_coord, 	cb_start, 	"/loc/waypoint/coord" },
+	{ NULL, 	0, 		NULL }
+};
+
+void wpt_s(const char *args, const char **unused) 
+{ 
+//	wpt_tmp = waypt_new();
+	wpt_tmp = xcalloc(sizeof(*wpt_tmp), 1);
+}
+
+void wpt_e(const char *args, const char **unused)
 {
-	const char **avp = &attrv[0];
+	waypt_add(wpt_tmp);
+}
 
+void wpt_name_s(const char *args, const char **attrv)
+{
+        const char **avp = &attrv[0];
+        while (*avp) {
+                if (0 == strcmp(avp[0], "id")) {
+                        wpt_tmp->shortname = xstrdup(avp[1]);
+                }
+                avp+=2;
+        }
+}
 
-	while (*avp) { 
-		if (strcmp(avp[0], "lat") == 0) {
-			sscanf(avp[1], "%lf", 
-				&wpt_tmp->latitude);
+void wpt_name(const char *args, const char **unused)
+{
+	char *s;
+	if (!args) return;
+
+	wpt_tmp->description = xstrappend(wpt_tmp->description,args);
+	s = xstrrstr(wpt_tmp->description, " by ");
+	if (s) {
+		wpt_tmp->gc_data.placer = xstrdup(s + 4);
+
+		if (nuke_placer) {
+			*s = '\0';
 		}
-		else if (strcmp(avp[0], "lon") == 0) {
-			sscanf(avp[1], "%lf", 
-				&wpt_tmp->longitude);
-		}
-		avp+=2;
 	}
 }
 
-static void
-tag_name(const char **attrv)
+void wpt_link_s(const char *args, const char **attrv)
 {
-	const char **avp = &attrv[0];
-	while (*avp) { 
-		if (strcmp(avp[0], "id") == 0) {
-			wpt_tmp->shortname = xstrdup(avp[1]);
-		}
-		avp+=2;
-	}
+        const char **avp = &attrv[0];
+        while (*avp) {
+                if (0 == strcmp(avp[0], "text")) {
+                        wpt_tmp->url_link_text = xstrdup(avp[1]);
+                }
+                avp+=2;
+        }
+}
+void wpt_link(const char *args, const char **attrv)
+{
+	wpt_tmp->url = xstrdup(args);
+}
+
+void wpt_type(const char *args, const char **unused)
+{
+	wpt_tmp->wpt_flags.icon_descr_is_dynamic = 1;
+	wpt_tmp->icon_descr = xstrdup(args);
+}
+
+void wpt_coord(const char *args, const char **attrv)
+{
+        const char **avp = &attrv[0];
+
+        while (*avp) {
+                if (strcmp(avp[0], "lat") == 0) {
+                        sscanf(avp[1], "%lf",
+                                &wpt_tmp->latitude);
+                }
+                else if (strcmp(avp[0], "lon") == 0) {
+                        sscanf(avp[1], "%lf",
+                                &wpt_tmp->longitude);
+                }
+                avp+=2;
+        }
 }
 
 static void
-tag_type(const char **attrv)
-{
-	const char **avp = &attrv[0];
-	while (*avp) { 
-		if (strcmp(avp[0], "type") == 0) {
-			wpt_tmp->icon_descr = xstrdup(avp[1]);
-		}
-		avp+=2;
-	}
-}
-
-static void
-tag_link(const char **attrv)
-{
-	const char **avp = &attrv[0];
-	while (*avp) { 
-		if (strcmp(avp[0], "text") == 0) {
-			wpt_tmp->url_link_text = xstrdup(avp[1]);
-		}
-		avp+=2;
-	}
-}
-
-static void
-geo_start(void *data, const char *el, const char **attr)
-{
-
-	if (in_wpt) {
-		if (strcmp(el, "ele") == 0) {
-			wpt_tmp->altitude = atoi(attr[1]);
-		}
-		else if (strcmp(el, "name") == 0) {
-			tag_name(attr);
-		}
-		else if (strcmp(el, "coord") == 0) {
-			tag_coord(attr);
-		}
-		else if (strcmp(el, "type") == 0) {
-			tag_type(attr);
-		}
-	}
-
-	if (strcmp(el, "waypoint") == 0) {
-		wpt_tmp = xcalloc(sizeof(*wpt_tmp), 1);
-		in_wpt++;
-	} else if (strcmp(el, "name") == 0) {
-		in_name++;
-	} else if (strcmp(el, "type") == 0) {
-		tag_type(attr);
-		in_type++;
-	} else if (strcmp(el, "link") == 0) {
-		tag_link(attr);
-		in_link++;
-	}
-}
-
-static void
-geo_end(void *data, const char *el)
-{
-	if (in_cdata) {
-		if (in_name) {
-			wpt_tmp->description = xstrdup(cdatastr);
-		}
-		if (in_link) {
-			wpt_tmp->url = xstrdup(cdatastr);
-		}
-		in_cdata--;
-		memset(cdatastr,0, MY_CBUF);
-	}
-	if (strcmp(el, "waypoint") == 0) {
-		waypt_add(wpt_tmp);
-		in_wpt--;
-	}
-	else if (strcmp(el, "name") == 0) {
-		in_name--;
-	}
-	else if (strcmp(el, "type") == 0) {
-		wpt_tmp->icon_descr_is_dynamic = 1;
-		wpt_tmp->icon_descr = xstrdup(typestr);
-		memset(typestr,0, MY_CBUF);
-		in_type--;
-	}
-	else if (strcmp(el, "link") == 0) {
-		in_link--;
-	}
-}
-
-static void
-geo_cdata(void *dta, const XML_Char *s, int len)
-{
-	char *estr;
-	if (in_name || in_link) {
-		estr = cdatastr + strlen(cdatastr);
-		memcpy(estr, s, len); 
-		in_cdata++;
-	}
-	if (in_type) {
-		estr = typestr + strlen(typestr);
-		memcpy(estr, s, len); 
-	}
-}
-
-void
 geo_rd_init(const char *fname)
 {
-	fd = xfopen(fname, "r", MYNAME);
-
-	psr = XML_ParserCreate(NULL);
-	if (!psr) {
-		fatal(MYNAME ":Cannot create XML parser\n");
-	}
-
-	XML_SetElementHandler(psr, geo_start, geo_end);
-	cdatastr = xcalloc(MY_CBUF,1);
-	typestr = xcalloc(MY_CBUF,1);
-	XML_SetCharacterDataHandler(psr, geo_cdata);
+	xml_init(fname, loc_map, NULL);
 }
 
-void
+static void
 geo_read(void)
 {
-	int len;
-	char buf[MY_CBUF];
-	
-	while ((len = fread(buf, 1, sizeof(buf), fd))) {
-		if (!XML_Parse(psr, buf, len, feof(fd))) {
-			fatal(MYNAME ":Parse error at %d: %s\n", 
-				XML_GetCurrentLineNumber(psr),
-				XML_ErrorString(XML_GetErrorCode(psr)));
-		}
-	}
-
-	XML_ParserFree(psr);
+	xml_read();
 }
-
 #endif
 
-void
+static void
 geo_rd_deinit(void)
 {
-	if ( cdatastr ) {
-		xfree(cdatastr);
-	}
-	if ( typestr ) {
-		xfree(typestr);
-	}
-	fclose(fd);
+	xml_deinit();
 }
 
-void
+static void
 geo_wr_init(const char *fname)
 {
 	ofd = xfopen(fname, "w", MYNAME);
 }
 
-void
+static void
 geo_wr_deinit(void)
 {
 	fclose(ofd);
@@ -277,7 +200,7 @@ geo_waypt_pr(const waypoint *waypointp)
 	fprintf(ofd, "</waypoint>\n");
 }
 
-void
+static void
 geo_write(void)
 {
 	fprintf(ofd, "<?xml version=\"1.0\"?><loc version=\"1.0\" src=\"EasyGPS\">\n");
@@ -287,6 +210,7 @@ geo_write(void)
 
 ff_vecs_t geo_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	geo_rd_init,	
 	geo_wr_init,	
 	geo_rd_deinit,
@@ -294,5 +218,6 @@ ff_vecs_t geo_vecs = {
 	geo_read,
 	geo_write,
 	NULL, 
-	geo_args
+	geo_args,
+	CET_CHARSET_UTF8, 0	/* CET-REVIEW */
 };

@@ -39,9 +39,10 @@ RSC=rc.exe
 # PROP Use_Debug_Libraries 0
 # PROP Output_Dir "Release"
 # PROP Intermediate_Dir "Release"
+# PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /I "expat" /I "..\coldsync" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /D "__WIN32__" /D VERSION=\"1.2.1_beta01072004_msvc\" /YX /FD /c
+# ADD CPP /nologo /W3 /WX /GX /O2 /I "expat" /I "..\coldsync" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /D "__WIN32__" /D VERSION=\"1.2.6_beta06232005_msvc\" /YX /FD /c
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
 # ADD RSC /l 0x409 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -49,7 +50,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib setupapi.lib /nologo /subsystem:console /machine:I386
 
 !ELSEIF  "$(CFG)" == "GPSBabel - Win32 Debug"
 
@@ -62,10 +63,10 @@ LINK32=link.exe
 # PROP Use_Debug_Libraries 1
 # PROP Output_Dir "Debug"
 # PROP Intermediate_Dir "Debug"
+# PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "expat" /I "..\coldsync" /D "WIN32" /D "__WIN32__" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /D VERSION=\"1.2.1_beta01072004_msvc\" /FR /YX /FD /GZ /c
-# SUBTRACT CPP /WX
+# ADD CPP /nologo /W3 /WX /Gm /GX /ZI /Od /I "expat" /I "..\coldsync" /D "WIN32" /D "__WIN32__" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /D VERSION=\"1.2.6_beta06232005_msvc\" /FR /YX /FD /GZ /c
 # ADD BASE RSC /l 0x409 /d "_DEBUG"
 # ADD RSC /l 0x409 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -73,7 +74,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib setupapi.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
 
 !ENDIF 
 
@@ -224,6 +225,22 @@ SOURCE=..\jeeps\gpsserial.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\jeeps\gpsusbread.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\jeeps\gpsusbsend.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\jeeps\gpsusbstub.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\jeeps\gpsusbwin.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\jeeps\gpsutil.c
 
 !IF  "$(CFG)" == "GPSBabel - Win32 Release"
@@ -272,13 +289,41 @@ SOURCE=..\coldsync\util.c
 
 # End Source File
 # End Group
+# Begin Group "ShapeLib"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=..\shapelib\dbfopen.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\shapelib\shpopen.c
+# End Source File
+# End Group
+# Begin Source File
+
+SOURCE=..\an1.c
+# End Source File
 # Begin Source File
 
 SOURCE=..\arcdist.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\brauniger_iq.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\wbt-200.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\cetus.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\coastexp.c
 # End Source File
 # Begin Source File
 
@@ -310,6 +355,10 @@ SOURCE=..\garmin.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\garmin_tables.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\gcdb.c
 # End Source File
 # Begin Source File
@@ -319,6 +368,14 @@ SOURCE=..\geo.c
 # Begin Source File
 
 SOURCE=..\geoniche.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\glogbook.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\google.c
 # End Source File
 # Begin Source File
 
@@ -342,6 +399,10 @@ SOURCE=..\grtcirc.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\hiketech.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\holux.c
 # End Source File
 # Begin Source File
@@ -354,7 +415,23 @@ SOURCE=..\html.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\igc.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\internal_styles.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\kml.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\lowranceusr.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\maggeo.c
 # End Source File
 # Begin Source File
 
@@ -398,11 +475,19 @@ SOURCE=..\nmea.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\overlay.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\ozi.c
 # End Source File
 # Begin Source File
 
 SOURCE=..\palmdoc.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\pathaway.c
 # End Source File
 # Begin Source File
 
@@ -446,11 +531,23 @@ SOURCE=..\saroute.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\shape.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\smplrout.c
 # End Source File
 # Begin Source File
 
 SOURCE=..\sort.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\stackfilter.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\tef_xml.c
 # End Source File
 # Begin Source File
 
@@ -466,6 +563,10 @@ SOURCE=..\tmpro.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\tomtom.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\tpg.c
 # End Source File
 # Begin Source File
@@ -478,7 +579,19 @@ SOURCE=..\util_crc.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\uuid.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\vcf.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\vecs.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\vitosmt.c
 # End Source File
 # Begin Source File
 
@@ -491,6 +604,10 @@ SOURCE=..\waypt.c
 # Begin Source File
 
 SOURCE=..\xcsv.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\xmlgeneric.c
 # End Source File
 # Begin Source File
 
@@ -600,6 +717,14 @@ SOURCE=..\jeeps\gpsserial.h
 SOURCE=..\jeeps\gpsutil.h
 # End Source File
 # End Group
+# Begin Group "ShapeLib-Headers"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=..\shapelib\shapefil.h
+# End Source File
+# End Group
 # Begin Source File
 
 SOURCE=..\csv_util.h
@@ -635,6 +760,10 @@ SOURCE=..\queue.h
 # Begin Source File
 
 SOURCE=..\quovadis.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\uuid.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"

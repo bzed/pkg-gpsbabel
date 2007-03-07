@@ -22,6 +22,7 @@
 #include "defs.h"
 #include "shapelib/shapefil.h"
 
+#if SHAPELIB_ENABLED
 static SHPHandle ihandle;
 static DBFHandle ihandledb;
 static SHPHandle ohandle;
@@ -33,12 +34,23 @@ static double *polybufy;
 static double *polybufz;
 static const char *ofname;
 static int nameidx;
+static int urlidx;
+
+static char *opt_name = NULL;
+static char *opt_url = NULL;
+
+static
+arglist_t shp_args[] = {
+	{"name", &opt_name, "Index of name field in .dbf",
+		NULL, ARGTYPE_STRING, "0", NULL },
+	{"url", &opt_url, "Index of URL field in .dbf",
+		NULL, ARGTYPE_INT, "0", NULL },
+	ARG_TERMINATOR
+};
 
 static void
 my_rd_init(const char *fname)
 {
-	int i;
-
 	ihandle = SHPOpen(fname, "rb" );
 	if (ihandle == NULL) {
 		fatal(MYNAME ":Cannot open shp file %s for reading\n", fname);
@@ -49,9 +61,51 @@ my_rd_init(const char *fname)
 		fatal(MYNAME ":Cannot open dbf file %s for reading\n", fname);
 	}
 
-	nameidx = DBFGetFieldIndex( ihandledb, "NAME" );
-	if (nameidx == -1) {
-//		fatal(MYNAME ":dbf file for %s doesn't have 'NAME'\n", fname);
+	if ( opt_name ) {
+		if ( opt_name[0] == '?' ) {
+			int nFields = 0;
+			int i = 0;
+			char name[12];
+			char *txt = xstrdup("  Database fields\n");
+			nFields = DBFGetFieldCount( ihandledb );
+			for ( i = 0; i < nFields; i++ ) {
+				char txtName[50];
+				DBFGetFieldInfo( ihandledb, i, name, NULL, NULL);
+				sprintf( txtName,"%2d %s\n", i, name );
+				txt = xstrappend( txt, txtName  );
+			}
+			txt = xstrappend( txt,  "\n" );
+			fatal( txt );
+		}
+		if ( strchr(opt_name, '+')) {
+			nameidx = -2;
+		}
+		else if ( opt_name[0] >= '0' && opt_name[0] <= '9' ) {
+			nameidx = atoi( opt_name );
+		}
+		else {
+			nameidx = DBFGetFieldIndex( ihandledb, opt_name );
+			if (nameidx == -1) {
+				fatal(MYNAME ":dbf file for %s doesn't have '%s' field.\n", fname, opt_name);
+			}
+		}
+	}
+	else {
+		nameidx = DBFGetFieldIndex( ihandledb, "NAME" );
+		if (nameidx == -1) {
+//			fatal(MYNAME ":dbf file for %s doesn't have 'NAME' field.\n  Please specify the name index with the 'name' option.\n", fname);
+		}
+	}
+	if ( opt_url ) {
+		if ( opt_url[0] >= '0' && opt_url[0] <= '9' ) {
+			urlidx = atoi( opt_url );
+		}
+		else {
+			urlidx = DBFGetFieldIndex( ihandledb, opt_url );
+		}
+	}
+	else {
+		urlidx = DBFGetFieldIndex( ihandledb, "URL" );
 	}
 }
 
@@ -65,20 +119,68 @@ my_read(void)
 	while (npts) {
 		SHPObject *shp;
 		waypoint *wpt;
-		const char *name;
+		const char *name = "";
+		const char *url;
+		char *tmpName = NULL;
+		char *tmpIndex = opt_name;
 
 		shp = SHPReadObject(ihandle, npts-1);
-		name = DBFReadStringAttribute(ihandledb, npts-1, nameidx);
+		if ( nameidx >0 ) {
+			name = DBFReadStringAttribute(ihandledb, npts-1, nameidx);
+		}
+		else {
+			if ( nameidx == -1 ) {
+				name = "";
+			}
+			else if (nameidx == -2 ) {
+				tmpName = xstrdup( "" );
+				tmpIndex = opt_name;
+				while ( tmpIndex ) {
+					char *tmp2 = tmpIndex;
+			    		tmpIndex = strchr(tmpIndex,'+');
+					if ( tmpIndex ) {
+						*tmpIndex = '\0';
+						tmpIndex++;
+			    		}			
+					if( tmp2[0]>='0' && tmp2[0]<='9' ) {
+	    				    name = DBFReadStringAttribute( 
+						ihandledb, npts-1, atoi(tmp2));
+					}
+					else {
+					    int idx = 0;
+					    idx = DBFGetFieldIndex( ihandledb, tmp2);
+					    if ( idx >= 0 ) {
+						name = DBFReadStringAttribute(
+						    ihandledb, npts-1, idx);
+					    }
+					}
+
+					tmpName = xstrappend(tmpName, name );
+					if ( tmpIndex ) {
+						tmpName = xstrappend( tmpName, " / " );
+					}
+				}
+				name = tmpName;
+			}
+		}
+		if ( urlidx > 0 ) {
+			url = DBFReadStringAttribute( ihandledb, npts-1, urlidx);
+		}
+		else {
+			url = NULL;
+		}
+			
 		if (shp->nSHPType == SHPT_ARC) {
 			int j;
-			route_head *track_head = route_head_alloc();
-			route_add_head(track_head);
+			route_head *routehead = route_head_alloc();
+			routehead->rte_name = xstrdup(name);
+			route_add_head(routehead);
 			for (j = 0; j < shp->nVertices; j++) {
 				wpt = waypt_new();
 				wpt->latitude = shp->padfY[j];
 				wpt->longitude = shp->padfX[j];
 				wpt->altitude = shp->padfZ[j];
-				route_add_wpt(track_head, wpt);
+				route_add_wpt(routehead, wpt);
 			}
 		}
 
@@ -86,13 +188,20 @@ my_read(void)
 			wpt = waypt_new();
 			wpt->latitude = shp->dfYMin;
 			wpt->longitude = shp->dfXMin;
-			wpt->shortname = strdup(name);
+			wpt->shortname = xstrdup(name);
+			if ( url ) {
+				wpt->url = xstrdup(url);
+			}
 			waypt_add(wpt);
 		}
 
 		SHPDestroyObject(shp);
 
 		npts--;
+		if ( tmpName ) {
+			xfree( tmpName );
+			tmpName = NULL;
+		}
 	}
 
 }
@@ -100,7 +209,7 @@ my_read(void)
 void
 my_rd_deinit(void)
 {
-	close (ihandle);
+	SHPClose (ihandle);
 }
 
 void
@@ -129,9 +238,9 @@ my_write_wpt(const waypoint *wpt)
 }
 
 void
-poly_init()
+poly_init(const route_head *h)
 {
-	int ct = route_waypt_count();
+	int ct = track_waypt_count();
 	polybufx = xcalloc(ct, sizeof(double));
 	polybufy = xcalloc(ct, sizeof(double));
 	polybufz = xcalloc(ct, sizeof(double));
@@ -148,10 +257,10 @@ poly_point(const waypoint *wpt)
 }
 
 void
-poly_deinit()
+poly_deinit(const route_head *h)
 {
 	SHPObject *shpobject;
-	shpobject = SHPCreateSimpleObject(SHPT_ARC, route_waypt_count(), 
+	shpobject = SHPCreateSimpleObject(SHPT_ARC, track_waypt_count(), 
 			polybufx, polybufy, polybufz);
 	SHPWriteObject(ohandle, -1,  shpobject);
 	SHPDestroyObject(shpobject);
@@ -185,16 +294,26 @@ my_write(void)
 			}
 			route_disp_all(poly_init, poly_deinit, poly_point);
 			break;
+		case rtedata:
+			fatal(MYNAME ": Routes are not supported\n");
+			break;
+		case posndata:
+			fatal(MYNAME ": Realtime positioning not supported\n");
+			break;
 	}
 }
 
 ff_vecs_t shape_vecs = {
 	ff_type_internal,
+	FF_CAP_RW_ALL,
 	my_rd_init,	
 	my_wr_init,	
 	my_rd_deinit,
 	my_wr_deinit,
 	my_read,
 	my_write,
-	NULL
+	NULL,
+	shp_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
+#endif /* SHAPELIB_ENABLED */

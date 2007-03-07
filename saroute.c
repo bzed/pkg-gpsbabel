@@ -25,37 +25,52 @@
 
 #define MYNAME "saroute"
 #include "defs.h"
+#include "grtcirc.h"
 
 FILE *infile;
 
 char *turns_important = NULL;
 char *turns_only = NULL;
+char *controls = NULL;
+char *split = NULL;
+char *timesynth = NULL;
+
+int control = 0;
 
 static
 arglist_t saroute_args[] = {
 	{"turns_important", &turns_important, 
 		"Keep turns if simplify filter is used", 
-		NULL, ARGTYPE_BOOL },
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"turns_only", &turns_only, "Only read turns; skip all other points",
-		NULL, ARGTYPE_BOOL },
-	{0, 0, 0, 0 }
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"split", &split, "Split into multiple routes at turns",
+       		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"controls", &controls, "Read control points as waypoint/route/none",
+		"none", ARGTYPE_STRING, ARG_NOMINMAX },
+	{"times", &timesynth, "Synthesize track times",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	ARG_TERMINATOR
 };
 
 unsigned short
 ReadShort(FILE * f)
 {
-	unsigned short result = 0;
+	gbuint16 result = 0;
 
-	fread(&result, sizeof (result), 1, f);
+	if (!fread(&result, sizeof (result), 1, f)) {
+		fatal(MYNAME ": Attempt to read past EOF");
+	}
 	return le_read16(&result);
 }
 
 unsigned long
 ReadLong(FILE * f)
 {
-	unsigned long result = 0;
+	gbuint32 result = 0;
 
-	fread(&result, sizeof (result), 1, f);
+	if (!fread(&result, sizeof (result), 1, f))
+		fatal(MYNAME ": Attempt to read past EOF");
 	return le_read32(&result);
 }
 
@@ -65,7 +80,8 @@ ReadRecord(FILE * f,
 {
 	unsigned char *result = (unsigned char *) xmalloc(size);
 
-	fread(result, size, 1, f);
+	if (!fread(result, size, 1, f))
+		fatal(MYNAME ": Attempt to read past EOF");
 	return result;
 }
 
@@ -80,6 +96,21 @@ static void
 rd_init(const char *fname)
 {
 	infile = xfopen(fname, "rb", MYNAME);
+	if ( split && (turns_important || turns_only )) {
+		fatal( MYNAME 
+		      ": turns options are not compatible with split\n" );
+	}
+	if ( controls ) {
+	    switch( controls[0] ) {
+		case 'n': control = 0; break;
+		case 'r': control = 1; break;
+		case 'w': control = 2; break;
+		default:
+		    fatal( MYNAME
+			": unrecognized value for 'controls'\n" );
+		    break;
+	    }
+	}
 }
 
 static void
@@ -100,12 +131,21 @@ my_read(void)
 	unsigned char *record;
 	static int serial = 0;
 	struct ll {
-		long lat;
-		long lon;
+		gbint32 lat;
+		gbint32 lon;
 	} *latlon;
 	unsigned short coordcount;
-	route_head *track_head;
+	route_head *track_head = NULL;
+	route_head *old_track_head = NULL;
 	waypoint *wpt_tmp;
+	char *routename = NULL;
+	double seglen = 0.0;
+	long  starttime = 0;
+	long  transittime = 0;
+	double totaldist = 0.0;
+	double oldlat = 0;
+	double oldlon = 0;
+	int first = 0;
 
 	ReadShort(infile);		/* magic */
 	version = ReadShort(infile);
@@ -129,6 +169,11 @@ my_read(void)
 	record = ReadRecord(infile, recsize);
 
 	stringlen = le_read16((unsigned short *)(record + 0x1a));
+	if ( stringlen ) {
+		routename = (char *)xmalloc( stringlen + 1 );
+		routename[stringlen] = '\0';
+		memcpy( routename, record+0x1c, stringlen );
+	}
 	Skip(infile, stringlen - 4);
 	xfree(record);
 
@@ -139,33 +184,70 @@ my_read(void)
 	/*
 	 * here lie the route description records 
 	 */
-	if ( version < 6 ) {
+	if ( version < 6 || (control == 1)) {
 		track_head = route_head_alloc();
 		route_add_head(track_head);
+		if ( control ) {
+		    track_head->rte_name = xstrdup("control points");
+		}
+		else {
+		    track_head->rte_name = xstrdup( routename );
+		}
 	}
 	count = ReadLong(infile);
 	while (count) {
 		ReadShort(infile);
 		recsize = ReadLong(infile);
-		if (version < 6) {
+		if (version < 6 || control) {
 			double lat;
 			double lon;
-
+			
 			record = ReadRecord(infile, recsize);
 			latlon = (struct ll *)(record);
 
+			/* These records are backwards for some reason */
 			lat = (0x80000000UL -
-			       le_read32(&latlon->lat)) / (double)(0x800000);
-			lon = (0x80000000UL -
 			       le_read32(&latlon->lon)) / (double)(0x800000);
+			lon = (0x80000000UL -
+			       le_read32(&latlon->lat)) / (double)(0x800000);
 	
 			wpt_tmp = waypt_new();
 			wpt_tmp->latitude = lat;
 			wpt_tmp->longitude = -lon;
-			wpt_tmp->shortname = (char *) xmalloc(7);
-			sprintf( wpt_tmp->shortname, "\\%5.5x", serial++ );
-			route_add_wpt(track_head, wpt_tmp);
+			if ( control ) {
+			    int addrlen = le_read16((short *)
+				(((char *)record)+18));
+			    int cmtlen = le_read16((short *)
+				(((char *)record)+20+addrlen));
+			    wpt_tmp->notes = (char *)xmalloc(cmtlen+1);
+			    wpt_tmp->shortname = (char *)xmalloc(addrlen+1);
+			    wpt_tmp->notes[cmtlen] = '\0';
+			    wpt_tmp->shortname[addrlen]='\0';
+			    memcpy(wpt_tmp->notes, 
+				   ((char *)record)+22+addrlen,
+				   cmtlen );
+			    memcpy(wpt_tmp->shortname,
+				   ((char *)record)+20,
+				   addrlen );
+			}
+			else {
+			    wpt_tmp->shortname = (char *) xmalloc(7);
+		    	    sprintf( wpt_tmp->shortname, "\\%5.5x", serial++ );
+			}
+			if ( control == 2 ) {
+			    waypt_add( wpt_tmp );
+			}
+			else {
+			    route_add_wpt(track_head, wpt_tmp);
+			}
 			xfree(record);
+			if (version >= 6 ) {
+			    /*
+    			     * two longs of scrap after each record, don't know why 
+			     */
+			    ReadLong(infile);
+			    ReadLong(infile);
+			}
 		} else {
 			Skip(infile, recsize);
 			/*
@@ -204,13 +286,52 @@ my_read(void)
 		count = ReadLong(infile);
 		if ( count ) {
 			track_head = route_head_alloc();
-			route_add_head(track_head);
+			if ( timesynth ) {
+				track_add_head(track_head);
+			}
+			else {
+				route_add_head(track_head);
+			}
+			if ( routename && !split ) {
+			    track_head->rte_name = xstrdup( routename );
+			}
 		}
 		while (count) {
+			old_track_head = NULL;
 			ReadShort(infile);
 			recsize = ReadLong(infile);
 			record = ReadRecord(infile, recsize);
 			stringlen = le_read16((unsigned short *)record);
+			if ( split && stringlen ) {
+			    if ( track_head->rte_waypt_ct ) {
+				old_track_head = track_head;
+				track_head = route_head_alloc();
+				if ( timesynth ) {
+					track_add_head( track_head );
+				}
+				else {
+					route_add_head( track_head );
+				}
+			    } // end if
+			    if ( !track_head->rte_name ) {
+		   		track_head->rte_name = 
+					(char *)xmalloc(stringlen+1);
+				strncpy( track_head->rte_name, 
+					(const char *) record+2, stringlen );
+				track_head->rte_name[stringlen] = '\0';
+			    } 
+			}
+			
+			if ( timesynth ) {
+	                        seglen = le_read_double(
+					   record + 2 + stringlen + 0x08 );
+				starttime = le_read32((unsigned long *)
+					(record + 2 + stringlen + 0x30 ));
+				transittime = le_read32((unsigned long *)
+					(record + 2 + stringlen + 0x10 ));
+				seglen /= 5280*12*2.54/100000; /* to miles */
+			}
+				
 			coordcount = le_read16((unsigned short *)
 					(record + 2 + stringlen + 0x3c));
 			latlon = (struct ll *)(record + 2 + stringlen + 0x3c + 2);
@@ -218,6 +339,9 @@ my_read(void)
 			if (count) {
 				coordcount--;
 			}
+			
+			first = 1;
+			
 			while (coordcount) {
 				double lat;
 				double lon;
@@ -233,13 +357,61 @@ my_read(void)
 
 				wpt_tmp->latitude = lat;
 				wpt_tmp->longitude = -lon;
-				wpt_tmp->shortname = (char *) xmalloc(7);
+				if ( stringlen && ((coordcount>1) || count)) {
+				    wpt_tmp->shortname = xmalloc(stringlen+1);
+				    wpt_tmp->shortname[stringlen] = '\0';
+				    memcpy( wpt_tmp->shortname, 
+				            ((char *)record)+2,
+					    stringlen );
+				}
+				else {
+    				    wpt_tmp->shortname = (char *) xmalloc(7);
+				    sprintf( wpt_tmp->shortname, "\\%5.5x", 
+						serial++ );
+				}
+				if ( timesynth ) {
+					if ( !first ) {
+					   double dist = radtomiles(gcdist( 
+						RAD(lat), RAD(-lon), 
+						RAD(oldlat), 
+						RAD(-oldlon) ));	
+					   totaldist += dist;
+					   if ( totaldist > seglen ) {
+						   totaldist = seglen;
+					   }
+					   wpt_tmp->creation_time = 
+					       gpsbabel_time+starttime+
+					       transittime * totaldist/seglen;
+					}
+					else {
+					   wpt_tmp->creation_time = 
+					       gpsbabel_time+starttime;
+					   totaldist = 0;
+					}
+					oldlat = lat;
+					oldlon = lon;
+				}
 				if ( turns_important && stringlen ) 
 					wpt_tmp->route_priority=1;
-				sprintf( wpt_tmp->shortname, "\\%5.5x", 
-						serial++ );
-				if ( !turns_only || stringlen ) 
-					route_add_wpt(track_head, wpt_tmp);
+				if ( !turns_only || stringlen ) {
+					if ( timesynth ) {
+					    track_add_wpt(track_head,wpt_tmp);
+					}
+					else {
+					    route_add_wpt(track_head, wpt_tmp);
+					}
+					if ( old_track_head ) {
+						if ( timesynth ) {
+						  track_add_wpt(old_track_head,
+						   waypt_dupe(wpt_tmp));
+						}
+						else {
+					 	  route_add_wpt(old_track_head,
+					           waypt_dupe(wpt_tmp));
+						}
+						old_track_head = NULL;
+					}
+				}
 	
 				latlon++;
 				coordcount--;
@@ -248,9 +420,10 @@ my_read(void)
 				if ( coordcount == 1 && count == 0 ) {
 					stringlen = 1;
 				}
+				first = 0;
 			}
 			if ( version > 10 ) {
-				Skip(infile,2*sizeof(long));
+				Skip(infile,2*sizeof(gbuint32));
 			}
 			xfree(record);
 		}
@@ -258,6 +431,9 @@ my_read(void)
 		 * end of routing 
 		 */
 		outercount--;
+	}
+	if ( routename ) {
+		xfree( routename );
 	}
 
 }
@@ -270,6 +446,7 @@ wr_init(const char *fname)
 
 ff_vecs_t saroute_vecs = {
 	ff_type_file,
+	{ ff_cap_none, ff_cap_read, ff_cap_none},
 	rd_init,
 	wr_init,
 	rd_deinit,
@@ -277,5 +454,6 @@ ff_vecs_t saroute_vecs = {
 	my_read,
 	NULL,
 	NULL, 
-	saroute_args
+	saroute_args,
+	CET_CHARSET_UTF8, 1	/* do nothing | CET-REVIEW */
 };

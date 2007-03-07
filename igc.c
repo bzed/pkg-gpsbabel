@@ -26,8 +26,7 @@
 #include "defs.h"
 #include <errno.h>
 
-static FILE *file_in;
-static FILE *file_out;
+static gbfile *file_in, *file_out;
 static char manufacturer[4];
 static const route_head *head;
 static char *timeadj = NULL;
@@ -88,42 +87,37 @@ static unsigned char coords_match(double lat1, double lon1, double lat2, double 
  * @param  rec  Caller allocated storage for the record.  At least MAXRECLEN chars must be allocated.
  * @return the record type.  rec_none on EOF, rec_bad on fgets() or parse error.
  */
-static igc_rec_type_t get_record(char *rec)
+static igc_rec_type_t get_record(char **rec)
 {
     size_t len;
+    char *c;
 
-    if (fgets(rec, MAXRECLEN, file_in) == NULL) {
-	if (feof(file_in)) {
-	    return rec_none;
-	} else {
-	    warning(MYNAME " fgets(): %s\n", strerror(errno));
-	    return rec_bad;
-	}
-    }
-    len = strlen(rec);
-    if (len < 3 || rec[len - 2] != '\r' || rec[len - 1] != '\n' || rec[0] < 'A' || rec[0] > 'Z') {
-	warning(MYNAME " bad input record: '%s'\n", rec);
+    *rec = c = gbfgetstr(file_in);
+    if (c == NULL) return rec_none;
+
+    len = strlen(c);
+    if (len < 3 || c[0] < 'A' || c[0] > 'Z') {
+	warning(MYNAME " bad input record: '%s'\n", c);
 	return rec_bad;
     }
-    rec[len - 2] = '\0';
-    return (igc_rec_type_t) rec[0];
+    return (igc_rec_type_t) c[0];
 }
 
 static void rd_init(const char *fname)
 {
-    char ibuf[MAXRECLEN];
+    char *ibuf;
 
-    file_in = xfopen(fname, "rb", MYNAME);
+    file_in = gbfopen(fname, "r", MYNAME);
 
     // File must begin with a manufacturer/ID record
-    if (get_record(ibuf) != rec_manuf_id || sscanf(ibuf, "A%3[A-Z]", manufacturer) != 1) {
+    if (get_record(&ibuf) != rec_manuf_id || sscanf(ibuf, "A%3[A-Z]", manufacturer) != 1) {
 	fatal(MYNAME ": %s is not an IGC file\n", fname);
     }
 }
 
 static void rd_deinit(void)
 {
-    fclose(file_in);
+    gbfclose(file_in);
 }
 
 /**
@@ -165,7 +159,7 @@ static void igc_task_rec(const char *rec)
 	    tm.tm_year += 100;
 	}
 	tm.tm_isdst = 0;
-	creation = mktime(&tm) + get_tz_offset();
+	creation = mkgmtime(&tm);
 
 	// Create a route to store the task data in.
 	rte_head = route_head_alloc();
@@ -240,7 +234,7 @@ static void igc_task_rec(const char *rec)
 
 static void data_read(void)
 {
-    char ibuf[MAXRECLEN];
+    char *ibuf;
     igc_rec_type_t rec_type;
     unsigned int hours, mins, secs;
     unsigned int lat_deg, lat_min, lat_frac;
@@ -266,7 +260,7 @@ static void data_read(void)
     strcpy(trk_desc, HDRMAGIC HDRDELIM);
 
     while (1) {
-	rec_type = get_record(ibuf);
+	rec_type = get_record(&ibuf);
 	switch (rec_type) {
 	case rec_manuf_id:
 	    // Manufacturer/ID record already found in rd_init().
@@ -297,7 +291,7 @@ static void data_read(void)
 		    tm.tm_year += 100;
 		}
 		tm.tm_isdst = 0;
-		date = mktime(&tm) + get_tz_offset();
+		date = mkgmtime(&tm);
 	    } else {
 		// Store other header data in the track descriptions
 		if (strlen(trk_desc) < MAXDESCLEN) {
@@ -358,7 +352,7 @@ static void data_read(void)
 	    } else {
 		pres_wpt->altitude = unknown_alt;
 	    }
-	    route_add_wpt(pres_head, pres_wpt);
+	    track_add_wpt(pres_head, pres_wpt);
 
 	    // Add the same waypoint with GNSS altitude to the second
 	    // track
@@ -370,7 +364,7 @@ static void data_read(void)
 	    } else {
 		gnss_wpt->altitude = unknown_alt;
 	    }
-	    route_add_wpt(gnss_head, gnss_wpt);
+	    track_add_wpt(gnss_head, gnss_wpt);
 	    break;
 
 	case rec_task:
@@ -518,8 +512,8 @@ static char *latlon2str(const waypoint * wpt)
     char lon_hemi = wpt->longitude < 0 ? 'W' : 'E';
     unsigned char lat_deg = fabs(wpt->latitude);
     unsigned char lon_deg = fabs(wpt->longitude);
-    unsigned int lat_min = (fabs(wpt->latitude) - lat_deg) * 60000 + 0.5;
-    unsigned int lon_min = (fabs(wpt->longitude) - lon_deg) * 60000 + 0.5;
+    unsigned int lat_min = (fabs(wpt->latitude) - lat_deg) * 60000 + 0.500000000001;
+    unsigned int lon_min = (fabs(wpt->longitude) - lon_deg) * 60000 + 0.500000000001;
 
     if (snprintf(str, 18, "%02u%05u%c%03u%05u%c",
 		 lat_deg, lat_min, lat_hemi, lon_deg, lon_min, lon_hemi) != 17) {
@@ -572,13 +566,13 @@ static void wr_header(void)
     if (NULL == (tm = gmtime(&date))) {
 	fatal(MYNAME ": Bad track timestamp\n");
     }
-    xfprintf(MYNAME, file_out, "HFDTE%s\r\n", date2str(tm));
+    gbfprintf(file_out, "HFDTE%s\r\n", date2str(tm));
 
     // Other header data may have been stored in track description
     if (track && track->rte_desc && strncmp(track->rte_desc, HDRMAGIC, strlen(HDRMAGIC)) == 0) {
 	for (str = strtok(track->rte_desc + strlen(HDRMAGIC) + strlen(HDRDELIM), HDRDELIM);
 	     str; str = strtok(NULL, HDRDELIM)) {
-	    xfprintf(MYNAME, file_out, "%s\r\n", str);
+	    gbfprintf(file_out, "%s\r\n", str);
 	}
     } else {
 	// IGC header info not found so synthesise it.
@@ -588,7 +582,7 @@ static void wr_header(void)
 	if (NULL != (wpt = find_waypt_by_name("PILOT")) && wpt->description) {
 	    str = wpt->description;
 	}
-	xfprintf(MYNAME, file_out, "HFPLTPILOT:%s\r\n", str);
+	gbfprintf(file_out, "HFPLTPILOT:%s\r\n", str);
     }
 }
 
@@ -598,7 +592,7 @@ static void wr_header(void)
 
 static void wr_task_wpt_name(const waypoint * wpt, const char *alt_name)
 {
-    xfprintf(MYNAME, file_out, "C%s%s\r\n", latlon2str(wpt),
+    gbfprintf(file_out, "C%s%s\r\n", latlon2str(wpt),
 	     wpt->description ? wpt->description : wpt->shortname ? wpt->shortname : alt_name);
 }
 
@@ -640,7 +634,7 @@ static void wr_task_hdr(const route_head * rte)
 	sscanf(rte->rte_desc, DATEMAGIC "%6[0-9]: %s", flight_date, task_desc);
     }
 
-    xfprintf(MYNAME, file_out, "C%s%s%s%04u%02u%s\r\n", date2str(tm),
+    gbfprintf(file_out, "C%s%s%s%04u%02u%s\r\n", date2str(tm),
 	     tod2str(tm), flight_date, task_num++, num_tps, task_desc);
 
     if (!have_takeoff) {
@@ -685,7 +679,7 @@ static void wr_fix_record(const waypoint * wpt, int pres_alt, int gnss_alt)
     if (unknown_alt == gnss_alt) {
 	gnss_alt = 0;
     }
-    xfprintf(MYNAME, file_out, "B%02u%02u%02u%sA%05d%05d\r\n", tm->tm_hour,
+    gbfprintf(file_out, "B%02u%02u%02u%sA%05d%05d\r\n", tm->tm_hour,
 	     tm->tm_min, tm->tm_sec, latlon2str(wpt), pres_alt, gnss_alt);
 }
 
@@ -842,20 +836,20 @@ static void wr_track(void)
 	QUEUE_FOR_EACH(&gnss_track->waypoint_list, elem, tmp) {
 	    wpt = (waypoint *) elem;
 	    pres_alt = interpolate_alt(pres_track, wpt->creation_time + time_adj);
-	    wr_fix_record(wpt, pres_alt, wpt->altitude);
+	    wr_fix_record(wpt, (int) pres_alt, (int) wpt->altitude);
 	}
     } else {
 	if (pres_track) {
 	    // Only the pressure altitude track was found so generate fix
 	    // records from it alone.
 	    QUEUE_FOR_EACH(&pres_track->waypoint_list, elem, tmp) {
-		wr_fix_record((waypoint *) elem, ((waypoint *) elem)->altitude, unknown_alt);
+		wr_fix_record((waypoint *) elem, (int) ((waypoint *) elem)->altitude, (int) unknown_alt);
 	    }
 	} else if (gnss_track) {
 	    // Only the GNSS altitude track was found so generate fix
 	    // records from it alone.
 	    QUEUE_FOR_EACH(&gnss_track->waypoint_list, elem, tmp) {
-		wr_fix_record((waypoint *) elem, unknown_alt, ((waypoint *) elem)->altitude);
+		wr_fix_record((waypoint *) elem, (int) unknown_alt, (int) ((waypoint *) elem)->altitude);
 	    }
 	} else {
 	    // No tracks found so nothing to do
@@ -866,34 +860,35 @@ static void wr_track(void)
 
 static void wr_init(const char *fname)
 {
-    file_out = xfopen(fname, "wb", MYNAME);
+    file_out = gbfopen(fname, "wb", MYNAME);
 }
 
 static void wr_deinit(void)
 {
-    fclose(file_out);
+    gbfclose(file_out);
 }
 
 static void data_write(void)
 {
-    xfputs(MYNAME, "AXXXZZZGPSBabel\r\n", file_out);
+    gbfputs("AXXXZZZGPSBabel\r\n", file_out);
     wr_header();
     wr_tasks();
     wr_track();
-    xfprintf(MYNAME, file_out, "LXXXGenerated by GPSBabel Version %s\r\n", gpsbabel_version);
-    xfputs(MYNAME, "GGPSBabelSecurityRecordGuaranteedToFailVALIChecks\r\n", file_out);
+    gbfprintf(file_out, "LXXXGenerated by GPSBabel Version %s\r\n", gpsbabel_version);
+    gbfputs("GGPSBabelSecurityRecordGuaranteedToFailVALIChecks\r\n", file_out);
 }
 
 
 static arglist_t igc_args[] = {
     {"timeadj", &timeadj,
      "(integer sec or 'auto') Barograph to GPS time diff", 
-     NULL, ARGTYPE_STRING},
-    {0, 0, 0, 0, 0}
+     NULL, ARGTYPE_STRING, ARG_NOMINMAX},
+    ARG_TERMINATOR
 };
 
 ff_vecs_t igc_vecs = {
     ff_type_file,
+    { ff_cap_none , ff_cap_read | ff_cap_write, ff_cap_read | ff_cap_write },
     rd_init,
     wr_init,
     rd_deinit,
@@ -901,5 +896,6 @@ ff_vecs_t igc_vecs = {
     data_read,
     data_write,
     NULL, 
-    igc_args
+    igc_args,
+    CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };

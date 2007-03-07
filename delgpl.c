@@ -33,7 +33,7 @@ typedef struct gpl_point {
 	double lon;
 	double alt; /* in feet */
 	double heading;
-	double speed; /* mps */
+	double speed; /* mph */
 	unsigned int tm;
 	unsigned int dummy3;
 } gpl_point_t;
@@ -46,8 +46,8 @@ gpl_rd_init(const char *fname)
 {
 	gplfile_in = xfopen(fname, "rb", MYNAME);
 	if (sizeof(struct gpl_point) != 56) {
-		fatal(MYNAME, ": gpl_point is %d instead of 56.\n", 
-				sizeof(struct gpl_point));
+		fatal(MYNAME ": gpl_point is %lu instead of 56.\n", 
+				(unsigned long) sizeof(struct gpl_point));
 	}
 }
 
@@ -56,7 +56,6 @@ gpl_read(void)
 {
 	waypoint *wpt_tmp;
 	route_head *track_head;
-	int br;
 	gpl_point_t gp;
 	double alt_feet;
 
@@ -65,12 +64,17 @@ gpl_read(void)
 
 	while (fread(&gp, sizeof(gp), 1, gplfile_in) > 0) {
 		wpt_tmp = waypt_new();
-		le_read64(&wpt_tmp->latitude, &gp.lat);
-		le_read64(&wpt_tmp->longitude, &gp.lon);
-		le_read64(&alt_feet, &gp.alt);
-		wpt_tmp->altitude = alt_feet * .3048;
+		wpt_tmp->latitude = le_read_double(&gp.lat);
+		wpt_tmp->longitude = le_read_double(&gp.lon);
+		alt_feet = le_read_double(&gp.alt);
+		wpt_tmp->altitude = FEET_TO_METERS(alt_feet);
 		wpt_tmp->creation_time = le_read32(&gp.tm);
-		route_add_wpt(track_head, wpt_tmp);
+		
+	        wpt_tmp->course = le_read_double(&gp.heading);
+		wpt_tmp->speed = le_read_double(&gp.speed);	
+	        wpt_tmp->speed = MILES_TO_METERS(wpt_tmp->speed)/3600;	
+		
+		track_add_wpt(track_head, wpt_tmp);
 	}
 }
 
@@ -96,11 +100,19 @@ gpl_wr_deinit(void)
 static void
 gpl_trackpt(const waypoint *wpt)
 {
-	double alt_feet = wpt->altitude / .3048;
-	gpl_point_t gp = {0};
-	le_read64(&gp.lat, &wpt->latitude);
-	le_read64(&gp.lon, &wpt->longitude);
-	le_read64(&gp.alt, &alt_feet);
+	double alt_feet = METERS_TO_FEET(wpt->altitude);
+	int status = 3;
+	gpl_point_t gp;
+	double speed = 3600*METERS_TO_MILES(wpt->speed);
+	double heading = wpt->course;
+	
+	memset(&gp, 0, sizeof(gp));
+	le_write32(&gp.status, status);
+	le_write_double(&gp.lat, wpt->latitude);
+	le_write_double(&gp.lon, wpt->longitude);
+	le_write_double(&gp.alt, alt_feet );
+	le_write_double(&gp.speed, speed );
+	le_write_double(&gp.heading, heading );
 	le_write32(&gp.tm, wpt->creation_time);
 
 	fwrite(&gp, sizeof(gp), 1, gplfile_out);
@@ -114,11 +126,14 @@ gpl_write(void)
 
 ff_vecs_t gpl_vecs = {
 	ff_type_file,
+	{ ff_cap_none, ff_cap_read | ff_cap_write, ff_cap_none },
 	gpl_rd_init,	
 	gpl_wr_init,	
 	gpl_rd_deinit,	
 	gpl_wr_deinit,	
 	gpl_read,
 	gpl_write,
-	NULL
+	NULL,
+	NULL,
+	CET_CHARSET_UTF8, 1	/* there is no need to convert anything | CET-REVIEW */
 };

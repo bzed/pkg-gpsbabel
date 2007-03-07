@@ -1,6 +1,8 @@
 /*
-    National Geographic Topo! Waypoint
+    National Geographic Topo! TPG file support (Waypoints/Routes)
     Contributed to gpsbabel by Alex Mottram
+
+    For Topo! version 2.x.  Routes are currently not implemented.
     
     Copyright (C) 2002 Alex Mottram, geo_alexm at cox-internet.com
 
@@ -22,6 +24,7 @@
 
 #include "defs.h"
 #include <string.h>
+#include <ctype.h>
 #include "jeeps/gpsmath.h" /* for datum conversions */
 
 #define MYNAME	"TPG"
@@ -31,9 +34,17 @@
 
 static FILE *tpg_file_in;
 static FILE *tpg_file_out;
-static void *mkshort_handle;
+static short_handle mkshort_handle;
+static char *tpg_datum_opt;
+static int tpg_datum_idx;
 
 static unsigned int waypt_out_count;
+
+static
+arglist_t tpg_args[] = {
+	{"datum", &tpg_datum_opt, "Datum (default=NAD27)", "N. America 1927 mean", ARGTYPE_STRING, ARG_NOMINMAX },
+	ARG_TERMINATOR
+};
 
 static int
 tpg_fread(void *buff, size_t size, size_t members, FILE * fp) 
@@ -43,7 +54,8 @@ tpg_fread(void *buff, size_t size, size_t members, FILE * fp)
     br = fread(buff, size, members, fp);
 
     if (br != members) {
-        fatal(MYNAME ": requested to read %d bytes, read %d bytes.\n", members, br);
+        fatal(MYNAME ": requested to read %lu bytes, read %lu bytes.\n", 
+                    (unsigned long) members, (unsigned long) br);
     }
 
     return (br);
@@ -53,20 +65,15 @@ static double
 tpg_fread_double(FILE *fp)
 {
 	unsigned char buf[8];
-	unsigned char sbuf[8];
-
 	tpg_fread(buf, 1, 8, fp);
-	le_read64(sbuf, buf);
-	return *(double *)sbuf;
+	return le_read_double(buf);
 }
 
 static void
 tpg_fwrite_double(double x, FILE *fp)
 {
-	unsigned char *cptr = (unsigned char *)&x;
 	unsigned char cbuf[8];
-
-	le_read64(cbuf, cptr);
+	le_write_double(cbuf,x);
 	fwrite(cbuf, 8, 1, fp);
 }
 
@@ -85,8 +92,18 @@ valid_tpg_header(char * header, int len)
 }
 
 static void
+tpg_common_init(void)
+{
+	tpg_datum_idx = GPS_Lookup_Datum_Index(tpg_datum_opt);
+	if (tpg_datum_idx < 0) {
+		fatal(MYNAME ": Datum '%s' is not recognized.\n", tpg_datum_opt);
+	}
+}
+
+static void
 tpg_rd_init(const char *fname)
 {
+	tpg_common_init();
 	tpg_file_in = xfopen(fname, "rb", MYNAME);
 }
 
@@ -99,6 +116,7 @@ tpg_rd_deinit(void)
 static void
 tpg_wr_init(const char *fname)
 {
+	tpg_common_init();
 	tpg_file_out = xfopen(fname, "wb", MYNAME);
 	mkshort_handle = mkshort_new_handle();
 	waypt_out_count = 0;
@@ -107,7 +125,7 @@ tpg_wr_init(const char *fname)
 static void
 tpg_wr_deinit(void)
 {
-	mkshort_del_handle(mkshort_handle);
+	mkshort_del_handle(&mkshort_handle);
 	fclose(tpg_file_out);
 }
 
@@ -134,16 +152,17 @@ tpg_read(void)
         
         
 	while (pointcount--) {
-	    wpt_tmp = xcalloc(sizeof(*wpt_tmp),1);
+	    wpt_tmp = waypt_new();
 
             /* 1 bytes at start of record - string size for shortname */
     	    tpg_fread(&buff[0], 1, 1, tpg_file_in);
     	    
     	    stringsize = buff[0];
     	    
-    	    tpg_fread(&buff[0], stringsize, 1, tpg_file_in);
-
-    	    buff[stringsize] = '\0';
+	    if (stringsize)
+    	    	tpg_fread(&buff[0], stringsize, 1, tpg_file_in);
+		
+	    buff[stringsize] = '\0';
     	    
     	    wpt_tmp->shortname = xstrdup(buff);
 
@@ -161,7 +180,7 @@ tpg_read(void)
 	    
             /* 2 bytes - elevation in feet */
     	    tpg_fread(&buff[0], 2, 1, tpg_file_in);
-    	    elev = (le_read16(&buff[0]) * .3048); /* feets to meters */
+    	    elev = FEET_TO_METERS(le_read16(&buff[0]));
 
             /* convert incoming NAD27/CONUS coordinates to WGS84 */
             GPS_Math_Known_Datum_To_WGS84_M(
@@ -171,7 +190,7 @@ tpg_read(void)
                 &wpt_tmp->latitude,
                 &wpt_tmp->longitude,
                 &amt,
-                78);
+                tpg_datum_idx);
 
             wpt_tmp->altitude = elev;
             
@@ -184,7 +203,8 @@ tpg_read(void)
     	    
     	    stringsize = buff[0];
     	    
-    	    tpg_fread(&buff[0], stringsize, 1, tpg_file_in);
+    	    if (stringsize)
+		tpg_fread(&buff[0], stringsize, 1, tpg_file_in);
     	    buff[stringsize] = '\0';
     	    
     	    wpt_tmp->description = xstrdup(buff);
@@ -224,7 +244,7 @@ tpg_waypt_pr(const waypoint *wpt)
         if ((! wpt->shortname) || (global_opts.synthesize_shortnames)) {
             if (wpt->description) {
                 if (global_opts.synthesize_shortnames)
-                    shortname = mkshort(mkshort_handle, wpt->description);
+                    shortname = mkshort_from_wpt(mkshort_handle, wpt);
                 else
                     shortname = xstrdup(wpt->description);
             } else {
@@ -253,14 +273,14 @@ tpg_waypt_pr(const waypoint *wpt)
                 &lat,
                 &lon,
                 &amt,
-                78);
+                tpg_datum_idx);
         
 
         /* swap the sign back *after* the datum conversion */
         lon *= -1.0;
 
         /* convert meters back to feets */
-        elev = (short int) (wpt->altitude * 3.2808);
+        elev = (short int) METERS_TO_FEET(wpt->altitude);
 
         /* 1 bytes stringsize for shortname */
         c = strlen(shortname);
@@ -355,11 +375,14 @@ tpg_write(void)
 
 ff_vecs_t tpg_vecs = {
 	ff_type_file,
+	FF_CAP_RW_WPT,
 	tpg_rd_init,
 	tpg_wr_init,
 	tpg_rd_deinit,
 	tpg_wr_deinit,
 	tpg_read,
 	tpg_write,
-	NULL
+	NULL,
+	tpg_args,
+	CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 };
