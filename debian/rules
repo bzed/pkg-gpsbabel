@@ -26,6 +26,7 @@ configure-stamp:
 	$(SHELL) ./configure --with-zlib=system --with-doc=debian/doctmp \
 		--prefix=/usr
 	# Add here commands to configure the package.
+	mkdir -p xmldoc/autogen
 
 	touch configure-stamp
 
@@ -55,7 +56,11 @@ clean:
 	# Add here commands to clean up after the build process.
 	-$(MAKE) clean
 	-cd doc && $(MAKE) clean
-	-rm -r debian/doctmp
+	-rm -rf debian/doctmp xmldoc/autogen/*
+	-rm -rf Makefile config.h config.log config.status debian/*.inc \
+		gpsbabel.fo tools/mkcapabilities win32/gpsbabel.rc \
+		xmldoc/formats/options/raymarine-location.xml xmldoc/makedoc \
+		zlib/empty
 
 	dh_clean 
 
