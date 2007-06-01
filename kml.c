@@ -1,7 +1,7 @@
 /* 
 	Support for Google Earth & Keyhole "kml" format.
 
-	Copyright (C) 2005, 2006 Robert Lipe, robertlipe@usa.net
+	Copyright (C) 2005, 2006, 2007 Robert Lipe, robertlipe@usa.net
 	Updates by Andrew Kirmse, akirmse at google.com
 
 	This program is free software; you can redistribute it and/or modify
@@ -21,6 +21,10 @@
  */
 #include "defs.h"
 #include "xmlgeneric.h"
+
+#ifdef __WIN32__
+# include <windows.h>
+#endif
 
 // options
 static char *opt_deficon = NULL;
@@ -288,15 +292,8 @@ kml_wr_deinit(void)
 
 	if (posnfilenametmp) {
 #if __WIN32__
-		/*
-		 * This is gross.
-		 * Windows does not offer an atomic rename; we must
-		 * explictly remove the destination here which exposes
-		 * a window where a polled reader of this file could find
-		 * the file to be missing.  Windows readers will simply
-		 * have to retry on this case.
-		 */
-		unlink(posnfilename);
+		MoveFileEx(posnfilenametmp, posnfilename,
+		MOVEFILE_REPLACE_EXISTING);
 #endif
 		rename(posnfilenametmp, posnfilename);
 		xfree(posnfilenametmp);
@@ -394,7 +391,7 @@ static void kml_output_timestamp(const waypoint *waypointp)
 {
 	char time_string[64];
 	if (waypointp->creation_time) {
-		xml_fill_in_time(time_string, waypointp->creation_time, XML_LONG_TIME);
+		xml_fill_in_time(time_string, waypointp->creation_time, waypointp->microseconds, XML_LONG_TIME);
 		if (time_string[0]) {
 			kml_write_xml(0, "<TimeStamp><when>%s</when></TimeStamp>\n", 
 				time_string);
@@ -471,9 +468,9 @@ void kml_output_trkdescription(const route_head *header, computed_trkdata *td)
 	if (td->start && td->end) {
 		char time_string[64];
 		kml_write_xml(1, "<TimeSpan>\n");
-		xml_fill_in_time(time_string, td->start, XML_LONG_TIME);
+		xml_fill_in_time(time_string, td->start, 0, XML_LONG_TIME);
 		kml_write_xml(0, "<begin>%s</begin>\n", time_string);
-		xml_fill_in_time(time_string, td->end, XML_LONG_TIME);
+		xml_fill_in_time(time_string, td->end, 0, XML_LONG_TIME);
 		kml_write_xml(0, "<end>%s</end>\n", time_string);
 		kml_write_xml(-1, "</TimeSpan>\n");
 	}
@@ -679,8 +676,13 @@ static void kml_waypt_pr(const waypoint *waypointp)
 		else
 			fputs(odesc, ofd);
 
-		if (!global_opts.no_smart_icons && 
-		     waypointp->gc_data.diff && waypointp->gc_data.terr) {
+		/* It's tempting to conditionalize this on smart_names, but
+		 * KML is so robust that it makes sense to just always do
+		 * this for geocaches.  (Plus the convenience of being able
+		 * to do a drag-n-drop into Earth without extra option is a 
+		 * win.)
+		 */
+		if (waypointp->gc_data.diff && waypointp->gc_data.terr) {
 			if (waypointp->gc_data.placer) {
 				char *p = xml_entitize(waypointp->gc_data.placer);
 				fprintf(ofd, "<![CDATA[<i> by %s</i>]]>", p);
@@ -716,7 +718,7 @@ static void kml_waypt_pr(const waypoint *waypointp)
 		kml_write_xml(-1, "</IconStyle>\n");
 		kml_write_xml(-1, "</Style>\n");
 
-	} else if (!global_opts.no_smart_icons && waypointp->gc_data.diff && waypointp->gc_data.terr) {
+	} else if (waypointp->gc_data.diff && waypointp->gc_data.terr) {
 		char *is = kml_lookup_gc_icon(waypointp);
 		kml_write_xml(1, "<Style>\n");
 		kml_write_xml(1, "<IconStyle>\n");
@@ -805,8 +807,12 @@ void kml_write(void)
 	trackdata = (!! strcmp("0", opt_trackdata));
 
 	kml_write_xml(0,"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-	kml_write_xml(1,"<kml xmlns=\"http://earth.google.com/kml/2.1\">\n");
-	kml_write_xml(1,"<Document xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n");
+	kml_write_xml(1,"<kml xmlns=\"http://earth.google.com/kml/2.1\"\n"
+		"\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+		"\txsi:schemaLocation=\"http://earth.google.com/kml/2.1 \n"
+		"\thttp://code.google.com/apis/kml/schema/kml21.xsd\">\n"
+	);
+	kml_write_xml(1,"<Document>\n");
 
 	now = current_time();
 	strftime(import_time, sizeof(import_time), "%c", localtime(&now));

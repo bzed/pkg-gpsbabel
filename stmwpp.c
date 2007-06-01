@@ -92,6 +92,7 @@ stmwpp_data_read(void)
 		while (c != NULL)
 		{
 			int new_what;
+			int fracsec;
 			
 			switch(column)
 			{
@@ -135,9 +136,10 @@ stmwpp_data_read(void)
 					break;
 					
 				case 6:
-					sscanf(c, "%d:%d:%d.%d", &time.tm_hour, &time.tm_min, &time.tm_sec, &wpt->centiseconds);
-					if (what == STM_TRKPT)
-						wpt->centiseconds /= 10;
+					sscanf(c, "%d:%d:%d.%d", &time.tm_hour, &time.tm_min, &time.tm_sec, &fracsec);
+					wpt->microseconds = MILLI_TO_MICRO(fracsec);
+					/* makes sense only for recorded trackpoints */
+					if (what != STM_TRKPT) wpt->microseconds = 0;
 					break;
 					
 				default:
@@ -247,10 +249,10 @@ stmwpp_waypt_cb(const waypoint *wpt)
 	{
 		case STM_WAYPT:
 		case STM_RTEPT:
-			gbfprintf(fout, ".%02d", wpt->centiseconds);
+			gbfprintf(fout, ".%02d", 0);
 			break;
 		case STM_TRKPT:
-			gbfprintf(fout, ".%03d", wpt->centiseconds * 10);
+			gbfprintf(fout, ".%03d", MICRO_TO_MILLI(wpt->microseconds));
 			break;
 	}
 	gbfprintf(fout, ",\r\n");

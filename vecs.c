@@ -111,6 +111,9 @@ extern ff_vecs_t wbt_svecs;
 extern ff_vecs_t wbt_fvecs;
 extern ff_vecs_t gtc_vecs;
 extern ff_vecs_t dmtlog_vecs;
+extern ff_vecs_t raymarine_vecs;
+extern ff_vecs_t alanwpr_vecs;
+extern ff_vecs_t alantrl_vecs;
 
 static
 vecs_t vec_list[] = {
@@ -316,6 +319,8 @@ vecs_t vec_list[] = {
 		"ESRI shapefile",
 		"shp"
 	},
+#endif
+#if PDBFMTS_ENABLED
 	{
 		&geoniche_vecs,
 		"geoniche",
@@ -607,6 +612,24 @@ vecs_t vec_list[] = {
 		"TrackLogs digital mapping (.trl)",
 		"trl"
 	},
+	{
+		&raymarine_vecs,
+		"raymarine",
+		"Raymarine Waypoint File (.rwf)",
+		"rwf"
+	},
+        {
+                &alanwpr_vecs,
+                "alanwpr",
+                "Alan Map500 waypoints and routes (.wpr)",
+                "wpr"
+        },
+        {
+                &alantrl_vecs,
+                "alantrl",
+                "Alan Map500 tracklogs (.trl)",
+                "trl"
+        },
 	{
 		NULL,
 		NULL,
@@ -953,7 +976,17 @@ sort_and_unify_vecs(int *ctp)
 			 */
 			svp[i]->vec->args++;
 		}
-		
+		memset(&svp[i]->vec->cap, 0, sizeof(svp[i]->vec->cap));
+		switch(xcsv_file.datatype) {
+			case 0:
+			case wptdata:
+				svp[i]->vec->cap[ff_cap_rw_wpt] = ff_cap_read | ff_cap_write; break;
+			case trkdata:
+				svp[i]->vec->cap[ff_cap_rw_trk] = ff_cap_read | ff_cap_write; break;
+			case rtedata:
+				svp[i]->vec->cap[ff_cap_rw_rte] = ff_cap_read | ff_cap_write; break;
+			default: ;
+		}
 		svp[i]->desc = xcsv_file.description;
 		svp[i]->parent = "xcsv";
 	}

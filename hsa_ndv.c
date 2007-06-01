@@ -36,11 +36,11 @@ static char *routeName = "ROUTENAME";
 #define ATTR_OBJECTNAME						"OBJNAM"
 #define ATTR_SHIPNAME						"shpnam"
 
-static void readVersion4( FILE* pFile);
+static void readVersion4(gbfile* pFile);
 static void getAttr(const char *data, const char *attr, char **val, char seperator);
 
-static FILE *fd;
-static FILE *ofd;
+static gbfile *fd;
+static gbfile *ofd;
 
 static
 arglist_t hsa_ndv_args[] = {
@@ -209,7 +209,7 @@ hsa_ndv_cdata(void *dta, const XML_Char *s, int len)
 static void
 hsa_ndv_rd_init(const char *fname)
 {
-	fd = xfopen(fname, "r", MYNAME);
+	fd = gbfopen(fname, "r", MYNAME);
 
 	psr = XML_ParserCreate(NULL);
 	if (!psr) {
@@ -226,26 +226,26 @@ static void
 hsa_ndv_read(void)
 {
 	int len;
-	char buf[MY_CBUF];
-	memset(buf, 0, MY_CBUF);
+	char buf[MY_CBUF + 1];
 	
-	while ((len = fread(buf, 1, sizeof(buf), fd))) 
+	while ((len = gbfread(buf, 1, sizeof(buf) - 1, fd))) 
 	{
 		char *bad;
 
-		buf[len-1] = 0;
+		buf[len] = '\0';
 		if (NULL != strstr(buf, "nver=1"))
 		{//its the older format, not xml
-			fseek(fd, 0, SEEK_SET);
+			gbfseek(fd, 0, SEEK_SET);
 			readVersion4(fd);
 			break;
 		}
 		//grumble - have to remove \x1f's from sirius attributes
-		while (NULL != (bad = strchr(buf, '\x1f')))
+		bad = buf;
+		while (NULL != (bad = strchr(bad, '\x1f')))
 		{
 			*bad = REPLACEMENT_SIRIUS_ATTR_SEPARATOR;
 		}
-		if (!XML_Parse(psr, buf, len, feof(fd))) {
+		if (!XML_Parse(psr, buf, len, gbfeof(fd))) {
 			fatal(MYNAME ":Parse error at %d: %s\n", 
 				(int) XML_GetCurrentLineNumber(psr),
 				XML_ErrorString(XML_GetErrorCode(psr)));
@@ -289,19 +289,19 @@ hsa_ndv_rd_deinit(void)
 	if ( cdatastr ) {
 		xfree(cdatastr);
 	}
-	fclose(fd);
+	gbfclose(fd);
 }
 
 static void
 hsa_ndv_wr_init(const char *fname)
 {
-	ofd = xfopen(fname, "w", MYNAME);
+	ofd = gbfopen(fname, "w", MYNAME);
 }
 
 static void
 hsa_ndv_wr_deinit(void)
 {
-	fclose(ofd);
+	gbfclose(ofd);
 }
 
 static int legNum = 0;
@@ -310,20 +310,20 @@ static void
 hsa_ndv_waypt_pr(const waypoint *waypointp)
 {
 
-	fprintf(ofd, "\t\t<Object>\n");
+	gbfprintf(ofd, "\t\t<Object>\n");
 
-	fprintf(ofd, "\t\t\t<ClassName>waypnt</ClassName>\n");
+	gbfprintf(ofd, "\t\t\t<ClassName>waypnt</ClassName>\n");
 //ignore these for now, they are s57 specific
 //	fprintf(ofd, "\t\t\t<FeatureNameAgency>0</FeatureNameAgency>\n");
 //	fprintf(ofd, "\t\t\t<FeatureNameSubDiv>1</FeatureNameSubDiv>\n");
 //	fprintf(ofd, "\t\t\t<FeatureNameNumber>1089009023</FeatureNameNumber>\n");
-	fprintf(ofd, "\t\t\t<Attr><![CDATA[attr=grpnam%s\x1ftrnrad50\x1fOBJNAM%s\x1flegnum%i\x1fusrmrk%s\x1fselect2]]></Attr>\n", routeName, waypointp->shortname, legNum, waypointp->description);
-	fprintf(ofd, "\t\t\t<LegAttr><![CDATA[attr=grpnam%s\x1f]]></LegAttr>\n", routeName);
-	fprintf(ofd, "\t\t\t<NumberOfVertexs>1</NumberOfVertexs>\n");
-	fprintf(ofd, "\t\t\t<Latitude>%lf</Latitude>\n", waypointp->latitude);
-	fprintf(ofd, "\t\t\t<Longitude>%lf</Longitude>\n", waypointp->longitude);
+	gbfprintf(ofd, "\t\t\t<Attr><![CDATA[attr=grpnam%s\x1ftrnrad50\x1fOBJNAM%s\x1flegnum%i\x1fusrmrk%s\x1fselect2]]></Attr>\n", routeName, waypointp->shortname, legNum, waypointp->description);
+	gbfprintf(ofd, "\t\t\t<LegAttr><![CDATA[attr=grpnam%s\x1f]]></LegAttr>\n", routeName);
+	gbfprintf(ofd, "\t\t\t<NumberOfVertexs>1</NumberOfVertexs>\n");
+	gbfprintf(ofd, "\t\t\t<Latitude>%lf</Latitude>\n", waypointp->latitude);
+	gbfprintf(ofd, "\t\t\t<Longitude>%lf</Longitude>\n", waypointp->longitude);
 
-	fprintf(ofd, "\t\t</Object>\n");
+	gbfprintf(ofd, "\t\t</Object>\n");
 
 	legNum++;
 }
@@ -331,14 +331,14 @@ hsa_ndv_waypt_pr(const waypoint *waypointp)
 static void
 hsa_ndv_write(void)
 {
-	fprintf(ofd, "<?xml version=\"1.0\"?>\n");
-	fprintf(ofd, "<Export>\n");
-	fprintf(ofd, "\t<Route>\n");
-	fprintf(ofd, "\t\t<Version>1.0000000</Version>\n");
-	fprintf(ofd, "\t\t<Name>ROUTENAME</Name>\n");			/*TODO: used filename? */
-	fprintf(ofd, "\t\t<LastModified>0</LastModified>\n");
+	gbfprintf(ofd, "<?xml version=\"1.0\"?>\n");
+	gbfprintf(ofd, "<Export>\n");
+	gbfprintf(ofd, "\t<Route>\n");
+	gbfprintf(ofd, "\t\t<Version>1.0000000</Version>\n");
+	gbfprintf(ofd, "\t\t<Name>ROUTENAME</Name>\n");			/*TODO: used filename? */
+	gbfprintf(ofd, "\t\t<LastModified>0</LastModified>\n");
 	waypt_disp_all(hsa_ndv_waypt_pr);
-	fprintf(ofd, "\t</Route>\n");
+	gbfprintf(ofd, "\t</Route>\n");
 
 //later we'll import past tracks and chart objects?
 //	fprintf(ofd, "\t<Chartwork>\n");
@@ -347,7 +347,7 @@ hsa_ndv_write(void)
 //	fprintf(ofd, "\t</Chartwork>\n");
 
 
-	fprintf(ofd, "</Export>\n");
+	gbfprintf(ofd, "</Export>\n");
 }
 
 ff_vecs_t HsaEndeavourNavigator_vecs = {
@@ -379,10 +379,10 @@ ff_vecs_t HsaEndeavourNavigator_vecs = {
 #define INVALID_TIME -1L
 #define SOUNDARRAY_CHAR 'S'
 
-static int readRecord( FILE* pFile, const char* pRecName, char *recData);
-static int readPositionRecord( FILE* pFile, double* lat, double* lng, long* timeStamp);
+static int readRecord(gbfile* pFile, const char* pRecName, char *recData);
+static int readPositionRecord(gbfile* pFile, double* lat, double* lng, long* timeStamp);
 
-static void readVersion4( FILE* pFile)
+static void readVersion4(gbfile* pFile)
 {
 	while( TRUE )
 	{
@@ -476,12 +476,12 @@ static void readVersion4( FILE* pFile)
 		waypt_add(wpt_tmp);
 	}
 
-	fclose(pFile);
+	gbfclose(pFile);
 	return;
 }
 
 // read a record to a file
-static int readRecord( FILE* pFile, const char* pRecName, char *recData)
+static int readRecord(gbfile* pFile, const char* pRecName, char *recData)
 {
 	// get the rec name
 	int len;
@@ -490,7 +490,7 @@ static int readRecord( FILE* pFile, const char* pRecName, char *recData)
 
 	for( len = 0; len < ED_REC_NAME_SIZE; len++)
 	{
-		int c = fgetc( pFile);
+		int c = gbfgetc(pFile);
 
 		// if we hit EOF failed
 		if( c == EOF )
@@ -506,7 +506,7 @@ static int readRecord( FILE* pFile, const char* pRecName, char *recData)
 	// get the rec data
 	for( len = 0; TRUE; len++)
 	{
-		int c = fgetc( pFile);
+		int c = gbfgetc( pFile);
 
 		// if we hit EOF failed
 		if( c == EOF )
@@ -526,7 +526,7 @@ static int readRecord( FILE* pFile, const char* pRecName, char *recData)
 }
 
 // read position
-static int readPositionRecord( FILE* pFile, double* lat, double* lng, 
+static int readPositionRecord(gbfile* pFile, double* lat, double* lng, 
 						long* timeStamp)
 {
 	// read the lat record

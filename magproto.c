@@ -425,6 +425,12 @@ retry:
 		}
 	}
 
+	/* If column zero isn't a dollar sign, it's not for us */
+	if (ibuf[0] != '$') {
+		fatal(MYNAME ": line doesn't start with '$'.\n");
+	}
+
+
 	isz = strlen(ibuf);
 
 	if (isz < 5) {
@@ -489,15 +495,10 @@ retry:
 			/* These tracks don't have names, so derive one
 			 * from input filename.
 			 */
-			const char *s = strrchr(curfname, GB_PATHSEP);
 			char *e;
-			trk_head = route_head_alloc();
+			const char *s = get_filename(curfname);
 
-			if (s) {
-				s++; /* Skip path delim */
-			}  else {
-				s = curfname;/* use name intact */
-			}
+			trk_head = route_head_alloc();
 
 			/* Whack trailing extension if present. */
 			trk_head->rte_name = xstrdup(s);
@@ -644,8 +645,8 @@ arglist_t mag_sargs[] = {
 	{"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING,
 		ARG_NOMINMAX },
 	{"maxcmts", &cmts, "Max number of comments to write (maxcmts=200)", 
-		NULL, ARGTYPE_INT, ARG_NOMINMAX },
-	{"baud", &bs, "Numeric value of bitrate (baud=4800)", NULL,
+		"200", ARGTYPE_INT, ARG_NOMINMAX },
+	{"baud", &bs, "Numeric value of bitrate (baud=4800)", "4800",
 		ARGTYPE_INT, ARG_NOMINMAX },
 	{"noack", &noack, "Suppress use of handshaking in name of speed",
 		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
@@ -740,12 +741,7 @@ mag_rd_init_common(const char *portname)
 	 * make a copy of it, then lop off the file extension
 	 */
 
-	curfname = strrchr(portname, GB_PATHSEP);
-	if (curfname) {
-		curfname++;  /* skip over path delimiter */
-	} else {
-		curfname = portname;
-	}
+	curfname = get_filename(portname);
 
 	/*
 	 * I'd rather not derive behaviour from filenames but since
@@ -927,7 +923,7 @@ mag_trkparse(char *trkmsg)
 	tm.tm_mday = dmy % 100; 
 
 	waypt->creation_time = mkgmtime(&tm);
-	waypt->centiseconds = fracsecs;
+	waypt->microseconds = CENTI_TO_MICRO(fracsecs);
 
 	if (latdir == 'S') latdeg = -latdeg;
 	waypt->latitude = ddmm2degrees(latdeg);
@@ -969,11 +965,20 @@ mag_rteparse(char *rtemsg)
 
 	/* Explorist has a route name here */
 	if (explorist) {
-		char rten[1024];
-		int n2;
-		sscanf(rtemsg + n, ",%[^,]%n", rten, &n2);
-		n += n2;
-		rte_name = xstrdup(rten);
+		char *ca, *ce;
+		
+		ca = rtemsg + n;
+		is_fatal(*ca++ != ',', MYNAME ": Incorrectly formatted route line '%s'", rtemsg);
+
+		ce = strchr(ca, ',');
+		is_fatal(ce == NULL, MYNAME ": Incorrectly formatted route line '%s'", rtemsg);
+
+		if (ca == ce)
+			xasprintf(&rte_name, "Route%d", rtenum);
+		else
+			rte_name = xstrndup(ca, ce - ca);
+		
+		n += ((ce - ca) + 1);
 	}
 
 #endif
@@ -1249,7 +1254,7 @@ mag_waypt_pr(const waypoint *waypointp)
 	odesc = isrc ? isrc : "";
 	owpt = mag_cleanse(owpt);
 
-	if (!global_opts.no_smart_icons &&
+	if (global_opts.smart_icons &&
 	    waypointp->gc_data.diff && waypointp->gc_data.terr) {
 		sprintf(ofmtdesc, "%d/%d %s", waypointp->gc_data.diff, 
 			waypointp->gc_data.terr, odesc);
@@ -1314,7 +1319,7 @@ void mag_track_disp(const waypoint *waypointp)
 				   tm->tm_sec;
 			date = tm->tm_mday * 10000 + tm->tm_mon * 100 + 
 				   tm->tm_year;
-			fracsec = waypointp->centiseconds;
+			fracsec = MICRO_TO_CENTI(waypointp->microseconds);
 		}
 	}
         if (!tm) {

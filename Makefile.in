@@ -9,8 +9,8 @@ RELEASE=@PACKAGE_RELEASE@
 VERSIOND=$(VERSD)$(RELEASE)
 VERSIONU=$(VERSU)$(RELEASE)
 
-DOCVERSION=development
 DOCVERSION=@PACKAGE_VERSION@
+# DOCVERSION=development
 
 CC=@CC@
 EXEEXT=@EXEEXT@
@@ -36,7 +36,8 @@ OUTPUT_SWITCH=-o #
 GBCFLAGS=$(EXTRA_CFLAGS) $(DEBUGGING) -I. -I@srcdir@/coldsync \
 	$(OPTIMIZATION) @CFLAGS@
 LDFLAGS=$(EXTRA_LDFLAGS) @LDFLAGS@
-DESTDIR=/usr/local/
+PREFIX=@prefix@
+INSTALL_DIR=$(DESTDIR)/$(PREFIX)
 
 # OTHER_ROOT=/opt/local	# For DarwinPorts on OSX
 # OTHER_ROOT=/sw		# Uncomment For Fink on OS X.
@@ -53,7 +54,7 @@ FMTS=magproto.o gpx.o geo.o mapsend.o mapsource.o garmin_tables.o \
 	tef_xml.o maggeo.o pathaway.o vitosmt.o gdb.o bcr.o coto.o \
 	ignrando.o stmwpp.o msroute.o cst.o nmn4.o mag_pdb.o compegps.o \
 	yahoo.o unicsv.o wfff_xml.o garmin_txt.o axim_gpb.o gpssim.o \
-	wbt-200.o stmsdf.o gtrnctr.o dmtlog.o
+	wbt-200.o stmsdf.o gtrnctr.o dmtlog.o raymarine.o alan.o
 
 FILTERS=position.o radius.o duplicate.o arcdist.o polygon.o smplrout.o \
 	reverse_route.o sort.o stackfilter.o trackfilter.o discard.o \
@@ -98,17 +99,17 @@ WEB=@DOCDIR@
 
 all: gpsbabel$(EXEEXT)
 
-gpsbabel$(EXEEXT): $(OBJS) @GPSBABEL_DEBUG@ Makefile configure
+gpsbabel$(EXEEXT): configure Makefile $(OBJS) @GPSBABEL_DEBUG@ 
 	$(CC)  $(CFLAGS) $(LDFLAGS) $(OBJS) @LIBS@ @EXPAT_LIB@ @USB_LIBS@ $(OUTPUT_SWITCH)$@
 
 gpsbabel-debug: $(OBJS)
 	$(CC)  $(CFLAGS) $(LDFLAGS) $(OBJS) @LIBS@ @EFENCE_LIB@ @EXPAT_LIB@ @USB_LIBS@ $(OUTPUT_SWITCH)$@
 
-Makefile: Makefile.in config.status
+Makefile gbversion.h: Makefile.in config.status xmldoc/makedoc.in gbversion.h.in
 	CONFIG_FILES=$@ CONFIG_HEADERS= $(SHELL) ./config.status 
 
-globals.o:
-	$(CC)  @CPPFLAGS@ -c $(GBCFLAGS) -DVERSION=\"$(VERSIOND)\" $< $(OUTPUT_SWITCH)$@
+config.status: configure 
+	$(SHELL) config.status --recheck
 
 jeeps/gpslibusb.o: 
 	$(CC)  @CPPFLAGS@ -c $(GBCFLAGS) @USB_CFLAGS@ @srcdir@/jeeps/gpslibusb.c $(OUTPUT_SWITCH)$@
@@ -122,6 +123,10 @@ clean:
 configure: configure.in
 	autoconf
 
+tag:
+	cvs commit
+	cvs tag gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@
+
 more-clean: clean
 	tools/mkmoreclean
 
@@ -129,17 +134,31 @@ check:
 	./testo
 
 torture:
-	./testo
-	./torture_test
+	@echo "testo in progress... (basic data integrity test)"
+	@./testo
+	@echo "vtesto in progress... (valgrind is watching testo)"
+	@./vtesto
+	@echo "torture_test in progress... (shortname reduction)"
+	@./torture_test
+#
+# 	Because there are some "non-real" errors like "IGC: bad date" 
+# 	test-all does not stop on errors.
+# 	Please inspect the log file (/tmp/gb-test-all.log) for segmentation
+# 	faults, math overflows and other hard errors
+#
+	@echo "test-all in progress... (read/write test between all possible formats)"
+	@./test-all -s -r reference/expertgps.gpx
 
 #
 # This will only work on UNIX-like substances.
 #
 install: @INSTALL_DEBUG@
-	install gpsbabel  $(DESTDIR)/bin
+	@mkdir -p $(INSTALL_DIR)/bin
+	install gpsbabel  $(INSTALL_DIR)/bin/
 
 install-debug:
-	install gpsbabel-debug  $(DESTDIR)/bin
+	@mkdir -p $(INSTALL_DIR)/bin
+	install gpsbabel-debug  $(INSTALL_DIR)/bin/
 
 # Nerdy release stuff that needs to work only on Linux.
 
@@ -155,6 +174,7 @@ dep:
 	echo Edit Makefile.in and bring in /tmp/dep
 
 $(WEB)/htmldoc-$(DOCVERSION)/readme.html: FORCE
+	mkdir -p $(WEB)/htmldoc-$(DOCVERSION)
 	perl xmldoc/makedoc
 	xmlwf xmldoc/readme.xml		#check for well-formedness
 	xmllint --noout --valid xmldoc/readme.xml    	#validate
@@ -165,6 +185,32 @@ $(WEB)/htmldoc-$(DOCVERSION)/readme.html: FORCE
 	 xmldoc/readme.xml
 	chmod 755 tools/mkcapabilities
 	tools/mkcapabilities
+
+#
+# The .fo and PDF versions depend on additional tools.
+# 'fop' must be obtained from http://xmlgraphics.apache.org/fop/
+#   0.92beta seems to work OK, BUT.
+#   * If you have a package called 'docbook-xml-website' it's reported
+#     to prevent the build from working.   Remove it. (Suse)
+#   * Sun Java seems to be required.   GCJ 1.4.2 doesn't work.   You can
+#     force Sun Java to be used by creating ~/.foprc with 'rpm_mode=' (Fedora)
+#     Get it from http://www.java.com
+# The Hypnenation package must be installed from 
+#   http://offo.sourceforge.net/hyphenation/index.html - be sure to get the
+#   version that corresponds to the version of FOP that you used above.
+# The docbook XSL must be 1.71.1 or higher.  
+#   * Remember to update /etc/xml/catalogs if you manually update this.
+#
+gpsbabel.fo:  FORCE
+	perl xmldoc/makedoc
+	xmlwf xmldoc/readme.xml		#check for well-formedness
+	xmllint --noout --valid xmldoc/readme.xml    	#validate
+	xsltproc -o $@ xmldoc/babelpdf.xsl xmldoc/readme.xml
+
+gpsbabel.pdf: gpsbabel.fo
+	fop -q -fo gpsbabel.fo -pdf gpsbabel.pdf 
+	cp gpsbabel.pdf $(WEB)/htmldoc-$(DOCVERSION)/gpsbabel-$(DOCVERSION).pdf
+
 
 gpsbabel.html: FORCE
 	xsltproc \
@@ -177,7 +223,7 @@ gpsbabel.html: FORCE
 readme.txt: gpsbabel.html
 	lynx -nolist -dump gpsbabel.html  > $@
 
-doc: gpsbabel $(WEB)/htmldoc-$(DOCVERSION)/readme.html # readme.txt
+doc: gpsbabel $(WEB)/htmldoc-$(DOCVERSION)/readme.html gpsbabel.pdf # readme.txt
 
 FORCE:
 
@@ -195,7 +241,7 @@ release-sourcecheck:
 	make clean
 	rm -fr gpsbabel-$(VERSIOND)
 #rjl	make gpsbabel doc gpsbabel.html
-	@(. tools/functions && ask "Enter 'y' to tag the tree." "y") && cvs tag -F gpsbabel_$(VERSIONU) ; exit 0
+	@(. tools/functions && ask "Enter 'y' to tag the tree as gpsbabel_$(VERSIONU)." "y") && cvs tag -F gpsbabel_$(VERSIONU) ; exit 0
 	cvs export -r gpsbabel_$(VERSIONU) -d gpsbabel-$(VERSIOND) gpsbabel
 	touch gpsbabel-$(VERSIOND)/internal_styles.c
 
@@ -234,6 +280,11 @@ release-rpm:
 # Do this build in a temporary tree that was a copy of the tagged one
 # to avoid scribbling in the "real" one.
 #
+# The cross builds are built with mingw.   http://mirzam.it.vu.nl/mingw
+# and http://mingw.sourceforge.net are convenient sources for that.
+# binutils, runtime, w32api, and gcc-core seem to be required.
+#
+
 release-winbuild:
 	rm -fr /tmp/gpsbabel-$(VERSIOND)-cross
 	cp -a gpsbabel-$(VERSIOND) /tmp/gpsbabel-$(VERSIOND)-cross
@@ -243,7 +294,7 @@ release-winbuild:
 	rm -fr /tmp/gpsbabel-$(VERSIOND)-cross
 
 release-upload:  /tmp/gpsbabel-$(VERSIOND).tar.gz  /tmp/gpsbabel-$(VERSIOND).zip /tmp/dist/SRPMS/gpsbabel-$(VERSIOND)-0.src.rpm  /tmp/dist/RPMS/i386/gpsbabel-$(VERSIOND)-0.i386.rpm
-	@(. tools/functions && ask "Type yes if you want to do the upload now" "yes" )
+	@(. tools/functions && ask "Type 'yes' if you want to do the upload now" "yes" )
 	curl -u anonymous:anonymous --upload-file /tmp/gpsbabel-$(VERSIOND).tar.gz ftp://upload.sf.net/incoming/
 	curl -u anonymous:anonymous --upload-file /tmp/gpsbabel-$(VERSIOND).zip ftp://upload.sf.net/incoming/
 	curl -u anonymous:anonymous --upload-file /tmp/dist/SRPMS/gpsbabel-$(VERSIOND)-0.src.rpm  ftp://upload.sf.net/incoming/ 
@@ -251,8 +302,8 @@ release-upload:  /tmp/gpsbabel-$(VERSIOND).tar.gz  /tmp/gpsbabel-$(VERSIOND).zip
 
 release: release-sourcecheck  release-tarball release-winbuild release-rpm release-upload
 
-rpm: clean
-	tools/mkrpm $(VERSD) $(RELEASE)
+rpm:
+	tools/mkrpm $(WEB) $(VERSD) $(RELEASE)
 
 mac-release:
 	mkdir -p usr/bin usr/share/gpsbabel/doc
@@ -267,6 +318,8 @@ msvc-build:
 	LINK.EXE /NOLOGO @objs.lst ./msvc/expat/libexpat.lib /out:gpsbabel.exe 
 
 # Machine generated from here down. 
+alan.o: alan.c defs.h config.h queue.h gbtypes.h zlib/zlib.h zlib/zconf.h \
+  gbfile.h cet.h cet_util.h inifile.h
 an1.o: an1.c defs.h config.h queue.h gbtypes.h zlib/zlib.h zlib/zconf.h \
   gbfile.h cet.h cet_util.h inifile.h an1sym.h
 arcdist.o: arcdist.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
@@ -312,7 +365,11 @@ cst.o: cst.c defs.h config.h queue.h gbtypes.h zlib/zlib.h zlib/zconf.h \
   gbfile.h cet.h cet_util.h inifile.h strptime.h
 csv_util.o: csv_util.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h csv_util.h grtcirc.h \
-  strptime.h
+  strptime.h jeeps/gpsmath.h jeeps/gps.h jeeps/../defs.h jeeps/gpsport.h \
+  jeeps/gpsdevice.h jeeps/gpssend.h jeeps/gpsread.h jeeps/gpsutil.h \
+  jeeps/gpsapp.h jeeps/gpsprot.h jeeps/gpscom.h jeeps/gpsfmt.h \
+  jeeps/gpsmath.h jeeps/gpsmem.h jeeps/gpsrqst.h jeeps/gpsinput.h \
+  jeeps/gpsproj.h
 delgpl.o: delgpl.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h
 discard.o: discard.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
@@ -387,7 +444,7 @@ geoniche.o: geoniche.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   jeeps/gpscom.h jeeps/gpsfmt.h jeeps/gpsmath.h jeeps/gpsmem.h \
   jeeps/gpsrqst.h jeeps/gpsinput.h jeeps/gpsproj.h garmin_tables.h
 globals.o: globals.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
-  zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h
+  zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h gbversion.h
 glogbook.o: glogbook.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h xmlgeneric.h
 google.o: google.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
@@ -505,7 +562,7 @@ pathaway.o: pathaway.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h coldsync/palm.h \
   coldsync/../gbtypes.h coldsync/pdb.h csv_util.h strptime.h
 pcx.o: pcx.c defs.h config.h queue.h gbtypes.h zlib/zlib.h zlib/zconf.h \
-  gbfile.h cet.h cet_util.h inifile.h garmin_tables.h
+  gbfile.h cet.h cet_util.h inifile.h garmin_tables.h csv_util.h
 polygon.o: polygon.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h filterdefs.h
 position.o: position.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
@@ -520,6 +577,8 @@ quovadis.o: quovadis.c quovadis.h defs.h config.h queue.h gbtypes.h \
   coldsync/palm.h coldsync/../gbtypes.h coldsync/pdb.h
 radius.o: radius.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h filterdefs.h grtcirc.h
+raymarine.o: raymarine.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
+  zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h csv_util.h
 reverse_route.o: reverse_route.c defs.h config.h queue.h gbtypes.h \
   zlib/zlib.h zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h \
   filterdefs.h
@@ -611,7 +670,11 @@ wbt-200.o: wbt-200.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
 wfff_xml.o: wfff_xml.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h xmlgeneric.h
 xcsv.o: xcsv.c defs.h config.h queue.h gbtypes.h zlib/zlib.h zlib/zconf.h \
-  gbfile.h cet.h cet_util.h inifile.h csv_util.h
+  gbfile.h cet.h cet_util.h inifile.h csv_util.h jeeps/gpsmath.h \
+  jeeps/gps.h jeeps/../defs.h jeeps/gpsport.h jeeps/gpsdevice.h \
+  jeeps/gpssend.h jeeps/gpsread.h jeeps/gpsutil.h jeeps/gpsapp.h \
+  jeeps/gpsprot.h jeeps/gpscom.h jeeps/gpsfmt.h jeeps/gpsmath.h \
+  jeeps/gpsmem.h jeeps/gpsrqst.h jeeps/gpsinput.h jeeps/gpsproj.h
 xmlgeneric.o: xmlgeneric.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h xmlgeneric.h
 xmltag.o: xmltag.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
@@ -780,5 +843,5 @@ zlib/trees.o: zlib/trees.c zlib/deflate.h zlib/zutil.h zlib/zlib.h \
   zlib/zconf.h zlib/trees.h
 zlib/uncompr.o: zlib/uncompr.c zlib/zlib.h zlib/zconf.h
 zlib/zutil.o: zlib/zutil.c zlib/zutil.h zlib/zlib.h zlib/zconf.h
-internal_styles.c: mkstyle.sh style/arc.style style/cambridge.style style/csv.style style/cup.style style/custom.style style/dna.style style/fugawi.style style/garmin301.style style/garmin_poi.style style/geonet.style style/gpsdrive.style style/gpsdrivetrack.style style/gpsman.style style/ktf2.style style/kwf2.style style/mapconverter.style style/mxf.style style/nima.style style/openoffice.style style/s_and_t.style style/saplus.style style/sportsim.style style/tabsep.style style/xmap2006.style style/xmap.style style/xmapwpt.style
+internal_styles.c: mkstyle.sh style/arc.style style/cambridge.style style/csv.style style/cup.style style/custom.style style/dna.style style/fugawi.style style/garmin301.style style/garmin_poi.style style/geonet.style style/gpsdrive.style style/gpsdrivetrack.style style/gpsman.style style/kompass_tk.style style/kompass_wp.style style/ktf2.style style/kwf2.style style/mapconverter.style style/mxf.style style/nima.style style/openoffice.style style/s_and_t.style style/saplus.style style/sportsim.style style/tabsep.style style/xmap2006.style style/xmap.style style/xmapwpt.style
 	./mkstyle.sh > internal_styles.c || (rm -f internal_styles.c ; exit 1)

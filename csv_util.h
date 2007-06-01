@@ -131,7 +131,11 @@ typedef struct {
     
     short_handle mkshort_handle;/* handle for mkshort() */
     ff_type type;		/* format type for GUI wrappers. */
-    
+
+    int gps_datum;		/* result of GPS_Lookup_Datum_Index */
+    gpsdata_type datatype;	/* can be wptdata, rtedata or trkdata */
+				/* ... or ZERO to keep the old behaviour */
+
 } xcsv_file_t;
 
 

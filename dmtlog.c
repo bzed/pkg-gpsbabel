@@ -128,6 +128,15 @@ finalize_pt(waypoint *wpt)
 		wpt->latitude = xmlLatitude;
 		wpt->longitude = xmlLongitude;
 	}
+	/* NOTE:
+	 * Alan White reports this program actually subtracts a number
+	 * of meters ranging between 46 and 50 meters.  It appears to be
+	 * constant for each location, but different without an obvious
+	 * correlation to ground altitude.  We considered offsetting this
+	 * in GPSBabel, but concluded it wasn't worth the bother. 
+	 * If we get complaints, probably all of our alt reading and writing
+	 * should offset an average of 46m or so.
+	 */
 	wpt->altitude = xmlAltitude;
 	convert_datum(wpt, xmldatum);
 }
@@ -649,7 +658,7 @@ track_wpt_cb(const waypoint *wpt)
 	
 	gbfputdbl(wpt->latitude, fout);
 	gbfputdbl(wpt->longitude, fout);
-	gbfputdbl(wpt->altitude, fout);
+	gbfputdbl(wpt->altitude != unknown_alt ? wpt->altitude : 0, fout);
 }
 
 static void
@@ -659,7 +668,7 @@ wpt_cb(const waypoint *wpt)
 	
 	gbfputdbl(wpt->latitude, fout);
 	gbfputdbl(wpt->longitude, fout);
-	gbfputdbl(wpt->altitude, fout);
+	gbfputdbl(wpt->altitude != unknown_alt ? wpt->altitude : 0, fout);
 	
 	names = 1;
 	if (wpt->description && *wpt->description) names = 2;
@@ -680,7 +689,7 @@ dmtlog_write(void)
 	gbfputint32(4, fout);
 	gbfputint32(1, fout);
 	gbfputint32(0x100001, fout);
-	gbfputuint32((const gbuint32)gpsbabel_now, fout);
+	gbfputuint32((const gbuint32)gpsbabel_time, fout);
 	
 	header_written = 0;
 	this_index = 0;

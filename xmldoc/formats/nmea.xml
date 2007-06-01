@@ -31,6 +31,23 @@ that work with NMEA-0183 formatted data include:
   <ulink url="http://www.commlinx.com.au/GPS_recorder.htm">CommLinx GPS recorder</ulink>
 </member>
 <member>
-  <ulink url="http://www.sparkfun.com/commerce/product_info.php?products_id=671">SparkFun GPS Datalogger</ulink>
+  <ulink url="http://www.sparkfun.com/">SparkFun GPS Datalogger</ulink>
+</member>
+<member>
+  <ulink url="http://www.sonystyle.com/is-bin/INTERSHOP.enfinity/eCS/Store/en/-/USD/SY_DisplayProductInformation-Start?ProductSKU=GPSCS1">Sony GPS-CS1</ulink>
 </member>
 </simplelist>  
+<para>
+This module also supports <link linkend="tracking">realtime tracking</link> 
+which allows realtime position reports from a GPS, such as one connected 
+serially, over Bluetooth, or a USB module emulating a serial port, to be used
+with selected output formats.
+</para>
+<para>
+When used in <link linkend="tracking">realtime tracking</link> mode, if
+GPSBabel does not sense incoming NMEA sentences arriving from the port, it
+will send Sirf "reset to NMEA" commands to the port at a variety of speeds
+in an attempt to communicate with an attached GPS.   This lets devices
+like the Microsoft GPS or Pharos GPS that are Sirf chips with an integrated
+USB/Serial adapter work with this input format.
+</para>
