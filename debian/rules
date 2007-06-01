@@ -60,7 +60,7 @@ clean:
 	-rm -rf Makefile config.h config.log config.status debian/*.inc \
 		gpsbabel.fo tools/mkcapabilities win32/gpsbabel.rc \
 		xmldoc/formats/options/raymarine-location.xml xmldoc/makedoc \
-		zlib/empty
+		zlib/empty jeeps/Makefile shapelib/Makefile
 
 	dh_clean 
 
