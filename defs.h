@@ -151,8 +151,8 @@ typedef struct {
 	gpsdata_type objective;
 	unsigned int	masked_objective;
 	int verbose_status;	/* set by GUI wrappers for status */
-	int no_smart_icons;	
-	int no_smart_names;
+	int smart_icons;	
+	int smart_names;
 	cet_cs_vec_t *charset;
 	char *charset_name;
 	inifile_t *inifile;
@@ -162,6 +162,11 @@ extern global_options global_opts;
 extern const char gpsbabel_version[];
 extern time_t gpsbabel_now;	/* gpsbabel startup-time; initialized in main.c with time() */
 extern time_t gpsbabel_time;	/* gpsbabel startup-time; initialized in main.c with current_time(), ! ZERO within testo ! */
+
+#define MILLI_TO_MICRO(t) (t * 1000)  /* Milliseconds to Microseconds */
+#define MICRO_TO_MILLI(t) (t / 1000)  /* Microseconds to Milliseconds*/
+#define CENTI_TO_MICRO(t) (t * 10000) /* Centiseconds to Microseconds */
+#define MICRO_TO_CENTI(t) (t / 10000) /* Centiseconds to Microseconds */
 
 /* Short or Long XML Times */
 #define XML_SHORT_TIME 1
@@ -326,7 +331,7 @@ typedef struct {
 	wp_flags wpt_flags;
 	const char *icon_descr;
 	time_t creation_time;	/* standardized in UTC/GMT */
-	int centiseconds;	/* Optional hundredths of a second. */
+	int microseconds;	/* Optional millionths of a second. */
 	
 	/*
 	 * route priority is for use by the simplify filter.  If we have
@@ -726,6 +731,8 @@ char * convert_human_date_format(const char *human_datef);	/* "MM,YYYY,DD" -> "%
 char * convert_human_time_format(const char *human_timef);	/* "HH+mm+ss"   -> "%H+%M+%S" */
 char * pretty_deg_format(double lat, double lon, char fmt, int html);   /* decimal ->  dd.dddd or dd mm.mmm or dd mm ss */
 
+char * get_filename(const char *fname);				/* extract the filename portion */
+
 /* 
  * Character encoding transformations.
  */
@@ -743,7 +750,7 @@ char * pretty_deg_format(double lat, double lon, char fmt, int html);   /* decim
 #define str_iso8859_1_to_utf8(str) cet_str_iso8859_1_to_utf8((str))
 
 /* this lives in gpx.c */
-time_t xml_parse_time( const char *cdatastr );
+time_t xml_parse_time( const char *cdatastr, int * microsecs );
 	
 xml_tag *xml_findfirst( xml_tag *root, char *tagname );
 xml_tag *xml_findnext( xml_tag *root, xml_tag *cur, char *tagname );
@@ -773,6 +780,10 @@ typedef struct {
 	unsigned char data[8];
 } pdb_double;
 
+typedef struct {
+	unsigned char data[4];
+} pdb_float;
+
 /*
  * Protypes for Endianness helpers.
  */
@@ -786,13 +797,26 @@ void be_write16(void *pp, const unsigned i);
 void be_write32(void *pp, const unsigned i);
 void le_write16(void *pp, const unsigned i);
 void le_write32(void *pp, const unsigned i);
-double pdb_read_double(void *p);
-void pdb_write_double(void *pp, double d);
 
-double le_read_double(void *p);
+double endian_read_double(void* ptr, int read_le);
+float  endian_read_float(void* ptr, int read_le);
+void   endian_write_double(void* ptr, double d, int write_le);
+void   endian_write_float(void* ptr, float f, int write_le);
+
+float  be_read_float(void *p);
 double be_read_double(void *p);
-void le_write_double(void *p, double d);
-void be_write_double(void *p, double d);
+void   be_write_float(void *pp, float d);
+void   be_write_double(void *pp, double d);
+
+float  le_read_float(void *p);
+double le_read_double(void *p);
+void   le_write_float(void *ptr, float f);
+void   le_write_double(void *p, double d);
+
+#define pdb_write_float be_write_float
+#define pdb_read_float be_read_float
+#define pdb_write_double be_write_double
+#define pdb_read_double be_read_double
 
 /*
  * Prototypes for generic conversion routines (util.c).

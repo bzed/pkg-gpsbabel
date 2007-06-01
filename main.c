@@ -176,6 +176,43 @@ spec_usage( const char *vec ) {
 	printf( "\n" );
 }
 
+static void
+print_extended_info(void)
+{
+	printf(
+
+#if !ZLIB_INHIBITED	/* Note polarity inverted here */
+	"ZLIB_ENABLED "
+#endif
+
+#if FILTERS_ENABLED
+	"FILTERS_ENABLED "
+#endif
+
+#if CSVFMTS_ENABLED
+	"CSVFMTS_ENABLED "
+#endif
+
+#if PDBFMTS_ENABLED 
+	"PDBFMTS_ENABLED "
+#endif
+
+#if SHAPELIB_ENABLED 
+	"SHAPELIB_ENABLED "
+#endif
+#if HAVE_LIBEXPAT
+	"HAVE_LIBEXPAT "
+#if XML_UNICODE
+	"XML_UNICODE "
+#endif
+#endif
+
+#if defined CET_WANTED 	
+	"CET_ENABLED "
+#endif
+	"\n");
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -213,6 +250,7 @@ main(int argc, char *argv[])
 	}
 	debug_mem_output( "\n" );
 #endif
+
 	if (gpsbabel_time != 0) {	/* within testo ? */
 		global_opts.inifile = inifile_init(NULL, MYNAME);
 	}
@@ -241,8 +279,11 @@ main(int argc, char *argv[])
 		}
 		
 		if (argv[argn][1] == 'V' ) {
-			 printf("\nGPSBabel Version %s\n\n", gpsbabel_version );
-			 exit(0);
+			printf("\nGPSBabel Version %s\n\n", gpsbabel_version );
+			if (argv[argn][2] == 'V') {
+				print_extended_info();
+			}
+			exit(0);
 		}
 
 		if (argv[argn][1] == '?' || argv[argn][1] == 'h') {
@@ -385,6 +426,12 @@ main(int argc, char *argv[])
 				global_opts.masked_objective |= POSNDATAMASK;
 				break;
 			case 'N':
+#if 0
+/* This option is silently eaten for compatibilty.  -N is now the
+ * default.  If you want the old behaviour, -S allows you to individually
+ * turn them on.  The -N option will be removed in 2008.
+ */ 
+
 				switch(argv[argn][2]) {
 					case 'i':
 						global_opts.no_smart_icons = 1;
@@ -397,7 +444,22 @@ main(int argc, char *argv[])
 						global_opts.no_smart_icons = 1;
 						break;
 				}
+#endif
 				
+				break;
+			case 'S':
+				switch(argv[argn][2]) {
+					case 'i':
+						global_opts.smart_icons = 1;
+						break;	
+					case 'n': 
+						global_opts.smart_names = 1;
+						break;
+					default:
+						global_opts.smart_icons = 1;
+						global_opts.smart_names = 1;
+						break;
+				}
 				break;
  			case 'x':
 				optarg = argv[argn][2]
@@ -565,8 +627,10 @@ main(int argc, char *argv[])
 
 		while (1) {
 			posn_status status;
-			waypoint *wpt = ivecs->position_ops.rd_position(&status);
+			waypoint *wpt;
+
 			status.request_terminate = 0;
+			wpt = ivecs->position_ops.rd_position(&status);
 
 			if (status.request_terminate) {
 				if (wpt) {

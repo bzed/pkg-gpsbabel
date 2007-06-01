@@ -25,6 +25,7 @@
 #include "csv_util.h"
 #include "grtcirc.h"
 #include "strptime.h"
+#include "jeeps/gpsmath.h"
 
 #define MYNAME "CSV_UTIL"
 
@@ -38,6 +39,7 @@
 #define EXCEL_TO_TIMET(a) ((a - 25569.0) * 86400.0)
 #define TIMET_TO_EXCEL(a) ((a / 86400.0) + 25569.0)
 
+#define GPS_DATUM_WGS84		118
 
 /****************************************************************************/
 /* obligatory global struct                                                 */
@@ -283,15 +285,14 @@ csv_lineparse(const char *stringstart, const char *delimited_by,
 #if CSVFMTS_ENABLED
 /*****************************************************************************/
 /* dec_to_intdeg() - convert decimal degrees to integer degreees             */
-/*    usage: i = dec_to_intdeg(31.1234, 1);                                  */
-/*           i = dec_to_intdeg(91.1234, 0);                                  */
+/*    usage: i = dec_to_intdeg(31.1234);                                     */
 /*****************************************************************************/
 static int
-dec_to_intdeg(const double d, const int islat) 
+dec_to_intdeg(const double d) 
 {
     int ideg = 0;
     
-    if (islat) {
+    if (d >= 0) {
         ideg = (2147483647) - (d * 8388608);
     } else {
         ideg = (2147483647) - (fabs(d) * 8388608) + 1; 
@@ -302,15 +303,14 @@ dec_to_intdeg(const double d, const int islat)
 
 /*****************************************************************************/
 /* intdeg_to_dec() - convert integer degrees to decimal degreees             */
-/*    usage: lat = dec_to_intdeg(ilat, 1);                                   */
-/*           lon = dec_to_intdeg(ilon, 0);                                   */
+/*    usage: lat = dec_to_intdeg(ilat);                                      */
 /*****************************************************************************/
 static double
-intdeg_to_dec(const int ideg, const int islat) 
+intdeg_to_dec(const int ideg) 
 {
     double d;
     
-    if (islat) {
+    if (ideg >= 0) {
         d = ((2147483647) - ideg) / (double)8388608;
     } else {
         d = ((-2147483647-1) + ideg) / (double)8388608;
@@ -585,6 +585,7 @@ xcsv_file_init(void)
     xcsv_file.type = ff_type_file;
 
     xcsv_file.mkshort_handle = mkshort_new_handle();
+    xcsv_file.gps_datum = GPS_DATUM_WGS84;
 }
 
 /*****************************************************************************/
@@ -688,7 +689,7 @@ sscanftime( const char *s, const char *format, const int gmt )
 			return mktime(&stm);		
 	}
 	
-	return -1;
+	return 0;
 }
 static
 time_t
@@ -834,7 +835,7 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     } else
     if (strcmp(fmp->key, "LAT_INT32DEG") == 0) {
        /* latitude as a 32 bit integer offset */
-       wpt->latitude = intdeg_to_dec((int) atof(s), 1);
+       wpt->latitude = intdeg_to_dec((int) atof(s));
     } else
     if ( strcmp(fmp->key, "LAT_HUMAN_READABLE") == 0) {
        human_to_dec( s, &wpt->latitude, &wpt->longitude, 1 );
@@ -854,7 +855,7 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     } else
     if (strcmp(fmp->key, "LON_INT32DEG") == 0) {
        /* longitude as a 32 bit integer offset  */
-       wpt->longitude = intdeg_to_dec((int) atof(s), 0);
+       wpt->longitude = intdeg_to_dec((int) atof(s));
     } else
     if ( strcmp(fmp->key, "LON_HUMAN_READABLE") == 0) {
        human_to_dec( s, &wpt->latitude, &wpt->longitude, 2 );
@@ -917,7 +918,7 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
 	wpt->creation_time += addhms(s, fmp->printfc);
     } else
     if (strcmp(fmp->key, "ISO_TIME") == 0) {
-	wpt->creation_time = xml_parse_time(s);
+	wpt->creation_time = xml_parse_time(s, NULL);
     } else
 	if (strcmp(fmp->key, "GEOCACHE_LAST_FOUND") == 0) {
 	wpt->gc_data.last_found = yyyymmdd_to_time(s);
@@ -1004,10 +1005,24 @@ xcsv_data_read(void)
     queue *elem, *tmp;
     field_map_t *fmp;
     ogue_t *ogp;
+    route_head *rte = NULL;
+    route_head *trk = NULL;
     
+    if (xcsv_file.datatype == trkdata) {
+	trk = route_head_alloc();
+	track_add_head(trk);
+    } else
+    if (xcsv_file.datatype == rtedata) {
+	rte = route_head_alloc();
+	route_add_head(rte);
+    }
+
     while ((buff = gbfgetstr(xcsv_file.xcsvfp))) {
         linecount++;
-        buff = lrtrim(buff);
+	/* Whack trailing space; leading space may matter if our field sep
+	 * is whitespace and we have leading whitespace. 
+	 */
+        rtrim(buff);
 
         /* skip over x many lines on the top for the prologue... */
         if ((xcsv_file.prologue_lines) && ((linecount - 1) <
@@ -1057,7 +1072,21 @@ xcsv_data_read(void)
                 s = csv_lineparse(NULL, xcsv_file.field_delimiter, "",
                   linecount);
             }
-            waypt_add(wpt_tmp);
+            if ((xcsv_file.gps_datum > -1) && (xcsv_file.gps_datum != GPS_DATUM_WGS84)) {
+        	double alt;
+		GPS_Math_Known_Datum_To_WGS84_M(wpt_tmp->latitude, wpt_tmp->longitude, 0.0,
+		    &wpt_tmp->latitude, &wpt_tmp->longitude, &alt, xcsv_file.gps_datum);
+	    }
+	    switch(xcsv_file.datatype) {
+		case 0:
+		case wptdata:
+		    waypt_add(wpt_tmp); break;
+		case trkdata:
+		    track_add_wpt(trk, wpt_tmp); break;
+		case rtedata: 
+		    route_add_wpt(rte, wpt_tmp); break;
+		default: ;
+	    }
         }
 
     }
@@ -1086,13 +1115,14 @@ xcsv_waypt_pr(const waypoint *wpt)
     int i;
     field_map_t *fmp;
     queue *elem, *tmp;
+    double latitude, longitude;
     
     if ( oldlon < 900 ) {
 	pathdist += radtomiles(gcdist(RAD(oldlat),RAD(oldlon),
 			RAD(wpt->latitude),RAD(wpt->longitude)));
     }
-    oldlon = wpt->longitude;
-    oldlat = wpt->latitude;
+    longitude = oldlon = wpt->longitude;
+    latitude = oldlat = wpt->latitude;
 
     if (xcsv_file.field_delimiter && strcmp(xcsv_file.field_delimiter, "\\w") == 0)
         write_delimiter = " ";
@@ -1132,12 +1162,17 @@ xcsv_waypt_pr(const waypoint *wpt)
 	    description = xstrdup(odesc);
 	    xfree(odesc);
     }
+    if ((xcsv_file.gps_datum > -1) && (xcsv_file.gps_datum != GPS_DATUM_WGS84)) {
+	double alt;
+	GPS_Math_WGS84_To_Known_Datum_M(latitude, longitude, 0.0,
+	    &latitude, &longitude, &alt, xcsv_file.gps_datum);
+    }
 
     i = 0;
     QUEUE_FOR_EACH(xcsv_file.ofield, elem, tmp) {
 	char *obuff;
-	double lat = wpt->latitude;
-	double lon = wpt->longitude;
+	double lat = latitude;
+	double lon = longitude;
 	/*
 	 * A klunky concept.   This should evaluate to true for any
 	 * field if we think we don't have realistic value for it.
@@ -1245,7 +1280,7 @@ xcsv_waypt_pr(const waypoint *wpt)
         if (strcmp(fmp->key, "LAT_INT32DEG") == 0) {
             /* latitude as an integer offset from 0 degrees */
             writebuff(buff, fmp->printfc,
-              dec_to_intdeg(lat, 1));
+              dec_to_intdeg(lat));
         } else
 	if (strcmp(fmp->key, "LAT_HUMAN_READABLE") == 0) {
 	    dec_to_human( buff, fmp->printfc, "SN", lat );
@@ -1274,7 +1309,7 @@ xcsv_waypt_pr(const waypoint *wpt)
         if (strcmp(fmp->key, "LON_INT32DEG") == 0) {
             /* longitudee as an integer offset from 0 degrees */
             writebuff(buff, fmp->printfc,
-              dec_to_intdeg(lon, 0));
+              dec_to_intdeg(lon));
         } else
 	if (strcmp(fmp->key, "LON_HUMAN_READABLE") == 0) {
 	    dec_to_human( buff, fmp->printfc, "WE", lon );
@@ -1513,9 +1548,12 @@ xcsv_data_write(void)
        gbfprintf(xcsv_file.xcsvfp, "%s", xcsv_file.record_delimiter);
     }
 
-    waypt_disp_all(xcsv_waypt_pr);
-    route_disp_all(xcsv_resetpathlen,xcsv_noop,xcsv_waypt_pr);
-    track_disp_all(xcsv_resetpathlen,xcsv_noop,xcsv_waypt_pr);
+    if ((xcsv_file.datatype == 0) || (xcsv_file.datatype == wptdata))
+	waypt_disp_all(xcsv_waypt_pr);
+    if ((xcsv_file.datatype == 0) || (xcsv_file.datatype == rtedata))
+	route_disp_all(xcsv_resetpathlen,xcsv_noop,xcsv_waypt_pr);
+    if ((xcsv_file.datatype == 0) || (xcsv_file.datatype == trkdata))
+	track_disp_all(xcsv_resetpathlen,xcsv_noop,xcsv_waypt_pr);
 
     /* output epilogue lines, if any. */
     QUEUE_FOR_EACH(&xcsv_file.epilogue, elem, tmp) {

@@ -1,7 +1,7 @@
 /*
     Access Garmin Logbook (Forerunner/Foretracker) data files.
 
-    Copyright (C) 2004 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2004, 2005, 2006, 2007  Robert Lipe, robertlipe@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 #include "defs.h"
 #include "xmlgeneric.h"
 
-static FILE *ofd;
+static gbfile *ofd;
 static waypoint *wpt_tmp;
 static route_head *trk_head;
 
@@ -75,52 +75,52 @@ glogbook_rd_deinit(void)
 static void
 glogbook_wr_init(const char *fname)
 {
-        ofd = xfopen(fname, "w", MYNAME);
+        ofd = gbfopen(fname, "w", MYNAME);
 }
 
 static void
 glogbook_wr_deinit(void)
 {
-        fclose(ofd);
+        gbfclose(ofd);
 }
 
 static void
 glogbook_waypt_pr(const waypoint *wpt)
 {	
-	fprintf(ofd, "            <Trackpoint>\n");
-	fprintf(ofd, "                <Position>\n");
-	fprintf(ofd, "                    <Latitude>%.5f</Latitude>\n", wpt->latitude);
-	fprintf(ofd, "                    <Longitude>%.5f</Longitude>\n", wpt->longitude);
+	gbfprintf(ofd, "            <Trackpoint>\n");
+	gbfprintf(ofd, "                <Position>\n");
+	gbfprintf(ofd, "                    <Latitude>%.5f</Latitude>\n", wpt->latitude);
+	gbfprintf(ofd, "                    <Longitude>%.5f</Longitude>\n", wpt->longitude);
 	if (wpt->altitude != unknown_alt) {
-		fprintf(ofd, "                    <Altitude>%.3f</Altitude>\n", wpt->altitude);
+		gbfprintf(ofd, "                    <Altitude>%.3f</Altitude>\n", wpt->altitude);
 	}
-	fprintf(ofd, "                </Position>\n");
-	fprintf(ofd, "                ");
-	xml_write_time(ofd, wpt->creation_time, "Time");
-	fprintf(ofd, "            </Trackpoint>\n");
+	gbfprintf(ofd, "                </Position>\n");
+	gbfprintf(ofd, "                ");
+	xml_write_time(ofd, wpt->creation_time, wpt->microseconds, "Time");
+	gbfprintf(ofd, "            </Trackpoint>\n");
 }
 
 static void
 glogbook_hdr( const route_head *rte)
 {
-	fprintf(ofd, "        <Track>\n");
+	gbfprintf(ofd, "        <Track>\n");
 }
 
 static void
 glogbook_ftr(const route_head *rte)
 {
-	fprintf(ofd, "        </Track>\n");
+	gbfprintf(ofd, "        </Track>\n");
 }
 
 static void
 glogbook_write(void)
 {
-	fprintf(ofd, "<?xml version=\"1.0\" ?>\n");
-	fprintf(ofd, "<History xmlns=\"http://www.garmin.com/xmlschemas/ForerunnerLogbook\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.garmin.com/xmlschemas/ForerunnerLogbook http://www.garmin.com/xmlschemas/ForerunnerLogbookv1.xsd\" version=\"1\">\n");
-	fprintf(ofd, "    <Run>\n");
+	gbfprintf(ofd, "<?xml version=\"1.0\" ?>\n");
+	gbfprintf(ofd, "<History xmlns=\"http://www.garmin.com/xmlschemas/ForerunnerLogbook\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.garmin.com/xmlschemas/ForerunnerLogbook http://www.garmin.com/xmlschemas/ForerunnerLogbookv1.xsd\" version=\"1\">\n");
+	gbfprintf(ofd, "    <Run>\n");
 	track_disp_all(glogbook_hdr, glogbook_ftr, glogbook_waypt_pr);
-	fprintf(ofd, "    </Run>\n");
-	fprintf(ofd, "</History>\n");
+	gbfprintf(ofd, "    </Run>\n");
+	gbfprintf(ofd, "</History>\n");
 }
 
 void	gl_trk_s(const char *args, const char **unused)
@@ -147,7 +147,7 @@ void	gl_trk_pnt_e(const char *args, const char **unused)
 
 void	gl_trk_utc(const char *args, const char **unused)
 {
-	wpt_tmp->creation_time = xml_parse_time(args);
+	wpt_tmp->creation_time = xml_parse_time(args, &wpt_tmp->microseconds);
 }
 
 void	gl_trk_lat(const char *args, const char **unused)

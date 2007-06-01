@@ -2,7 +2,7 @@
 
     Track manipulation filter
 
-    Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
+    Copyright (C) 2005-2006 Olaf Klein, o.b.klein@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,11 +25,13 @@
     2005-07-26: implemented move option
     2005-07-26: implemented merge option
     2005-07-29: warning fixes
-    2005-08-01: Add 'static' qualifier when we can (RJL)
-    2005-10-04: Add filterdefs to hold protos for filter functions... (RJL)
+    2005-08-01: Add 'static' qualifier when we can (robertl)
+    2005-10-04: Add filterdefs to hold protos for filter functions... (robertl)
     2005-10-04: Fix range-check max. value; exit filter, if no more tracks left
-    2006-04-06: Add fix, course, and speed options
+    2006-04-06: Add fix, course, and speed options (parkrrrr)
     2006-06-01: Add name option
+    2007-01-08: if not really needed disable check for valid timestamps
+		(based on patch from Vladimir Kondratiev)
  */
  
 #include <ctype.h>
@@ -119,6 +121,7 @@ static int track_ct = 0;
 static int track_pts = 0;
 static int opt_interval = 0;
 static int opt_distance = 0;
+static char need_time;		/* initialized within trackfilter_init */
 
 /*******************************************************************************
 * helpers
@@ -251,8 +254,8 @@ trackfilter_fill_track_list_cb(const route_head *track) 	/* callback for track_d
 	    track_pts++;
 	    
 	    wpt = (waypoint *)elem;
-	    if (wpt->creation_time == 0)
-		fatal(MYNAME "-init: Found track point without time!\n");
+	    is_fatal((need_time != 0) && (wpt->creation_time == 0),
+		MYNAME "-init: Found track point without time!");
 
 	    i++;
 	    if (i == 1) 
@@ -261,7 +264,7 @@ trackfilter_fill_track_list_cb(const route_head *track) 	/* callback for track_d
 	    if (i == track->rte_waypt_ct)
 		track_list[track_ct].last_time = wpt->creation_time;
 		
-	    if ((prev != NULL) && (prev->creation_time > wpt->creation_time))
+	    if ((need_time != 0) && (prev != NULL) && (prev->creation_time > wpt->creation_time))
 	    {
 		if (opt_merge == NULL)
 		    fatal(MYNAME "-init: Track points badly ordered (timestamp)!\n");
@@ -425,6 +428,7 @@ trackfilter_merge(void)
 		wpt = (waypoint *)elem;
 		buff[j++] = waypt_dupe(wpt);
 		track_del_wpt(track, wpt);
+		waypt_free(wpt);
 	    }
 	    if (track != master) 		/* i > 0 */
 		track_del_head(track);
@@ -471,8 +475,8 @@ trackfilter_split(void)
 	waypoint *wpt;
 	queue *elem, *tmp;
 	int i, j;
-	float interval = -1;
-	float distance = -1; 
+	double interval = -1;
+	double distance = -1; 
 
 	if (count <= 1) return;
 
@@ -483,7 +487,7 @@ trackfilter_split(void)
 
 	if (opt_interval != 0)
 	{
-	    float  base;
+	    double base;
 	    char   unit;
 	    
 	    switch(strlen(opt_split))
@@ -498,11 +502,11 @@ trackfilter_split(void)
 		    break;
 		    
 		default:
-		    i = sscanf(opt_split,"%f%c", &interval, &unit);
+		    i = sscanf(opt_split,"%lf%c", &interval, &unit);
 		    if (i == 0) 
 		    {
 			/* test reverse order */
-			i = sscanf(opt_split,"%c%f", &unit, &interval);
+			i = sscanf(opt_split,"%c%lf", &unit, &interval);
 		    }
 		    if ((i != 2) || (interval <= 0))
 		    {
@@ -537,7 +541,7 @@ trackfilter_split(void)
 
 	if (opt_distance != 0)
 	{
-	    float  base;
+	    double base;
 	    char   unit;
 	    
 	    switch(strlen(opt_sdistance))
@@ -552,11 +556,11 @@ trackfilter_split(void)
 		    break;
 		    
 		default:
-		    i = sscanf(opt_sdistance,"%f%c", &distance, &unit);
+		    i = sscanf(opt_sdistance,"%lf%c", &distance, &unit);
 		    if (i == 0) 
 		    {
 			/* test reverse order */
-			i = sscanf(opt_sdistance,"%c%f", &unit, &distance);
+			i = sscanf(opt_sdistance,"%c%lf", &unit, &distance);
 		    }
 		    if ((i != 2) || (distance <= 0))
 		    {
@@ -636,7 +640,7 @@ trackfilter_split(void)
 		
 		if (interval > 0)
 		{
-		    float tr_interval = difftime(buff[j]->creation_time,buff[i]->creation_time);
+		    double tr_interval = difftime(buff[j]->creation_time,buff[i]->creation_time);
 		    if ( tr_interval <= interval ) 
 			new_track_flag = 0;
 #ifdef TRACKF_DBG
@@ -657,8 +661,8 @@ trackfilter_split(void)
 	    }
 	    if (curr != NULL)
 	    {
-		wpt = waypt_dupe(buff[j]);
-		track_del_wpt(master, buff[j]);
+		wpt = buff[j];
+		track_del_wpt(master, wpt);
 		track_add_wpt(curr, wpt);
 		buff[j] = wpt;
 	    }
@@ -820,6 +824,7 @@ trackfilter_range(void)		/* returns number of track points left after filtering 
 		if ((wpt->creation_time < start) || (wpt->creation_time > stop))
 		{
 		    track_del_wpt(track, wpt);
+		    waypt_free(wpt);
 		    dropped++;
 		}
 	    }
@@ -847,6 +852,21 @@ trackfilter_init(const char *args)
 
 	int count = track_count();
 
+/*
+ * check time presence only if required. Options that NOT require time:
+ *
+ * - opt_title (!!! only if no format specifier is present !!!)
+ * - opt_course
+ * - opt_name
+ */
+	need_time = ( 
+	    opt_merge || opt_pack || opt_split || opt_sdistance ||
+	    opt_move || opt_start || opt_stop || opt_fix || opt_speed ||
+	    (trackfilter_opt_count() == 0)	/* do pack by default */
+	);
+	/* in case of a formated title we also need valid timestamps */
+	if ((opt_title != NULL) && (strchr(opt_title, '%') != NULL)) need_time = 1;
+	
 	track_ct = 0;
 	track_pts = 0;
 	
@@ -857,7 +877,8 @@ trackfilter_init(const char *args)
 	    /* check all tracks for time and order (except merging) */
 	
 	    track_disp_all(trackfilter_fill_track_list_cb, NULL, NULL);
-	    qsort(track_list, track_ct, sizeof(*track_list), trackfilter_init_qsort_cb);
+	    if (need_time)
+		qsort(track_list, track_ct, sizeof(*track_list), trackfilter_init_qsort_cb);
 	}
 }
 

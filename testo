@@ -94,6 +94,16 @@ ${PNAME} -i gpx -f ${TMPDIR}/gtm1.gpx -o gtm -F ${TMPDIR}/gtm.gtm
 ${PNAME} -i gtm -f ${TMPDIR}/gtm.gtm -o gpx -F ${TMPDIR}/gtm2.gpx
 compare ${TMPDIR}/gtm1.gpx ${TMPDIR}/gtm2.gpx
 bincompare ${TMPDIR}/gtm.gtm ${REFERENCE}/sample.gtm
+#
+# GTM compressed files
+# ... do the same as above but with gzipped gtm files
+#
+rm -f ${TMPDIR}/gl.gpx ${TMPDIR}/gpx.gpx
+${PNAME} -i gtm -f ${REFERENCE}/sample.gtm.gz -o gpx -F ${TMPDIR}/gtm1.gpx
+${PNAME} -i gpx -f ${TMPDIR}/gtm1.gpx -o gtm -F ${TMPDIR}/gtm.gtm.gz
+${PNAME} -i gtm -f ${TMPDIR}/gtm.gtm.gz -o gpx -F ${TMPDIR}/gtm2.gpx
+compare ${TMPDIR}/gtm1.gpx ${TMPDIR}/gtm2.gpx
+bincompare ${TMPDIR}/gtm.gtm.gz ${REFERENCE}/sample.gtm.gz
 
 # Magellan Mapsend
 rm -f ${TMPDIR}/mm.mapsend ${TMPDIR}/mm.gps
@@ -159,6 +169,9 @@ compare ${TMPDIR}/mm.gps ${TMPDIR}/gu.wpt
 ${PNAME} -t -i gpx -f ${REFERENCE}/track/tracks.gpx -o pcx -F ${TMPDIR}/pcx.trk
 ${PNAME} -t -i pcx -f ${REFERENCE}/track/pcx.trk -o pcx -F ${TMPDIR}/pcx2.trk
 compare ${TMPDIR}/pcx.trk ${TMPDIR}/pcx2.trk 
+# GPSUtil strain - hand crafted, but based on problem report.
+${PNAME} -i pcx -f reference/gpsutil-1.pcx -o pcx -F ${TMPDIR}/mm-2.pcx
+compare ${TMPDIR}/mm-2.pcx ${TMPDIR}/mm.pcx
 
 #
 # Magellan file format
@@ -783,7 +796,7 @@ ${PNAME} -i geo -f ${REFERENCE}/../geocaching.loc -o text -F ${TMPDIR}/text.out 
 # tef "TourExchangeFormat" read test
 #
 rm -f ${TMPDIR}/tef_xml*
-${PNAME} -r -i tef -f ${REFERENCE}/route/tef_xml.sample.xml -o gpx -F ${TMPDIR}/tef_xml.sample.gpx
+${PNAME} -i tef -f ${REFERENCE}/route/tef_xml.sample.xml -o gpx -F ${TMPDIR}/tef_xml.sample.gpx
 compare ${TMPDIR}/tef_xml.sample.gpx ${REFERENCE}/route/tef_xml.sample.gpx 
 
 #
@@ -805,6 +818,8 @@ ${PNAME} -i gdb,via -f ${REFERENCE}/gdb-sample.gdb -o gpx -F ${TMPDIR}/gdb-sampl
 compare ${REFERENCE}/gdb-sample.gpx ${TMPDIR}/gdb-sample.gpx
 ${PNAME} -i gpx -f ${REFERENCE}/gdb-sample.gpx -o gdb,ver=1 -F ${TMPDIR}/gdb-sample.gdb
 ${PNAME} -i gdb -f ${TMPDIR}/gdb-sample.gdb -o gpx -F ${TMPDIR}/gdb-sample.gpx
+${PNAME} -i gdb,via -f ${REFERENCE}/gdb-sample-v3.gdb -o gpx -F ${TMPDIR}/gdb-sample_v3.gpx
+compare ${REFERENCE}/gdb-sample.gpx ${TMPDIR}/gdb-sample_v3.gpx
 #
 # Because of Garmin coordinates storage gpx is not good for this test
 # compare ${REFERENCE}/gdb-sample.gpx ${TMPDIR}/gdb-sample.gpx
@@ -1147,5 +1162,29 @@ compare ${TMPDIR}/transform-rte.gpx ${REFERENCE}/transform-rte.gpx
 ${PNAME} -i gpx -f ${REFERENCE}/expertgps.gpx -x nuketypes,waypoints,tracks -x transform,wpt=rte,del=y -o gpx -F ${TMPDIR}/transform-wpt.gpx
 compare ${TMPDIR}/transform-wpt.gpx ${REFERENCE}/transform-wpt.gpx
 
+#
+# "Raymarine Waypoint File" tests
+#
+${PNAME} -i raymarine -f ${REFERENCE}/raymarine-sample.rwf -o gpx -F ${TMPDIR}/raymarine-sample.gpx
+compare ${TMPDIR}/raymarine-sample.gpx ${REFERENCE}/raymarine-sample.gpx
+${PNAME} -i gpx -f ${REFERENCE}/expertgps.gpx -o raymarine -F ${TMPDIR}/expertgps.rwf
+compare ${TMPDIR}/expertgps.rwf ${REFERENCE}/expertgps.rwf
+
+
+#
+# Alan MAp500 waypoint & route test
+#
+rm -f ${TMPDIR}/alanwpr*
+${PNAME} -i alanwpr -f ${REFERENCE}/alanwpr.wpr -o alanwpr -F ${TMPDIR}/alanwpr-new.wpr
+${PNAME} -i alanwpr -f ${TMPDIR}/alanwpr-new.wpr -o gpx -F ${TMPDIR}/alanwpr-new.gpx
+compare ${TMPDIR}/alanwpr-new.gpx ${REFERENCE}/alanwpr.gpx
+
+#
+# Alan Map500 tracklogs< test
+#
+rm -f ${TMPDIR}/alantrl*
+${PNAME} -i alantrl -f ${REFERENCE}/alantrl.trl -o alantrl -F ${TMPDIR}/alantrl-new.trl
+${PNAME} -i alantrl -f ${TMPDIR}/alantrl-new.trl -o gpx -F ${TMPDIR}/alantrl-new.gpx
+compare ${TMPDIR}/alantrl-new.gpx ${REFERENCE}/alantrl.gpx
 
 exit 0

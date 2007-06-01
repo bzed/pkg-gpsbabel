@@ -104,23 +104,20 @@ tef_header(const char *args, const char **attrv)
 {
 	const char **avp = &attrv[0];
 
-	if (global_opts.objective == rtedata)
+	route = route_head_alloc();
+	while (*avp) 
 	{
-	    route = route_head_alloc();
-	    while (*avp) 
+	    if (strcmp(avp[0], "Name") == 0) 
 	    {
-		if (strcmp(avp[0], "Name") == 0) 
-		{
-		    route->rte_name = xstrdup(avp[1]);
-		}
-		else if (strcmp(avp[0], "Software") == 0) 
-		{
-		    route->rte_desc = xstrdup(avp[1]);
-		}
-        	avp+=2;
+		route->rte_name = xstrdup(avp[1]);
 	    }
-	    route_add_head(route);
+	    else if (strcmp(avp[0], "Software") == 0) 
+	    {
+		route->rte_desc = xstrdup(avp[1]);
+	    }
+	    avp+=2;
 	}
+	route_add_head(route);
 }
 
 /*
@@ -151,8 +148,8 @@ void waypoint_final()
 	int via;
 	if (wpt_tmp == NULL) return;
 
-	via = wpt_tmp->centiseconds;
-	wpt_tmp->centiseconds = 0;
+	via = wpt_tmp->microseconds;
+	wpt_tmp->microseconds = 0;
 	
 	if (via != 0)
 	    waypt_add(wpt_tmp);
@@ -202,10 +199,9 @@ tef_item_start(const char *args, const char **attrv)
 	const char **avp = &attrv[0];
 
 	wpt_tmp = waypt_new();
-	wpt_tmp->centiseconds = 0;
 	
 	if ((waypoints == 1) || (waypoints == item_count)) 
-	    wpt_tmp->centiseconds++;
+	    wpt_tmp->microseconds++;
 	    
 	waypoints++;
 	
@@ -221,7 +217,7 @@ tef_item_start(const char *args, const char **attrv)
 	    }
 	    if ((0 == strcmp(avp[0], "ViaStation")) && (0 == strcmp(avp[1], "true")))
 	    {
-		wpt_tmp->centiseconds = 1;
+		wpt_tmp->microseconds = 1;
 	    }
 	    avp+=2;
 	}

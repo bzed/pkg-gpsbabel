@@ -3467,6 +3467,9 @@ drain_run_cmd(gpsdevh *fd)
 	    break;
 	}
     }
+
+    GPS_Packet_Del(&tra);
+    GPS_Packet_Del(&rec);
   return 0;
 }
 
@@ -3792,6 +3795,10 @@ int32 GPS_A301_Send(const char *port, GPS_PTrack *trk, int32 n)
 	    case pD302:
 		GPS_D301_Send(data,trk[i]);
 		len = 21;
+		break;
+	    case pD304:
+		GPS_D304_Send(data,trk[i]);
+		len = 26;
 		break;
 	    default:
 		GPS_Error("A301_Send: Unknown track protocol");
@@ -4189,6 +4196,36 @@ void GPS_D301_Send(UC *data, GPS_PTrack trk)
 
     *p = trk->tnew;
     
+    return;
+}
+
+void GPS_D304_Send(UC *data, GPS_PTrack trk)
+{
+    UC *p;
+
+    p = data;
+    GPS_A300_Encode(p,trk);
+    p = data+12;
+    
+    GPS_Util_Put_Float(p,trk->alt);
+    p+=sizeof(float);
+ 
+    GPS_Util_Put_Float(p, (const float) 1.0e25);
+    p+=sizeof(float);
+
+    /* Not really clear if the members below makes sense to write or not */
+
+    *p = trk->heartrate;
+    p+=sizeof(char);
+
+    *p = trk->cadence;
+    p+=sizeof(char);
+
+    *p = trk->cadence > 0 ? trk->cadence : 0xff;
+    p+=sizeof(char);
+
+    *p = trk->tnew;
+
     return;
 }
 
@@ -5967,18 +6004,25 @@ int32 GPS_A800_Get(gpsdevh **fd, GPS_PPvt_Data *packet)
     GPS_PPacket tra;
     GPS_PPacket rec;
 
-
     if(!(tra = GPS_Packet_New()) || !(rec = GPS_Packet_New()))
 	return MEMORY_ERROR;
     
     
-    if(!GPS_Packet_Read(*fd, &rec))
+    if(!GPS_Packet_Read(*fd, &rec)) {
+	GPS_Packet_Del(&rec);
+	GPS_Packet_Del(&tra);
 	return gps_errno;
+    }
     
-    if(!GPS_Send_Ack(*fd, &tra, &rec))
+    if(!GPS_Send_Ack(*fd, &tra, &rec)) {
+	GPS_Packet_Del(&rec);
+	GPS_Packet_Del(&tra);
 	return gps_errno;
+    }
 
     if (rec->type != LINK_ID[gps_link_type].Pid_Pvt_Data) {
+	GPS_Packet_Del(&rec);
+	GPS_Packet_Del(&tra);
 	return 0;
     }
     
@@ -5989,6 +6033,8 @@ int32 GPS_A800_Get(gpsdevh **fd, GPS_PPvt_Data *packet)
 	break;
     default:
 	GPS_Error("A800_GET: Unknown pvt protocol");
+	GPS_Packet_Del(&rec);
+	GPS_Packet_Del(&tra);
 	return PROTOCOL_ERROR;
     }
 

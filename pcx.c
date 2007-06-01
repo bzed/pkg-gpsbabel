@@ -2,7 +2,7 @@
     Access to Garmin PCX5 files.
     Format described in: http://www.garmin.com/manuals/PCX5_OwnersManual.pdf
 
-    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2006 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 
 #include "defs.h"
 #include "garmin_tables.h"
+#include "csv_util.h"
 #include <ctype.h>
 
 static gbfile *file_in, *file_out;
@@ -30,7 +31,12 @@ static short_handle mkshort_handle2;	/* for track and route names */
 static char *deficon = NULL;
 static char *cartoexploreur;
 static int read_as_degrees;
+static int read_gpsu;
 static int route_ctr;
+static int comment_col = 60;  /* This has a default */
+static int sym_col;
+static int lat_col;
+static int lon_col;
 
 #define MYNAME "PCX"
 
@@ -75,9 +81,8 @@ wr_deinit(void)
 static void
 data_read(void)
 {
-	char name[7], desc[40];
+	char name[7], desc[41];
 	double lat,lon;
-	char latdir, londir;
 	long alt; 
 	int symnum;
 	char date[10];
@@ -90,8 +95,12 @@ data_read(void)
 	route_head *route = NULL;
 	int n; 
 	char lathemi, lonhemi;
+	char tbuf[20];
+	char nbuf[20];
+	int points;
 
 	read_as_degrees  = 0;
+	points = 0;
 
 	while ((buff = gbfgetstr(file_in)))
 	{
@@ -100,19 +109,40 @@ data_read(void)
 		
 		switch (ibuf[0]) {
 		case 'W': 
-			sscanf(ibuf, "W  %6c %c%lf %c%lf %s %s %ld", 
-				name, &latdir, &lat, &londir, &lon, 
-				date, time, &alt);
+			time[0] = 0;
+			date[0] = 0;
+			desc[0] = 0;
+			alt = -9999;
+			sscanf(ibuf, "W  %6c %s %s %s %s %ld", 
+				name, tbuf, nbuf, date, time, &alt);
 			if (alt == -9999) {
 				alt = unknown_alt;
 			}
-			sscanf(&ibuf[60], "%40c", 
-				desc);
+
+			if (comment_col) {
+				strncpy(desc, &ibuf[comment_col], sizeof(desc)-1);
+			} else {
+				desc[0] = 0;
+			}
+
+
 			symnum = 18;
-			sscanf(&ibuf[116], "%d", 
-				&symnum);
-			desc[sizeof(desc)-1] = '\0';
+			if (sym_col) {
+				symnum = atoi(&ibuf[sym_col]);
+			}
+
+			// If we have explicit columns for lat and lon,
+			// copy those entire words (warning: no spaces) 
+			// into the respective coord buffers.
+			if (lat_col) {
+				sscanf(tbuf, "%s", ibuf + lat_col);
+			}
+			if (lon_col) {
+				sscanf(nbuf, "%s", ibuf + lon_col);
+			}
+
 			name[sizeof(name)-1] = '\0';
+			desc[sizeof(desc)-1] = '\0';
 			
 			wpt_tmp = waypt_new();
 			wpt_tmp->altitude = alt;
@@ -126,18 +156,24 @@ data_read(void)
 			}
 			wpt_tmp->icon_descr = gt_find_desc_from_icon_number(symnum, PCX, NULL);
 
-			if (latdir == 'S') lat = -lat;
-			if (londir == 'W') lon = -lon;
-			if (read_as_degrees) {
+			if (read_as_degrees || read_gpsu) {
+				human_to_dec(tbuf, &lat, &lon, 1);
+				human_to_dec(nbuf, &lat, &lon, 2);
+				
 				wpt_tmp->longitude = lon;
 				wpt_tmp->latitude = lat;
 			} else {
+				lat = atof(&tbuf[1]);
+				lon = atof(&nbuf[1]);
+				if (tbuf[0] == 'S') lat = -lat;
+				if (nbuf[0] == 'W') lon = -lon;
 				wpt_tmp->longitude = ddmm2degrees(lon);
 				wpt_tmp->latitude = ddmm2degrees(lat);
 			}
 			if (route != NULL)
 				route_add_wpt(route, waypt_dupe(wpt_tmp));
 			waypt_add(wpt_tmp);
+			points++;
 			break;
 		case 'H':
 			/* Garmap2 has headers 
@@ -145,14 +181,20 @@ data_read(void)
   			everything else is 
 			  H(2 chars)TN(tracknane\0)
   			*/
-			if (ibuf[3] == 'L' && ibuf[4] == 'A') {
-				track = route_head_alloc();
-				track->rte_name = xstrdup("track");
-				track_add_head(track);
-			} else if (ibuf[3] == 'T' && ibuf[4] == 'N') {
-				track = route_head_alloc();
-				track->rte_name = xstrdup(&ibuf[6]);
-				track_add_head(track);
+			if (points > 0) {
+				track = NULL;
+				points = 0;
+			}
+			if (track == NULL) {
+				if (ibuf[3] == 'L' && ibuf[4] == 'A') {
+					track = route_head_alloc();
+					track->rte_name = xstrdup("track");
+					track_add_head(track);
+				} else if (ibuf[3] == 'T' && ibuf[4] == 'N') {
+					track = route_head_alloc();
+					track->rte_name = xstrdup(&ibuf[6]);
+					track_add_head(track);
+				}
 			}
 			break;
 		case 'R':
@@ -206,12 +248,47 @@ data_read(void)
 				track_add_head(track);
 			}
 			track_add_wpt(track, wpt_tmp);
+			points++;
 			break;
 		case 'U': 
  			read_as_degrees = ! strncmp("LAT LON DEG", ibuf + 3, 11);
+			if (strstr(ibuf, "UTM")) {
+				fatal (MYNAME ": UTM is not supported.\n");
+			}
 			break;
+		// GPSU is apparently PCX but with a different definition 
+		// of "LAT LON DM" - unlike the other, it actually IS decimal
+		// minutes.
+		case 'I':
+			read_gpsu = ! (strstr(ibuf, "GPSU") == NULL) ;
+			break;
+		// This is a format specifier.  Use this line to figure out
+		// where our other columns start.
+		case 'F': {
+			int col;
+			char *i = ibuf;
+			sym_col = 0;
+
+			for (col = 0, i = ibuf; *i; col++, i++) {
+				if (0 == case_ignore_strncmp(i, "comment", 7)) {
+					comment_col = col;
+				}
+				if (0 == case_ignore_strncmp(i, "symbol", 6)) {
+					sym_col = col;
+				}
+				if (0 == case_ignore_strncmp(i, "latitude", 8)) {
+					lat_col = col;
+				}
+				if (0 == case_ignore_strncmp(i, "longitude", 9)) {
+					lon_col = col;
+				}
+			}
+		}
+		break;
 		default:
+			break;
 			;
+		
 		}
 	}
 }

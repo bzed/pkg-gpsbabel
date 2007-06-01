@@ -42,8 +42,10 @@ static char *snwhiteopt = NULL;
 static char *deficon = NULL;
 static char *category = NULL;
 
+#define MILITANT_VALID_WAYPT_CHARS "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
 /* Technically, even this is a little loose as spaces arent allowed */
-static char valid_waypt_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789";
+static const char *valid_waypt_chars = MILITANT_VALID_WAYPT_CHARS " ";
 
 static
 arglist_t garmin_args[] = {
@@ -133,6 +135,14 @@ rw_init(const char *fname)
 				case 130:	/* Garmin Etrex (yellow) */
 					receiver_short_length = 6;
 					break;
+				case 295:
+					/* eTrex (yellow, firmware v. 3.30) */
+					receiver_short_length = 6;
+					valid_waypt_chars =
+					  MILITANT_VALID_WAYPT_CHARS " +-";
+					setshort_badchars(mkshort_handle, "\"$.,'!");
+					break;
+
 				case 155:	/* Garmin V */
 				case 404:	/* SP2720 */
 					receiver_short_length = 20;
@@ -284,6 +294,7 @@ waypt_read(void)
 		waypt_add(wpt_tmp);
 		GPS_Way_Del(&way[i]);
 	}
+	xfree(way);
 }
 
 static
@@ -435,7 +446,7 @@ pvt2wpt(GPS_PPvt_Data pvt, waypoint *wpt)
 		- pvt->leap_scnds;
 	wptimes = floor(wptime);
 	wpt->creation_time = wptimes;
-	wpt->centiseconds = 100.0 * (wptime - wptimes);
+	wpt->microseconds = 1000000.0 * (wptime - wptimes);
 	
 	/*
 	 * The Garmin spec fifteen different models that use a different 
@@ -476,6 +487,8 @@ pvt_read(posn_status *posn_status)
 
 	if (GPS_Command_Pvt_Get(&pvt_fd, &pvt)) {
 		pvt2wpt(pvt, wpt);
+		GPS_Pvt_Del(&pvt);
+
 		wpt->shortname = xstrdup("Position");
 
 		if (gps_errno && posn_status) {
@@ -493,6 +506,7 @@ pvt_read(posn_status *posn_status)
 		fatal(MYNAME ": Fatal error reading position.\n");
 	}
 
+	waypt_free(wpt);
 	GPS_Pvt_Del(&pvt);
 
 	return NULL;
@@ -558,16 +572,18 @@ waypt_write_cb(GPS_PWay *way)
 }
 
 /* 
- * If we're not using smart icons, try to put the cache info in the
+ * If we're using smart names, try to put the cache info in the
  * description.
  */
 const char *
 get_gc_info(waypoint *wpt)
 {
-	if (global_opts.no_smart_icons) {
+	if (global_opts.smart_names) {
 		if (wpt->gc_data.type == gt_virtual) return  "V ";
 		if (wpt->gc_data.type == gt_unknown) return  "? ";
 		if (wpt->gc_data.type == gt_multi) return  "Mlt ";
+		if (wpt->gc_data.type == gt_earth) return  "EC ";
+		if (wpt->gc_data.type == gt_event) return  "Ev ";
 		if (wpt->gc_data.container == gc_micro) return  "M ";
 		if (wpt->gc_data.container == gc_small) return  "S ";
 	}
@@ -622,7 +638,7 @@ waypoint_write(void)
 		}
 		way[i]->ident[sizeof(way[i]->ident)-1] = 0;
 
-		if (!global_opts.no_smart_icons && 
+		if (global_opts.smart_names && 
 		     wpt->gc_data.diff && wpt->gc_data.terr) {
 	                snprintf(obuf, sizeof(obuf), "%s%d/%d %s", 
 					get_gc_info(wpt),

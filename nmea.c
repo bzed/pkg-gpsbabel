@@ -155,6 +155,7 @@ static waypoint * curr_waypt = NULL;
 static waypoint * last_waypt = NULL;
 static void * gbser_handle;
 static const char *posn_fname;
+static queue pcmpt_head;
 
 static int without_date;	/* number of created trackpoints without a valid date */
 static struct tm opt_tm;	/* converted "date" parameter */
@@ -216,6 +217,7 @@ nmea_rd_init(const char *fname)
 {
 	curr_waypt = NULL;
 	last_waypt = NULL;
+	QUEUE_INIT(&pcmpt_head);
 
  	if (getposnarg) {
  		getposn = 1;
@@ -292,18 +294,18 @@ nmea_set_waypoint_time(waypoint *wpt, struct tm *time)
 	if (time->tm_year == 0)
 	{
 		wpt->creation_time = ((((time_t)time->tm_hour * 60) + time->tm_min) * 60) + time->tm_sec;
-		if (wpt->centiseconds == 0)
+		if (wpt->microseconds == 0)
 		{
-			 wpt->centiseconds++;
+			 wpt->microseconds++;
 			 without_date++;
 		}
 	}
 	else
 	{
 		wpt->creation_time = mkgmtime(time);
-		if (wpt->centiseconds != 0)
+		if (wpt->microseconds != 0)
 		{
-			wpt->centiseconds = 0;
+			wpt->microseconds = 0;
 			without_date--;
 		}
 	}
@@ -315,7 +317,7 @@ gpgll_parse(char *ibuf)
 	double latdeg, lngdeg;
 	char lngdir, latdir;
 	int hms;
-	char valid;
+	char valid = 0;
 	waypoint *waypt;
 
 	if (trk_head == NULL) {
@@ -349,6 +351,9 @@ gpgll_parse(char *ibuf)
 	if (lngdir == 'W') lngdeg = -lngdeg;
 	waypt->longitude = ddmm2degrees(lngdeg);
 
+	if (curr_waypt && (read_mode == rm_serial)) {
+		waypt_free(curr_waypt);
+	}
 	curr_waypt = waypt;
 }
 
@@ -359,8 +364,8 @@ gpgga_parse(char *ibuf)
 	char lngdir, latdir;
 	double hms;
 	double alt;
-	int fix;
-	int nsats;
+	int fix = fix_unknown;
+	int nsats = 0;
 	double hdop;
 	char altunits;
 	waypoint *waypt;
@@ -423,6 +428,9 @@ gpgga_parse(char *ibuf)
 			break;
 	}
 
+	if (curr_waypt && (read_mode == rm_serial)) {
+		waypt_free(curr_waypt);
+	}
 	curr_waypt = waypt;
 }
 
@@ -494,6 +502,9 @@ gprmc_parse(char *ibuf)
 	if (lngdir == 'W') lngdeg = -lngdeg;
 	waypt->longitude = ddmm2degrees(lngdeg);
 
+	if (curr_waypt && (read_mode == rm_serial)) {
+		waypt_free(curr_waypt);
+	}
 	curr_waypt = waypt;
 }
 
@@ -617,6 +628,95 @@ gpvtg_parse(char *ibuf)
 	
 }
 
+/*
+ *  AVMAP EKP-IV Tracks - a proprietary (and very weird) extended NMEA.
+ * https://sourceforge.net/tracker/?func=detail&atid=489478&aid=1640814&group_id=58972 
+ */
+static 
+double pcmpt_deg(int d)
+{
+	int deg;
+	double minutes; 
+
+	deg = d  / 100000;
+	minutes = (((d / 100000.0) - deg) * 100) / 60.0;
+	return (double) deg + minutes;
+}
+
+void
+pcmpt_parse(char *ibuf)
+{
+	int i, j1, j2, j3, j4, j5, j6;
+	int lat, lon;
+	char altflag, u1, u2;
+	float alt, f1, f2;
+	char coords[20] = {0};
+	int dmy, hms;
+
+	dmy = hms = 0;
+
+	sscanf(ibuf,"$PCMPT,%d,%d,%d,%c,%f,%d,%[^,],%d,%f,%d,%f,%c,%d,%c,%d",
+		&j1, &j2, &j3, &altflag, &alt, &j4, (char *) &coords, 
+			&j5, &f1, &j6, &f2, &u1, &dmy, &u2, &hms);
+
+	if (altflag == 'D' && curr_waypt && alt > 0) {
+		curr_waypt->altitude =  alt /*+ 500*/;
+		return;
+	}
+
+	/* 
+	 * There are a couple of different second line records, but we
+	 * don't care about them.
+	 */
+	if (j2 != 1) {
+		return;
+	}
+
+	sscanf(coords, "%d%n", &lat, &i);
+	if (coords[i] == 'S') lat = -lat;
+	sscanf(coords + i + 1, "%d%n", &lon, &i);
+	if (coords[i] == 'W') lon= -lon;
+
+	if (lat || lon) {
+		curr_waypt = waypt_new();
+		curr_waypt->longitude = pcmpt_deg(lon);
+		curr_waypt->latitude = pcmpt_deg(lat);
+
+		tm.tm_sec = (long) hms % 100;
+		hms = hms / 100;
+		tm.tm_min = (long) hms % 100;
+		hms = hms / 100;
+		tm.tm_hour = (long) hms % 100;
+
+		tm.tm_year = dmy % 10000 - 1900;
+		dmy = dmy / 10000;
+		tm.tm_mon  = dmy % 100 - 1;
+		dmy = dmy / 100;
+		tm.tm_mday = dmy;
+		nmea_set_waypoint_time(curr_waypt, &tm);
+		ENQUEUE_HEAD(&pcmpt_head, &curr_waypt->Q);
+	} else {
+		queue *elem, *tmp;
+		route_head *trk_head;
+
+		if (QUEUE_EMPTY(&pcmpt_head)) {
+			return;
+		}
+		
+		/* 
+		 * Since we oh-so-cleverly inserted points at the head,
+		 * we can rip through the queue forward now to get our
+`		 * handy-dandy reversing effect.
+		 */
+		trk_head = route_head_alloc();
+		track_add_head(trk_head);
+		QUEUE_FOR_EACH(&pcmpt_head, elem, tmp) {
+			waypoint *wpt = (waypoint *) dequeue(elem);
+			track_add_wpt(trk_head, wpt);
+		}
+	}
+}
+
 static void
 nmea_fix_timestamps(route_head *track)
 {
@@ -667,11 +767,11 @@ nmea_fix_timestamps(route_head *track)
 		{
 			waypoint *wpt = (waypoint *)elem;
 			
-			if (wpt->centiseconds != 0)
+			if (wpt->microseconds != 0)
 			{
 				time_t dt;
 				
-				wpt->centiseconds = 0;		/* reset flag */
+				wpt->microseconds = 0;		/* reset flag */
 
 				dt = (prev / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 				wpt->creation_time += dt;
@@ -752,6 +852,9 @@ nmea_parse_one_line(char *ibuf)
 	if (0 == strncmp(tbuf, "$GPZDA,",7)) {
 		gpzda_parse(tbuf);
 	} else
+	if (0 == strncmp(tbuf, "$PCMPT,", 7)) {
+		pcmpt_parse(tbuf);
+	} else
 	if (dogpvtg && (0 == strncmp(tbuf, "$GPVTG,",7))) {
 		gpvtg_parse(tbuf); /* speed and course */
 	} else
@@ -821,6 +924,8 @@ nmea_rd_posn_init(const char *fname)
 		fatal(MYNAME ": Could not open '%s' for position tracking.\n", fname);
 	}
 
+	gbser_flush(gbser_handle);
+
 	if (opt_baud) {
 		if (!gbser_set_speed(gbser_handle, atoi(opt_baud))) {
 			fatal(MYNAME ": Unable to set baud rate %s\n", opt_baud);
@@ -829,12 +934,67 @@ nmea_rd_posn_init(const char *fname)
 	posn_fname = fname;
 }
 
+static void
+safe_print(int cnt, const char *b)  
+{
+	int i;
+	for (i = 0; i < cnt; i++) {
+		char c = isprint(b[i]) ? b[i] : '.';
+		fputc(c, stderr);
+	}
+}
+
+static void reset_sirf_to_nmea(int br);
+
+static 
+int hunt_sirf(void)
+{
+	/* Try to place the common BR's first to speed searching */
+	static int br[] = {38400, 9600, 57600, 115200, 19200, 4800, -1};
+	static int *brp = &br[0];
+	char ibuf[1024];
+
+	for (brp = br; *brp > 0; brp++) {
+		int rv;
+		if (global_opts.debug_level > 1) {
+			fprintf(stderr, "Trying %d\n", *brp);
+		}
+
+		/* 
+		 * Cycle our port's data speed and spray the "change to NMEA
+		 * mode to the device.
+		 */
+		gbser_set_speed(gbser_handle, *brp);
+		reset_sirf_to_nmea(*brp);
+
+		rv = gbser_read_line(gbser_handle, ibuf, sizeof(ibuf), 
+			1000, 0x0a, 0x0d);
+		/* 
+		 * If we didn't get a read error but did get a string that
+	 	 * started with a dollar sign, we're probably in NMEA mode 
+		 * now.
+		 */
+		if ((rv > -1) && (strlen(ibuf) > 0) && ibuf[0] == '$') {
+			return 1;
+		}
+
+		/*
+		 * If nothing was received, it's not a sirf part.  Fast exit.
+		 */
+		if (rv < 0) {
+			return 0;
+		}
+	}
+	return 0;
+}
+
 static waypoint *
 nmea_rd_posn(posn_status *posn_status)
 {
 	char ibuf[1024];
 	static double lt = -1;
 	int i;
+	int am_sirf = 0;
 
 	/*
 	 * Read a handful of sentences, collecting the best info we
@@ -842,21 +1002,40 @@ nmea_rd_posn(posn_status *posn_status)
 	 * about to restart and thus the one we're collecting isn't going
 	 * to get any better than we now have) hand that back to the caller.
 	 */
+	
 	for (i = 0; i < 10; i++) {
 		int rv;
 		ibuf[0] = 0;
 		rv = gbser_read_line(gbser_handle, ibuf, sizeof(ibuf), 2000, 0x0a, 0x0d);
 		if (global_opts.debug_level > 1) {
-			warning( "READ: %s\n", ibuf);
+			safe_print(strlen(ibuf), ibuf);
 		}
 		if (rv < 0) {
+			if (am_sirf == 0) {
+				if (global_opts.debug_level > 1) {
+					warning(MYNAME ": Attempting sirf mode.\n");
+				}
+				/* This is tacky, we have to change speed
+				 * to 9600bps to tell it to speak NMEA at
+				 * 4800.
+				 */
+				am_sirf = hunt_sirf();
+				if (am_sirf) {
+					i = 0;
+					continue;
+				}
+			}
 			fatal(MYNAME ": No data received on %s.\n", posn_fname);
 		}
 		nmea_parse_one_line(ibuf);
 		if (lt != last_read_time) {
 			if (last_read_time) {
+				waypoint *w = curr_waypt;
+
 				lt = last_read_time;
-				return waypt_dupe(curr_waypt);
+				curr_waypt = NULL;
+
+				return w;
 			}
 		}
 	}
@@ -1036,3 +1215,54 @@ ff_vecs_t nmea_vecs = {
 	CET_CHARSET_ASCII, 0,	/* CET-REVIEW */
 	{ nmea_rd_posn_init, nmea_rd_posn, nmea_rd_deinit, NULL, NULL, NULL }
 };
+
+/*
+ * If we later decide to implement a "real" Sirf module, this code should
+ * go there.  For now, we try a kind of heavy handed thing - if we don't
+ * see NMEA-isms from the device, we'll go on the premise that it MAY be
+ * a SiRF Star device and send it the "speak NMEA, please" command.
+ */
+
+static void
+sirf_write(unsigned char *buf)
+{
+	int i, chksum = 0;
+	int len = buf[2] << 8 | buf[3];
+
+	for (i = 0; i < len; i++) {
+		chksum += buf[4 + i];
+	}
+	chksum &= 0x7fff;
+
+	buf[len + 4] = chksum  >> 8;
+	buf[len + 5] = chksum  & 0xff;
+
+	gbser_write(gbser_handle, buf, len + 8);  /* 4 at front, 4 at back */
+}
+
+static
+void reset_sirf_to_nmea(int br)
+{
+	static unsigned char pkt[] = {0xa0, 0xa2, 0x00, 0x18,
+		0x81, 0x02,
+		0x01, 0x01, /* GGA */
+		0x00, 0x00, /* suppress GLL */
+		0x01, 0x00, /* suppress GSA */
+		0x05, 0x00, /* suppress GSV */
+		0x01, 0x01, /* use RMC for date*/
+		0x00, 0x00, /* suppress VTG */
+		0x00, 0x01, /* output rate */
+		0x00, 0x01, /* unused recommended values */
+		0x00, 0x01, 
+		0x00, 0x01, /* ZDA */
+		0x12, 0xc0, /* 4800 bps */
+		0x00, 0x00,  /* checksum */
+		0xb0, 0xb3}; /* packet end */
+	/* repopulate bit rate */
+	pkt[26] = br >> 8;
+	pkt[27] = br & 0xff;
+
+	sirf_write(pkt);
+	gb_sleep(250 * 1000);
+	gbser_flush(gbser_handle);
+}

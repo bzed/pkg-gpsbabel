@@ -288,19 +288,29 @@ xfputs(const char *errtxt, const char *s, FILE *stream)
 
 /*
  * Allocate a string using a format list with optional arguments
+ * Returns -1 on error.
+ * If return value is anything else, *strp will be populated with an
+ * allocated string containging the formatted buffer.
+ * 
+ * Freeing that is the responsbility of the caller.
  */
 
 int
-xvasprintf(char **strp, const char *fmt, va_list args)
+xasprintf(char **strp, const char *fmt, ...)
 {
-	/* From http://perfec.to/vsnprintf/pasprintf.c */
+/* From http://perfec.to/vsnprintf/pasprintf.c */
 /* size of first buffer malloc; start small to exercise grow routines */
-#define	FIRSTSIZE	64
+#ifdef DEBUG_MEM
+# define	FIRSTSIZE	64
+#else
+# define	FIRSTSIZE	1
+#endif
 	char *buf = NULL;
 	int bufsize;
 	char *newbuf;
 	size_t nextsize = 0;
 	int outsize;
+	va_list args;
 
 	bufsize = 0;
 	for (;;) {
@@ -309,7 +319,7 @@ xvasprintf(char **strp, const char *fmt, va_list args)
 				*strp = NULL;
 				return -1;
 			}
-			bufsize = 1;
+			bufsize = FIRSTSIZE;
 		} else if ((newbuf = xrealloc(buf, nextsize)) != NULL) {
 			buf = newbuf;
 			bufsize = nextsize;
@@ -319,8 +329,10 @@ xvasprintf(char **strp, const char *fmt, va_list args)
 			return -1;
 		}
 
+		va_start(args, fmt);
 		outsize = vsnprintf(buf, bufsize, fmt, args);
-
+		va_end(args);
+		
 		if (outsize == -1) {
 			/* Clear indication that output was truncated, but no
 			 * clear indication of how big buffer needs to be, so
@@ -357,22 +369,16 @@ xvasprintf(char **strp, const char *fmt, va_list args)
 			break;
 		}
 	}
+	/* Prevent us from allocating millions of unused bytes. */
+	/* O.K.: I think this is not the final solution. */
+	if (bufsize > outsize + 1) {
+		const unsigned ptrsz = sizeof(buf);
+		if (((bufsize + ptrsz + 1) / ptrsz) > ((outsize + ptrsz + 1) / ptrsz))
+			buf = xrealloc(buf, outsize + 1);	
+
+	}
 	*strp = buf;
-	return 0;
-}
-
-int
-xasprintf(char **strp, const char *fmt, ...)
-{
-	va_list args;
-	int rval;
-
-	va_start(args, fmt);
-	rval = xvasprintf(strp, fmt, args);
-	va_end(args);
-
-	return rval;
-	
+	return outsize;
 }
 
 /* 
@@ -417,6 +423,9 @@ char *
 lrtrim(char *buff)
 {
 	char *c;
+
+	if (buff[0] == '\0')
+		return buff;
 
 	c = buff + strlen(buff);
 	while ((c >= buff) && ((unsigned char)*c <= ' ')) *c-- = '\0';
@@ -830,7 +839,7 @@ month_lookup(const char *m)
 const char *
 get_cache_icon(const waypoint *waypointp)
 {
-	if (global_opts.no_smart_icons)
+	if (!global_opts.smart_icons)
 		return NULL;
 
 	/*
@@ -884,6 +893,29 @@ endian_read_double(void* ptr, int read_le)
   return ret;
 }
 
+float
+endian_read_float(void* ptr, int read_le)
+{
+  float ret;
+  char r[4];
+  void *p;
+  int i;
+  
+  if ( i_am_little_endian == read_le ) {
+	  p = ptr;
+  }
+  else {
+	  for (i = 0; i < 4; i++)
+	  {
+		r[i] = ((char*)ptr)[3-i];
+	  }
+	  p = r;
+  }
+  
+  memcpy(&ret, p, 4);
+  return ret;
+}
+
 void
 endian_write_double(void* ptr, double d, int write_le)
 {
@@ -902,23 +934,48 @@ endian_write_double(void* ptr, double d, int write_le)
   }
 }
 
-double
-pdb_read_double( void *ptr ) {return endian_read_double(ptr, 0);}
+void
+endian_write_float(void* ptr, float f, int write_le)
+{
+  char *r = (char *)(void *)&f;
+  int i;
+  char *optr = ptr;
+
+  if ( i_am_little_endian == write_le ) {
+	  memcpy( ptr, &f, 4);
+  }
+  else {
+	  for (i = 0; i < 4; i++)
+	  {
+		*optr++ = r[3-i];
+	  }
+  }
+}
+
+float
+le_read_float( void *ptr ) {return endian_read_float(ptr, 1);}
+
+void
+le_write_float( void *ptr, float f ) {endian_write_float(ptr,f,1);}
+
+float
+be_read_float( void *ptr ) {return endian_read_float(ptr, 0);}
+
+void
+be_write_float( void *ptr, float f ) {endian_write_float(ptr,f,0);}
 
 double 
 le_read_double( void *ptr ) {return endian_read_double(ptr,1);}
+
+void
+le_write_double( void *ptr, double d ) {endian_write_double(ptr,d,1);}
 
 double 
 be_read_double( void *ptr ) {return endian_read_double(ptr,0);}
 
 void
-pdb_write_double( void *ptr, double d ) {endian_write_double(ptr,d,0);}
-
-void
-le_write_double( void *ptr, double d ) {endian_write_double(ptr,d,1);}
-
-void 
 be_write_double( void *ptr, double d ) {endian_write_double(ptr,d,0);}
+
 
 /* Magellan and PCX formats use this DDMM.mm format */
 double ddmm2degrees(double pcx_val) {
@@ -1569,4 +1626,18 @@ char *xml_attribute( xml_tag *tag, char *attrname )
 		}
 	}
 	return result;
+}
+
+char *get_filename(const char *fname)
+{
+	char *res, *cb, *cs;
+	
+	cb = strrchr(fname, '\\');
+	cs = strrchr(fname, '/');
+	
+	if (cb == NULL) res = cs;
+	else if (cs == NULL) res = cb;
+	else res = (cs > cb) ? cs : cb;
+	
+	return (res == NULL) ? (char *) fname : ++res;
 }

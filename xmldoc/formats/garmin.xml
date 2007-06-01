@@ -10,8 +10,9 @@
 </para>
 
 <para> 
-	Supported models on USB include 
-	<simplelist columns="5">
+	Supported Garmin GPS receivers with USB include 
+	<simplelist columns="4">
+<member>Astro</member> 
 <member>Edge 205</member> 
 <member>Edge 305</member> 
 <member>eTrex Legend C</member> 
@@ -25,6 +26,7 @@
 <member>Forerunner 305</member>  
 <member>Foretrex 201</member>
 <member>Foretrex 301</member> 
+<member>GPS 18<footnote id="posnonly"><para>This model does not support transfer of waypoints, tracks, or routes, but may be used with the <link linkend="tracking">realtime tracking</link> feature.</para></footnote></member>
 <member>GPSMAP 195</member> 
 <member>GPSMAP 276C</member> 
 <member>GPSMAP 295</member> 
@@ -43,10 +45,13 @@
 <member>GPSMAP 76CX</member> 
 <member>GPSMAP 96</member> 
 <member>GPSMAP 96C</member> 
-<member>Nuvi 300<footnote id="gpx"><para>This unit uses GPX format, not Garmin protocol.  Therefore one should communicate with it by reading and writing GPX files instead of using this format.</para></footnote></member>
+<member>Nuvi 300<footnote id="gpx"><para>This unit uses GPX format, not Garmin protocol.  Therefore one should communicate with it by reading and writing GPX files instead of using this format.  Members of this class of products do not support realtime positioning protocol.</para></footnote></member>
 <member>Nuvi 310<footnoteref linkend="gpx"/></member>
 <member>Nuvi 350<footnoteref linkend="gpx"/></member>
-<member>Nuvi 360<footnoteref linkend="gpx"/></member>
+<member>Nuvi 370<footnoteref linkend="gpx"/></member>
+<member>Nuvi 660<footnoteref linkend="gpx"/></member>
+<member>Nuvi 670<footnoteref linkend="gpx"/></member>
+<member>Nuvi 680<footnoteref linkend="gpx"/></member>
 <member>Quest</member>
 <member>Quest II</member>
 <member>StreetPilot 2610</member> 
@@ -64,14 +69,22 @@
 <member>StreetPilot c510<footnoteref linkend="gpx"/></member>
 <member>StreetPilot c530<footnoteref linkend="gpx"/></member>
 <member>StreetPilot c550<footnoteref linkend="gpx"/></member>
+<member>StreetPilot c580<footnoteref linkend="gpx"/></member>
 <member>StreetPilot i2</member>
 <member>StreetPilot i3</member>
 <member>StreetPilot i5</member>
+<member>Zumo 450<footnoteref linkend="gpx"/></member>
+<member>Zumo 550<footnoteref linkend="gpx"/></member>
+</simplelist>
+</para>
+<para>the following Bluetooth Garmin products:
+<simplelist columns="4">
+<member>GPS 10<footnoteref linkend="posnonly"/></member>
 </simplelist>
 </para>
 
-<para>and most serial units including:
-<simplelist columns="5">
+<para>and most serial Garmin GPS receivers including:
+<simplelist columns="4">
 <member>eMap</member>
 <member>eTrex Camo</member>
 <member>eTrex Legend</member>
@@ -114,33 +127,33 @@
 </para>
 
 <para> 
-	To communicate with a unit serially, use the name of that
-	serial port such as "COM1" or  "/dev/cu.serial".  
+	To communicate with a Garmin GPS serially, use the name of that
+	serial port such as <filename>COM1</filename> or  <filename>/dev/cu.serial</filename>.  
 </para>
 <para>
-	To communicate via USB use "usb:" as the filename on all OSes.   
-	Thus, to read the waypoints from a Garmin USB unit and write 
+	To communicate via USB use <filename>usb:</filename> as the filename on all OSes.   
+	Thus, to read the waypoints from a Garmin USB receiver and write 
 	them to a GPX file:
-
-      <screen format="linespecific">gpsbabel -i garmin -f usb: -o gpx -F blah.gpx</screen>
-
 </para>
+
+      <para><userinput>gpsbabel -i garmin -f usb: -o gpx -F blah.gpx</userinput></para>
+
 <para>
 	If you have multiple units attached via USB, you may provide 
 	a unit number, with zero being the implied default.  So if you 
 	have three USB models on your system, they can be addressed as 
-	"usb:0", "usb:1", and "usb:2".  To get a list of recognized devices,
+	<filename>usb:0</filename>, <filename>usb:1</filename>, and <filename>usb:2</filename>.  To get a list of recognized devices,
 	specifiy a negative number such as:
 </para>
-	<screen format="linespecific">gpsbabel -i garmin -f usb:-1</screen>
+	<para><userinput>gpsbabel -i garmin -f usb:-1</userinput></para>
  
 <para> 
 When reporting problems with the Garmin format, be sure to include
 the full unit model, firmware version, and be prepared to offer
-debugging dumps by adding "-D9" to the command line, like:
+debugging dumps by adding <option>-D9</option> to the command line, like:
 </para>
 
-      <screen format="linespecific"> gpsbabel -D9 -i garmin -f usb: -o gpx -F blah.gpx</screen>
+      <para><userinput> gpsbabel -D9 -i garmin -f usb: -o gpx -F blah.gpx</userinput></para>
 
 <para> 
 Custom icons are supported on units that support that.
@@ -157,10 +170,15 @@ so they are named 'Custom 0' through 'Custom 511'.
 	getty, pppd, etc.) is using the serial port.  
 </para>
 <para>
-	For models connected via USB, we recommend use of the 'usb:' 
+	For models connected via USB, we recommend use of the <filename>usb:</filename>
 	filename.   For this to work on Windows, you must install
 	the Garmin driver.  For Linux, this will fail if have the garmin_gps
 	kernel module loaded.  
 	See the <ulink url="/osnotes.html">Operating System Notes</ulink> for details.
 </para>
 
+<para>
+This module also supports <link linkend="tracking">realtime tracking</link> 
+which allows realtime position reports from a Garmin GPS receiver over USB
+or serial.  
+</para>
