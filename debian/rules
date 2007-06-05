@@ -71,7 +71,7 @@ install: build
 	dh_installdirs
 
 	# Add here commands to install the package into debian/gpsbabel.
-	$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel/usr
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel
 	#install gpsbabel $(CURDIR)/debian/gpsbabel/usr/bin
 
 
