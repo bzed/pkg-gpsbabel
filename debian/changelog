@@ -2,6 +2,8 @@ gpsbabel (1.3.4-1) unstable; urgency=low
 
   * New upstream release.  Closes: #459234.  Upstream has dropped
     Coldsync.  Closes: #421769.
+  * Update debian/copyright.
+  * Add garmin_usb info to README.Debian.  Closes: #344702.
 
  -- John Goerzen <jgoerzen@complete.org>  Thu, 14 Feb 2008 05:50:31 -0600
 

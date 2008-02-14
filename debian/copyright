@@ -7,7 +7,7 @@ Upstream Author(s): Robert Lipe <robertlipe@usa.net>
 
 Copyright:
 
-Copyright (C) 2002-2004 Robert Lipe, robertlipe@usa.net
+Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 2 of the License, or
@@ -30,26 +30,6 @@ Some files also have copyright notices for other authors.
 ----------------------------------------------------------------------
 This program links with or includes some code from other projects.
 Their copyright statements follow:
-
-------------------------------
-        This is ColdSync, a tool for synchronizing data between Palm
-devices and Unix workstations.
-
-        Copyright (C) 1999-2001, Andrew Arensburger.
-
-        The latest version of this package is available at
-        http://www.ooblick.com/software/coldsync/
-
-        This package is distributable under the terms of the Artistic
-License. You should have received a file called "Artistic", which
-specifies the terms under which this package may be distributed and
-modified.
-        The Artistic License is taken from the Perl 5.005_03
-distribution, so some of the text is specific to Perl and does not
-apply to ColdSync. I hope to address this in a future release.
-
-Debian users can find the Artistic License at 
-/usr/share/common-licenses/Artistic.
 
 ------------------------------
 JEEPS application and data functions
