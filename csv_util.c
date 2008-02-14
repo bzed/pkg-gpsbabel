@@ -21,11 +21,13 @@
  */
 
 #include <ctype.h>
+#include <math.h>
 #include "defs.h"
 #include "csv_util.h"
 #include "grtcirc.h"
 #include "strptime.h"
 #include "jeeps/gpsmath.h"
+#include "xmlgeneric.h"  // for xml_fill_in_time.
 
 #define MYNAME "CSV_UTIL"
 
@@ -57,6 +59,7 @@ static double oldlon = 999;
 static double oldlat = 999;
     
 static int waypt_out_count;
+static route_head *csv_track, *csv_route;
 
 /*********************************************************************/
 /* csv_stringclean() - remove any unwanted characters from string.   */
@@ -682,6 +685,11 @@ sscanftime( const char *s, const char *format, const int gmt )
 
 	if ( strptime( s, format, &stm ) )
 	{
+		if ((stm.tm_mday == 0) && (stm.tm_mon == 0) && (stm.tm_year == 0)) {
+			stm.tm_mday = 1;
+			stm.tm_mon = 0;
+			stm.tm_year = 70;
+		}
 		stm.tm_isdst = -1;
 		if (gmt)
 			return mkgmtime(&stm);
@@ -843,6 +851,9 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     if ( strcmp(fmp->key, "LAT_NMEA") == 0) {
 	wpt->latitude = ddmm2degrees(atof(s));
     } else
+    if ( strncmp(fmp->key, "LAT_10E", 7) == 0) {
+	wpt->latitude = atof(s) / pow((double)10, atof(fmp->key+7));
+    } else
     /* LONGITUDE CONVERSIONS ***********************************************/
     if (strcmp(fmp->key, "LON_DECIMAL") == 0) {
        /* longitude as a pure decimal value */
@@ -863,6 +874,9 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     if ( strcmp(fmp->key, "LON_NMEA") == 0) {
 	wpt->longitude = ddmm2degrees(atof(s));
     } else
+    if ( strncmp(fmp->key, "LON_10E", 7) == 0) {
+	wpt->longitude = atof(s) / pow((double)10, atof(fmp->key+7));
+    } else
     /* LAT AND LON CONVERSIONS ********************************************/
     if ( strcmp(fmp->key, "LATLON_HUMAN_READABLE") == 0) {
        human_to_dec( s, &wpt->latitude, &wpt->longitude, 0 );
@@ -874,23 +888,40 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     if (strcmp(fmp->key, "LON_DIR") == 0) {
        /* longitude E/W. Ingore on input for now */
     } else
-
+    /* SPECIAL COORDINATES/GRID */
+    if (strcmp(fmp->key, "MAP_EN_BNG") == 0) {
+       parse_coordinates(s, DATUM_OSGB36, grid_bng,
+          &wpt->latitude, &wpt->longitude, MYNAME);
+    } else
     /* ALTITUDE CONVERSIONS ************************************************/
     if (strcmp(fmp->key, "ALT_FEET") == 0) {
        /* altitude in feet as a decimal value */
        wpt->altitude = FEET_TO_METERS(atof(s));
+       if (wpt->altitude < unknown_alt + 1)
+          wpt->altitude = unknown_alt;
     } else
     if (strcmp(fmp->key, "ALT_METERS") == 0) {
        /* altitude in meters as a decimal value */
        wpt->altitude = atof(s);
+       if (wpt->altitude < unknown_alt + 1)
+          wpt->altitude = unknown_alt;
     } else
     
     /* PATH CONVERSIONS ************************************************/
     if (strcmp(fmp->key, "PATH_SPEED") == 0) {
-	wpt->speed = atof(s);
+	WAYPT_SET(wpt, speed, atof(s));
+    } else
+    if (strcmp(fmp->key, "PATH_SPEED_KPH") == 0) {
+	WAYPT_SET(wpt, speed, KPH_TO_MPS(atof(s)));
+    } else
+    if (strcmp(fmp->key, "PATH_SPEED_MPH") == 0) {
+	WAYPT_SET(wpt, speed, MPH_TO_MPS(atof(s)));
+    } else
+    if (strcmp(fmp->key, "PATH_SPEED_KNOTS") == 0) {
+	WAYPT_SET(wpt, speed, KNOTS_TO_MPS(atof(s)));
     } else
     if (strcmp(fmp->key, "PATH_COURSE") == 0) {
-	wpt->course = atof(s);
+	WAYPT_SET(wpt, course, atof(s));
     } else
 
     /* TIME CONVERSIONS ***************************************************/
@@ -917,8 +948,9 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
     	(strcmp(fmp->key, "HMSL_TIME") == 0) ) {
 	wpt->creation_time += addhms(s, fmp->printfc);
     } else
-    if (strcmp(fmp->key, "ISO_TIME") == 0) {
-	wpt->creation_time = xml_parse_time(s, NULL);
+    if ((strcmp(fmp->key, "ISO_TIME") == 0) || 
+        (strcmp(fmp->key, "ISO_TIME_MS") == 0)) {
+	wpt->creation_time = xml_parse_time(s, &wpt->microseconds);
     } else
 	if (strcmp(fmp->key, "GEOCACHE_LAST_FOUND") == 0) {
 	wpt->gc_data.last_found = yyyymmdd_to_time(s);
@@ -973,6 +1005,13 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp)
 		wpt->fix = fix_unknown;
 	}
     } else
+    /* Tracks and routes *********************************************/
+    if ( strcmp ( fmp->key, "ROUTE_NAME") == 0) {
+	if (csv_route) csv_route->rte_name = csv_stringtrim(s, enclosure, 0);
+    } else
+    if ( strcmp ( fmp->key, "TRACK_NAME") == 0) {
+	if (csv_track) csv_track->rte_name = csv_stringtrim(s, enclosure, 0);
+    } else
 	
     /* OTHER STUFF ***************************************************/
     if ( strcmp( fmp->key, "PATH_DISTANCE_MILES") == 0) {
@@ -1008,13 +1047,16 @@ xcsv_data_read(void)
     route_head *rte = NULL;
     route_head *trk = NULL;
     
+    csv_route = csv_track = NULL;
     if (xcsv_file.datatype == trkdata) {
 	trk = route_head_alloc();
 	track_add_head(trk);
+	csv_track = trk;
     } else
     if (xcsv_file.datatype == rtedata) {
 	rte = route_head_alloc();
 	route_add_head(rte);
+	csv_route = rte;
     }
 
     while ((buff = gbfgetstr(xcsv_file.xcsvfp))) {
@@ -1048,6 +1090,10 @@ xcsv_data_read(void)
 
             s = buff;
             s = csv_lineparse(s, xcsv_file.field_delimiter, "", linecount);
+
+	    if (QUEUE_EMPTY(&xcsv_file.ifield)) {
+		fatal(MYNAME ": attempt to read, but style '%s' has no IFIELDs in it.\n", xcsv_file.description? xcsv_file.description : "unknown");
+	    }
 
             /* reset the ifield queue */
             elem = QUEUE_FIRST(&xcsv_file.ifield);
@@ -1098,6 +1144,17 @@ xcsv_resetpathlen(const route_head *head)
     pathdist = 0;
     oldlat = 999;
     oldlon = 999;
+    csv_route = csv_track = NULL;
+    switch (xcsv_file.datatype) {
+	case trkdata:
+		csv_track = (route_head *) head;
+		break;
+	case rtedata:
+		csv_route = (route_head *) head;
+		break;
+	default:
+		break;
+    }
 }
 
 /*****************************************************************************/
@@ -1116,6 +1173,8 @@ xcsv_waypt_pr(const waypoint *wpt)
     field_map_t *fmp;
     queue *elem, *tmp;
     double latitude, longitude;
+
+    buff[0] = '\0';
     
     if ( oldlon < 900 ) {
 	pathdist += radtomiles(gcdist(RAD(oldlat),RAD(oldlon),
@@ -1288,6 +1347,9 @@ xcsv_waypt_pr(const waypoint *wpt)
 	if (strcmp(fmp->key, "LAT_NMEA") == 0) {
 	    writebuff(buff, fmp->printfc, degrees2ddmm(lat));
 	} else
+	if (strncmp(fmp->key, "LAT_10E", 7) == 0) {
+	    writebuff(buff, fmp->printfc, lat * pow((double)10, atof(fmp->key+7)));
+	} else
 
         /* LONGITUDE CONVERSIONS*********************************************/
         if (strcmp(fmp->key, "LON_DECIMAL") == 0) {
@@ -1323,6 +1385,9 @@ xcsv_waypt_pr(const waypoint *wpt)
 	if (strcmp(fmp->key, "LON_NMEA") == 0) {
 		writebuff(buff, fmp->printfc, degrees2ddmm(lon));
 	} else
+	if (strncmp(fmp->key, "LON_10E", 7) == 0) {
+	    writebuff(buff, fmp->printfc, lon * pow((double)10, atof(fmp->key+7)));
+	} else
 
         /* DIRECTIONS *******************************************************/
         if (strcmp(fmp->key, "LAT_DIR") == 0) {
@@ -1335,6 +1400,16 @@ xcsv_waypt_pr(const waypoint *wpt)
             writebuff(buff, fmp->printfc,
               LON_DIR(lon));
         } else
+	
+	/* SPECIAL COORDINATES */
+        if (strcmp(fmp->key, "MAP_EN_BNG") == 0) {
+		char map[3];
+		double north, east;
+		if (! GPS_Math_WGS84_To_UKOSMap_M(wpt->latitude, wpt->longitude, &east, &north, map))
+			fatal(MYNAME ": Position (%.5f/%.5f) outside of BNG.\n",
+				wpt->latitude, wpt->longitude);
+		snprintf(buff, sizeof(buff), fmp->printfc, map, (int)(east + 0.5), (int)(north + 0.5));
+	} else
 
         /* ALTITUDE CONVERSIONS**********************************************/
         if (strcmp(fmp->key, "ALT_FEET") == 0) {
@@ -1359,6 +1434,15 @@ xcsv_waypt_pr(const waypoint *wpt)
 	} else
 	if (strcmp(fmp->key, "PATH_SPEED") == 0) {
             writebuff( buff, fmp->printfc, wpt->speed );
+	} else
+	if (strcmp(fmp->key, "PATH_SPEED_KPH") == 0) {
+            writebuff( buff, fmp->printfc, MPS_TO_KPH(wpt->speed));
+	} else
+	if (strcmp(fmp->key, "PATH_SPEED_MPH") == 0) {
+            writebuff( buff, fmp->printfc, MPS_TO_MPH(wpt->speed));
+	} else
+	if (strcmp(fmp->key, "PATH_SPEED_KNOTS") == 0) {
+            writebuff( buff, fmp->printfc, MPS_TO_KNOTS(wpt->speed));
 	} else
 	if (strcmp(fmp->key, "PATH_COURSE") == 0) {
             writebuff( buff, fmp->printfc, wpt->course );
@@ -1399,6 +1483,10 @@ xcsv_waypt_pr(const waypoint *wpt)
 	if (strcmp(fmp->key, "ISO_TIME") == 0) {
             writetime(buff, sizeof buff, "%Y-%m-%dT%H:%M:%SZ", wpt->creation_time, 1 );
 	} else
+	if (strcmp(fmp->key, "ISO_TIME_MS") == 0) {
+            xml_fill_in_time(buff, wpt->creation_time, 
+		wpt->microseconds, XML_LONG_TIME);
+	} else
         if (strcmp(fmp->key, "GEOCACHE_LAST_FOUND") == 0) {
 	    writebuff(buff, fmp->printfc, time_to_yyyymmdd(wpt->gc_data.last_found));
 	} else
@@ -1431,6 +1519,13 @@ xcsv_waypt_pr(const waypoint *wpt)
 	if (strcmp(fmp->key, "GEOCACHE_PLACER") == 0) {
 	    writebuff(buff, fmp->printfc, NONULL(wpt->gc_data.placer));
 	    field_is_unknown = !wpt->gc_data.placer;
+        } else
+	/* Tracks and Routes ***********************************************/
+	if (strcmp(fmp->key, "TRACK_NAME") == 0) {
+	    if (csv_track) writebuff(buff, fmp->printfc, NONULL(csv_track->rte_name));
+        } else
+	if (strcmp(fmp->key, "ROUTE_NAME") == 0) {
+	    if (csv_route) writebuff(buff, fmp->printfc, NONULL(csv_route->rte_name));
         } else
 	
 	/* GPS STUFF *******************************************************/
@@ -1474,10 +1569,8 @@ xcsv_waypt_pr(const waypoint *wpt)
 				break;
 		}
 		writebuff(buff, fmp->printfc, fix);
-        } else
-
-	{
-		/* this should probably never happen */
+        } else {
+       		warning( MYNAME ": Unknown style directive: %s\n", fmp->key);
         }
 	
 
@@ -1528,29 +1621,65 @@ xcsv_data_write(void)
 {
     queue *elem, *tmp;
     ogue_t *ogp;
+    time_t time;
+    struct tm tm;
+    char tbuf[32];
 
     /* reset the index counter */
     waypt_out_count = 0;
+
+    time = gpsbabel_time;
+    if (time == 0)		/* testo script ? */
+    	tm = *gmtime(&time);
+    else
+    	tm = *localtime(&time);
     
     /* output prologue lines, if any. */
     QUEUE_FOR_EACH(&xcsv_file.prologue, elem, tmp) {
-       char *ol;
+       char *cout, *ctmp;
        ogp = (ogue_t *) elem;
 
-       ol = strsub(ogp->val, "__FILE__", xcsv_file.fname);
-
-       if (ol) {
-               gbfprintf(xcsv_file.xcsvfp, "%s", ol);
-               xfree(ol);
-       } else {
-               gbfprintf(xcsv_file.xcsvfp, "%s", ogp->val);
+       cout = xstrdup((ogp->val) ? ogp->val : "");
+       
+       while ((ctmp = strsub(cout, "__FILE__", xcsv_file.fname))) {
+	   xfree(cout);
+	   cout = ctmp;
        }
+
+       while ((ctmp = strsub(cout, "__VERSION__", (time == 0) ? "" : gpsbabel_version))) {
+	   xfree(cout);
+	   cout = ctmp;
+       }
+       
+       while (strstr(cout, "__DATE__")) {
+		strftime(tbuf, sizeof(tbuf), "%m/%d/%Y", &tm);
+		ctmp = strsub(cout, "__DATE__", tbuf);
+		xfree(cout);
+		cout = ctmp;
+       }
+
+       while (strstr(cout, "__TIME__")) {
+		strftime(tbuf, sizeof(tbuf), "%H:%S:%M", &tm);
+		ctmp = strsub(cout, "__TIME__", tbuf);
+		xfree(cout);
+		cout = ctmp;
+       }
+
+       while (strstr(cout, "__DATE_AND_TIME__")) {
+		strftime(tbuf, sizeof(tbuf), "%a %b %d %H:%M:%S %Y", &tm);
+		ctmp = strsub(cout, "__DATE_AND_TIME__", tbuf);
+		xfree(cout);
+		cout = ctmp;
+       }
+
+       gbfprintf(xcsv_file.xcsvfp, "%s", cout);
+       xfree(cout);
        gbfprintf(xcsv_file.xcsvfp, "%s", xcsv_file.record_delimiter);
     }
 
     if ((xcsv_file.datatype == 0) || (xcsv_file.datatype == wptdata))
 	waypt_disp_all(xcsv_waypt_pr);
-    if ((xcsv_file.datatype == 0) || (xcsv_file.datatype == rtedata))
+    if ((xcsv_file.datatype == 0) || (xcsv_file.datatype == rtedata)) 
 	route_disp_all(xcsv_resetpathlen,xcsv_noop,xcsv_waypt_pr);
     if ((xcsv_file.datatype == 0) || (xcsv_file.datatype == trkdata))
 	track_disp_all(xcsv_resetpathlen,xcsv_noop,xcsv_waypt_pr);

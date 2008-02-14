@@ -45,6 +45,7 @@ static route_head *rte_head;
 static int track_out_count;
 static int route_out_count;
 static int route_wpt_count;
+static int new_track;
 
 static char *snlenopt = NULL;
 static char *snwhiteopt = NULL;
@@ -52,11 +53,14 @@ static char *snupperopt = NULL;
 static char *snuniqueopt = NULL;
 static char *wptfgcolor = NULL;
 static char *wptbgcolor = NULL;
+static char *pack_opt = NULL;
 
 
 
 static
 arglist_t ozi_args[] = {
+	{"pack", &pack_opt, "Write all tracks into one file",
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 	{"snlen", &snlenopt, "Max synthesized shortname length",
 		"32", ARGTYPE_INT, "1", NULL},
 	{"snwhite", &snwhiteopt, "Allow whitespace synth. shortnames",
@@ -110,7 +114,7 @@ ozi_alloc_fsdata(void)
 
 static void
 ozi_openfile(char *fname) {
-    char *c, *tmpname;
+    char *c, *cx, *tmpname;
     char *ozi_extensions[] = {0, "plt", "wpt", "rte"};
     char buff[32];
     
@@ -119,7 +123,9 @@ ozi_openfile(char *fname) {
      */
 
     if (0 == strcmp(fname, "-")) {
-	file_out = gbfopen(fname, "wb", MYNAME);
+	if (! file_out) {
+	    file_out = gbfopen(fname, "wb", MYNAME);
+	}
 	return;
     }
 
@@ -129,27 +135,12 @@ ozi_openfile(char *fname) {
         buff[0] = '\0';
     }
 
-    /* allocate more than enough room for new filename */
-    tmpname = (char *) xcalloc(1, strlen(fname) +
-                         strlen(buff) +
-                         strlen(ozi_extensions[ozi_objective]) +
-                         2); /* . (dot) plus null term */
-
-    strcpy(tmpname, fname);
-
-    /* locate and remove file extension */
-    c = strrchr(tmpname, '.');
-
-    if (c)
-        *c = '\0';
-
-    /* append the -xx sequence number for tracks if needed */
-    strcat(tmpname + strlen(tmpname), buff);
-
-    strcat(tmpname, ".");
-
-    /* append the extension after the "." */
-    strcat(tmpname, ozi_extensions[ozi_objective]);
+    /* remove extension and add buff + ozi's extension */
+    c = strrchr(fname, '.');
+    if (c && (cx = strrchr(fname, '/')) && (cx > c)) c = NULL; 
+    if (c && (cx = strrchr(fname, '\\')) && (cx > c)) c = NULL; 
+    if (c == NULL) c = fname + strlen(fname);
+    xasprintf(&tmpname, "%*.*s%s.%s", c - fname, c - fname, fname, buff, ozi_extensions[ozi_objective]);
 
     /* re-open file_out with the new filename */
     if (file_out) {
@@ -175,11 +166,14 @@ ozi_track_hdr(const route_head * rte)
         "0,2,255,%s,0,0,2,8421376\r\n"
         "0\r\n";
 
-    ozi_openfile(ozi_ofname);
-    gbfprintf(file_out, ozi_trk_header, 
-	rte->rte_name ? rte->rte_name : "ComplimentsOfGPSBabel");
+    if ((! pack_opt) || (track_out_count == 0)) {
+	ozi_openfile(ozi_ofname);
+	gbfprintf(file_out, ozi_trk_header, 
+	    rte->rte_name ? rte->rte_name : "ComplimentsOfGPSBabel");
+    }
 
     track_out_count++;
+    new_track = 1;
 }
 
 static void 
@@ -196,8 +190,11 @@ ozi_track_disp(const waypoint * waypointp)
         alt_feet = METERS_TO_FEET(waypointp->altitude);
     }
 
-    gbfprintf(file_out, "%.6f,%.6f,0,%.0f,%.5f,,\r\n",
-            waypointp->latitude, waypointp->longitude, alt_feet, ozi_time);
+    gbfprintf(file_out, "%.6f,%.6f,%d,%.0f,%.5f,,\r\n",
+       	waypointp->latitude, waypointp->longitude, new_track, 
+	alt_feet, ozi_time);
+
+    new_track = 0;
 }
 
 static void
@@ -351,7 +348,7 @@ wr_init(const char *fname)
 
         setshort_badchars(mkshort_handle, "\",");
     }
-
+    file_out = NULL;
 }
 
 static void
@@ -421,7 +418,7 @@ ozi_parse_waypt(int field, char *str, waypoint * wpt_tmp, ozi_fsdata *fsdata)
         break;
     case 13:
         /* proximity distance - meters */
-	wpt_tmp->proximity = atof(str);
+	WAYPT_SET(wpt_tmp, proximity, atof(str));
         break;
     case 14:
         /* altitude in feet */
@@ -731,7 +728,7 @@ ozi_waypt_pr(const waypoint * wpt)
             "%d,%s,%.6f,%.6f,%.5f,%d,%d,%d,%d,%d,%s,%d,%d,",
             index, shortname, wpt->latitude, wpt->longitude, ozi_time, 0,
             1, 3, fs->fgcolor, fs->bgcolor, description, 0, 0);
-    if (wpt->proximity > 0)
+    if (WAYPT_HAS(wpt, proximity) && (wpt->proximity > 0))
 	gbfprintf(file_out, "%.1f,", wpt->proximity);
     else
 	gbfprintf(file_out,"0,");

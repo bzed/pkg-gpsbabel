@@ -36,9 +36,6 @@ const long				vitosmt_version			=2;
 const long				vitosmt_subversion		=1000;
 const size_t			vitosmt_headersize		=24;
 const size_t			vitosmt_datasize		=64;
-const double mile2km	=1.609344;				/* mile/h to kilometer/h */
-const double kts2mps	=0.5144444444444444444;	/* knots to m/s */
-const double mph2mps 	=0.447039259;			/* mile/h to m/s     */
 
 static unsigned long
 ReadLong(FILE * f)
@@ -155,11 +152,19 @@ vitosmt_read(void)
 				MYNAME, __LINE__, strerror(errno) );
 			break;
 		}
-
+#if 0
+		fprintf(stderr, "Looptop %d\n", ftell(infile));
+#endif
 		latrad		=ReadDouble(infile);	/* WGS84 latitude in radians */
 		lonrad		=ReadDouble(infile);	/* WGS84 longitude in radians */
 		elev		=ReadDouble(infile);	/* elevation in meters */
+#if 0
+		fprintf(stderr, "before %d\n", ftell(infile));
+#endif
 		timestamp	=ReadRecord(infile,5);	/* UTC time yr/mo/dy/hr/mi */
+#if 0
+		fprintf(stderr, "%d latrad %f/%f ele %f\n", ftell(infile),latrad, DEG(latrad), elev);
+#endif
 		seconds		=ReadDouble(infile);	/* seconds */
 		speed		=ReadDouble(infile);    /* speed in knots */
 		course		=ReadDouble(infile);	/* course in degrees */
@@ -187,8 +192,8 @@ vitosmt_read(void)
 		wpt_tmp->shortname	=xcalloc(16,1);
 		snprintf(wpt_tmp->shortname, 15 , "WP%04d", ++serial);
 
-		wpt_tmp->speed	= speed*kts2mps; /* meters per second */
-		wpt_tmp->course = course;
+		WAYPT_SET(wpt_tmp, speed, KNOTS_TO_MPS(speed)); /* meters per second */
+		WAYPT_SET(wpt_tmp, course, course);
 		wpt_tmp->pdop	= pdop;
 
 		/* 
@@ -286,7 +291,7 @@ vitosmt_waypt_pr(const waypoint *waypointp)
 
 	/* speed */
 	if (waypointp->speed>0) 
-		WriteDouble(&workbuffer[position], waypointp->speed / mph2mps );
+		WriteDouble(&workbuffer[position], MPS_TO_MPH(waypointp->speed));
 	position += sizeof(double);
 	
 	/* course */

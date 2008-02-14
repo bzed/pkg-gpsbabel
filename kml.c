@@ -280,7 +280,6 @@ kml_wr_position_init(const char *fname)
 	 * matters in this mode, turn the pretty formatting off.
 	 */
 	do_indentation = 0;
-	kml_wr_init(posnfilenametmp);
 
 	max_position_points = atoi(opt_max_position_points);
 }
@@ -296,10 +295,18 @@ kml_wr_deinit(void)
 		MOVEFILE_REPLACE_EXISTING);
 #endif
 		rename(posnfilenametmp, posnfilename);
+	}
+	ofd = NULL;
+}
+
+static void
+kml_wr_position_deinit(void)
+{
+//	kml_wr_deinit();
+	if (posnfilenametmp) {
 		xfree(posnfilenametmp);
 		posnfilenametmp = NULL;
 	}
-	ofd = NULL;
 }
 
 /*
@@ -460,6 +467,14 @@ void kml_output_trkdescription(const route_head *header, computed_trkdata *td)
 	if (td->max_cad) {
 		TD("<b>Max Cadence</b> %d rpm", td->max_cad);
 	}
+	if (td->start && td->end) {
+		char time_string[64];
+
+		xml_fill_in_time(time_string, td->start, 0, XML_LONG_TIME);
+		TD("<b>Start Time:</b> %s ", time_string);
+		xml_fill_in_time(time_string, td->end, 0, XML_LONG_TIME);
+		TD("<b>End Time:</b> %s ", time_string);
+	}
 
 	kml_write_xml(-1, "</table>]]>\n");
 	kml_write_xml(-1, "</description>\n");
@@ -530,13 +545,26 @@ static void kml_output_description(const waypoint *pt)
 	if (pt->altitude != unknown_alt) TD2("Altitude: %.1f %s", alt, alt_units);
 	if (pt->heartrate) TD("Heart rate: %d", pt->heartrate);
 	if (pt->cadence) TD("Cadence: %d", pt->cadence);
-	if (pt->temperature) TD("Temperature: %.1f", pt->temperature);
-	if (pt->speed > 0) {
+	if WAYPT_HAS(pt, temperature) TD("Temperature: %.1f", pt->temperature);
+	if WAYPT_HAS(pt, speed) {
 		char *spd_units;
 		double spd = fmt_speed(pt->speed, &spd_units);
 		TD2("Speed: %.1f %s", spd, spd_units);
 	}
-	TD("Heading: %.1f", pt->course);
+	if WAYPT_HAS(pt, course) TD("Heading: %.1f", pt->course);
+	/* This really shouldn't be here, but as of this writing, 
+	 * Earth can't edit/display the TimeStamp.  
+	 */
+	if (pt->creation_time) {
+		char time_string[64];
+
+		xml_fill_in_time(time_string, pt->creation_time, 
+					pt->microseconds, XML_LONG_TIME);
+		 if (time_string[0]) {
+			 TD("Time: %s", time_string);
+		 }
+	}
+
 	kml_write_xml(-1, "</table>\n");
 	kml_write_xml(-1, "]]></description>\n");
 }
@@ -850,17 +878,17 @@ void kml_write(void)
 	}
 
 	// Output trackpoints
-	if (!realtime_positioning) {
+	if (!realtime_positioning && track_waypt_count()) {
 		kml_write_xml(1,  "<Folder>\n");
 		kml_write_xml(0,  "<name>Tracks</name>\n");
 	}
 	track_disp_all(kml_track_hdr, kml_track_tlr, kml_track_disp);
-	if (!realtime_positioning) {
+	if (!realtime_positioning && track_waypt_count()) {
 		kml_write_xml(-1,  "</Folder>\n");
 	}
 
 	// Output routes
-	if (!realtime_positioning) {
+	if (!realtime_positioning && route_waypt_count()) {
 		kml_write_xml(1,  "<Folder>\n");
 		kml_write_xml(0,  "<name>Routes</name>\n");
 		route_disp_all(kml_route_hdr, kml_route_tlr, kml_route_disp);
@@ -893,6 +921,8 @@ static void
 kml_wr_position(waypoint *wpt)
 {
 	static time_t last_valid_fix;
+
+	kml_wr_init(posnfilenametmp);
 
 	if (!posn_trk_head) {
 		posn_trk_head = route_head_alloc();
@@ -940,6 +970,8 @@ kml_wr_position(waypoint *wpt)
 		waypoint *tonuke = (waypoint *) QUEUE_FIRST(&posn_trk_head->waypoint_list);
 		track_del_wpt(posn_trk_head, tonuke);
 	}
+
+	kml_wr_deinit();
 }
 
 ff_vecs_t kml_vecs = {
@@ -954,5 +986,5 @@ ff_vecs_t kml_vecs = {
 	NULL, 
 	kml_args,
 	CET_CHARSET_UTF8, 1,	/* CET-REVIEW */
-	{ NULL, NULL, NULL, kml_wr_position_init, kml_wr_position, kml_wr_deinit }
+	{ NULL, NULL, NULL, kml_wr_position_init, kml_wr_position, kml_wr_position_deinit }
 };

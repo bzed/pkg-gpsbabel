@@ -25,8 +25,11 @@
 #include "csv_util.h"
 #include "inifile.h"
 #include <ctype.h>
+#include <signal.h>
 
 #define MYNAME "main"
+
+void signal_handler(int sig);
 
 typedef struct arg_stack_s {
 	int argn;
@@ -142,6 +145,7 @@ usage(const char *pname, int shorter )
 "    -s               Synthesize shortnames\n"
 "    -r               Process route information\n"
 "    -t               Process track information\n"
+"    -T               Process realtime tracking information\n"
 "    -w               Process waypoint information [default]\n"
 "    -b               Process command file (batch mode)\n"
 "    -c               Character set for next operation\n"
@@ -327,6 +331,9 @@ main(int argc, char *argv[])
 				optarg = argv[argn][2]
 					? argv[argn]+2 : argv[++argn];
 				fname = optarg;
+				if (fname == NULL) {
+					fatal ("No file or device name specified.\n");
+				}
 				if (ivecs == NULL) {
 					fatal ("No valid input type specified\n");
 				}
@@ -345,7 +352,7 @@ main(int argc, char *argv[])
 				ivecs->rd_init(fname);
 				ivecs->read();
 				ivecs->rd_deinit();
-				
+
 				cet_convert_strings(global_opts.charset, NULL, NULL);
 				cet_convert_deinit();
 				
@@ -355,6 +362,9 @@ main(int argc, char *argv[])
 				optarg = argv[argn][2]
 					? argv[argn]+2 : argv[++argn];
 				ofname = optarg;
+				if (ofname == NULL) {
+					fatal ("No output file or device name specified.\n");
+				}
 				if (ovecs && (!(global_opts.masked_objective & POSNDATAMASK))) {
 					/* simulates the default behaviour of waypoints */
 					if (doing_nothing) 
@@ -618,21 +628,26 @@ main(int argc, char *argv[])
 		}
 
 		if (ovecs) {
-			if (!ovecs->position_ops.wr_init || 
-			    !ovecs->position_ops.wr_position ||
-			    !ovecs->position_ops.wr_deinit) {
-				fatal ("This output format does not support realtime positioning.\n");
+			if ( !ovecs->position_ops.wr_position  ) {
+				fatal ("This output format does not support output of realtime positioning.\n");
 			}
 		}
 
-		while (1) {
-			posn_status status;
+		if (signal(SIGINT, signal_handler) == SIG_ERR) {
+			fatal ("Couldn't install the exit signal handler.\n");
+		}
+
+		if (ovecs && ovecs->position_ops.wr_init) {
+			ovecs->position_ops.wr_init(ofname);
+		}
+
+		tracking_status.request_terminate = 0;
+		while (!tracking_status.request_terminate) {
 			waypoint *wpt;
 
-			status.request_terminate = 0;
-			wpt = ivecs->position_ops.rd_position(&status);
+			wpt = ivecs->position_ops.rd_position(&tracking_status);
 
-			if (status.request_terminate) {
+			if (tracking_status.request_terminate) {
 				if (wpt) {
 					waypt_free(wpt);
 				}
@@ -640,9 +655,9 @@ main(int argc, char *argv[])
 			}
 			if (wpt) {
 				if (ovecs) {
-					ovecs->position_ops.wr_init(ofname);
+//					ovecs->position_ops.wr_init(ofname);
 					ovecs->position_ops.wr_position(wpt);
-					ovecs->position_ops.wr_deinit();
+//					ovecs->position_ops.wr_deinit();
 				} else {
 					/* Just print to screen */
 					waypt_disp(wpt);
@@ -653,8 +668,8 @@ main(int argc, char *argv[])
 		if (ivecs->position_ops.rd_deinit) {
 			ivecs->position_ops.rd_deinit();
 		}
-		if (ivecs->position_ops.wr_deinit) {
-			ivecs->position_ops.wr_deinit();
+		if (ovecs->position_ops.wr_deinit) {
+			ovecs->position_ops.wr_deinit();
 		}
 	}
 
@@ -674,3 +689,9 @@ main(int argc, char *argv[])
 #endif
 	exit(0);
 }
+
+void signal_handler(int sig)
+{
+	tracking_status.request_terminate = 1;
+}
+

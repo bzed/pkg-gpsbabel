@@ -2,7 +2,7 @@
 
     Support for Suunto Trackmanager SDF format.
 
-    Copyright (C) 2005,2006 Olaf Klein, o.b.klein@gpsbabel.org
+    Copyright (C) 2005,2007 Olaf Klein, o.b.klein@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,13 +27,15 @@
     ToDo: Ascending/Descending
 */
 
+#include "defs.h"
+
+#if CSVFMTS_ENABLED
 
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "defs.h"
 #include "csv_util.h"
 #include "strptime.h"
 #include "jeeps/gpsmath.h"
@@ -54,13 +56,8 @@ typedef enum {
 
 static gbfile *fin, *fout;
 
-// Empty structs aren't C89.  But this wasn't being used anyway.
-//typedef struct stmsdf_s {
-//} stmsdf_t;
-
 static int lineno;
 static int datum;
-static int datum86;
 static int filetype;
 static route_head *route;
 static queue trackpts;
@@ -81,6 +78,7 @@ static int this_points;
 static int saved_points;
 static time_t start_time;
 static unsigned char this_valid;
+static short_handle short_h;
 
 #define route_index this_index
 #define track_index this_index
@@ -276,15 +274,15 @@ parse_point(char *line)
 			case 7:
 				switch(what) {
 					case 0: 
-						wpt->speed = atof(str) * 3.6; break;
+						WAYPT_SET(wpt, speed, atof(str) * 3.6); break;
 					case 3: 
-						wpt->proximity = atof(str); 
+						WAYPT_SET(wpt, proximity, atof(str));
 						xasprintf(&wpt->notes, "Alarm point: radius=%s", str);
 						break;
 				}
 				break;
 			case 8:
-				if (what == 0) wpt->course = atof(str);
+				if (what == 0) WAYPT_SET(wpt, course, atof(str));
 				break;
 			case 9:
 			case 10:
@@ -310,7 +308,7 @@ parse_point(char *line)
 		wpt->creation_time = mklocaltime(&tm);
 	}
 			
-	if (datum != datum86) {
+	if (datum != DATUM_WGS84) {
 		double ht;
 		GPS_Math_WGS84_To_Known_Datum_M(wpt->latitude, wpt->longitude, 0,
 			&wpt->latitude, &wpt->longitude, &ht, datum);
@@ -341,7 +339,7 @@ rd_init(const char *fname)
 	
 	lineno = 0;
 	route = NULL;
-	datum = datum86 = GPS_Lookup_Datum_Index("WGS84");
+	datum = DATUM_WGS84;
 	filetype = 28;
 	rte_name = rte_desc = NULL;
 
@@ -435,7 +433,6 @@ calculate(const waypoint *wpt, double *dist, double *speed, double *course,
 			else
 				*desc -= dh;
 		}
-		
 	}
 	else {
 		*speed = 0;
@@ -444,8 +441,9 @@ calculate(const waypoint *wpt, double *dist, double *speed, double *course,
 		if (asc) *asc = 0;
 		if (desc) *desc = 0;
 	}
-	if (wpt->speed != unknown_speed) *speed = wpt->speed / 3.6;	/* -> meters per second */
-	if (wpt->course != unknown_course) *course = wpt->course;
+	if WAYPT_HAS(wpt, speed) *speed = wpt->speed / 3.6;	/* -> meters per second */
+	if WAYPT_HAS(wpt, course) *course = wpt->course;
+	
 }
 
 /* pre-calculation callbacks */
@@ -591,8 +589,15 @@ static void
 route_disp_wpt_cb(const waypoint *wpt)
 {
 	if (this_route_valid) {
+		char *sn;
+		
+		if (global_opts.synthesize_shortnames)
+			sn = mkshort_from_wpt(short_h, wpt);
+		else
+			sn = mkshort(short_h, wpt->shortname);
 		gbfprintf(fout, "\"WP\",\"%s\",%.8lf,%.8lf,%.f\n",
-			wpt->shortname, wpt->latitude, wpt->longitude, ALT(wpt));
+			sn, wpt->latitude, wpt->longitude, ALT(wpt));
+		xfree(sn);
 	}
 }
 
@@ -608,11 +613,13 @@ static void
 wr_init(const char *fname)
 {
 	fout = gbfopen(fname, "w", MYNAME);
+	short_h = mkshort_new_handle();
 }
 
 static void
 wr_deinit(void)
 {
+	mkshort_del_handle(&short_h);
 	gbfclose(fout);
 }
 
@@ -639,6 +646,12 @@ data_write(void)
 	all_points = 0;
 	start_time = 0;
 	
+	setshort_length(short_h, 100);
+	setshort_badchars(short_h, "\r\n");
+	setshort_mustupper(short_h, 0);
+	setshort_mustuniq(short_h, 0);
+	setshort_whitespace_ok(short_h, 1);
+	setshort_repeating_whitespace_ok(short_h, 1);
 	
 	switch(global_opts.objective)
 	{
@@ -722,3 +735,6 @@ ff_vecs_t stmsdf_vecs = {
 };
 
 /* ================================================================== */
+
+#endif /* CSVFMTS_ENABLED */
+

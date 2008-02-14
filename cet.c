@@ -51,12 +51,12 @@ cet_char_to_ucs4(const char src, const cet_cs_vec_t *vec, int *value)
 	*dest = c;
 	c -= vec->ucs4_offset;
 
-	if (c < 0) return CET_SUCESS;
+	if (c < 0) return CET_SUCCESS;
 	else if ((c >= vec->ucs4_count) || (vec->ucs4_map[c] == -1)) return CET_ERROR;
 	else 
 	{
 	    *dest = vec->ucs4_map[c];
-	    return CET_SUCESS;
+	    return CET_SUCCESS;
 	}
 }
 
@@ -151,7 +151,7 @@ cet_utf8_to_ucs4(const char *str, int *bytes, int *value)
 	{
 	    if (bytes != NULL) *bytes = 1;
 	    if (value != NULL) *value = *cp;
-	    return CET_SUCESS;
+	    return CET_SUCCESS;
 	}
 	else
 	{
@@ -178,7 +178,7 @@ cet_utf8_to_ucs4(const char *str, int *bytes, int *value)
 				
 			    if (bytes != NULL) *bytes = len + 1;
 			    if (value != NULL) *value = res;
-			    return CET_SUCESS;
+			    return CET_SUCCESS;
 			}
 		    }		    
 		}
@@ -235,8 +235,12 @@ cet_ucs4_to_char(const int value, const cet_cs_vec_t *vec)
 
 	if (value < vec->ucs4_offset + vec->ucs4_count)
 	    return (char)value & 0xFF;
-	else
-	    return CET_NOT_CONVERTABLE_DEFAULT;
+	else {
+	    if (vec->fallback && (vec->fallback != vec))
+		return cet_ucs4_to_char(value, vec->fallback);
+	    else
+		return CET_NOT_CONVERTABLE_DEFAULT;
+	}
 }
 
 /* %%% cet_utf8_to_char %%%
@@ -274,6 +278,7 @@ cet_str_utf8_to_any(const char *src, const cet_cs_vec_t *vec)
 	char *res, *dest, *cend;
 
 	if (c == NULL) return NULL;
+	if (vec->ucs4_count == 0) return xstrdup(src); /* UTF-8 -> UTF-8 */
 	
 	len = strlen(c);
 	res = dest = xmalloc(len + 1);	/* target will become smaller or equal length */

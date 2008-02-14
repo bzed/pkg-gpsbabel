@@ -38,12 +38,16 @@
 /* macros */
 
 #define GMSD_FIND(a) (garmin_fs_t *) fs_chain_find((a)->fs, FS_GMSD)
+#define GMSD_HAS(a) (gmsd && gmsd->flags.a)
 
 /* GMSD_GET(a,b): a = any gmsd field, b = default value */
 #define GMSD_GET(a,b) ((gmsd) && (gmsd->flags.a)) ? (gmsd->a) : (b)
 
 /* GMSD_SET(a,b): a = numeric gmsd field, b = numeric source */
 #define GMSD_SET(a,b) if (gmsd) {gmsd->a = (b); gmsd->flags.a = 1; }
+
+/* GMSD_UNSET(a): a = gmsd field */
+#define GMSD_UNSET(a) if (gmsd) { gmsd->flags.a = 0; }
 
 /* GMSD_SETSTR(a,b): a = gmsd field, b = null terminated source */
 #define GMSD_SETSTR(a,b) if (gmsd && (b) && (b)[0]) { gmsd->a = xstrdup((b)); gmsd->flags.a = 1; }
@@ -56,7 +60,7 @@
 
 typedef struct garmin_ilink_s {
 	int ref_count;
-	double lat, lon;
+	double lat, lon, alt;
 	struct garmin_ilink_s *next;
 } garmin_ilink_t;
 
@@ -65,15 +69,18 @@ typedef struct {
 	unsigned int wpt_class:1;
 	unsigned int display:1; 
 	unsigned int category:1; 
-	unsigned int depth:1; 
-	unsigned int proximity:1; 
-	unsigned int temperature:1; 
 	unsigned int city:1;
 	unsigned int state:1;
 	unsigned int facility:1;
 	unsigned int cc:1;
 	unsigned int cross_road:1;
-	unsigned int addr:1;		
+	unsigned int addr:1;
+	unsigned int country:1;
+	unsigned int phone_nr:1;
+	unsigned int postal_code:1;
+#ifdef GMSD_EXPERIMENTAL
+	unsigned int subclass:1;
+#endif
 } garmin_fs_flags_t;
 
 typedef struct garmin_fs_s
@@ -87,21 +94,25 @@ typedef struct garmin_fs_s
 	int wpt_class;
 	gbint32 display;
 	gbint16 category;
-	double depth;			/* depth in meters */
-	double proximity;		/* proximity distance in meters */
-	double temperature;
 	char *city;			/* city name */
 	char *facility;			/* facility name */
 	char *state;			/* state */
 	char *cc;			/* country code */
 	char *cross_road;		/* Intersection road label */
 	char *addr;			/* address + number */
+	char *country;			/* country */
+	char *phone_nr;			/* phone number */
+	char *postal_code;		/* postal code */
 	garmin_ilink_t *ilinks;
+#ifdef GMSD_EXPERIMENTAL
+	char subclass[22];
+#endif
 } garmin_fs_t, *garmin_fs_p;
 
 garmin_fs_t *garmin_fs_alloc(const int protocol);
 void garmin_fs_destroy(void *fs);
 void garmin_fs_copy(garmin_fs_t **dest, garmin_fs_t *src);
+void garmin_fs_convert(void *fs);
 char *garmin_fs_xstrdup(const char *src, size_t size);
 
 /* for GPX */
