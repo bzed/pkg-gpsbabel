@@ -48,6 +48,8 @@ static int cache_descr_is_html;
 static gbfile *fd;
 static gbfile *ofd;
 static short_handle mkshort_handle;
+static const char *link_url;
+static char *link_text;
 
 static const char *input_string = NULL;
 static int input_string_len = 0;
@@ -67,6 +69,7 @@ static format_specific_data **fs_ptr;
 #define MYNAME "GPX"
 #define MY_CBUF_SZ 4096
 #define DEFAULT_XSI_SCHEMA_LOC "http://www.topografix.com/GPX/1/0 http://www.topografix.com/GPX/1/0/gpx.xsd"
+#define DEFAULT_XSI_SCHEMA_LOC_11 "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd"
 #define DEFAULT_XSI_SCHEMA_LOC_FMT "\"http://www.topografix.com/GPX/%c/%c http://www.topografix.com/GPX/%c/%c/gpx.xsd\""
 #ifndef CREATOR_NAME_URL
 #  define CREATOR_NAME_URL "GPSBabel - http://www.gpsbabel.org"
@@ -126,14 +129,21 @@ typedef enum {
 	tt_cache_log_date,
 	tt_cache_placer,
 	
-	tt_garmin_extension,		/* don't change this order */
-	tt_garmin_waypt_extension,
-	tt_garmin_proximity,
-	tt_garmin_temperature,
-	tt_garmin_depth,
-	tt_garmin_display_mode,
-	tt_garmin_categories,
-	tt_garmin_category,		/* don't change this order */
+	tt_wpt_extensions,		
+
+	tt_garmin_wpt_extensions,	/* don't change this order */
+	tt_garmin_wpt_proximity,
+	tt_garmin_wpt_temperature,
+	tt_garmin_wpt_depth,
+	tt_garmin_wpt_display_mode,
+	tt_garmin_wpt_categories,
+	tt_garmin_wpt_category,
+	tt_garmin_wpt_addr,
+	tt_garmin_wpt_city,
+	tt_garmin_wpt_state,
+	tt_garmin_wpt_country,
+	tt_garmin_wpt_postal_code,
+	tt_garmin_wpt_phone_nr,		/* don't change this order */
 
 	tt_rte,
 	tt_rte_name,
@@ -283,6 +293,8 @@ tag_mapping tag_path_map[] = {
   {type, 1, "/gpx/wpt/groundspeak:cache/groundspeak:" name, 0UL }, \
   {type, 1, "/gpx/wpt/extensions/cache/" name, 0UL }
 
+#define GARMIN_WPT_EXT "/gpx/wpt/extensions/gpxx:WaypointExtension"
+
 	GEOTAG( tt_cache, 		"cache"),
 	GEOTAG( tt_cache_name, 		"name"),
 	GEOTAG( tt_cache_container, 	"container"),
@@ -300,14 +312,21 @@ tag_mapping tag_path_map[] = {
 	{ tt_cache_log_date, 1, "/gpx/wpt/groundspeak:cache/groundspeak:logs/groundspeak:log/groundspeak:date"},
 	{ tt_cache_log_date, 1, "/gpx/wpt/extensions/cache/logs/log/date"},
 	
-	{ tt_garmin_extension, 0, "/gpx/wpt/extensions", 0UL },
-	{ tt_garmin_waypt_extension, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension", 0UL },
-	{ tt_garmin_proximity, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Proximity", 0UL },
-	{ tt_garmin_temperature, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Temperature", 0UL },
-	{ tt_garmin_depth, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Depth", 0UL },
-	{ tt_garmin_display_mode, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:DisplayMode", 0UL },
-	{ tt_garmin_categories, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Categories", 0UL },
-	{ tt_garmin_category, 0, "/gpx/wpt/extensions/gpxx:WaypointExtension/gpxx:Categories/gpxx:Category", 0UL },
+	{ tt_wpt_extensions, 0, "/gpx/wpt/extensions", 0UL },
+
+	{ tt_garmin_wpt_extensions, 0, GARMIN_WPT_EXT, 0UL },
+	{ tt_garmin_wpt_proximity, 0, GARMIN_WPT_EXT "/gpxx:Proximity", 0UL },
+	{ tt_garmin_wpt_temperature, 0, GARMIN_WPT_EXT "/gpxx:Temperature", 0UL },
+	{ tt_garmin_wpt_depth, 0, GARMIN_WPT_EXT "/gpxx:Depth", 0UL },
+	{ tt_garmin_wpt_display_mode, 0, GARMIN_WPT_EXT "/gpxx:DisplayMode", 0UL },
+	{ tt_garmin_wpt_categories, 0, GARMIN_WPT_EXT "/gpxx:Categories", 0UL },
+	{ tt_garmin_wpt_category, 0, GARMIN_WPT_EXT "/gpxx:Categories/gpxx:Category", 0UL },
+	{ tt_garmin_wpt_addr, 0, GARMIN_WPT_EXT "/gpxx:Address/gpxx:StreetAddress", 0UL },
+	{ tt_garmin_wpt_city, 0, GARMIN_WPT_EXT "/gpxx:Address/gpxx:City", 0UL },
+	{ tt_garmin_wpt_state, 0, GARMIN_WPT_EXT "/gpxx:Address/gpxx:State", 0UL },
+	{ tt_garmin_wpt_country, 0, GARMIN_WPT_EXT "/gpxx:Address/gpxx:Country", 0UL },
+	{ tt_garmin_wpt_postal_code, 0, GARMIN_WPT_EXT "/gpxx:Address/gpxx:PostalCode", 0UL },
+	{ tt_garmin_wpt_phone_nr, 0, GARMIN_WPT_EXT "/gpxx:PhoneNumber", 0UL },
 
 	{ tt_rte, 0, "/gpx/rte", 0UL },
 	{ tt_rte_name, 0, "/gpx/rte/name", 0UL },
@@ -387,21 +406,32 @@ prescan_tags(void)
 static void
 tag_gpx(const char **attrv)
 {
-	const char **avp = &attrv[0];
-	while (*avp) {
+	const char **avp;
+	for (avp = &attrv[0]; *avp; avp += 2) {
 		if (strcmp(avp[0], "version") == 0) {
 			gpx_version = avp[1];
 		}
 		else if (strcmp(avp[0], "src") == 0) {
 			gpx_creator = avp[1];
 		}
+		/*
+		 * Our handling of schemaLocation really is weird.
+		 * If we see we have a "normal" GPX 1.1 header, on read,
+		 * flip our default on write to use that and don't append
+		 * it to the rest...
+		 */
 		else if (strcmp(avp[0], "xsi:schemaLocation") == 0) {
+			if (0 == strcmp(avp[1], DEFAULT_XSI_SCHEMA_LOC_11)) {
+				if (0 == strcmp(xsi_schema_loc, DEFAULT_XSI_SCHEMA_LOC))
+					xfree(xsi_schema_loc);
+					xsi_schema_loc = xstrdup(DEFAULT_XSI_SCHEMA_LOC_11);
+				continue;
+			}
 			if (0 == strstr(xsi_schema_loc, avp[1])) {
 			    xsi_schema_loc = xstrappend(xsi_schema_loc, " ");
 			    xsi_schema_loc = xstrappend(xsi_schema_loc, avp[1]);
 			}
 		}
-		avp+=2;
 	}
 }
 
@@ -599,8 +629,11 @@ gpx_start(void *data, const XML_Char *xml_el, const XML_Char **xml_attr)
 		break;
 	case tt_wpt_link:
 		if (0 == strcmp(attr[0], "href")) {
-			wpt_tmp->url = xstrdup(attr[1]);
+			link_url = attr[1];
 		}
+		break;
+	case tt_wpt_link_text:
+		link_text = cdatastr.mem;
 		break;
 	case tt_rte:
 		rte_head = route_head_alloc();
@@ -632,6 +665,10 @@ gpx_start(void *data, const XML_Char *xml_el, const XML_Char **xml_attr)
 	case tt_cache_desc_short:
 		tag_cache_desc(attr);
 		break;
+	case tt_cache_placer:
+		if (*attr && (0 == strcmp(attr[0], "id"))) {
+			wpt_tmp->gc_data.placer_id = atoi(attr[1]);
+		}
 	default:
 		break;
 	}
@@ -853,8 +890,17 @@ gpx_end(void *data, const XML_Char *xml_el)
 		wpt_tmp->url = xstrdup(cdatastrp);
 		break;
 	case tt_wpt_urlname:
-	case tt_wpt_link_text:
 		wpt_tmp->url_link_text = xstrdup(cdatastrp);
+		break;
+	case tt_wpt_link: {
+		char *lt = link_text;
+		if (lt) {
+			lt = xstrdup(lrtrim(link_text));
+		}
+		
+		waypt_add_url(wpt_tmp, xstrdup(link_url), lt);
+		link_text = NULL;
+		}
 		break;
 	case tt_wpt:
 		waypt_add(wpt_tmp);
@@ -922,12 +968,18 @@ gpx_end(void *data, const XML_Char *xml_el)
 	/*
 	 * Garmin-waypoint-specific tags.
  	 */
-	case tt_garmin_proximity:
-	case tt_garmin_temperature:
-	case tt_garmin_depth:
-	case tt_garmin_display_mode:
-	case tt_garmin_category: 
-		garmin_fs_xml_convert(tt_garmin_extension, tag, cdatastrp, wpt_tmp);
+	case tt_garmin_wpt_proximity:
+	case tt_garmin_wpt_temperature:
+	case tt_garmin_wpt_depth:
+	case tt_garmin_wpt_display_mode:
+	case tt_garmin_wpt_category: 
+	case tt_garmin_wpt_addr: 
+	case tt_garmin_wpt_city:
+	case tt_garmin_wpt_state:
+	case tt_garmin_wpt_country:
+	case tt_garmin_wpt_postal_code:
+	case tt_garmin_wpt_phone_nr:
+		garmin_fs_xml_convert(tt_garmin_wpt_extensions, tag, cdatastrp, wpt_tmp);
 		break;
 
 	/*
@@ -967,10 +1019,10 @@ gpx_end(void *data, const XML_Char *xml_el)
 		trk_head->rte_num = atoi(cdatastrp);
 		break;
 	case tt_trk_trkseg_trkpt_course:
-		wpt_tmp->course = atof(cdatastrp);
+		WAYPT_SET(wpt_tmp, course, atof(cdatastrp));
 		break;
 	case tt_trk_trkseg_trkpt_speed:
-		wpt_tmp->speed = atof(cdatastrp);
+		WAYPT_SET(wpt_tmp, speed, atof(cdatastrp));
 		break;
 
 	/*
@@ -1396,21 +1448,27 @@ write_gpx_url(const waypoint *waypointp)
 {
 	char *tmp_ent;
 
-	if (waypointp->url) {
-		tmp_ent = xml_entitize(waypointp->url);
-		if (gpx_wversion_num > 10) {
-			
+	if (waypointp->url == NULL) {
+		return;
+	}
+
+	if (gpx_wversion_num > 10) {
+		url_link *tail;
+		for (tail = (url_link *)&waypointp->url_next; tail; tail = tail->url_next) {
+			tmp_ent = xml_entitize(tail->url);
 			gbfprintf(ofd, "  <link href=\"%s%s\">\n", 
 				urlbase ? urlbase : "", tmp_ent);
 			write_optional_xml_entity(ofd, "  ", "text", 
-				waypointp->url_link_text);
+				tail->url_link_text);
 			gbfprintf(ofd, "  </link>\n");
-		} else {
-			gbfprintf(ofd, "  <url>%s%s</url>\n", 
-				urlbase ? urlbase : "", tmp_ent);
-			write_optional_xml_entity(ofd, "  ", "urlname", 
-				waypointp->url_link_text);
+			xfree(tmp_ent);
 		}
+	} else {
+		tmp_ent = xml_entitize(waypointp->url);
+		gbfprintf(ofd, "  <url>%s%s</url>\n", 
+			urlbase ? urlbase : "", tmp_ent);
+		write_optional_xml_entity(ofd, "  ", "urlname", 
+			waypointp->url_link_text);
 		xfree(tmp_ent);
 	}
 }
@@ -1495,6 +1553,7 @@ gpx_waypt_pr(const waypoint *waypointp)
 	const char *oname;
 	char *odesc;
 	fs_xml *fs_gpx;
+	garmin_fs_t *gmsd;	/* gARmIN sPECIAL dATA */
 
 	/*
 	 * Desparation time, try very hard to get a good shortname
@@ -1520,10 +1579,12 @@ gpx_waypt_pr(const waypoint *waypointp)
 	gpx_write_common_acc(waypointp, "  ");
 
 	fs_gpx = (fs_xml *)fs_chain_find( waypointp->fs, FS_GPX );
+	gmsd = GMSD_FIND(waypointp);
 	if ( fs_gpx ) {
-		fprint_xml_chain( fs_gpx->tag, waypointp );
+		if (! gmsd) fprint_xml_chain( fs_gpx->tag, waypointp );
 	}
-	if (gpx_wversion_num > 10) {
+	if (gmsd && (gpx_wversion_num > 10)) {
+		/* MapSource doesn't accepts extensions from 1.0 */
 		garmin_fs_xml_fprint(ofd, waypointp);
 	}
 	gbfprintf(ofd, "</wpt>\n");
@@ -1561,11 +1622,11 @@ gpx_track_disp(const waypoint *waypointp)
 
 	/* These were accidentally removed from 1.1 */
 	if (gpx_wversion_num == 10) {
-		if (waypointp->course >= 0) {
+		if WAYPT_HAS(waypointp, course) {
 			gbfprintf(ofd, "  <course>%f</course>\n", 
 				waypointp->course);
 		}
-		if (waypointp->speed >= 0) {
+		if WAYPT_HAS(waypointp, speed) {
 			gbfprintf(ofd, "  <speed>%f</speed>\n", 
 				waypointp->speed);
 		}

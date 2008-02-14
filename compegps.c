@@ -106,16 +106,11 @@ static
 void fix_datum(double *lat, double *lon)
 {
 	double amt;
-	static int wgs84;
-
-	if (wgs84 == 0) {
-		wgs84 = GPS_Lookup_Datum_Index("WGS 84");
-	}
 
 	/*
 	 * Avoid FP jitter in the common case.
  	 */
-	if (input_datum != wgs84) {
+	if (input_datum != DATUM_WGS84) {
 		GPS_Math_Known_Datum_To_WGS84_M(*lat, *lon, 0.0, lat, lon, 
 			&amt, input_datum);
 	}
@@ -210,8 +205,7 @@ parse_wpt_info(const char *buff, waypoint *wpt)		/* "w" */
 				case 7:	break;			/* ??? */
 				case 8: 			/* radius */
 					fx = atof(c);
-					if (fx > 0)
-						wpt->proximity = fx;
+					if (fx > 0) WAYPT_SET(wpt, proximity, fx);
 					break;
 			}
 		}
@@ -341,7 +335,7 @@ static void
 compegps_rd_init(const char *fname)
 {
 	fin = gbfopen(fname, "rb", MYNAME);
-	input_datum = GPS_Lookup_Datum_Index("WGS 84");
+	input_datum = DATUM_WGS84;
 }
 
 static void
@@ -455,7 +449,7 @@ write_waypt_cb(const waypoint *wpt)
 		gbfprintf(fout, " %s", wpt->description);
 	gbfprintf(fout, "\n");
 	
-	if ((wpt->icon_descr != NULL) || (wpt->proximity > 0.0) || \
+	if ((wpt->icon_descr != NULL) || (wpt->wpt_flags.proximity) || \
 	    (option_icon != NULL))
 	{
 		char *icon = option_icon;
@@ -464,7 +458,7 @@ write_waypt_cb(const waypoint *wpt)
 			
 		gbfprintf(fout, "w  %s,0,0.0,16777215,255,1,7,,%.1f\n",
 			(icon != NULL) ? icon : "Waypoint",
-			(wpt->proximity > 0.0f) ? wpt->proximity : 0.0);
+			WAYPT_GET(wpt, proximity, 0));
 	}
 	xfree(name);
 }
@@ -521,6 +515,7 @@ write_trkpt_cb(const waypoint *wpt)
 		strftime(buff, sizeof(buff), "%d-%b-%y %H:%M:%S", &tm);
 		strupper(buff);
 	}
+	else strncpy(buff, "01-JAN-70 00:00:00", sizeof(buff));
 	
 	gbfprintf(fout, "T  A %.10f%c%c %.10f%c%c ",
 		fabs(wpt->latitude), 0xBA, (wpt->latitude >= 0) ? 'N' : 'S',

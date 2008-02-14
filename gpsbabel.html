@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>GPSBabel Documentation</title><link rel="stylesheet" href="http://www.gpsbabel.org/style3.css" type="text/css" /><meta name="generator" content="DocBook XSL Stylesheets V1.71.1" /></head><body><div class="book" lang="en" xml:lang="en"><div class="titlepage"><div><div><h1 class="title"><a id="GPSBabel_Documentation_Book"></a>GPSBabel Documentation</h1></div></div><hr /></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="preface"><a href="#Introduction">Introduction</a></span></dt><dd><dl><dt><span class="section"><a href="#The_Problem">The Problem: Too many incompatible formats</a></span></dt><dt><span class="section"><a href="#The_Solution">The Solution</a></span></dt></dl></dd><dt><span class="chapter"><a href="#Getting_and_Building">1. Getting it and Building it</a></span></dt><dt><span class="chapter"><a href="#Usage">2. Usage</a></span></dt><dd><dl><dt><span class="sect1"><a href="#Invocation">Invocation</a></span></dt><dt><span class="sect1"><a href="#Suboptions">Suboptions</a></span></dt><dt><span class="sect1"><a href="#Advanced_Usage">Advanced Usage</a></span></dt><dt><span class="sect1"><a href="#Route_And_Track_Modes">Route and Track Modes</a></span></dt><dt><span class="sect1"><a href="#inifile">Working with predefined options</a></span></dt><dt><span class="sect1"><a href="#tracking">Realtime tracking</a></span></dt><dt><span class="sect1"><a href="#batchfile">Batch mode (command files)</a></span></dt></dl></dd><dt><span class="chapter"><a href="#The_Formats">3. The Formats</a></span></dt><dd><dl><dt><span class="section"><a href="#fmt_xcsv">? Character Separated Values (xcsv)</a></span></dt><dt><span class="section"><a href="#fmt_alantrl">Alan Map500 tracklogs (.trl) (alantrl)</a></span></dt><dt><span class="section"><a href="#fmt_alanwpr">Alan Map500 waypoints and routes (.wpr) (alanwpr)</a></span></dt><dt><span class="section"><a href="#fmt_tabsep">All database fields on one tab-separated line (tabsep)</a></span></dt><dt><span class="section"><a href="#fmt_baroiq">Brauniger IQ Series Barograph Download (baroiq)</a></span></dt><dt><span class="section"><a href="#fmt_cambridge">Cambridge/Winpilot glider software (cambridge)</a></span></dt><dt><span class="section"><a href="#fmt_cst">CarteSurTable data file (cst)</a></span></dt><dt><span class="section"><a href="#fmt_cetus">Cetus for Palm/OS (cetus)</a></span></dt><dt><span class="section"><a href="#fmt_coastexp">CoastalExplorer XML (coastexp)</a></span></dt><dt><span class="section"><a href="#fmt_csv">Comma separated values (csv)</a></span></dt><dt><span class="section"><a href="#fmt_compegps">CompeGPS data files (.wpt/.trk/.rte) (compegps)</a></span></dt><dt><span class="section"><a href="#fmt_copilot">CoPilot Flight Planner for Palm/OS (copilot)</a></span></dt><dt><span class="section"><a href="#fmt_coto">cotoGPS for Palm/OS (coto)</a></span></dt><dt><span class="section"><a href="#fmt_custom">Custom "Everything" Style (custom)</a></span></dt><dt><span class="section"><a href="#fmt_axim_gpb">Dell Axim Navigation System (.gpb) file format (axim_gpb)</a></span></dt><dt><span class="section"><a href="#fmt_an1">DeLorme .an1 (drawing) file (an1)</a></span></dt><dt><span class="section"><a href="#fmt_gpl">DeLorme GPL (gpl)</a></span></dt><dt><span class="section"><a href="#fmt_saplus">DeLorme Street Atlas Plus (saplus)</a></span></dt><dt><span class="section"><a href="#fmt_saroute">DeLorme Street Atlas Route (saroute)</a></span></dt><dt><span class="section"><a href="#fmt_xmap">DeLorme XMap HH Native .WPT (xmap)</a></span></dt><dt><span class="section"><a href="#fmt_xmap2006">DeLorme XMap/SAHH 2006 Native .TXT (xmap2006)</a></span></dt><dt><span class="section"><a href="#fmt_xmapwpt">DeLorme XMat HH Street Atlas USA .WPT (PPC) (xmapwpt)</a></span></dt><dt><span class="section"><a href="#fmt_easygps">EasyGPS binary format (easygps)</a></span></dt><dt><span class="section"><a href="#fmt_igc">FAI/IGC Flight Recorder Data Format (igc)</a></span></dt><dt><span class="section"><a href="#fmt_gpssim">Franson GPSGate Simulation (gpssim)</a></span></dt><dt><span class="section"><a href="#fmt_fugawi">Fugawi (fugawi)</a></span></dt><dt><span class="section"><a href="#fmt_garmin301">Garmin 301 Custom position and heartrate (garmin301)</a></span></dt><dt><span class="section"><a href="#fmt_glogbook">Garmin Logbook XML (glogbook)</a></span></dt><dt><span class="section"><a href="#fmt_gdb">Garmin MapSource - gdb (gdb)</a></span></dt><dt><span class="section"><a href="#fmt_mapsource">Garmin MapSource - mps (mapsource)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_txt">Garmin MapSource - txt (tab delimited) (garmin_txt)</a></span></dt><dt><span class="section"><a href="#fmt_pcx">Garmin PCX5 (pcx)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_poi">Garmin POI database (garmin_poi)</a></span></dt><dt><span class="section"><a href="#fmt_garmin">Garmin serial/USB protocol (garmin)</a></span></dt><dt><span class="section"><a href="#fmt_gtrnctr">Garmin Training Centerxml (gtrnctr)</a></span></dt><dt><span class="section"><a href="#fmt_geo">Geocaching.com .loc (geo)</a></span></dt><dt><span class="section"><a href="#fmt_gcdb">GeocachingDB for Palm/OS (gcdb)</a></span></dt><dt><span class="section"><a href="#fmt_geonet">GEOnet Names Server (GNS) (geonet)</a></span></dt><dt><span class="section"><a href="#fmt_geoniche">GeoNiche .pdb (geoniche)</a></span></dt><dt><span class="section"><a href="#fmt_kml">Google Earth (Keyhole) Markup Language (kml)</a></span></dt><dt><span class="section"><a href="#fmt_google">Google Maps XML (google)</a></span></dt><dt><span class="section"><a href="#fmt_gpilots">GpilotS (gpilots)</a></span></dt><dt><span class="section"><a href="#fmt_gtm">GPS TrackMaker (gtm)</a></span></dt><dt><span class="section"><a href="#fmt_arc">GPSBabel arc filter file (arc)</a></span></dt><dt><span class="section"><a href="#fmt_gpsdrive">GpsDrive Format (gpsdrive)</a></span></dt><dt><span class="section"><a href="#fmt_gpsdrivetrack">GpsDrive Format for Tracks (gpsdrivetrack)</a></span></dt><dt><span class="section"><a href="#fmt_gpsman">GPSman (gpsman)</a></span></dt><dt><span class="section"><a href="#fmt_gpspilot">GPSPilot Tracker for Palm/OS (gpspilot)</a></span></dt><dt><span class="section"><a href="#fmt_gpsutil">gpsutil (gpsutil)</a></span></dt><dt><span class="section"><a href="#fmt_gpx">GPX XML (gpx)</a></span></dt><dt><span class="section"><a href="#fmt_hiketech">HikeTech (hiketech)</a></span></dt><dt><span class="section"><a href="#fmt_holux">Holux (gm-100) .wpo Format (holux)</a></span></dt><dt><span class="section"><a href="#fmt_hsandv">HSA Endeavour Navigator export File (hsandv)</a></span></dt><dt><span class="section"><a href="#fmt_html">HTML Output (html)</a></span></dt><dt><span class="section"><a href="#fmt_ignrando">IGN Rando track files (ignrando)</a></span></dt><dt><span class="section"><a href="#fmt_ktf2">Kartex 5 Track File (ktf2)</a></span></dt><dt><span class="section"><a href="#fmt_kwf2">Kartex 5 Waypoint File (kwf2)</a></span></dt><dt><span class="section"><a href="#fmt_kompass_tk">Kompass (DAV) Track (.tk) (kompass_tk)</a></span></dt><dt><span class="section"><a href="#fmt_kompass_wp">Kompass (DAV) Waypoints (.wp) (kompass_wp)</a></span></dt><dt><span class="section"><a href="#fmt_psitrex">KuDaTa PsiTrex text (psitrex)</a></span></dt><dt><span class="section"><a href="#fmt_lowranceusr">Lowrance USR (lowranceusr)</a></span></dt><dt><span class="section"><a href="#fmt_maggeo">Magellan Explorist Geocaching (maggeo)</a></span></dt><dt><span class="section"><a href="#fmt_mapsend">Magellan Mapsend (mapsend)</a></span></dt><dt><span class="section"><a href="#fmt_magnav">Magellan NAV Companion for Palm/OS (magnav)</a></span></dt><dt><span class="section"><a href="#fmt_magellanx">Magellan SD files (as for eXplorist) (magellanx)</a></span></dt><dt><span class="section"><a href="#fmt_magellan">Magellan SD files (as for Meridian) (magellan)</a></span></dt><dt><span class="section"><a href="#fmt_magellan1">Magellan serial protocol (magellan)</a></span></dt><dt><span class="section"><a href="#fmt_tef">Map&amp;Guide 'TourExchangeFormat' XML (tef)</a></span></dt><dt><span class="section"><a href="#fmt_mag_pdb">Map&amp;Guide to Palm/OS exported files (.pdb) (mag_pdb)</a></span></dt><dt><span class="section"><a href="#fmt_mapconverter">Mapopolis.com Mapconverter CSV (mapconverter)</a></span></dt><dt><span class="section"><a href="#fmt_mxf">MapTech Exchange Format (mxf)</a></span></dt><dt><span class="section"><a href="#fmt_msroute">Microsoft AutoRoute 2002 (pin/route reader) (msroute)</a></span></dt><dt><span class="section"><a href="#fmt_msroute1">Microsoft Streets and Trips (pin/route reader) (msroute)</a></span></dt><dt><span class="section"><a href="#fmt_s_and_t">Microsoft Streets and Trips 2002-2006 (s_and_t)</a></span></dt><dt><span class="section"><a href="#fmt_bcr">Motorrad Routenplaner (Map&amp;Guide) .bcr files (bcr)</a></span></dt><dt><span class="section"><a href="#fmt_psp">MS PocketStreets 2002 Pushpin (psp)</a></span></dt><dt><span class="section"><a href="#fmt_tpg">National Geographic Topo .tpg (waypoints) (tpg)</a></span></dt><dt><span class="section"><a href="#fmt_tpo2">National Geographic Topo 2.x .tpo (tpo2)</a></span></dt><dt><span class="section"><a href="#fmt_tpo3">National Geographic Topo 3.x/4.x .tpo (tpo3)</a></span></dt><dt><span class="section"><a href="#fmt_navicache">Navicache.com XML (navicache)</a></span></dt><dt><span class="section"><a href="#fmt_nmn4">Navigon Mobile Navigator .rte files (nmn4)</a></span></dt><dt><span class="section"><a href="#fmt_dna">Navitrak DNA marker format (dna)</a></span></dt><dt><span class="section"><a href="#fmt_netstumbler">NetStumbler Summary File (text) (netstumbler)</a></span></dt><dt><span class="section"><a href="#fmt_nima">NIMA/GNIS Geographic Names File (nima)</a></span></dt><dt><span class="section"><a href="#fmt_nmea">NMEA 0183 sentences (nmea)</a></span></dt><dt><span class="section"><a href="#fmt_ozi">OziExplorer (ozi)</a></span></dt><dt><span class="section"><a href="#fmt_palmdoc">PalmDoc Output (palmdoc)</a></span></dt><dt><span class="section"><a href="#fmt_pathaway">PathAway Database for Palm/OS (pathaway)</a></span></dt><dt><span class="section"><a href="#fmt_quovadis">Quovadis (quovadis)</a></span></dt><dt><span class="section"><a href="#fmt_raymarine">Raymarine Waypoint File (.rwf) (raymarine)</a></span></dt><dt><span class="section"><a href="#fmt_cup">See You flight analysis data (cup)</a></span></dt><dt><span class="section"><a href="#fmt_sportsim">Sportsim track files (part of zipped .ssz files) (sportsim)</a></span></dt><dt><span class="section"><a href="#fmt_stmsdf">Suunto Trek Manager (STM) .sdf files (stmsdf)</a></span></dt><dt><span class="section"><a href="#fmt_stmwpp">Suunto Trek Manager (STM) WaypointPlus files (stmwpp)</a></span></dt><dt><span class="section"><a href="#fmt_openoffice">Tab delimited fields useful for OpenOffice, Ploticus etc. (openoffice)</a></span></dt><dt><span class="section"><a href="#fmt_text">Textual Output (text)</a></span></dt><dt><span class="section"><a href="#fmt_tomtom">TomTom POI file (tomtom)</a></span></dt><dt><span class="section"><a href="#fmt_tmpro">TopoMapPro Places File (tmpro)</a></span></dt><dt><span class="section"><a href="#fmt_dmtlog">TrackLogs digital mapping (.trl) (dmtlog)</a></span></dt><dt><span class="section"><a href="#fmt_tiger">U.S. Census Bureau Tiger Mapping Service (tiger)</a></span></dt><dt><span class="section"><a href="#fmt_unicsv">Universal csv with field structure in first line (unicsv)</a></span></dt><dt><span class="section"><a href="#fmt_vcard">Vcard Output (for iPod) (vcard)</a></span></dt><dt><span class="section"><a href="#fmt_vitosmt">Vito Navigator II tracks (vitosmt)</a></span></dt><dt><span class="section"><a href="#fmt_wfff">WiFiFoFum 2.0 for PocketPC XML (wfff)</a></span></dt><dt><span class="section"><a href="#fmt_wbt-bin">Wintec WBT-100/200 Binary file format (wbt-bin)</a></span></dt><dt><span class="section"><a href="#fmt_wbt">Wintec WBT-100/200 GPS Download (wbt)</a></span></dt><dt><span class="section"><a href="#fmt_yahoo">Yahoo Geocode API data (yahoo)</a></span></dt></dl></dd><dt><span class="chapter"><a href="#Data_Filters">4. Data Filters</a></span></dt><dd><dl><dt><span class="section"><a href="#filter_polygon">Include Only Points Inside Polygon (polygon)</a></span></dt><dt><span class="section"><a href="#filter_arc">Include Only Points Within Distance of Arc (arc)</a></span></dt><dt><span class="section"><a href="#filter_radius">Include Only Points Within Radius (radius)</a></span></dt><dt><span class="section"><a href="#filter_interpolate">Interpolate between trackpoints (interpolate)</a></span></dt><dt><span class="section"><a href="#filter_track">Manipulate track lists (track)</a></span></dt><dt><span class="section"><a href="#filter_sort">Rearrange waypoints by resorting (sort)</a></span></dt><dt><span class="section"><a href="#filter_nuketypes">Remove all waypoints, tracks, or routes (nuketypes)</a></span></dt><dt><span class="section"><a href="#filter_duplicate">Remove Duplicates (duplicate)</a></span></dt><dt><span class="section"><a href="#filter_position">Remove Points Within Distance (position)</a></span></dt><dt><span class="section"><a href="#filter_discard">Remove unreliable points with high hdop or vdop (discard)</a></span></dt><dt><span class="section"><a href="#filter_reverse">Reverse stops within routes (reverse)</a></span></dt><dt><span class="section"><a href="#filter_stack">Save and restore waypoint lists (stack)</a></span></dt><dt><span class="section"><a href="#filter_simplify">Simplify routes (simplify)</a></span></dt><dt><span class="section"><a href="#filter_transform">Transform waypoints into a route, tracks into routes, ... (transform)</a></span></dt></dl></dd><dt><span class="appendix"><a href="#Datums">A. Supported Datums</a></span></dt><dt><span class="appendix"><a href="#GarminIcons">B. Garmin Icons</a></span></dt><dt><span class="appendix"><a href="#Styles">C. GPSBabel XCSV Style Files</a></span></dt><dd><dl><dt><span class="section"><a href="#styles_intro">Introduction</a></span></dt><dt><span class="section"><a href="#style_intro2">Style file overview</a></span></dt><dt><span class="section"><a href="#styles_internal_const">Internal Constants</a></span></dt><dt><span class="section"><a href="#style_global">Global Properties of the File</a></span></dt><dt><span class="section"><a href="#style_behavior">GPSBabel Behavior Directives</a></span></dt><dt><span class="section"><a href="#style_layout">Defining the Layout of the File</a></span></dt><dt><span class="section"><a href="#style_define">Defining Fields Within the File</a></span></dt><dt><span class="section"><a href="#style_examples">Examples</a></span></dt><dt><span class="section"><a href="#style_notes">Miscellaneous Notes</a></span></dt></dl></dd></dl></div><div class="list-of-tables"><p><b>List of Tables</b></p><dl><dt>3.1. <a href="#garmin_grid">Grid values for garmin_txt</a></dt></dl></div><div class="list-of-examples"><p><b>List of Examples</b></p><dl><dt>3.1. <a href="#all_garmin_txt_options">Command showing garmin_txt output with all options</a></dt><dt>3.2. <a href="#sample_bcr_command">Sample BCR command with all options</a></dt><dt>3.3. <a href="#wbt-bin-on-macos">Command showing conversion of a Wintec binary file to GPX</a></dt><dt>3.4. <a href="#wbt-on-macos">Command showing WBT-200 download and erase over Bluetooth on Mac OS X</a></dt><dt>4.1. <a href="#example_polygon_filter">Using the polygon filter</a></dt><dt>4.2. <a href="#example_in_or_close_to">Using the polygon and arc filters to find points in or nearly in a 
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>GPSBabel Documentation</title><link rel="stylesheet" href="http://www.gpsbabel.org/style3.css" type="text/css" /><meta name="generator" content="DocBook XSL Stylesheets V1.72.0" /></head><body><div class="book" lang="en" xml:lang="en"><div class="titlepage"><div><div><h1 class="title"><a id="GPSBabel_Documentation_Book"></a>GPSBabel Documentation</h1></div></div><hr /></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="preface"><a href="#Introduction">Introduction</a></span></dt><dd><dl><dt><span class="section"><a href="#The_Problem">The Problem: Too many incompatible GPS file formats</a></span></dt><dt><span class="section"><a href="#The_Solution">The Solution</a></span></dt></dl></dd><dt><span class="chapter"><a href="#Getting_and_Building">1. Getting it and Building it</a></span></dt><dt><span class="chapter"><a href="#Usage">2. Usage</a></span></dt><dd><dl><dt><span class="sect1"><a href="#Invocation">Invocation</a></span></dt><dt><span class="sect1"><a href="#Suboptions">Suboptions</a></span></dt><dt><span class="sect1"><a href="#Advanced_Usage">Advanced Usage</a></span></dt><dt><span class="sect1"><a href="#Route_And_Track_Modes">Route and Track Modes</a></span></dt><dt><span class="sect1"><a href="#inifile">Working with predefined options</a></span></dt><dt><span class="sect1"><a href="#tracking">Realtime tracking</a></span></dt><dt><span class="sect1"><a href="#batchfile">Batch mode (command files)</a></span></dt></dl></dd><dt><span class="chapter"><a href="#The_Formats">3. The Formats</a></span></dt><dd><dl><dt><span class="section"><a href="#fmt_xcsv">? Character Separated Values (xcsv)</a></span></dt><dt><span class="section"><a href="#fmt_alantrl">Alan Map500 tracklogs (.trl) (alantrl)</a></span></dt><dt><span class="section"><a href="#fmt_alanwpr">Alan Map500 waypoints and routes (.wpr) (alanwpr)</a></span></dt><dt><span class="section"><a href="#fmt_tabsep">All database fields on one tab-separated line (tabsep)</a></span></dt><dt><span class="section"><a href="#fmt_baroiq">Brauniger IQ Series Barograph Download (baroiq)</a></span></dt><dt><span class="section"><a href="#fmt_cambridge">Cambridge/Winpilot glider software (cambridge)</a></span></dt><dt><span class="section"><a href="#fmt_cst">CarteSurTable data file (cst)</a></span></dt><dt><span class="section"><a href="#fmt_cetus">Cetus for Palm/OS (cetus)</a></span></dt><dt><span class="section"><a href="#fmt_coastexp">CoastalExplorer XML (coastexp)</a></span></dt><dt><span class="section"><a href="#fmt_csv">Comma separated values (csv)</a></span></dt><dt><span class="section"><a href="#fmt_compegps">CompeGPS data files (.wpt/.trk/.rte) (compegps)</a></span></dt><dt><span class="section"><a href="#fmt_copilot">CoPilot Flight Planner for Palm/OS (copilot)</a></span></dt><dt><span class="section"><a href="#fmt_coto">cotoGPS for Palm/OS (coto)</a></span></dt><dt><span class="section"><a href="#fmt_custom">Custom "Everything" Style (custom)</a></span></dt><dt><span class="section"><a href="#fmt_axim_gpb">Dell Axim Navigation System (.gpb) file format (axim_gpb)</a></span></dt><dt><span class="section"><a href="#fmt_an1">DeLorme .an1 (drawing) file (an1)</a></span></dt><dt><span class="section"><a href="#fmt_gpl">DeLorme GPL (gpl)</a></span></dt><dt><span class="section"><a href="#fmt_saplus">DeLorme Street Atlas Plus (saplus)</a></span></dt><dt><span class="section"><a href="#fmt_saroute">DeLorme Street Atlas Route (saroute)</a></span></dt><dt><span class="section"><a href="#fmt_xmap">DeLorme XMap HH Native .WPT (xmap)</a></span></dt><dt><span class="section"><a href="#fmt_xmap2006">DeLorme XMap/SAHH 2006 Native .TXT (xmap2006)</a></span></dt><dt><span class="section"><a href="#fmt_xmapwpt">DeLorme XMat HH Street Atlas USA .WPT (PPC) (xmapwpt)</a></span></dt><dt><span class="section"><a href="#fmt_easygps">EasyGPS binary format (easygps)</a></span></dt><dt><span class="section"><a href="#fmt_igc">FAI/IGC Flight Recorder Data Format (igc)</a></span></dt><dt><span class="section"><a href="#fmt_gpssim">Franson GPSGate Simulation (gpssim)</a></span></dt><dt><span class="section"><a href="#fmt_fugawi">Fugawi (fugawi)</a></span></dt><dt><span class="section"><a href="#fmt_g7towin">G7ToWin data files (.g7t) (g7towin)</a></span></dt><dt><span class="section"><a href="#fmt_garmin301">Garmin 301 Custom position and heartrate (garmin301)</a></span></dt><dt><span class="section"><a href="#fmt_glogbook">Garmin Logbook XML (glogbook)</a></span></dt><dt><span class="section"><a href="#fmt_gdb">Garmin MapSource - gdb (gdb)</a></span></dt><dt><span class="section"><a href="#fmt_mapsource">Garmin MapSource - mps (mapsource)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_txt">Garmin MapSource - txt (tab delimited) (garmin_txt)</a></span></dt><dt><span class="section"><a href="#fmt_pcx">Garmin PCX5 (pcx)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_poi">Garmin POI database (garmin_poi)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_gpi">Garmin Points of Interest (.gpi) (garmin_gpi)</a></span></dt><dt><span class="section"><a href="#fmt_garmin">Garmin serial/USB protocol (garmin)</a></span></dt><dt><span class="section"><a href="#fmt_gtrnctr">Garmin Training Centerxml (gtrnctr)</a></span></dt><dt><span class="section"><a href="#fmt_geo">Geocaching.com .loc (geo)</a></span></dt><dt><span class="section"><a href="#fmt_gcdb">GeocachingDB for Palm/OS (gcdb)</a></span></dt><dt><span class="section"><a href="#fmt_ggv_log">Geogrid Viewer tracklogs (.log) (ggv_log)</a></span></dt><dt><span class="section"><a href="#fmt_geonet">GEOnet Names Server (GNS) (geonet)</a></span></dt><dt><span class="section"><a href="#fmt_geoniche">GeoNiche .pdb (geoniche)</a></span></dt><dt><span class="section"><a href="#fmt_kml">Google Earth (Keyhole) Markup Language (kml)</a></span></dt><dt><span class="section"><a href="#fmt_google">Google Maps XML (google)</a></span></dt><dt><span class="section"><a href="#fmt_gpilots">GpilotS (gpilots)</a></span></dt><dt><span class="section"><a href="#fmt_gtm">GPS TrackMaker (gtm)</a></span></dt><dt><span class="section"><a href="#fmt_arc">GPSBabel arc filter file (arc)</a></span></dt><dt><span class="section"><a href="#fmt_gpsdrive">GpsDrive Format (gpsdrive)</a></span></dt><dt><span class="section"><a href="#fmt_gpsdrivetrack">GpsDrive Format for Tracks (gpsdrivetrack)</a></span></dt><dt><span class="section"><a href="#fmt_gpsman">GPSman (gpsman)</a></span></dt><dt><span class="section"><a href="#fmt_gpspilot">GPSPilot Tracker for Palm/OS (gpspilot)</a></span></dt><dt><span class="section"><a href="#fmt_gpsutil">gpsutil (gpsutil)</a></span></dt><dt><span class="section"><a href="#fmt_gpx">GPX XML (gpx)</a></span></dt><dt><span class="section"><a href="#fmt_hiketech">HikeTech (hiketech)</a></span></dt><dt><span class="section"><a href="#fmt_holux">Holux (gm-100) .wpo Format (holux)</a></span></dt><dt><span class="section"><a href="#fmt_hsandv">HSA Endeavour Navigator export File (hsandv)</a></span></dt><dt><span class="section"><a href="#fmt_html">HTML Output (html)</a></span></dt><dt><span class="section"><a href="#fmt_ignrando">IGN Rando track files (ignrando)</a></span></dt><dt><span class="section"><a href="#fmt_ktf2">Kartex 5 Track File (ktf2)</a></span></dt><dt><span class="section"><a href="#fmt_kwf2">Kartex 5 Waypoint File (kwf2)</a></span></dt><dt><span class="section"><a href="#fmt_kompass_tk">Kompass (DAV) Track (.tk) (kompass_tk)</a></span></dt><dt><span class="section"><a href="#fmt_kompass_wp">Kompass (DAV) Waypoints (.wp) (kompass_wp)</a></span></dt><dt><span class="section"><a href="#fmt_psitrex">KuDaTa PsiTrex text (psitrex)</a></span></dt><dt><span class="section"><a href="#fmt_lowranceusr">Lowrance USR (lowranceusr)</a></span></dt><dt><span class="section"><a href="#fmt_maggeo">Magellan Explorist Geocaching (maggeo)</a></span></dt><dt><span class="section"><a href="#fmt_mapsend">Magellan Mapsend (mapsend)</a></span></dt><dt><span class="section"><a href="#fmt_magnav">Magellan NAV Companion for Palm/OS (magnav)</a></span></dt><dt><span class="section"><a href="#fmt_magellanx">Magellan SD files (as for eXplorist) (magellanx)</a></span></dt><dt><span class="section"><a href="#fmt_magellan">Magellan SD files (as for Meridian) (magellan)</a></span></dt><dt><span class="section"><a href="#fmt_magellan1">Magellan serial protocol (magellan)</a></span></dt><dt><span class="section"><a href="#fmt_tef">Map&amp;Guide 'TourExchangeFormat' XML (tef)</a></span></dt><dt><span class="section"><a href="#fmt_mag_pdb">Map&amp;Guide to Palm/OS exported files (.pdb) (mag_pdb)</a></span></dt><dt><span class="section"><a href="#fmt_mapconverter">Mapopolis.com Mapconverter CSV (mapconverter)</a></span></dt><dt><span class="section"><a href="#fmt_mxf">MapTech Exchange Format (mxf)</a></span></dt><dt><span class="section"><a href="#fmt_msroute">Microsoft AutoRoute 2002 (pin/route reader) (msroute)</a></span></dt><dt><span class="section"><a href="#fmt_msroute1">Microsoft Streets and Trips (pin/route reader) (msroute)</a></span></dt><dt><span class="section"><a href="#fmt_s_and_t">Microsoft Streets and Trips 2002-2006 (s_and_t)</a></span></dt><dt><span class="section"><a href="#fmt_bcr">Motorrad Routenplaner (Map&amp;Guide) .bcr files (bcr)</a></span></dt><dt><span class="section"><a href="#fmt_psp">MS PocketStreets 2002 Pushpin (psp)</a></span></dt><dt><span class="section"><a href="#fmt_tpg">National Geographic Topo .tpg (waypoints) (tpg)</a></span></dt><dt><span class="section"><a href="#fmt_tpo2">National Geographic Topo 2.x .tpo (tpo2)</a></span></dt><dt><span class="section"><a href="#fmt_tpo3">National Geographic Topo 3.x/4.x .tpo (tpo3)</a></span></dt><dt><span class="section"><a href="#fmt_navicache">Navicache.com XML (navicache)</a></span></dt><dt><span class="section"><a href="#fmt_nmn4">Navigon Mobile Navigator .rte files (nmn4)</a></span></dt><dt><span class="section"><a href="#fmt_dna">Navitrak DNA marker format (dna)</a></span></dt><dt><span class="section"><a href="#fmt_netstumbler">NetStumbler Summary File (text) (netstumbler)</a></span></dt><dt><span class="section"><a href="#fmt_nima">NIMA/GNIS Geographic Names File (nima)</a></span></dt><dt><span class="section"><a href="#fmt_nmea">NMEA 0183 sentences (nmea)</a></span></dt><dt><span class="section"><a href="#fmt_ozi">OziExplorer (ozi)</a></span></dt><dt><span class="section"><a href="#fmt_palmdoc">PalmDoc Output (palmdoc)</a></span></dt><dt><span class="section"><a href="#fmt_pathaway">PathAway Database for Palm/OS (pathaway)</a></span></dt><dt><span class="section"><a href="#fmt_quovadis">Quovadis (quovadis)</a></span></dt><dt><span class="section"><a href="#fmt_raymarine">Raymarine Waypoint File (.rwf) (raymarine)</a></span></dt><dt><span class="section"><a href="#fmt_cup">See You flight analysis data (cup)</a></span></dt><dt><span class="section"><a href="#fmt_sportsim">Sportsim track files (part of zipped .ssz files) (sportsim)</a></span></dt><dt><span class="section"><a href="#fmt_stmsdf">Suunto Trek Manager (STM) .sdf files (stmsdf)</a></span></dt><dt><span class="section"><a href="#fmt_stmwpp">Suunto Trek Manager (STM) WaypointPlus files (stmwpp)</a></span></dt><dt><span class="section"><a href="#fmt_openoffice">Tab delimited fields useful for OpenOffice, Ploticus etc. (openoffice)</a></span></dt><dt><span class="section"><a href="#fmt_text">Textual Output (text)</a></span></dt><dt><span class="section"><a href="#fmt_tomtom_itn">TomTom Itineraries (.itn) (tomtom_itn)</a></span></dt><dt><span class="section"><a href="#fmt_tomtom_asc">TomTom POI file (.asc) (tomtom_asc)</a></span></dt><dt><span class="section"><a href="#fmt_tomtom">TomTom POI file (.ov2) (tomtom)</a></span></dt><dt><span class="section"><a href="#fmt_tmpro">TopoMapPro Places File (tmpro)</a></span></dt><dt><span class="section"><a href="#fmt_dmtlog">TrackLogs digital mapping (.trl) (dmtlog)</a></span></dt><dt><span class="section"><a href="#fmt_tiger">U.S. Census Bureau Tiger Mapping Service (tiger)</a></span></dt><dt><span class="section"><a href="#fmt_unicsv">Universal csv with field structure in first line (unicsv)</a></span></dt><dt><span class="section"><a href="#fmt_vcard">Vcard Output (for iPod) (vcard)</a></span></dt><dt><span class="section"><a href="#fmt_vitosmt">Vito Navigator II tracks (vitosmt)</a></span></dt><dt><span class="section"><a href="#fmt_vitovtt">Vito SmartMap tracks (.vtt) (vitovtt)</a></span></dt><dt><span class="section"><a href="#fmt_wfff">WiFiFoFum 2.0 for PocketPC XML (wfff)</a></span></dt><dt><span class="section"><a href="#fmt_wbt-bin">Wintec WBT-100/200 Binary File Format (wbt-bin)</a></span></dt><dt><span class="section"><a href="#fmt_wbt">Wintec WBT-100/200 GPS Download (wbt)</a></span></dt><dt><span class="section"><a href="#fmt_wbt-tk1">Wintec WBT-201/G-Rays 2 Binary File Format (wbt-tk1)</a></span></dt><dt><span class="section"><a href="#fmt_yahoo">Yahoo Geocode API data (yahoo)</a></span></dt></dl></dd><dt><span class="chapter"><a href="#Data_Filters">4. Data Filters</a></span></dt><dd><dl><dt><span class="section"><a href="#filter_polygon">Include Only Points Inside Polygon (polygon)</a></span></dt><dt><span class="section"><a href="#filter_arc">Include Only Points Within Distance of Arc (arc)</a></span></dt><dt><span class="section"><a href="#filter_radius">Include Only Points Within Radius (radius)</a></span></dt><dt><span class="section"><a href="#filter_interpolate">Interpolate between trackpoints (interpolate)</a></span></dt><dt><span class="section"><a href="#filter_track">Manipulate track lists (track)</a></span></dt><dt><span class="section"><a href="#filter_sort">Rearrange waypoints by resorting (sort)</a></span></dt><dt><span class="section"><a href="#filter_nuketypes">Remove all waypoints, tracks, or routes (nuketypes)</a></span></dt><dt><span class="section"><a href="#filter_duplicate">Remove Duplicates (duplicate)</a></span></dt><dt><span class="section"><a href="#filter_position">Remove Points Within Distance (position)</a></span></dt><dt><span class="section"><a href="#filter_discard">Remove unreliable points with high hdop or vdop (discard)</a></span></dt><dt><span class="section"><a href="#filter_reverse">Reverse stops within routes (reverse)</a></span></dt><dt><span class="section"><a href="#filter_stack">Save and restore waypoint lists (stack)</a></span></dt><dt><span class="section"><a href="#filter_simplify">Simplify routes (simplify)</a></span></dt><dt><span class="section"><a href="#filter_transform">Transform waypoints into a route, tracks into routes, ... (transform)</a></span></dt></dl></dd><dt><span class="appendix"><a href="#Datums">A. Supported Datums</a></span></dt><dt><span class="appendix"><a href="#GarminIcons">B. Garmin Icons</a></span></dt><dt><span class="appendix"><a href="#Styles">C. GPSBabel XCSV Style Files</a></span></dt><dd><dl><dt><span class="section"><a href="#styles_intro">Introduction</a></span></dt><dt><span class="section"><a href="#style_intro2">Style file overview</a></span></dt><dt><span class="section"><a href="#styles_internal_const">Internal Constants</a></span></dt><dt><span class="section"><a href="#style_global">Global Properties of the File</a></span></dt><dt><span class="section"><a href="#style_behavior">GPSBabel Behavior Directives</a></span></dt><dt><span class="section"><a href="#style_layout">Defining the Layout of the File</a></span></dt><dt><span class="section"><a href="#style_define">Defining Fields Within the File</a></span></dt><dt><span class="section"><a href="#style_examples">Examples</a></span></dt><dt><span class="section"><a href="#style_notes">Miscellaneous Notes</a></span></dt></dl></dd><dt><span class="glossary"><a href="#Glossary">Glossary</a></span></dt></dl></div><div class="list-of-tables"><p><b>List of Tables</b></p><dl><dt>3.1. <a href="#garmin_grid">Grid values for garmin_txt</a></dt><dt>3.2. <a href="#id2984364">track file header (8 bytes)</a></dt><dt>3.3. <a href="#id2984418">track point (32 bytes)</a></dt></dl></div><div class="list-of-examples"><p><b>List of Examples</b></p><dl><dt>3.1. <a href="#gdb_roadbook_option">Using gdb option <code class="option">roadbook</code> to create simple html roadbook</a></dt><dt>3.2. <a href="#all_garmin_txt_options">Command showing garmin_txt output with all options</a></dt><dt>3.3. <a href="#all_garmin_gpi_options">Command showing garmin_gpi output example</a></dt><dt>3.4. <a href="#sample_bcr_command">Sample BCR command with all options</a></dt><dt>3.5. <a href="#text_splitoutput">Example for splitoutput option to text format</a></dt><dt>3.6. <a href="#wbt-bin-on-macos">Command showing conversion of a Wintec binary file to GPX</a></dt><dt>3.7. <a href="#wbt-on-macos">Command showing WBT-200 download and erase over Bluetooth on Mac OS X</a></dt><dt>3.8. <a href="#wbt-tk1">Command showing conversion of a Wintec binary file to GPX</a></dt><dt>4.1. <a href="#example_polygon_filter">Using the polygon filter</a></dt><dt>4.2. <a href="#example_in_or_close_to">Using the polygon and arc filters to find points in or nearly in a 
 polygon</a></dt><dt>4.3. <a href="#example_arc_filter">Using the arc filter</a></dt><dt>4.4. <a href="#radius_to_find_points_close">Using the radius filter to find points close to a given point</a></dt><dt>4.5. <a href="#example_interpolate_filter">Using the interpolate filter</a></dt><dt>4.6. <a href="#ex_track_move">Time-shifting a track with the track filter</a></dt><dt>4.7. <a href="#ex_track_merge">Merging tracks with the track filter</a></dt><dt>4.8. <a href="#ex_track_startstop">Extracting a period of time with the track filter</a></dt><dt>4.9. <a href="#example_nuketypes_filter">Filtering data types with nuketypes</a></dt><dt>4.10. <a href="#duplicate_to_suppress_points">Using the duplicate filter to suppress points with the same 
          name and location</a></dt><dt>4.11. <a href="#duplicate_to_ignore">Using the duplicate filter to implement an "ignore list."</a></dt><dt>4.12. <a href="#Correcting_Cache_Locations">Using the duplicate filter to correct the locations of "puzzle"
-geocaches</a></dt><dt>4.13. <a href="#posn_to_suppress_close_points">Using the position filter to suppress close points</a></dt><dt>4.14. <a href="#example_discard_filter">Using the discard filter</a></dt><dt>4.15. <a href="#transform_to_wpt">Converting a track to a sequence of waypoints</a></dt><dt>4.16. <a href="#transform_to_rte">Converting a pile of waypoints to a GPX route</a></dt><dt>4.17. <a href="#transform_to_trk">Converting a pile of waypoints to a GPX track</a></dt><dt>4.18. <a href="#transform_del">Convert a GPX track to GPX waypoints, tossing the original track</a></dt></dl></div><div class="preface" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title"><a id="Introduction"></a>Introduction</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="section"><a href="#The_Problem">The Problem: Too many incompatible formats</a></span></dt><dt><span class="section"><a href="#The_Solution">The Solution</a></span></dt></dl></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="The_Problem"></a>The Problem: Too many incompatible formats</h2></div></div></div><p> There are simply too many gratuitously different file formats
+geocaches</a></dt><dt>4.13. <a href="#posn_to_suppress_close_points">Using the position filter to suppress close points</a></dt><dt>4.14. <a href="#example_discard_filter">Using the discard filter</a></dt><dt>4.15. <a href="#transform_to_wpt">Converting a track to a sequence of waypoints</a></dt><dt>4.16. <a href="#transform_to_rte">Converting a pile of waypoints to a GPX route</a></dt><dt>4.17. <a href="#transform_to_trk">Converting a pile of waypoints to a GPX track</a></dt><dt>4.18. <a href="#transform_del">Convert a GPX track to GPX waypoints, tossing the original track</a></dt></dl></div><div class="preface" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title"><a id="Introduction"></a>Introduction</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="section"><a href="#The_Problem">The Problem: Too many incompatible GPS file formats</a></span></dt><dt><span class="section"><a href="#The_Solution">The Solution</a></span></dt></dl></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="The_Problem"></a>The Problem: Too many incompatible GPS file formats</h2></div></div></div><p> There are simply too many gratuitously different file formats
 to hold waypoint, track, and route information in various programs
 used by computers and GPS receivers.  
 <a href="http://www.topografix.com/gpx.asp" target="_top">GPX</a>  defines a
@@ -53,7 +53,7 @@ need to 'apt-get install libusb-dev'.
 </p><p>There are additional flags that can be passed to configure to
  customize your build of GPSBabel.   
 </p><p><strong class="userinput"><code>./configure --help</code></strong></p><p>
-lists all the supported options, but additionally we have:
+lists all the supported options, but additionally we have:</p><p>
  <code class="option">--disable-shapefile</code> Excludes the shapefile support.
 </p><p>
  <code class="option">--disable-pdb</code> Excludes the Palm database support and all formats that rely on it.
@@ -90,11 +90,10 @@ name of a file to be read or written.
 </p><p>To use
          this program, just tell it what you're reading, where to read
          it from, what you're writing, and what to write it to.  For
-         example:</p><p><strong class="userinput"><code>gpsbabel -i geo -f /tmp/geocaching.loc -o gpx -F /tmp/geocaching.gpx</code></strong></p><p>tells it to read the file "/tmp/geocaching.loc" in geocaching.com
-         format and create a new file in GPX format.</p><p> This command will read from a Magellan unit attached
+         example:</p><p><strong class="userinput"><code>gpsbabel -i geo -f /tmp/geocaching.loc -o gpx -F /tmp/geocaching.gpx</code></strong></p><p>tells it to read the file <code class="filename">/tmp/geocaching.loc</code> in geocaching.com
+         format and create a new file <code class="filename">/tmp/geocaching.gpx</code> in GPX format.   It's important to note that the names have nothign to do with the formats actually used.</p><p> This command will read from a Magellan unit attached
          to the first serial port on a Linux system (device names will
-         vary on other OSes) and write them as a geocaching loc file.
-         The second command does the same on Microsoft Windows.</p><p><strong class="userinput"><code>gpsbabel -i magellan -f /dev/ttyS0 -o geo -F mag.loc</code></strong></p><p><strong class="userinput"><code>gpsbabel -i magellan -f com1 -o geo -F mag.loc</code></strong></p><p>Optionally, you may specify <em class="parameter"><code>"-s"</code></em> in any command line.  This
+         vary on other OSes) and write them as a geocaching loc file.</p><p><strong class="userinput"><code>gpsbabel -i magellan -f /dev/ttyS0 -o geo -F mag.loc</code></strong></p><p>This second command does the same on Microsoft Windows.</p><p><strong class="userinput"><code>gpsbabel -i magellan -f com1 -o geo -F mag.loc</code></strong></p><p>Optionally, you may specify <em class="parameter"><code>-s</code></em> in any command line.  This
          causes the program to ignore any "short" names that may be
          present in the source data format and synthesize one from the
          long name.  This is particularly useful if you're writing to
@@ -107,7 +106,7 @@ name of a file to be read or written.
          like this useful.</p><p><strong class="userinput"><code>gpsbabel -s -i geo -f geocaching.loc -o magellan -F /dev/ttyS0  </code></strong></p><p><strong class="userinput"><code>gpsbabel -s -i geo -f geocaching.loc -o magellan -F com1</code></strong></p></div><div class="sect1" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="Suboptions"></a>Suboptions</h2></div></div></div><p>
 	  Many of the available format options in GPSBabel can themselves
 	  take options.   While we try to make all the formats do the most
-	  sensible thing possible without any extra options, this allows
+	  sensible thing possible without any extra options; this allows
 	  great power and flexibility in the operation of the program.
 	</p><p>
 	  Suboptions are comma separated and immediately follow the option
@@ -139,7 +138,7 @@ merged data to multiple destinations.
          output side you can do this with the option <code class="option">-c
          &lt;character set&gt;</code>. You can get a complete list
          of supported character sets with "gpsbabel -l".  To change
-         the character set on both sides you should do this:</p><p><strong class="userinput"><code>gpsbabel -i xcsv,style=foo.style -c latin1 -f foo -o xcsv,style=bar.style -c ms-ansi -F bar</code></strong></p><p>Note, that some formats has a fixed character set and ignore this option.</p></div><div class="sect1" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="Route_And_Track_Modes"></a>Route and Track Modes</h2></div></div></div><p> Most formats supported by GPSBabel will make a reasonable attempt to work
+         the character set on both sides you should do this:</p><p><strong class="userinput"><code>gpsbabel -i xcsv,style=foo.style -c latin1 -f foo -o xcsv,style=bar.style -c ms-ansi -F bar</code></strong></p><p>Note, that some formats have a fixed character set and ignore this option.</p></div><div class="sect1" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="Route_And_Track_Modes"></a>Route and Track Modes</h2></div></div></div><p> Most formats supported by GPSBabel will make a reasonable attempt to work
          transparently with waypoints, tracks, and routes.  Some
          formats, like <a href="#fmt_garmin" title="Garmin serial/USB protocol (garmin)">garmin</a> and <a href="#fmt_magellan" title="Magellan SD files (as for Meridian) (magellan)">magellan</a> require the <em class="parameter"><code>-t</code></em> flag to work with tracks and
          <em class="parameter"><code>-r</code></em> to work with
@@ -157,7 +156,7 @@ merged data to multiple destinations.
  	 retained the 30 most mathematically significant turnpoints but that
 	 may not really be the route you had in mind.
 	 </p><p> Tracks and routes will sometimes be converted to a
-         list of waypoints when necessary, f.i. when writing into one
+         list of waypoints when necessary, One example is when writing into one
          of the CSV formats. The inverse operation is not supported
          right now, so reading the converted track back from CSV will
          always result in a list of waypoints, not the original track.
@@ -203,8 +202,9 @@ merged data to multiple destinations.
       Introduced in GPSBabel 1.3.1, we now have an <span class="emphasis"><em>experimental</em></span>  feature for realtime tracking via the new <code class="option">-T</code> option.  This reads position reports from selected formats and writes an output file when a position report is received. 
     </p><p>
 	  As of this writing, Garmin's PVT protocol and NMEA are supported 
-	  inputs and KML is supported on output.   Additional formats 
-   	  may be added by interested parties later.
+	  inputs. KML, NMEA, and the variou XCSV formats are supported on 
+	  output.   Additional formats may be added by interested parties 
+	  later.
     </p><p><strong class="userinput"><code>gpsbabel -T -i garmin -f usb: -o kml -F xxx.kml</code></strong></p><p>
    	  Will read the USB-connected Garmin and rewrite 'xxx.kml' atomically,
 	  suitable for a self-refreshing network link in Google Earth.
@@ -220,7 +220,7 @@ merged data to multiple destinations.
   by placing the input and filtering directives in a file called 'all_my_files'.
   </p><p><strong class="userinput"><code>gpsbabel -b all_my_files -o gdb -F all_my_tracks.gdb</code></strong></p><p>
     'all_my_files' could look like this:
-  </p><table class="simplelist" border="0" summary="Simple list"><tr><td>-i gpx</td></tr><tr><td>-f saxony_in_summer_2004.gpx -f austria_2005.gpx</td></tr><tr><td>-i gdb</td></tr><tr><td>-f croatia_2006.gdb</td></tr><tr><td>-x nuketypes,waypoints,routes</td></tr><tr><td>-x track,pack,split,title="LOG # %Y%m%d"</td></tr></table></div></div><div class="chapter" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title"><a id="The_Formats"></a>Chapter 3. The Formats</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="section"><a href="#fmt_xcsv">? Character Separated Values (xcsv)</a></span></dt><dt><span class="section"><a href="#fmt_alantrl">Alan Map500 tracklogs (.trl) (alantrl)</a></span></dt><dt><span class="section"><a href="#fmt_alanwpr">Alan Map500 waypoints and routes (.wpr) (alanwpr)</a></span></dt><dt><span class="section"><a href="#fmt_tabsep">All database fields on one tab-separated line (tabsep)</a></span></dt><dt><span class="section"><a href="#fmt_baroiq">Brauniger IQ Series Barograph Download (baroiq)</a></span></dt><dt><span class="section"><a href="#fmt_cambridge">Cambridge/Winpilot glider software (cambridge)</a></span></dt><dt><span class="section"><a href="#fmt_cst">CarteSurTable data file (cst)</a></span></dt><dt><span class="section"><a href="#fmt_cetus">Cetus for Palm/OS (cetus)</a></span></dt><dt><span class="section"><a href="#fmt_coastexp">CoastalExplorer XML (coastexp)</a></span></dt><dt><span class="section"><a href="#fmt_csv">Comma separated values (csv)</a></span></dt><dt><span class="section"><a href="#fmt_compegps">CompeGPS data files (.wpt/.trk/.rte) (compegps)</a></span></dt><dt><span class="section"><a href="#fmt_copilot">CoPilot Flight Planner for Palm/OS (copilot)</a></span></dt><dt><span class="section"><a href="#fmt_coto">cotoGPS for Palm/OS (coto)</a></span></dt><dt><span class="section"><a href="#fmt_custom">Custom "Everything" Style (custom)</a></span></dt><dt><span class="section"><a href="#fmt_axim_gpb">Dell Axim Navigation System (.gpb) file format (axim_gpb)</a></span></dt><dt><span class="section"><a href="#fmt_an1">DeLorme .an1 (drawing) file (an1)</a></span></dt><dt><span class="section"><a href="#fmt_gpl">DeLorme GPL (gpl)</a></span></dt><dt><span class="section"><a href="#fmt_saplus">DeLorme Street Atlas Plus (saplus)</a></span></dt><dt><span class="section"><a href="#fmt_saroute">DeLorme Street Atlas Route (saroute)</a></span></dt><dt><span class="section"><a href="#fmt_xmap">DeLorme XMap HH Native .WPT (xmap)</a></span></dt><dt><span class="section"><a href="#fmt_xmap2006">DeLorme XMap/SAHH 2006 Native .TXT (xmap2006)</a></span></dt><dt><span class="section"><a href="#fmt_xmapwpt">DeLorme XMat HH Street Atlas USA .WPT (PPC) (xmapwpt)</a></span></dt><dt><span class="section"><a href="#fmt_easygps">EasyGPS binary format (easygps)</a></span></dt><dt><span class="section"><a href="#fmt_igc">FAI/IGC Flight Recorder Data Format (igc)</a></span></dt><dt><span class="section"><a href="#fmt_gpssim">Franson GPSGate Simulation (gpssim)</a></span></dt><dt><span class="section"><a href="#fmt_fugawi">Fugawi (fugawi)</a></span></dt><dt><span class="section"><a href="#fmt_garmin301">Garmin 301 Custom position and heartrate (garmin301)</a></span></dt><dt><span class="section"><a href="#fmt_glogbook">Garmin Logbook XML (glogbook)</a></span></dt><dt><span class="section"><a href="#fmt_gdb">Garmin MapSource - gdb (gdb)</a></span></dt><dt><span class="section"><a href="#fmt_mapsource">Garmin MapSource - mps (mapsource)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_txt">Garmin MapSource - txt (tab delimited) (garmin_txt)</a></span></dt><dt><span class="section"><a href="#fmt_pcx">Garmin PCX5 (pcx)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_poi">Garmin POI database (garmin_poi)</a></span></dt><dt><span class="section"><a href="#fmt_garmin">Garmin serial/USB protocol (garmin)</a></span></dt><dt><span class="section"><a href="#fmt_gtrnctr">Garmin Training Centerxml (gtrnctr)</a></span></dt><dt><span class="section"><a href="#fmt_geo">Geocaching.com .loc (geo)</a></span></dt><dt><span class="section"><a href="#fmt_gcdb">GeocachingDB for Palm/OS (gcdb)</a></span></dt><dt><span class="section"><a href="#fmt_geonet">GEOnet Names Server (GNS) (geonet)</a></span></dt><dt><span class="section"><a href="#fmt_geoniche">GeoNiche .pdb (geoniche)</a></span></dt><dt><span class="section"><a href="#fmt_kml">Google Earth (Keyhole) Markup Language (kml)</a></span></dt><dt><span class="section"><a href="#fmt_google">Google Maps XML (google)</a></span></dt><dt><span class="section"><a href="#fmt_gpilots">GpilotS (gpilots)</a></span></dt><dt><span class="section"><a href="#fmt_gtm">GPS TrackMaker (gtm)</a></span></dt><dt><span class="section"><a href="#fmt_arc">GPSBabel arc filter file (arc)</a></span></dt><dt><span class="section"><a href="#fmt_gpsdrive">GpsDrive Format (gpsdrive)</a></span></dt><dt><span class="section"><a href="#fmt_gpsdrivetrack">GpsDrive Format for Tracks (gpsdrivetrack)</a></span></dt><dt><span class="section"><a href="#fmt_gpsman">GPSman (gpsman)</a></span></dt><dt><span class="section"><a href="#fmt_gpspilot">GPSPilot Tracker for Palm/OS (gpspilot)</a></span></dt><dt><span class="section"><a href="#fmt_gpsutil">gpsutil (gpsutil)</a></span></dt><dt><span class="section"><a href="#fmt_gpx">GPX XML (gpx)</a></span></dt><dt><span class="section"><a href="#fmt_hiketech">HikeTech (hiketech)</a></span></dt><dt><span class="section"><a href="#fmt_holux">Holux (gm-100) .wpo Format (holux)</a></span></dt><dt><span class="section"><a href="#fmt_hsandv">HSA Endeavour Navigator export File (hsandv)</a></span></dt><dt><span class="section"><a href="#fmt_html">HTML Output (html)</a></span></dt><dt><span class="section"><a href="#fmt_ignrando">IGN Rando track files (ignrando)</a></span></dt><dt><span class="section"><a href="#fmt_ktf2">Kartex 5 Track File (ktf2)</a></span></dt><dt><span class="section"><a href="#fmt_kwf2">Kartex 5 Waypoint File (kwf2)</a></span></dt><dt><span class="section"><a href="#fmt_kompass_tk">Kompass (DAV) Track (.tk) (kompass_tk)</a></span></dt><dt><span class="section"><a href="#fmt_kompass_wp">Kompass (DAV) Waypoints (.wp) (kompass_wp)</a></span></dt><dt><span class="section"><a href="#fmt_psitrex">KuDaTa PsiTrex text (psitrex)</a></span></dt><dt><span class="section"><a href="#fmt_lowranceusr">Lowrance USR (lowranceusr)</a></span></dt><dt><span class="section"><a href="#fmt_maggeo">Magellan Explorist Geocaching (maggeo)</a></span></dt><dt><span class="section"><a href="#fmt_mapsend">Magellan Mapsend (mapsend)</a></span></dt><dt><span class="section"><a href="#fmt_magnav">Magellan NAV Companion for Palm/OS (magnav)</a></span></dt><dt><span class="section"><a href="#fmt_magellanx">Magellan SD files (as for eXplorist) (magellanx)</a></span></dt><dt><span class="section"><a href="#fmt_magellan">Magellan SD files (as for Meridian) (magellan)</a></span></dt><dt><span class="section"><a href="#fmt_magellan1">Magellan serial protocol (magellan)</a></span></dt><dt><span class="section"><a href="#fmt_tef">Map&amp;Guide 'TourExchangeFormat' XML (tef)</a></span></dt><dt><span class="section"><a href="#fmt_mag_pdb">Map&amp;Guide to Palm/OS exported files (.pdb) (mag_pdb)</a></span></dt><dt><span class="section"><a href="#fmt_mapconverter">Mapopolis.com Mapconverter CSV (mapconverter)</a></span></dt><dt><span class="section"><a href="#fmt_mxf">MapTech Exchange Format (mxf)</a></span></dt><dt><span class="section"><a href="#fmt_msroute">Microsoft AutoRoute 2002 (pin/route reader) (msroute)</a></span></dt><dt><span class="section"><a href="#fmt_msroute1">Microsoft Streets and Trips (pin/route reader) (msroute)</a></span></dt><dt><span class="section"><a href="#fmt_s_and_t">Microsoft Streets and Trips 2002-2006 (s_and_t)</a></span></dt><dt><span class="section"><a href="#fmt_bcr">Motorrad Routenplaner (Map&amp;Guide) .bcr files (bcr)</a></span></dt><dt><span class="section"><a href="#fmt_psp">MS PocketStreets 2002 Pushpin (psp)</a></span></dt><dt><span class="section"><a href="#fmt_tpg">National Geographic Topo .tpg (waypoints) (tpg)</a></span></dt><dt><span class="section"><a href="#fmt_tpo2">National Geographic Topo 2.x .tpo (tpo2)</a></span></dt><dt><span class="section"><a href="#fmt_tpo3">National Geographic Topo 3.x/4.x .tpo (tpo3)</a></span></dt><dt><span class="section"><a href="#fmt_navicache">Navicache.com XML (navicache)</a></span></dt><dt><span class="section"><a href="#fmt_nmn4">Navigon Mobile Navigator .rte files (nmn4)</a></span></dt><dt><span class="section"><a href="#fmt_dna">Navitrak DNA marker format (dna)</a></span></dt><dt><span class="section"><a href="#fmt_netstumbler">NetStumbler Summary File (text) (netstumbler)</a></span></dt><dt><span class="section"><a href="#fmt_nima">NIMA/GNIS Geographic Names File (nima)</a></span></dt><dt><span class="section"><a href="#fmt_nmea">NMEA 0183 sentences (nmea)</a></span></dt><dt><span class="section"><a href="#fmt_ozi">OziExplorer (ozi)</a></span></dt><dt><span class="section"><a href="#fmt_palmdoc">PalmDoc Output (palmdoc)</a></span></dt><dt><span class="section"><a href="#fmt_pathaway">PathAway Database for Palm/OS (pathaway)</a></span></dt><dt><span class="section"><a href="#fmt_quovadis">Quovadis (quovadis)</a></span></dt><dt><span class="section"><a href="#fmt_raymarine">Raymarine Waypoint File (.rwf) (raymarine)</a></span></dt><dt><span class="section"><a href="#fmt_cup">See You flight analysis data (cup)</a></span></dt><dt><span class="section"><a href="#fmt_sportsim">Sportsim track files (part of zipped .ssz files) (sportsim)</a></span></dt><dt><span class="section"><a href="#fmt_stmsdf">Suunto Trek Manager (STM) .sdf files (stmsdf)</a></span></dt><dt><span class="section"><a href="#fmt_stmwpp">Suunto Trek Manager (STM) WaypointPlus files (stmwpp)</a></span></dt><dt><span class="section"><a href="#fmt_openoffice">Tab delimited fields useful for OpenOffice, Ploticus etc. (openoffice)</a></span></dt><dt><span class="section"><a href="#fmt_text">Textual Output (text)</a></span></dt><dt><span class="section"><a href="#fmt_tomtom">TomTom POI file (tomtom)</a></span></dt><dt><span class="section"><a href="#fmt_tmpro">TopoMapPro Places File (tmpro)</a></span></dt><dt><span class="section"><a href="#fmt_dmtlog">TrackLogs digital mapping (.trl) (dmtlog)</a></span></dt><dt><span class="section"><a href="#fmt_tiger">U.S. Census Bureau Tiger Mapping Service (tiger)</a></span></dt><dt><span class="section"><a href="#fmt_unicsv">Universal csv with field structure in first line (unicsv)</a></span></dt><dt><span class="section"><a href="#fmt_vcard">Vcard Output (for iPod) (vcard)</a></span></dt><dt><span class="section"><a href="#fmt_vitosmt">Vito Navigator II tracks (vitosmt)</a></span></dt><dt><span class="section"><a href="#fmt_wfff">WiFiFoFum 2.0 for PocketPC XML (wfff)</a></span></dt><dt><span class="section"><a href="#fmt_wbt-bin">Wintec WBT-100/200 Binary file format (wbt-bin)</a></span></dt><dt><span class="section"><a href="#fmt_wbt">Wintec WBT-100/200 GPS Download (wbt)</a></span></dt><dt><span class="section"><a href="#fmt_yahoo">Yahoo Geocode API data (yahoo)</a></span></dt></dl></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_xcsv"></a>? Character Separated Values (xcsv)</h2></div></div></div><p class="fmtcapshdr">
+  </p><table class="simplelist" border="0" summary="Simple list"><tr><td>-i gpx</td></tr><tr><td>-f saxony_in_summer_2004.gpx -f austria_2005.gpx</td></tr><tr><td>-i gdb</td></tr><tr><td>-f croatia_2006.gdb</td></tr><tr><td>-x nuketypes,waypoints,routes</td></tr><tr><td>-x track,pack,split,title="LOG # %Y%m%d"</td></tr></table></div></div><div class="chapter" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title"><a id="The_Formats"></a>Chapter 3. The Formats</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="section"><a href="#fmt_xcsv">? Character Separated Values (xcsv)</a></span></dt><dt><span class="section"><a href="#fmt_alantrl">Alan Map500 tracklogs (.trl) (alantrl)</a></span></dt><dt><span class="section"><a href="#fmt_alanwpr">Alan Map500 waypoints and routes (.wpr) (alanwpr)</a></span></dt><dt><span class="section"><a href="#fmt_tabsep">All database fields on one tab-separated line (tabsep)</a></span></dt><dt><span class="section"><a href="#fmt_baroiq">Brauniger IQ Series Barograph Download (baroiq)</a></span></dt><dt><span class="section"><a href="#fmt_cambridge">Cambridge/Winpilot glider software (cambridge)</a></span></dt><dt><span class="section"><a href="#fmt_cst">CarteSurTable data file (cst)</a></span></dt><dt><span class="section"><a href="#fmt_cetus">Cetus for Palm/OS (cetus)</a></span></dt><dt><span class="section"><a href="#fmt_coastexp">CoastalExplorer XML (coastexp)</a></span></dt><dt><span class="section"><a href="#fmt_csv">Comma separated values (csv)</a></span></dt><dt><span class="section"><a href="#fmt_compegps">CompeGPS data files (.wpt/.trk/.rte) (compegps)</a></span></dt><dt><span class="section"><a href="#fmt_copilot">CoPilot Flight Planner for Palm/OS (copilot)</a></span></dt><dt><span class="section"><a href="#fmt_coto">cotoGPS for Palm/OS (coto)</a></span></dt><dt><span class="section"><a href="#fmt_custom">Custom "Everything" Style (custom)</a></span></dt><dt><span class="section"><a href="#fmt_axim_gpb">Dell Axim Navigation System (.gpb) file format (axim_gpb)</a></span></dt><dt><span class="section"><a href="#fmt_an1">DeLorme .an1 (drawing) file (an1)</a></span></dt><dt><span class="section"><a href="#fmt_gpl">DeLorme GPL (gpl)</a></span></dt><dt><span class="section"><a href="#fmt_saplus">DeLorme Street Atlas Plus (saplus)</a></span></dt><dt><span class="section"><a href="#fmt_saroute">DeLorme Street Atlas Route (saroute)</a></span></dt><dt><span class="section"><a href="#fmt_xmap">DeLorme XMap HH Native .WPT (xmap)</a></span></dt><dt><span class="section"><a href="#fmt_xmap2006">DeLorme XMap/SAHH 2006 Native .TXT (xmap2006)</a></span></dt><dt><span class="section"><a href="#fmt_xmapwpt">DeLorme XMat HH Street Atlas USA .WPT (PPC) (xmapwpt)</a></span></dt><dt><span class="section"><a href="#fmt_easygps">EasyGPS binary format (easygps)</a></span></dt><dt><span class="section"><a href="#fmt_igc">FAI/IGC Flight Recorder Data Format (igc)</a></span></dt><dt><span class="section"><a href="#fmt_gpssim">Franson GPSGate Simulation (gpssim)</a></span></dt><dt><span class="section"><a href="#fmt_fugawi">Fugawi (fugawi)</a></span></dt><dt><span class="section"><a href="#fmt_g7towin">G7ToWin data files (.g7t) (g7towin)</a></span></dt><dt><span class="section"><a href="#fmt_garmin301">Garmin 301 Custom position and heartrate (garmin301)</a></span></dt><dt><span class="section"><a href="#fmt_glogbook">Garmin Logbook XML (glogbook)</a></span></dt><dt><span class="section"><a href="#fmt_gdb">Garmin MapSource - gdb (gdb)</a></span></dt><dt><span class="section"><a href="#fmt_mapsource">Garmin MapSource - mps (mapsource)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_txt">Garmin MapSource - txt (tab delimited) (garmin_txt)</a></span></dt><dt><span class="section"><a href="#fmt_pcx">Garmin PCX5 (pcx)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_poi">Garmin POI database (garmin_poi)</a></span></dt><dt><span class="section"><a href="#fmt_garmin_gpi">Garmin Points of Interest (.gpi) (garmin_gpi)</a></span></dt><dt><span class="section"><a href="#fmt_garmin">Garmin serial/USB protocol (garmin)</a></span></dt><dt><span class="section"><a href="#fmt_gtrnctr">Garmin Training Centerxml (gtrnctr)</a></span></dt><dt><span class="section"><a href="#fmt_geo">Geocaching.com .loc (geo)</a></span></dt><dt><span class="section"><a href="#fmt_gcdb">GeocachingDB for Palm/OS (gcdb)</a></span></dt><dt><span class="section"><a href="#fmt_ggv_log">Geogrid Viewer tracklogs (.log) (ggv_log)</a></span></dt><dt><span class="section"><a href="#fmt_geonet">GEOnet Names Server (GNS) (geonet)</a></span></dt><dt><span class="section"><a href="#fmt_geoniche">GeoNiche .pdb (geoniche)</a></span></dt><dt><span class="section"><a href="#fmt_kml">Google Earth (Keyhole) Markup Language (kml)</a></span></dt><dt><span class="section"><a href="#fmt_google">Google Maps XML (google)</a></span></dt><dt><span class="section"><a href="#fmt_gpilots">GpilotS (gpilots)</a></span></dt><dt><span class="section"><a href="#fmt_gtm">GPS TrackMaker (gtm)</a></span></dt><dt><span class="section"><a href="#fmt_arc">GPSBabel arc filter file (arc)</a></span></dt><dt><span class="section"><a href="#fmt_gpsdrive">GpsDrive Format (gpsdrive)</a></span></dt><dt><span class="section"><a href="#fmt_gpsdrivetrack">GpsDrive Format for Tracks (gpsdrivetrack)</a></span></dt><dt><span class="section"><a href="#fmt_gpsman">GPSman (gpsman)</a></span></dt><dt><span class="section"><a href="#fmt_gpspilot">GPSPilot Tracker for Palm/OS (gpspilot)</a></span></dt><dt><span class="section"><a href="#fmt_gpsutil">gpsutil (gpsutil)</a></span></dt><dt><span class="section"><a href="#fmt_gpx">GPX XML (gpx)</a></span></dt><dt><span class="section"><a href="#fmt_hiketech">HikeTech (hiketech)</a></span></dt><dt><span class="section"><a href="#fmt_holux">Holux (gm-100) .wpo Format (holux)</a></span></dt><dt><span class="section"><a href="#fmt_hsandv">HSA Endeavour Navigator export File (hsandv)</a></span></dt><dt><span class="section"><a href="#fmt_html">HTML Output (html)</a></span></dt><dt><span class="section"><a href="#fmt_ignrando">IGN Rando track files (ignrando)</a></span></dt><dt><span class="section"><a href="#fmt_ktf2">Kartex 5 Track File (ktf2)</a></span></dt><dt><span class="section"><a href="#fmt_kwf2">Kartex 5 Waypoint File (kwf2)</a></span></dt><dt><span class="section"><a href="#fmt_kompass_tk">Kompass (DAV) Track (.tk) (kompass_tk)</a></span></dt><dt><span class="section"><a href="#fmt_kompass_wp">Kompass (DAV) Waypoints (.wp) (kompass_wp)</a></span></dt><dt><span class="section"><a href="#fmt_psitrex">KuDaTa PsiTrex text (psitrex)</a></span></dt><dt><span class="section"><a href="#fmt_lowranceusr">Lowrance USR (lowranceusr)</a></span></dt><dt><span class="section"><a href="#fmt_maggeo">Magellan Explorist Geocaching (maggeo)</a></span></dt><dt><span class="section"><a href="#fmt_mapsend">Magellan Mapsend (mapsend)</a></span></dt><dt><span class="section"><a href="#fmt_magnav">Magellan NAV Companion for Palm/OS (magnav)</a></span></dt><dt><span class="section"><a href="#fmt_magellanx">Magellan SD files (as for eXplorist) (magellanx)</a></span></dt><dt><span class="section"><a href="#fmt_magellan">Magellan SD files (as for Meridian) (magellan)</a></span></dt><dt><span class="section"><a href="#fmt_magellan1">Magellan serial protocol (magellan)</a></span></dt><dt><span class="section"><a href="#fmt_tef">Map&amp;Guide 'TourExchangeFormat' XML (tef)</a></span></dt><dt><span class="section"><a href="#fmt_mag_pdb">Map&amp;Guide to Palm/OS exported files (.pdb) (mag_pdb)</a></span></dt><dt><span class="section"><a href="#fmt_mapconverter">Mapopolis.com Mapconverter CSV (mapconverter)</a></span></dt><dt><span class="section"><a href="#fmt_mxf">MapTech Exchange Format (mxf)</a></span></dt><dt><span class="section"><a href="#fmt_msroute">Microsoft AutoRoute 2002 (pin/route reader) (msroute)</a></span></dt><dt><span class="section"><a href="#fmt_msroute1">Microsoft Streets and Trips (pin/route reader) (msroute)</a></span></dt><dt><span class="section"><a href="#fmt_s_and_t">Microsoft Streets and Trips 2002-2006 (s_and_t)</a></span></dt><dt><span class="section"><a href="#fmt_bcr">Motorrad Routenplaner (Map&amp;Guide) .bcr files (bcr)</a></span></dt><dt><span class="section"><a href="#fmt_psp">MS PocketStreets 2002 Pushpin (psp)</a></span></dt><dt><span class="section"><a href="#fmt_tpg">National Geographic Topo .tpg (waypoints) (tpg)</a></span></dt><dt><span class="section"><a href="#fmt_tpo2">National Geographic Topo 2.x .tpo (tpo2)</a></span></dt><dt><span class="section"><a href="#fmt_tpo3">National Geographic Topo 3.x/4.x .tpo (tpo3)</a></span></dt><dt><span class="section"><a href="#fmt_navicache">Navicache.com XML (navicache)</a></span></dt><dt><span class="section"><a href="#fmt_nmn4">Navigon Mobile Navigator .rte files (nmn4)</a></span></dt><dt><span class="section"><a href="#fmt_dna">Navitrak DNA marker format (dna)</a></span></dt><dt><span class="section"><a href="#fmt_netstumbler">NetStumbler Summary File (text) (netstumbler)</a></span></dt><dt><span class="section"><a href="#fmt_nima">NIMA/GNIS Geographic Names File (nima)</a></span></dt><dt><span class="section"><a href="#fmt_nmea">NMEA 0183 sentences (nmea)</a></span></dt><dt><span class="section"><a href="#fmt_ozi">OziExplorer (ozi)</a></span></dt><dt><span class="section"><a href="#fmt_palmdoc">PalmDoc Output (palmdoc)</a></span></dt><dt><span class="section"><a href="#fmt_pathaway">PathAway Database for Palm/OS (pathaway)</a></span></dt><dt><span class="section"><a href="#fmt_quovadis">Quovadis (quovadis)</a></span></dt><dt><span class="section"><a href="#fmt_raymarine">Raymarine Waypoint File (.rwf) (raymarine)</a></span></dt><dt><span class="section"><a href="#fmt_cup">See You flight analysis data (cup)</a></span></dt><dt><span class="section"><a href="#fmt_sportsim">Sportsim track files (part of zipped .ssz files) (sportsim)</a></span></dt><dt><span class="section"><a href="#fmt_stmsdf">Suunto Trek Manager (STM) .sdf files (stmsdf)</a></span></dt><dt><span class="section"><a href="#fmt_stmwpp">Suunto Trek Manager (STM) WaypointPlus files (stmwpp)</a></span></dt><dt><span class="section"><a href="#fmt_openoffice">Tab delimited fields useful for OpenOffice, Ploticus etc. (openoffice)</a></span></dt><dt><span class="section"><a href="#fmt_text">Textual Output (text)</a></span></dt><dt><span class="section"><a href="#fmt_tomtom_itn">TomTom Itineraries (.itn) (tomtom_itn)</a></span></dt><dt><span class="section"><a href="#fmt_tomtom_asc">TomTom POI file (.asc) (tomtom_asc)</a></span></dt><dt><span class="section"><a href="#fmt_tomtom">TomTom POI file (.ov2) (tomtom)</a></span></dt><dt><span class="section"><a href="#fmt_tmpro">TopoMapPro Places File (tmpro)</a></span></dt><dt><span class="section"><a href="#fmt_dmtlog">TrackLogs digital mapping (.trl) (dmtlog)</a></span></dt><dt><span class="section"><a href="#fmt_tiger">U.S. Census Bureau Tiger Mapping Service (tiger)</a></span></dt><dt><span class="section"><a href="#fmt_unicsv">Universal csv with field structure in first line (unicsv)</a></span></dt><dt><span class="section"><a href="#fmt_vcard">Vcard Output (for iPod) (vcard)</a></span></dt><dt><span class="section"><a href="#fmt_vitosmt">Vito Navigator II tracks (vitosmt)</a></span></dt><dt><span class="section"><a href="#fmt_vitovtt">Vito SmartMap tracks (.vtt) (vitovtt)</a></span></dt><dt><span class="section"><a href="#fmt_wfff">WiFiFoFum 2.0 for PocketPC XML (wfff)</a></span></dt><dt><span class="section"><a href="#fmt_wbt-bin">Wintec WBT-100/200 Binary File Format (wbt-bin)</a></span></dt><dt><span class="section"><a href="#fmt_wbt">Wintec WBT-100/200 GPS Download (wbt)</a></span></dt><dt><span class="section"><a href="#fmt_wbt-tk1">Wintec WBT-201/G-Rays 2 Binary File Format (wbt-tk1)</a></span></dt><dt><span class="section"><a href="#fmt_yahoo">Yahoo Geocode API data (yahoo)</a></span></dt></dl></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_xcsv"></a>? Character Separated Values (xcsv)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read and write waypoints
@@ -360,11 +360,7 @@ distribution.
 </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_baroiq"></a>Brauniger IQ Series Barograph Download (baroiq)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
-          read and write waypoints
-        </p></li><li><p class="fmtcapsitem">
-          read and write tracks
-        </p></li><li><p class="fmtcapsitem">
-          read and write routes
+          read tracks
         </p></li></ul></div><p>Serial download protocol for the <a href="http://www.brauniger.com" target="_top">Brauniger</a> IQ series of
 barograph recording flight instruments.  This format creates a 
 track of altitude vs time which can be merged with a GPS track 
@@ -602,7 +598,17 @@ If your original data contains geocaching-specific information such as
 difficulty and terrain, GPSBabel will automatically include that information 
 in the waypoint descriptions in the generated drawing file.  If you do not 
 want that, specify the "nogc" option on the command line:
-</p><p><strong class="userinput"><code>gpsbabel -i gpx -f 12345.gpx -o an1,nogc -F 12345.an1</code></strong></p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_an1_o_deficon"></a><code class="option">deficon</code> option</h3></div></div></div><p>
+</p><p><strong class="userinput"><code>gpsbabel -i gpx -f 12345.gpx -o an1,nogc -F 12345.an1</code></strong></p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_an1_o_nourl"></a><code class="option">nourl</code> option</h3></div></div></div><p>
+      Do not add URLs to description.
+    </p><p>
+If your original waypoint data contains URLs, GPSBabel will include them as
+links in the generated drawing file.  This causes the waypoint symbol to have
+a blue border, and it causes the waypoint text to be drawn in blue with an 
+underline.
+</p><p>
+If you do not want this behavior, specify the "nourl" option on the command
+line:
+</p><p><strong class="userinput"><code>gpsbabel -i gpx -f 12345.gpx -o an1,nourl -F 12345.an1</code></strong></p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_an1_o_deficon"></a><code class="option">deficon</code> option</h3></div></div></div><p>
       Symbol to use for point data.
     </p><p>
 This option allows you to specify which symbol to use for points that 
@@ -956,7 +962,21 @@ as follows (names of fields may depend on the language used by
 Fugawi):</p><table class="simplelist" border="0" summary="Simple list"><tr><td> - Name</td></tr><tr><td> - Comment</td></tr><tr><td> - Description</td></tr><tr><td> - Latidude</td></tr><tr><td> - Longitude</td></tr><tr><td> - Altitude (metres)</td></tr><tr><td> - Date (yyyymmdd/yymmdd)</td></tr><tr><td> - Time of day (hhmmss)</td></tr></table><p> When importing tracks, use "[ignore]" instead of "Name",
 "Comment" and "Description".</p><p>
             <a href="http://www.fugawi.com/" target="_top">http://www.fugawi.com/</a>
-         </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_garmin301"></a>Garmin 301 Custom position and heartrate (garmin301)</h2></div></div></div><p class="fmtcapshdr">
+         </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_g7towin"></a>G7ToWin data files (.g7t) (g7towin)</h2></div></div></div><p class="fmtcapshdr">
+    This format can...
+    </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
+          read waypoints
+        </p></li><li><p class="fmtcapsitem">
+          read tracks
+        </p></li><li><p class="fmtcapsitem">
+          read routes
+        </p></li></ul></div><p>
+  Like GPSBabel <a href="http://www.gpsinformation.org/ronh/g7towin.htm" target="_top">G7ToWin</a> is a program which allows uploading and
+  downloading information from several GPS devices (Garmin, Lowrance/Eagle, Magellan).
+  G7ToWin has its own data format, which is an enhanced format used in Gardown.
+</p><p>
+  This format can read both file types, G7ToWin (.g7t) and Gardown (.gdn).
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_garmin301"></a>Garmin 301 Custom position and heartrate (garmin301)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read and write waypoints
@@ -1005,17 +1025,32 @@ conversion code.
 This option specifies the default category for gdb output.  It should be a 
 number from 1 to 16.
 </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_gdb_o_ver"></a><code class="option">ver</code> option</h3></div></div></div><p>
-      Version of gdb file to generate (1,2).
+      Version of gdb file to generate (1..3).
     </p><p>
 This option specifies the data format version for the output file.  Version
-2 is the default.  Currently, the only other valid value for this option is
-1.
+2 is the default.  Currently, the only other valid values for this option are
+1 and 3.
 </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_gdb_o_via"></a><code class="option">via</code> option</h3></div></div></div><p>
       Drop route points that do not have an equivalent waypoint (hidden points).
     </p><p>
 This option instructs GPSBabel to drop hidden (calculated) points from 
 routes.
-</p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_mapsource"></a>Garmin MapSource - mps (mapsource)</h2></div></div></div><p class="fmtcapshdr">
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_gdb_o_roadbook"></a><code class="option">roadbook</code> option</h3></div></div></div><p>
+      Include major turn points (with description) from calculated route.
+    </p><p>
+  If this option is specified, GPSBabel drops all calculated route points, 
+  with exception of points with a description (i.e. "Make U-turns until you know where you are.").
+  The priority of this option is higher than of the <code class="option">via</code> option. 
+  A value of 1 or y overwrites the <code class="option">via</code> settings.
+</p><div class="example"><a id="gdb_roadbook_option"></a><p class="title"><b>Example 3.1. Using gdb option <code class="option">roadbook</code> to create simple html roadbook</b></p><div class="example-contents"><p>
+    <strong class="userinput"><code>
+      gpsbabel -i gdb,roadbook -f sample.gdb -x nuketypes,waypoints,tracks -x transform,wpt=rte -o html -F roadbook.html
+    </code></strong>
+  </p><p>
+    Because gdb creates internal a route AND a waypoint list, you have to drop all
+    waypoints and transform the route into waypoints. So you'll get a well ordered
+    html output. We sugess these steps for all waypoint-only formats as html. 
+  </p></div></div><br class="example-break" /></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_mapsource"></a>Garmin MapSource - mps (mapsource)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read and write waypoints
@@ -1101,7 +1136,7 @@ of <span class="productname">MapSource</span>™ and Windows. These include grid
 temperature units, and the representation of date and time fields. GPSBabel 
 tries to read all items automatically. Problems with date and time format can 
 be solved with the 'date' and 'time' options.
-</p><div class="example"><a id="all_garmin_txt_options"></a><p class="title"><b>Example 3.1. Command showing garmin_txt output with all options</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -i garmin_txt,date="MM/DD/YYYY",time="hh:mm:ss xx" -f in.txt -o garmin_txt,date="DD.MM.YYYY",datum="WGS 72",dist=m,prec=6,temp=c,time="HH:mm:ss",utc=+2 -F out.txt</code></strong></p></div></div><br class="example-break" /><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_txt_o_date"></a><code class="option">date</code> option</h3></div></div></div><p>
+</p><div class="example"><a id="all_garmin_txt_options"></a><p class="title"><b>Example 3.2. Command showing garmin_txt output with all options</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -i garmin_txt,date="MM/DD/YYYY",time="hh:mm:ss xx" -f in.txt -o garmin_txt,date="DD.MM.YYYY",datum="WGS 72",dist=m,prec=6,temp=c,time="HH:mm:ss",utc=+2 -F out.txt</code></strong></p></div></div><br class="example-break" /><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_txt_o_date"></a><code class="option">date</code> option</h3></div></div></div><p>
       Read/Write date format (i.e. yyyy/mm/dd).
     </p><p>
 This option specifies the input and output format for the date.  The format 
@@ -1121,7 +1156,7 @@ values.  Valid values are M for metric (m/km/kph) or S for statute
       Write position using this grid..
     </p><p>
   This value specifies the grid to be used on write.
-</p><div class="table"><a id="garmin_grid"></a><p class="title"><b>Table 3.1. Grid values for garmin_txt</b></p><div class="table-contents"><table summary="Grid values for garmin_txt" border="1"><colgroup><col /><col /><col /><col /></colgroup><thead><tr><th># idx</th><th>short</th><th>file-header</th><th>sample</th></tr></thead><tbody><tr><td>0</td><td>ddd</td><td>Lat/Lon hddd.ddddd</td><td>    S26.25333 E27.92333</td></tr><tr><td>1</td><td>dm</td><td>Lat/Lon hddd°mm.mm</td><td>N33 56.539 W118 24.471</td></tr><tr><td>2</td><td>dm</td><td>Lat/Lon hddd°mm'ss.s</td><td>S25 25 26.8 E28 06 07.3</td></tr><tr><td>3</td><td>bng</td><td>British National Grid</td><td>TQ 18919 69392</td></tr></tbody></table></div></div><br class="table-break" /><p>
+</p><div class="table"><a id="garmin_grid"></a><p class="title"><b>Table 3.1. Grid values for garmin_txt</b></p><div class="table-contents"><table summary="Grid values for garmin_txt" border="1"><colgroup><col /><col /><col /><col /></colgroup><thead><tr><th># idx</th><th>short</th><th>file-header</th><th>sample</th></tr></thead><tbody><tr><td>0</td><td>ddd</td><td>Lat/Lon hddd.ddddd</td><td>    S26.25333 E27.92333</td></tr><tr><td>1</td><td>dmm</td><td>Lat/Lon hddd°mm.mm</td><td>N33 56.539 W118 24.471</td></tr><tr><td>2</td><td>dms</td><td>Lat/Lon hddd°mm'ss.s</td><td>S25 25 26.8 E28 06 07.3</td></tr><tr><td>3</td><td>bng</td><td>British National Grid</td><td>TQ 18919 69392</td></tr><tr><td>4</td><td>utm</td><td>Universal Transverse Mercator</td><td>33 U 318293 5637154</td></tr></tbody></table></div></div><br class="table-break" /><p>
   Idx or short are valid params for this option.
 </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_txt_o_prec"></a><code class="option">prec</code> option</h3></div></div></div><p>
       Precision of coordinates.
@@ -1178,7 +1213,95 @@ format, so it has all of the same options as that format.
 loads custom points of interest into certain models of
 Garmin GPS receivers.  (As of this writing, only the models introduced
 in 2005 and later are supported.  See Garmin's site for more info.)
-This is the format readable that that program.</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_garmin"></a>Garmin serial/USB protocol (garmin)</h2></div></div></div><p class="fmtcapshdr">
+This is the format readable that that program.</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_garmin_gpi"></a>Garmin Points of Interest (.gpi) (garmin_gpi)</h2></div></div></div><p class="fmtcapshdr">
+    This format can...
+    </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
+          read and write waypoints
+        </p></li></ul></div><p>
+   The format garmin_gpi supports binary POI (.gpi) files useable
+   on newer Garmin GPS receivers (see also <a href="#fmt_garmin_poi" title="Garmin POI database (garmin_poi)">garmin_poi</a> for some hints).
+   <a href="http://www.garmin.com/support/agree.jsp?id=927" target="_top">Garmin POI-Loader</a> is the standard application that creates GPI's
+   with all possible features.
+</p><p>
+   The layout of GPI files isn't documented and our module was created
+   via reverse engeneering. If you get a problem on reading or writing 
+   a GPI file, please provide that file (mailto:gpsbabel-misc@lists.sourceforge.net).
+</p><p>
+   At this time we don't support special features as "Tour-Guide", alerts or links
+   to sounds and pictures.
+</p><p>
+	This module does not support direct transfer of .GPI files to
+	receivers in Garmin protocol mode.  For units like Nuvi, Zumo, or 
+	Streetpilot, just choose a file that's on the drive where your
+	GPS is mounted.   For units like the X series (GPSMap60, etc.) 
+	you must explictly put the unit in mass storage mode or mount
+	the memory chip in an external reader and transfer the file 
+	directly.
+</p><div class="example"><a id="all_garmin_gpi_options"></a><p class="title"><b>Example 3.3. Command showing garmin_gpi output example</b></p><div class="example-contents"><p>
+    <strong class="userinput"><code>
+      gpsbabel -i gpx -f "My Points.gpx" -o garmin_gpi,category="Nice Restaurants",bitmap=restaurant.bmp,notes -F "My Points.gpi"
+    </code></strong>
+  </p></div></div><br class="example-break" /><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_gpi_o_bitmap"></a><code class="option">bitmap</code> option</h3></div></div></div><p>
+      Use specified bitmap on output.
+    </p><p>
+   The bitmap (BMP) should be 24x24 (or smaller) and can be in
+   RGB-colors (24- and 32-bit) or 8-bit indexed color format.
+</p><p>
+   A color value of 0xFF00FF (blue=255, green=0, red=255), 
+   also called "Magenta", can be used for transparent areas.
+</p><p>
+  <strong class="userinput"><code>
+    gpsbabel -i gpx -f "My Points.gpx" -o garmin_gpi,bitmap="tux.bmp" -F "My Points.gpi"
+  </code></strong>
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_gpi_o_category"></a><code class="option">category</code> option</h3></div></div></div><p>
+      Default category on output.
+    </p><p>
+    With this option you can specify the category which is primary
+    visible on the device (default is "My points").
+</p><p>
+  <strong class="userinput"><code>
+    gpsbabel -i gpx -f "My Points.gpx" -o garmin_gpi,category="Best Restaurants" -F "My Points.gpi"
+  </code></strong>
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_gpi_o_hide"></a><code class="option">hide</code> option</h3></div></div></div><p>
+      Don't show gpi bitmap on device.
+    </p><p>
+   For a large list of points (or whyever) it can be useful when
+   no bitmaps are displayed on device. With this option no bitmap
+   is stored and displayed.
+</p><p>
+  <strong class="userinput"><code>
+    gpsbabel -i gpx -f "My Points.gpx" -o garmin_gpi,hide -F "My Points.gpi"
+  </code></strong>
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_gpi_o_descr"></a><code class="option">descr</code> option</h3></div></div></div><p>
+      Write description to address field.
+    </p><p>
+   The GPI address field is often visible in lists on the device. Use this
+   option if you want to see the waypoint description (which can be an address too)
+   in this lists.
+</p><p>
+  <strong class="userinput"><code>
+    gpsbabel -i gpx -f "My Points.gpx" -o garmin_gpi,descr -F "My Points.gpi"
+  </code></strong>
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_gpi_o_notes"></a><code class="option">notes</code> option</h3></div></div></div><p>
+      Write notes to address field.
+    </p><p>
+   The GPI address field is often visible in lists on the device. Use this
+   option if you want to see the waypoint notes (which can be an address too)
+   in this lists.
+</p><p>
+  <strong class="userinput"><code>
+    gpsbabel -i gpx -f "My Points.gpx" -o garmin_gpi,notes -F "My Points.gpi"
+  </code></strong>
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_garmin_gpi_o_position"></a><code class="option">position</code> option</h3></div></div></div><p>
+      Write position to address field.
+    </p><p>
+   The GPI address field is often visible in lists on the device. Use this
+   option if you want to see the waypoint position (coordinates) in this lists.
+</p><p>
+  <strong class="userinput"><code>
+    gpsbabel -i gpx -f "My Points.gpx" -o garmin_gpi,position -F "My Points.gpi"
+  </code></strong>
+</p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_garmin"></a>Garmin serial/USB protocol (garmin)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read and write waypoints
@@ -1195,11 +1318,17 @@ This is the format readable that that program.</p></div><div class="section" lan
 	getty, pppd, etc.) is using the serial port.
 </p><p> 
 	Supported Garmin GPS receivers with USB include 
-	</p><table class="simplelist" border="0" summary="Simple list"><tr><td>Astro</td><td>GPSMAP 276C</td><td>GPSMAP 96C</td><td>StreetPilot 7200</td></tr><tr><td>Edge 205</td><td>GPSMAP 295</td><td>Nuvi 300<sup>[<a id="gpx" href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot 7500</td></tr><tr><td>Edge 305</td><td>GPSMAP 296C</td><td>Nuvi 310<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c310</td></tr><tr><td>eTrex Legend C</td><td>GPSMAP 378</td><td>Nuvi 350<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c320</td></tr><tr><td>eTrex LegendCX</td><td>GPSMAP 396</td><td>Nuvi 370<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c330</td></tr><tr><td>eTrex Venture C</td><td>GPSMAP 478</td><td>Nuvi 660<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c340</td></tr><tr><td>eTrex Venture CX</td><td>GPSMAP 496</td><td>Nuvi 670<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c510<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>eTrex VistaC</td><td>GPSMAP 60C</td><td>Nuvi 680<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c530<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>eTrex Vista CX</td><td>GPSMAP 60CS</td><td>Quest</td><td>StreetPilot c550<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>Forerunner 205</td><td>GPSMAP 60CSX</td><td>Quest II</td><td>StreetPilot c580<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>Forerunner 301</td><td>GPSMAP 60CX</td><td>StreetPilot 2610</td><td>StreetPilot i2</td></tr><tr><td>Forerunner 305</td><td>GPSMAP 76C</td><td>StreetPilot 2620</td><td>StreetPilot i3</td></tr><tr><td>Foretrex 201</td><td>GPSMAP 76CS</td><td>StreetPilot 2650</td><td>StreetPilot i5</td></tr><tr><td>Foretrex 301</td><td>GPSMAP 76CSX</td><td>StreetPilot 2720</td><td>Zumo 450<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>GPS 18<sup>[<a id="posnonly" href="#ftn.posnonly">1</a>]</sup></td><td>GPSMAP 76CX</td><td>StreetPilot 2730</td><td>Zumo 550<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>GPSMAP 195</td><td>GPSMAP 96</td><td>StreetPilot 2820</td><td> </td></tr></table><p>
+	</p><table class="simplelist" border="0" summary="Simple list"><tr><td>Astro</td><td>Forerunner 301</td><td>GPSMAP 60CSx</td><td>StreetPilot 2620</td></tr><tr><td>Edge 205</td><td>Forerunner 305</td><td>GPSMAP 60Cx</td><td>StreetPilot 2650</td></tr><tr><td>Edge 305</td><td>Foretrex 201</td><td>GPSMAP 76C</td><td>StreetPilot 2720</td></tr><tr><td>eTrex Legend C</td><td>Foretrex 301</td><td>GPSMAP 76CS</td><td>StreetPilot 2730</td></tr><tr><td>eTrex Legend Cx</td><td>GPS 18<sup>[<a id="posnonly" href="#ftn.posnonly">1</a>]</sup></td><td>GPSMAP 76CSX</td><td>StreetPilot 2820</td></tr><tr><td>eTrex Legend HCx</td><td>GPSMAP 195</td><td>GPSMAP 76Cx</td><td>StreetPilot 7200</td></tr><tr><td>eTrex Summit Cx</td><td>GPSMAP 276C</td><td>GPSMAP 96</td><td>StreetPilot 7500</td></tr><tr><td>eTrex Summit HC</td><td>GPSMAP 295</td><td>GPSMAP 96C</td><td>StreetPilot c310</td></tr><tr><td>eTrex Venture C</td><td>GPSMAP 296C</td><td>Quest</td><td>StreetPilot c320</td></tr><tr><td>eTrex Venture Cx</td><td>GPSMAP 378</td><td>Quest II</td><td>StreetPilot c330</td></tr><tr><td>eTrex Venture HC</td><td>GPSMAP 396</td><td>Rhino 520</td><td>StreetPilot c340</td></tr><tr><td>eTrex Vista C</td><td>GPSMAP 478</td><td>Rhino 530</td><td>StreetPilot i2</td></tr><tr><td>eTrex Vista Cx</td><td>GPSMAP 496</td><td>Rhino 520 HCx</td><td>StreetPilot i3</td></tr><tr><td>eTrex Vista HCx</td><td>GPSMAP 60C</td><td>Rhino 530 HCx</td><td>StreetPilot i5</td></tr><tr><td>Forerunner 205</td><td>GPSMAP 60CS</td><td>StreetPilot 2610</td><td> </td></tr></table><p>
 </p><p>the following Bluetooth Garmin products:
 </p><table class="simplelist" border="0" summary="Simple list"><tr><td>GPS 10<sup>[<a href="#ftn.posnonly">1</a>]</sup></td><td> </td><td> </td><td> </td></tr></table><p>
 </p><p>and most serial Garmin GPS receivers including:
-</p><table class="simplelist" border="0" summary="Simple list"><tr><td>eMap</td><td>eTrex Yellow</td><td>GPS 12Map </td><td>GPS II+ </td></tr><tr><td>eTrex Camo</td><td>Forerunner 201</td><td>GPS 12 </td><td>GPS V</td></tr><tr><td>eTrex Legend</td><td>Foretrex 201</td><td>GPS 12XL </td><td>StreetPilot III</td></tr><tr><td>eTrex Summit</td><td>Geko 201</td><td>GPS III </td><td>StreetPilot III+</td></tr><tr><td>eTrex Venture</td><td>Geko 301</td><td>GPS III+ </td><td> </td></tr><tr><td>eTrex Vista</td><td>GPS 12CX </td><td>GPS II </td><td> </td></tr></table><p>
+</p><table class="simplelist" border="0" summary="Simple list"><tr><td>eMap</td><td>eTrex H</td><td>GPS 12 </td><td>Rhino 110</td></tr><tr><td>eTrex Camo</td><td>Forerunner 201</td><td>GPS 12XL </td><td>Rhino 120</td></tr><tr><td>eTrex Legend</td><td>Foretrex 201</td><td>GPS III </td><td>Rhino 130</td></tr><tr><td>eTrex Summit</td><td>Geko 201</td><td>GPS III+ </td><td>StreetPilot III</td></tr><tr><td>eTrex Venture</td><td>Geko 301</td><td>GPS II </td><td>StreetPilot III+</td></tr><tr><td>eTrex Vista</td><td>GPS 12CX </td><td>GPS II+ </td><td> </td></tr><tr><td>eTrex (Basic Yellow)</td><td>GPS 12Map </td><td>GPS V</td><td> </td></tr></table><p>
+</p><p>
+The following Garmin GPS receivers are supported, but they do not
+support Garmin communication protocol and don't work with the 
+<code class="option">garmin</code> option.  To use these receivers, read or write
+GPX files from the mass storage device as mounted on your computer.
+</p><table class="simplelist" border="0" summary="Simple list"><tr><td>Nuvi 200<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 310<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 660<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c580<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>Nuvi 200W<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 350<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 670<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Zumo 450<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>Nuvi 250<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 370<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 680<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Zumo 500<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>Nuvi 250W<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 600<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c510<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Zumo 550<sup>[<a href="#ftn.gpx">2</a>]</sup></td></tr><tr><td>Nuvi 270<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 650<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c530<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td> </td></tr><tr><td>Nuvi 300<sup>[<a id="gpx" href="#ftn.gpx">2</a>]</sup></td><td>Nuvi 650FM<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td>StreetPilot c550<sup>[<a href="#ftn.gpx">2</a>]</sup></td><td> </td></tr></table><p>
 </p><p>
 	None of the GPSBabel developers has access to every model on that
 	list, but we've received reports of success and/or have reasonable
@@ -1351,7 +1480,20 @@ This option has no effect on output.
 <a href="http://vip.hyperusa.com/~dougs/geocachingdb/geocachingdb.htm" target="_top">
 GeocachingDB</a> program by DougsBrat.  It works with v2
 and v3 of this program. 
-         </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_geonet"></a>GEOnet Names Server (GNS) (geonet)</h2></div></div></div><p class="fmtcapshdr">
+         </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_ggv_log"></a>Geogrid Viewer tracklogs (.log) (ggv_log)</h2></div></div></div><p class="fmtcapshdr">
+    This format can...
+    </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
+          read and write tracks
+        </p></li></ul></div><p>
+   Binary track logs used by the <span class="productname">Geogrid</span>™-Viewer, a very
+   popular product in Germany.
+</p><p>
+   GPSBabel has full support for version 1.0 of this file format. 
+</p><p>
+   We can also read some GPS data (including coordinates) from version 2.5. But 
+   it seems, that this newer version doesn't more store time stamps. This can be 
+   a problem when converting to other formats or if you want to use our track filter.
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_geonet"></a>GEOnet Names Server (GNS) (geonet)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read and write waypoints
@@ -1791,21 +1933,26 @@ Bradley.</p></div><div class="section" lang="en" xml:lang="en"><div class="title
 The <a href="http://www.lowrance.com" target="_top">Lowrance iFinder GPS</a> series has the unique capability
 to output its data to an MMC card.  The data is saved to the card as a
 .USR file and can be read by your computer using a card reader.
-Waypoints, routes, tracks are supported.  By default, Event marker
-icons are converted to waypoints.  Symbols tend to get lost in the
-translation.
+Waypoints, icons, routes, tracks are supported.   Event marker icons contain a symbol, name, latitude and longitude
+only. By default, Event marker
+icons are converted to waypoints on read.  On write, you are able to create icons from waypoints.
 </p><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_lowranceusr_o_ignoreicons"></a><code class="option">ignoreicons</code> option</h3></div></div></div><p>
-      Ignore event marker icons.
+      Ignore event marker icons on read.
     </p><p>
-This option instructs GPSBabel to not convert icons to waypoints on input.
+This option instructs GPSBabel to not convert icons to waypoints on input,
+but to instead disregard them altogether 
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_lowranceusr_o_writeasicons"></a><code class="option">writeasicons</code> option</h3></div></div></div><p>
+      Treat waypoints as icons on write.
+    </p><p>
+(USR output) This option converts the waypoint information to an event marker icon.
 </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_lowranceusr_o_merge"></a><code class="option">merge</code> option</h3></div></div></div><p>
       (USR output) Merge into one segmented track.
     </p><p>
-This option merges all tracks into a single track with multiple segments.
+(USR output) This option merges all tracks into a single track with multiple segments.
 </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_lowranceusr_o_break"></a><code class="option">break</code> option</h3></div></div></div><p>
       (USR input) Break segments into separate tracks.
     </p><p>
-This option breaks track segments into separate tracks when reading a .USR
+(USR input) Break track segments into separate tracks.
 file.
 </p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_maggeo"></a>Magellan Explorist Geocaching (maggeo)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
@@ -2175,7 +2322,7 @@ Coordinates are stored in a BCR file in a Mercator projection. The
 conversion from the Mercator projection to polar (latitude/longitude) 
 coordinates and back again may result in visible differences.  Experience 
 reports are welcome.
-</p><div class="example"><a id="sample_bcr_command"></a><p class="title"><b>Example 3.2. Sample BCR command with all options</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -r -i gpx -f in.gpx -o bcr,index=1,name="From A to B",radius=6371012 -F a_to_b.bcr</code></strong></p></div></div><br class="example-break" /><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_bcr_o_index"></a><code class="option">index</code> option</h3></div></div></div><p>
+</p><div class="example"><a id="sample_bcr_command"></a><p class="title"><b>Example 3.4. Sample BCR command with all options</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -r -i gpx -f in.gpx -o bcr,index=1,name="From A to B",radius=6371012 -F a_to_b.bcr</code></strong></p></div></div><br class="example-break" /><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_bcr_o_index"></a><code class="option">index</code> option</h3></div></div></div><p>
       Index of route to write (if more the one in source).
     </p><p>
 Because the format supports only one route, this option may be used 
@@ -2253,7 +2400,7 @@ I have 800 waypoints that cover a dozen or so Pocketstreets maps.
 Where can I find documentation for the layout of PSP files?
 </a></dt><dt>13. <a href="#morehelp">
 I have some other problem, what do I do?
-</a></dt></dl><table border="0" summary="Q and A Set"><col align="left" width="1%" /><tbody><tr class="question"><td align="left" valign="top"><a id="why"></a><a id="id2579092"></a><b>1.</b></td><td align="left" valign="top"><p>
+</a></dt></dl><table border="0" summary="Q and A Set"><col align="left" width="1%" /><tbody><tr class="question"><td align="left" valign="top"><a id="why"></a><a id="id2976535"></a><b>1.</b></td><td align="left" valign="top"><p>
 Why should I use GPSBabel/psp to make pushpins when Streets &amp; Trips (S&amp;T)
    already does that for me?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
@@ -2268,7 +2415,7 @@ GPSBabel/psp has the advantage of being able to create pushpins
    <span class="emphasis"><em>with the proper coordinates</em></span> 
    where S&amp;T does not in some areas of the U.S. 
    (Nashville, TN for instance).
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="blank"></a><a id="id2579137"></a><b>2.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="blank"></a><a id="id2976579"></a><b>2.</b></td><td align="left" valign="top"><p>
 I keep getting a blank (32 byte) PSP file.
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 There are either no points to write, or you have botched the command
@@ -2277,49 +2424,49 @@ There are either no points to write, or you have botched the command
    looks like this:
 </p><p><strong class="userinput"><code>gpsbabel -i geo -f geocaching.loc -o psp -F NewOrleans.psp</code></strong></p><p>
    Note the use of "-f" for INPUT files and "-F" for OUTPUT files.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="now_what"></a><a id="id2579174"></a><b>3.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="now_what"></a><a id="id2976616"></a><b>3.</b></td><td align="left" valign="top"><p>
 I've created a PSP file, now what do I do with it?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 To use pushpins in Pocketstreets, you need to have both a map and a
    pushpin file.  These two files must exist in the same folder and have
    exactly the same base name as the map.  For example, the pins that 
    correspond to the map "NewOrleans.mps" should be named "NewOrleans.psp".  
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="no_map"></a><a id="id2579798"></a><b>4.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="no_map"></a><a id="id2977240"></a><b>4.</b></td><td align="left" valign="top"><p>
 I don't have a map.  What do I do now?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 Create one using the "Export map to Pocketstreets" option in S&amp;T.  You
    can also pick up some major city maps on the web from the MS Pocketstreets
    website if you are interested in seeing how it works.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="have_est"></a><a id="id2579828"></a><b>5.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="have_est"></a><a id="id2977270"></a><b>5.</b></td><td align="left" valign="top"><p>
 I have .EST files, not .PSP files.  What's up with that?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 In order to make PSP files, you need to use the "Export map to 
    Pocketstreets" function in S&amp;T.  .EST files are for use in S&amp;T, not 
    Pocketstreets.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="coord_jitter"></a><a id="id2579853"></a><b>6.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="coord_jitter"></a><a id="id2977295"></a><b>6.</b></td><td align="left" valign="top"><p>
  The .PSP files differ when I use GPSBabel/psp versus Pocketstreets to 
    create them.  What's up?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 Pocketstreets makes corrections to the S&amp;T waypoint data upon initial 
    loading. GPSBabel/psp writes PSP files with these corrections already made.
    Ask MS.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="mappoint"></a><a id="id2579881"></a><b>7.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="mappoint"></a><a id="id2977323"></a><b>7.</b></td><td align="left" valign="top"><p>
 Does GPSBabel/psp work with (Autoroute, Mappoint, etc..) .PSP files?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 As of this writing, I haven't seen any so I can't be sure.  If they 
    follow the same layout as S&amp;T 2002, I'd imagine so.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="after2001"></a><a id="id2579906"></a><b>8.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="after2001"></a><a id="id2977347"></a><b>8.</b></td><td align="left" valign="top"><p>
  Does GPSBabel/psp work with (S&amp;T 2001, S&amp;T 2002, etc...) files?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 MS changed the file layout between S&amp;T 2001 and S&amp;T 2002.  The GPSBabel psp
    module is known to work fine with S&amp;T 2002 and 2003.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="non_us"></a><a id="id2579932"></a><b>9.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="non_us"></a><a id="id2977373"></a><b>9.</b></td><td align="left" valign="top"><p>
 Does GPSBabel/psp work with (insert your country/location here) maps?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 If it doesn't, feel free to inquire on the 
 <a href="https://lists.sourceforge.net/lists/listinfo/gpsbabel-misc" target="_top">GPSBabel-Misc</a>
 mailing list.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="wrong_coords"></a><a id="id2579961"></a><b>10.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="wrong_coords"></a><a id="id2977403"></a><b>10.</b></td><td align="left" valign="top"><p>
 What do you mean S&amp;T writes points with the wrong coordinates?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 At some point in the "Export map to Pocketstreets" function in S&amp;T,
@@ -2327,7 +2474,7 @@ At some point in the "Export map to Pocketstreets" function in S&amp;T,
    1.4 miles WEST of their original location.  I'm not a geometry buff,
    but I'd imagine they have a reference point for generating coordinates
    that's wrong in (at least) that area.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="splitting"></a><a id="id2579997"></a><b>11.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="splitting"></a><a id="id2977439"></a><b>11.</b></td><td align="left" valign="top"><p>
 I have 800 waypoints that cover a dozen or so Pocketstreets maps.  
    Do I need to to split my points up into smaller chunks to match the 
    area covered by the maps?
@@ -2336,13 +2483,13 @@ I have 800 waypoints that cover a dozen or so Pocketstreets maps.
    area.  Points that are not on the current map will be "grayed out"
    in pushpin explorer in Pocketsreets.  This is the reason the PSP 
    module was written for GPSBabel in the first place.
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="doc_for_layout"></a><a id="id2580024"></a><b>12.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="doc_for_layout"></a><a id="id2977466"></a><b>12.</b></td><td align="left" valign="top"><p>
 Where can I find documentation for the layout of PSP files?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 Just about everything I know about the PSP file format is documented 
    in the source.  To the best of my knowledge, there is no documentation 
    (and for good reason, I've come to discover). 
-</p></td></tr><tr class="question"><td align="left" valign="top"><a id="morehelp"></a><a id="id2580049"></a><b>13.</b></td><td align="left" valign="top"><p>
+</p></td></tr><tr class="question"><td align="left" valign="top"><a id="morehelp"></a><a id="id2977491"></a><b>13.</b></td><td align="left" valign="top"><p>
 I have some other problem, what do I do?
 </p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 Ask your question on the <a href="https://lists.sourceforge.net/lists/listinfo/gpsbabel-misc" target="_top">GPSBabel-Misc</a> mailing list.
@@ -2593,6 +2740,12 @@ be as much as plus or minus 100 milliseconds.
 If you are using this option with compressed or simplified tracks from 
 your handheld GPS receiver, you might find the 
 <a href="#filter_interpolate" title="Interpolate between trackpoints (interpolate)">interpolate</a> filter useful.
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_nmea_o_append_positioning"></a><code class="option">append_positioning</code> option</h3></div></div></div><p>
+      Append realtime positioning data to the output file instead of truncating.
+    </p><p>
+	When writing NMEA realtime positioning data, append to the 
+	output file instead of truncating it on each successive position
+	fix.
 </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_nmea_o_baud"></a><code class="option">baud</code> option</h3></div></div></div><p>
       Speed in bits per second of serial port (baud=4800).
     </p><p>
@@ -2608,7 +2761,17 @@ serial connection when used with the real-time tracking option.
           read and write routes
         </p></li></ul></div><p>OziExplorer Waypoint Format - Another CSV format file.
 Tested against OziExplorer v 3.90.3a / Shareware. Contributed by Alex
-Mottram</p><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_ozi_o_snlen"></a><code class="option">snlen</code> option</h3></div></div></div><p>
+Mottram</p><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_ozi_o_pack"></a><code class="option">pack</code> option</h3></div></div></div><p>
+      Write all tracks into one file.
+    </p><p>
+   In normal case GPSBabel creates for each track a separate file (track.plt, track-1.plt, ...). 
+   With this option all tracks will be written into one file. A '1' in the third field of the
+   trackpoint record signals the beginning of a new track.
+</p><p>
+  <strong class="userinput"><code>
+    gpsbabel -i gpx -f tracks.gpx -o ozi,pack -F track
+  </code></strong>
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_ozi_o_snlen"></a><code class="option">snlen</code> option</h3></div></div></div><p>
       Max synthesized shortname length.
     </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_ozi_o_snwhite"></a><code class="option">snwhite</code> option</h3></div></div></div><p>
       Allow whitespace synth. shortnames.
@@ -2723,7 +2886,12 @@ appears in the file browser on your handheld.
   Known limits: max. 16 characters for waypoint names and max. 50 waypoints per route.
 </p><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_raymarine_o_location"></a><code class="option">location</code> option</h3></div></div></div><p>
       Default location.
-    </p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_cup"></a>See You flight analysis data (cup)</h2></div></div></div><p class="fmtcapshdr">
+    </p><p>
+   With this option you can specify the name of the folder
+   where the waypoints are placed.
+</p><p>
+   This name is also limited to 16 characters.
+</p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_cup"></a>See You flight analysis data (cup)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read and write waypoints
@@ -2855,7 +3023,39 @@ minutes, seconds ('dms').  The default is 'dmm'.
     </p><p>
 This option should be 'f' if you want the altitude expressed in feet and
 'm' for meters.  The default is 'f'.
-</p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_tomtom"></a>TomTom POI file (tomtom)</h2></div></div></div><p class="fmtcapshdr">
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_text_o_splitoutput"></a><code class="option">splitoutput</code> option</h3></div></div></div><p>
+      Write each waypoint in a separate file.
+    </p><p>
+  Splits output into separate files for each waypoint by appending a
+  decimal number to the output filename.
+</p><div class="example"><a id="text_splitoutput"></a><p class="title"><b>Example 3.5. Example for splitoutput option to text format</b></p><div class="example-contents"><p>
+    If "MyPQ.gpx" contains five waypoints, 
+	<strong class="userinput"><code>
+	    gpsbabel -i gpx -f MyPocketQuery -o text,split -F blah
+	</code></strong>
+    will result in files named blah1 ... blah5, each containing info
+    from one of those waypoints.
+   </p></div></div><br class="example-break" /></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_tomtom_itn"></a>TomTom Itineraries (.itn) (tomtom_itn)</h2></div></div></div><p class="fmtcapshdr">
+    This format can...
+    </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
+          read and write routes
+        </p></li></ul></div><p>
+This format is derived from the <a href="#fmt_xcsv" title="? Character Separated Values (xcsv)">xcsv</a>
+format, so it has all of the same options as that format.
+</p><p>
+   tomtom_itn can be used to read and write <a href="http://www.tomtom.com" target="_top">TomTom</a> Navigator Itineraries (Routes).
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_tomtom_asc"></a>TomTom POI file (.asc) (tomtom_asc)</h2></div></div></div><p class="fmtcapshdr">
+    This format can...
+    </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
+          read and write waypoints
+        </p></li></ul></div><p>
+This format is derived from the <a href="#fmt_xcsv" title="? Character Separated Values (xcsv)">xcsv</a>
+format, so it has all of the same options as that format.
+</p><p>
+   With this format you can read and write <a href="http://www.tomtom.com" target="_top">TomTom</a>
+   Points of Interest - POI (ascii) files.
+   It is a simple text (csv) format with only latitude, longitude and a short name.
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_tomtom"></a>TomTom POI file (.ov2) (tomtom)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read and write waypoints
@@ -2982,26 +3182,119 @@ GPSBabel tries to color pins based on their creation time and certain
 Geocaching traits when available.</p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_unicsv"></a>Universal csv with field structure in first line (unicsv)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
-          read waypoints
+          read and write waypoints
+        </p></li><li><p class="fmtcapsitem">
+          read and write tracks
+        </p></li><li><p class="fmtcapsitem">
+          read and write routes
         </p></li></ul></div><p>
-	Unicsv examines the first line of a file to determine the field
-	order and field separator in that file.   It is thus read-only format.
-	</p><p>
-	If the first line contains any tabs, the data lines are assumed 
-	to be tab separated.   Otherwise the fields are assumed to be 
-	separated by commas.
-	</p><p>
-	The list of keywords include "lat", "lon", "desc", "name", 
-	"notes", "alt", "utm z", "utm n", "utm e", "utm c" and "url".   
-	Fuller spellings (i.e. "longitude") may be used.
-	</p><p>
-	A typical file may be:
-	</p><pre class="screen">
-	Name, Latitude, Longitude, Description 
-	GCEBB,35.972033,-87.134700,Mountain Bike Heaven by susy1313
- 	GC1A37,36.090683,-86.679550,The Troll by a182pilot &amp; Family
-	</pre><p>
-	</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_vcard"></a>Vcard Output (for iPod) (vcard)</h2></div></div></div><p class="fmtcapshdr">
+   Unicsv examines the first line of a file to determine the field
+   order and field separator in that file.   It is thus read-only format.
+</p><p>
+   If the first line contains any tabs, the data lines are assumed
+   to be tab separated.   Otherwise the fields are assumed to be
+   separated by commas.
+</p><p>
+   The list of keywords include:
+   </p><pre class="screen">
+      alt =      Altitude
+      bng_e =    British National Grid's easting
+      bng =      full coordinate in BNG format (zone easting northing)
+      bng_pos =  full coordinate in BNG format (zone easting northing)
+      bng_n =    British National Grid's northing
+      bng_z =    British National Grid's zone
+      caden =    Cadence
+      comment =  Notes
+      cour =     Heading / Course true
+      date =     Date (yyyy/mm/dd)
+      depth =    Depth
+      desc =     Description
+      ele =      Altitude (elevation)
+      fix =      3d, 2d, etc.
+      geschw =   Geschwindigkeit (speed)
+      hdop =     Horizontal precision
+      head =     Heading / Course true
+      heart =    Heartrate
+      icon =     Symbol (icon) name
+      lat =      Latitude
+      lon =      Longitude
+      name =     Waypoint name ("Shortname")
+      notes =    Notes
+      pdop =     Precision summary (horizontal &amp; vertical)
+      prox =     Proximity
+      sat =      Number of sats used for fix
+      speed =    Speed
+      symb =     Symbol (icon) name
+      tempf =    Temperature (degrees Fahrenheit)
+      temp =     Temperature (degrees Celsius)
+      time =     Time (hh:mm:ss[.msec])
+      url =      URL
+      utc_d =    UTC date
+      utc_t =    UTC time
+      utm_c =    UTM zone character
+      utm_e =    UTM easting
+      utm =      full coordinate in UTM format (zone zone-ch easting northing)
+      utm_pos =  full coordinate in UTM format (zone zone-ch easting northing)
+      utm_n =    UTM northing
+      utm_z =    UTM zone
+      vdop =     Vertical precision
+      x =        Longitude
+      x_pos =    Longitude
+      y =        Latitude
+      y_pos =    Latitude
+      z =        Altitude (elevation)
+   </pre><p>
+   We support some enhanced Garmin attributes. They are also available in 
+   <a href="#fmt_gpx" title="GPX XML (gpx)">gpx</a>, <a href="#fmt_gdb" title="Garmin MapSource - gdb (gdb)">gdb</a>, 
+   <a href="#fmt_garmin_gpi" title="Garmin Points of Interest (.gpi) (garmin_gpi)">garmin_gpi</a> and partly 
+   <a href="#fmt_garmin_txt" title="Garmin MapSource - txt (tab delimited) (garmin_txt)">garmin_txt</a>. These entities are currently 
+   not visible in <span class="productname">MapSource</span>™ (6.12.4), but are NOT dropped  
+   when working with GDB (version 3) or GPX files.
+   </p><pre class="screen"></pre><p>
+   Please note, that these do NOT provide a geocoding service; don't expect
+	to "convert" a street address to a latitude and longitude.
+   </p><pre class="screen">
+      addr =     Street address
+      city =     City
+      country =  Country
+      faci =     Facility (not available in GPX)
+      phone =    Phone number
+      post =     Postal code
+      state =    State
+   </pre><p>
+   Fuller spellings (i.e. "longitude") may be used. You can also
+   use keywords with a whitespace instead of an underscore.
+</p><p>
+   A typical file may be:
+   </p><pre class="screen">
+     Name, Latitude, Longitude, Description 
+     GCEBB,35.972033,-87.134700,Mountain Bike Heaven by susy1313
+     GC1A37,36.090683,-86.679550,The Troll by a182pilot &amp; Family
+   </pre><p>
+</p><p>
+   On the output side unicsv writes fixed number of columns (waypoint index, latitude and longitude)
+   followed by a variable column list depending on internal data.
+</p><p>
+   With at least ONE valid timestamp in data a unicsv output may look like that:
+   </p><pre class="screen">
+     No,Name,Latitude,Longitude,Description,Date,Time
+     1,"GCEBB",35.972033,-87.134700,"Mountain Bike Heaven by susy1313",2003/06/29,09:00:00
+     2,"GC1A37",36.090683,-86.679550,"The Troll by a182pilot &amp; Family",,
+   </pre><p>
+</p><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_unicsv_o_datum"></a><code class="option">datum</code> option</h3></div></div></div><p>
+      GPS datum (def. WGS 84).
+    </p><p>
+   This option specifies the datum to be used on output. Valid values for this 
+   option are listed in <a href="#Datums" title="Appendix A. Supported Datums">Appendix A, <i>Supported Datums</i></a>.
+</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_unicsv_o_grid"></a><code class="option">grid</code> option</h3></div></div></div><p>
+      Write position using this grid..
+    </p><p>
+   This value specifies the grid to be used on write. It is similar to
+   the grid option of garmin_txt (see <a href="#garmin_grid" title="Table 3.1. Grid values for garmin_txt">Table 3.1, “Grid values for garmin_txt”</a>). The only difference is that unicsv does not
+   write a degree sign (°) into the output file.
+</p><p>
+   Without this option unicsv writes the coordinates as simple numbers like in the samples above.
+</p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_vcard"></a>Vcard Output (for iPod) (vcard)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           write waypoints
@@ -3029,7 +3322,41 @@ By default geocaching hints are unencrypted; use this option to encrypt them.
 format reads a Vito Navigator II .SMT track file and can work in
 either waypoint or track mode.  The speed, heading and Dilution of
 Position data is written in the notes field.</p><p> Support for writing .SMT tracks is very experimental and
-may crash VitoNavigator II on the Pocket PC.</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_wfff"></a>WiFiFoFum 2.0 for PocketPC XML (wfff)</h2></div></div></div><p class="fmtcapshdr">
+may crash VitoNavigator II on the Pocket PC.</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_vitovtt"></a>Vito SmartMap tracks (.vtt) (vitovtt)</h2></div></div></div><p class="fmtcapshdr">
+    This format can...
+    </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
+          read tracks
+        </p></li></ul></div><p>
+  This format reads the binary (.vtt) track logs recorded by
+  <a href="http://vitotechnology.com/en/products/smartmap_nokia_series60.html" target="_top">
+  <span class="application">VITO SmartMap for Nokia Series 60</span>
+  </a> 1.0, a GPS application for smartphones connected to
+  NMEA 0183-compatible Bluetooth GPS receivers. It may work
+  with .vtt files produced by versions of VITO SmartMap
+  for other platforms.
+</p><p>
+  This format was reverse engineered from a .vtt file.
+  Currently, the coordinates, altitude, and time are
+  available for each point recorded in a track.
+  The course speed and heading fields have been identified,
+  but the units are not certain and so those fields are ignored.
+  The rest of the entry has not yet been decoded. The format
+  uses little-endian byte ordering. The application displays
+  metric units by default. Time is UTC.
+</p><div class="table"><a id="id2984364"></a><p class="title"><b>Table 3.2. track file header (8 bytes)</b></p><div class="table-contents"><table summary="track file header (8 bytes)" border="1"><colgroup><col /><col /></colgroup><thead><tr><th>Position</th><th>Field info</th></tr></thead><tbody><tr><td>bytes 0-3</td><td>Probably a version field. Int value is 3 in sample file.</td></tr><tr><td>bytes 4-7</td><td>Number of points in file as int.</td></tr></tbody></table></div></div><br class="table-break" /><div class="table"><a id="id2984418"></a><p class="title"><b>Table 3.3. track point (32 bytes)</b></p><div class="table-contents"><table summary="track point (32 bytes)" border="1"><colgroup><col /><col /></colgroup><thead><tr><th>Position</th><th>Field info</th></tr></thead><tbody><tr><td>bytes 0-3</td><td>Decimal latitude multiplied by 20000000 as int.</td></tr><tr><td>bytes 4-7</td><td>Decimal longitude multiplied by 10000000 as int.</td></tr><tr><td>bytes 8-11</td><td>Altitude in meters as float.</td></tr><tr><td>bytes 12-13</td><td>Year, with century, as int.</td></tr><tr><td>byte 14</td><td>Month, ranging 1-12.</td></tr><tr><td>byte 15</td><td>Day of month, ranging 1-31.</td></tr><tr><td>byte 16</td><td>Hour, ranging 0-23.</td></tr><tr><td>byte 17</td><td>Minute, ranging 0-59.</td></tr><tr><td>bytes 18-21</td><td>Decimal second multiplied by 30000000 as int.</td></tr><tr><td>bytes 22-25</td><td>
+        Probably speed in meters per second as float.
+        Ranges 0-~3 in file, seems reasonable since sample
+        file was acquired on foot.
+      </td></tr><tr><td>bytes 26-27</td><td>
+        Probably decimal heading multiplied by something.
+        Ranges between min and max values possible when
+        decoded as integer. Doesn't change when speed field is 0.
+        Doesn't change smoothly, jumps around a bit.
+      </td></tr><tr><td>bytes 28-31</td><td>
+        Status field of some kind. Changes only twice in file.
+        May contain satellite count or PDOP info, as both are
+        reported by the application's GUI.
+      </td></tr></tbody></table></div></div><br class="table-break" /></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_wfff"></a>WiFiFoFum 2.0 for PocketPC XML (wfff)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read waypoints
@@ -3043,7 +3370,7 @@ may crash VitoNavigator II on the Pocket PC.</p></div><div class="section" lang=
       Ad-hoc open icon name.
     </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_wfff_o_snmac"></a><code class="option">snmac</code> option</h3></div></div></div><p>
       Shortname is MAC address.
-    </p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_wbt-bin"></a>Wintec WBT-100/200 Binary file format (wbt-bin)</h2></div></div></div><p class="fmtcapshdr">
+    </p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_wbt-bin"></a>Wintec WBT-100/200 Binary File Format (wbt-bin)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read tracks
@@ -3051,16 +3378,26 @@ may crash VitoNavigator II on the Pocket PC.</p></div><div class="section" lang=
 GPS data logger. This format reads the binary file format created
 by Wintec's Windows application.</p><p>
 <a href="http://www.semsons.com/wi3mugpsrebt.html" target="_top">Wintec WBT-200 </a>
-</p><div class="example"><a id="wbt-bin-on-macos"></a><p class="title"><b>Example 3.3. Command showing conversion of a Wintec binary file to GPX</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -i wbt-bin -f tracks.bin -o
+</p><div class="example"><a id="wbt-bin-on-macos"></a><p class="title"><b>Example 3.6. Command showing conversion of a Wintec binary file to GPX</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -i wbt-bin -f tracks.bin -o
 gpx -F out.gpx</code></strong></p></div></div><br class="example-break" /></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_wbt"></a>Wintec WBT-100/200 GPS Download (wbt)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
+          read waypoints
+        </p></li><li><p class="fmtcapsitem">
           read tracks
         </p></li></ul></div><p>Serial download protocol for the <span class="productname">Wintec WBT-200</span>™ GPS data logger. Although untested it is expected that this will also support the WBT-100.</p><p>
 <a href="http://www.semsons.com/wi3mugpsrebt.html" target="_top">Wintec WBT-200</a>
-</p><div class="example"><a id="wbt-on-macos"></a><p class="title"><b>Example 3.4. Command showing WBT-200 download and erase over Bluetooth on Mac OS X</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -i wbt,erase -f /dev/cu.WBT200-SPPslave-1 -o gpx -F out.gpx</code></strong></p></div></div><br class="example-break" /><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_wbt_o_erase"></a><code class="option">erase</code> option</h3></div></div></div><p>
+</p><div class="example"><a id="wbt-on-macos"></a><p class="title"><b>Example 3.7. Command showing WBT-200 download and erase over Bluetooth on Mac OS X</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -t -w -i wbt,erase -f /dev/cu.WBT200-SPPslave-1 -o gpx -F out.gpx</code></strong></p></div></div><br class="example-break" /><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="fmt_wbt_o_erase"></a><code class="option">erase</code> option</h3></div></div></div><p>
       Erase device data after download.
-    </p><p>This option erases the track log from the device after download.</p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_yahoo"></a>Yahoo Geocode API data (yahoo)</h2></div></div></div><p class="fmtcapshdr">
+    </p><p>This option erases the track log from the device after download.</p></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_wbt-tk1"></a>Wintec WBT-201/G-Rays 2 Binary File Format (wbt-tk1)</h2></div></div></div><p class="fmtcapshdr">
+    This format can...
+    </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
+          read tracks
+        </p></li></ul></div><p>File protocol for the <span class="productname">Wintec WBT-201 / G-Rays 2</span>™
+GPS data logger. This format reads the binary file format created
+by Wintec's Time Machine X application.</p><p>
+<a href="http://www.semsons.com/wiwbmu3gpsre2.html" target="_top">Wintec WBT-201</a>
+</p><div class="example"><a id="wbt-tk1"></a><p class="title"><b>Example 3.8. Command showing conversion of a Wintec binary file to GPX</b></p><div class="example-contents"><p><strong class="userinput"><code>gpsbabel -w -t -i wbt-tk1 -f tracks.tk1 -o gpx -F out.gpx</code></strong></p></div></div><br class="example-break" /></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="fmt_yahoo"></a>Yahoo Geocode API data (yahoo)</h2></div></div></div><p class="fmtcapshdr">
     This format can...
     </p><div class="itemizedlist"><ul type="disc"><li><p class="fmtcapsitem">
           read waypoints
@@ -3927,7 +4264,7 @@ or want, you must tell GPSBabel to use the xcsv format and have the xcsv
 format use that file.  If you created a new style file called 
 "mystyle.style" and you want to write the  waypoints from
 a GPX file named "mine.gpx" to it, you would issue a command like:
-</p><p><strong class="userinput"><code>gpsbabel -i gpx -f mine.gpx -o xcsv,style=mystyle.style -f mine.new</code></strong></p><p>
+</p><p><strong class="userinput"><code>gpsbabel -i gpx -f mine.gpx -o xcsv,style=mystyle.style -F mine.new</code></strong></p><p>
 You might then examine <code class="filename">mine.new</code> to see if it met
 your expectations.  If not, you could continue to tweak 
 <code class="filename">mystyle.style</code> until it did, rerunning the above
@@ -4245,6 +4582,16 @@ examples:
    #  to the letter "n" in "min" and the letter "e" in "deg."
    # (writes 31 40 00.000N)
    IFIELD LAT_HUMAN_READABLE,"","%d %d %f%c" 
+</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_map_en_bng"></a>MAP_EN_BNG</h3></div></div></div><p>
+   MAP_EN_BNG converts coordinates from/to British National Grid (BNG).
+</p><p>
+   The only supported order of the items is: Map,Easting,Northing.
+   During output all coordinates have to be located within this limited area.
+</p><p>
+examples:
+</p><pre class="screen">
+   IFIELD MAP_EN_BNG,"","%s%5d %5d"   #  (writes i.e. "SJ00001 00001")
+   IFIELD MAP_EN_BNG,"","%s %d %d"    #  (writes i.e. "TQ 888 999")
 </pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_lonhuman"></a>LON_HUMAN_READABLE</h3></div></div></div><p>
    See LAT_HUMAN_READABLE except LON_HUMAN_READABLE defines LONGITUDE.
 </p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_latlonhuman"></a>LATLON_HUMAN_READABLE</h3></div></div></div><p>
@@ -4269,6 +4616,15 @@ example:
 </p><p>
 example:
 </p><pre class="screen">   IFIELD  LON_NMEA, "%f", "%010.3f"  # (writes -08708.082)
+</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_latlon_10ex"></a>LAT_10EX / LON_10EX</h3></div></div></div><p>
+   Defines the latitude or longitude in the format used i.e. by TomTom Navigator
+   itinerary files. It is degress multiplied by 10 power X. X have to be replaced with
+   a valid decimal value. A factor of 10000 would be generated by LAT_10E5 as shown
+   in the examples below.
+</p><p>
+examples:
+</p><pre class="screen">   IFIELD  LAT_10E5, "%f", "%.f"       # (writes  3558322)
+</pre><pre class="screen">   IFIELD  LON_10E5, "%f", "%.f"       # (writes -8708082)
 </pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_altfeet"></a>ALT_FEET</h3></div></div></div><p>
    ALT_FEET is the position's ALTITUDE in FEET.  This value is treated as 
    a SIGNED DOUBLE PRECISION FLOAT and requires a FLOATING POINT printf 
@@ -4355,6 +4711,16 @@ example:
 </p><p>
 example:
 </p><pre class="screen">   IFIELD ISO_TIME,"","%s"
+</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_isotimems"></a>ISO_TIME_MS</h3></div></div></div><p>
+   ISO_TIME_MS is much like ISO_TIME, but expresses milliseconds at the
+   end of the timestamp.
+   It is thus in the format yyyy-mm-ddThh:mm:ss.SSSzzzzz
+   where 'SSS' is milliseconds and zzzzzz is the local time offset 
+   or the character Z for UTC time.
+   On output, UTC 'Z' time zone will always be used.
+</p><p>
+example:
+</p><pre class="screen">   IFIELD ISO_TIME_MS,"","%s"
 </pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_geodiff"></a>GEOCACHE_DIFF</h3></div></div></div><p>
    GEOCACHE_DIFF is valid only for geocaches and represents a DOUBLE 
    PRECISION FLOAT.  This is the geocache "difficulty" rating as defined by
@@ -4425,6 +4791,21 @@ example:
 </p><p>
 example:
 </p><pre class="screen">   PATH_SPEED,"","%f"
+</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_pathspeed_kph"></a>PATH_SPEED_KPH</h3></div></div></div><p>
+   Like PATH_SPEED but means kilometers per hour.
+</p><p>
+example:
+</p><pre class="screen">   PATH_SPEED_KPH,"","%.1f"
+</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_pathspeed_mph"></a>PATH_SPEED_MPH</h3></div></div></div><p>
+   Like PATH_SPEED but means miles per hour.
+</p><p>
+example:
+</p><pre class="screen">   PATH_SPEED_MPH,"","%.1f"
+</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_pathspeed_knots"></a>PATH_SPEED_KNOTS</h3></div></div></div><p>
+   Like PATH_SPEED but means knots (nautical).
+</p><p>
+example:
+</p><pre class="screen">   PATH_SPEED_KNOTS,"","%.1f"
 </pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_def_pathcourse"></a>PATH_COURSE</h3></div></div></div><p>
    Course in degerees.  Gpsbabel does not calculate this data by default; 
    it is read from the input file if present.  (If not present, it may be
@@ -4450,7 +4831,7 @@ filter). Needs string conversion.
 </p><p>
 example:
 </p><pre class="screen">   GPS_FIX,"","%s"
-</pre></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="style_examples"></a>Examples</h2></div></div></div><p>
+</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_track_name"></a>TRACK_NAME</h3></div></div></div><p>The name of the track currently being operated on.  Needs string conversion.</p><p>example:</p><pre class="screen">TRACK_NAME, "", "%s"</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h3 class="title"><a id="style_route_name"></a>ROUTE_NAME</h3></div></div></div><p>The name of the route currently being operated on.  Needs string conversion.</p><p>example:</p><pre class="screen">ROUTE_NAME, "", "%s"</pre></div></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="style_examples"></a>Examples</h2></div></div></div><p>
 Here is one example style file from the GPSBabel source.
 </p><div class="literallayout"><p><br />
 # gpsbabel XCSV style file<br />
@@ -4505,4 +4886,21 @@ Default values are supported for any output fields that contain pure
    written on output and are not used to supplement missing input.  When 
    using default values your mileage will vary greatly depending on the 
    input formats used to populate waypoint data.
-</p></div></div></div></div></body></html>
+</p></div></div></div><div class="glossary"><div class="titlepage"><div><div><h2 class="title"><a id="Glossary"></a>Glossary</h2></div></div></div><p>Terms that are used in conjunction with GPSBabel.</p><div class="glossdiv"><h3 class="title">G</h3><dl><dt><a id="gl_xml"></a>Geocaching</dt><dd><p>GPS based "paper chase", see 
+          <a href="http://en.wikipedia.org/wiki/Geocaching" target="_top">http://en.wikipedia.org/wiki/Geocaching</a></p></dd></dl></div><div class="glossdiv"><h3 class="title">I</h3><dl><dt><a id="gl_itinerary"></a>Itinerary</dt><dd><p>same as a Route (e.g. used by TomTom)</p></dd></dl></div><div class="glossdiv"><h3 class="title">P</h3><dl><dt><a id="gl_poi"></a>Points of Interest (POI)</dt><dd><p>a collection of gas stations, post boxes, shops and
+          like.</p></dd></dl></div><div class="glossdiv"><h3 class="title">R</h3><dl><dt><a id="gl_route"></a>Route</dt><dd><p>a list of geopoints (often with names) connected in
+          a specific order. Usually a collection of geopoints
+          defining the route you want to pass while traveling,
+          created by PC software, or generated inside a GPS device.
+          They can be composed of existing waypoints, or new
+          "routepoints" might be generated.</p></dd></dl></div><div class="glossdiv"><h3 class="title">T</h3><dl><dt><a id="gl_track"></a>Track</dt><dd><p>a collection of geopoints recorded by your GPS
+          device while traveling -- "breadcrumb trails". The order
+          of trackpoints within the track is important. Usually a
+          trackpoint doesn't have a name or comment, but a
+          timestamp. This distinguishes a trackpoint from a
+          waypoint.</p></dd></dl></div><div class="glossdiv"><h3 class="title">W</h3><dl><dt><a id="gl_waypoint"></a>Waypoints</dt><dd><p>are geopoints that are not necessarily connected to
+          other points, and their order is unimportant. They can be
+          entered before, while or after you actually visit the
+          place and might have tags like name, comment and the
+          like. Usually used to mark special locations as your
+          home, a hotel or a geocache.</p></dd></dl></div></div></div></body></html>

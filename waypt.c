@@ -1,7 +1,7 @@
 /*
     Perform various operations on waypoints.
 
-    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2007 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include "defs.h"
 #include "cet_util.h"
+#include "grtcirc.h"
 
 queue waypt_head;
 static unsigned int waypt_ct;
@@ -41,8 +42,11 @@ waypt_dupe(const waypoint *wpt)
 	 * This and waypt_free should be closely synced.
 	 */
 	waypoint * tmp;
+	url_link *url_next;
+
 	tmp = waypt_new();
 	memcpy(tmp, wpt, sizeof(waypoint));
+	tmp->url_next = NULL;
 
 	if (wpt->shortname)
 		tmp->shortname = xstrdup(wpt->shortname);
@@ -54,6 +58,11 @@ waypt_dupe(const waypoint *wpt)
 		tmp->url = xstrdup(wpt->url);
 	if (wpt->url_link_text)
 		tmp->url_link_text = xstrdup(wpt->url_link_text);
+	for (url_next = wpt->url_next; url_next; url_next = url_next->url_next) {
+		waypt_add_url(tmp,
+			(url_next->url) ? xstrdup(url_next->url) : NULL,
+			(url_next->url_link_text) ? xstrdup(url_next->url_link_text) : NULL);
+	}
 	if (wpt->icon_descr && wpt->wpt_flags.icon_descr_is_dynamic)
 		tmp->icon_descr = xstrdup(wpt->icon_descr);
 	if (wpt->gc_data.desc_short.utfstring) {
@@ -84,13 +93,23 @@ waypt_dupe(const waypoint *wpt)
 void
 waypt_add(waypoint *wpt)
 {
+	double lat_orig = wpt->latitude;
+	double lon_orig = wpt->longitude;
+	
 	ENQUEUE_TAIL(&waypt_head, &wpt->Q);
 	waypt_ct++;
 
+	if (wpt->latitude < -90) wpt->latitude += 180;
+	else if (wpt->latitude > +90) wpt->latitude -= 180;
+	if (wpt->longitude < -180) wpt->longitude += 360;
+	else if (wpt->longitude > +180) wpt->longitude -= 360;
+	
 	if ((wpt->latitude < -90) || (wpt->latitude > 90.0))
-		fatal ("Invalid latitude %f in waypoint.\n", wpt->latitude);
+		fatal ("Invalid latitude %f in waypoint %s.\n",
+			lat_orig, wpt->shortname ? wpt->shortname : "");
 	if ((wpt->longitude < -180) || (wpt->longitude > 180.0))
-		fatal ("Invalid longitude %f in waypoint.\n", wpt->latitude);
+		fatal ("Invalid longitude %f in waypoint %s.\n",
+			lon_orig, wpt->shortname ? wpt->shortname : "");
 
 	/*
 	 * Some input may not have one or more of these types so we
@@ -140,8 +159,6 @@ waypt_new(void)
 
 	wpt = (waypoint *) xcalloc(sizeof (*wpt), 1);
 	wpt->altitude = unknown_alt;
-	wpt->course = unknown_course;
-	wpt->speed = unknown_speed;
 	wpt->fix = fix_unknown;
 	wpt->sat = -1;
 
@@ -222,6 +239,8 @@ waypt_init_bounds(bounds *bounds)
 	bounds->max_lon = -9999;
 	bounds->min_lat = 9999;
 	bounds->min_lon = 9999;
+	bounds->max_alt = -unknown_alt;
+	bounds->min_alt = unknown_alt;
 }
 
 int
@@ -245,6 +264,12 @@ waypt_add_to_bounds(bounds *bounds, const waypoint *waypointp)
 		bounds->min_lat = waypointp->latitude;
 	if (waypointp->longitude < bounds->min_lon)
 		bounds->min_lon = waypointp->longitude;
+	if (waypointp->altitude != unknown_alt) {
+		if (waypointp->altitude < bounds->min_alt)
+			bounds->min_alt = waypointp->altitude;
+		if (waypointp->altitude > bounds->max_alt)
+			bounds->max_alt = waypointp->altitude;
+	}
 }
 
 
@@ -303,6 +328,22 @@ waypt_free( waypoint *wpt )
 	}
 	if (wpt->url_link_text) {
 		xfree(wpt->url_link_text);
+	}
+	if (wpt->url_next) {
+		url_link *url_next;
+		
+		for (url_next = wpt->url_next; url_next; ) {
+	
+			url_link *tonuke = url_next;
+			if (tonuke->url) {
+				xfree(tonuke->url);
+			}
+			if (tonuke->url_link_text) {
+				xfree(tonuke->url_link_text);
+			}
+			url_next = tonuke->url_next;
+			xfree(tonuke);
+		}
 	}
 	if (wpt->icon_descr && wpt->wpt_flags.icon_descr_is_dynamic) {
 		xfree((char *)(void *)wpt->icon_descr);
@@ -382,4 +423,69 @@ waypt_restore(signed int count, queue *head_bak)
 	QUEUE_MOVE(&waypt_head, head_bak);
 	waypt_ct = count;
 	xfree(head_bak);
+}
+
+void
+waypt_add_url(waypoint *wpt, char *link, char *url_link_text)
+{
+	if ((link == NULL) && (url_link_text == NULL)) return;
+	
+	/* Special case first one; it goes right into the waypoint. */
+	if ((wpt->url == NULL)  && (wpt->url_link_text == NULL)) {
+		wpt->url = link;
+		wpt->url_link_text = url_link_text;
+	} else {
+		url_link *tail;
+		url_link *new_link = xcalloc(sizeof(url_link), 1);
+		new_link->url = link;
+		new_link->url_link_text = url_link_text;
+
+		/* Find current end of chain and tack this onto the end.. */
+		for (tail = wpt->url_next;;tail = tail->url_next) {
+			if (tail == NULL) {
+				wpt->url_next = new_link;
+				break;
+			}
+			if (tail->url_next == NULL) {
+				tail->url_next = new_link;
+				break;
+			}
+		}
+	}
+}
+
+/*
+ * returns full creation_time with parts of seconds in fractional portion
+ */
+ 
+double
+waypt_time(const waypoint *wpt)
+{
+	if (wpt->creation_time <= 0)
+		return (double) 0;
+	else
+		return ((double)wpt->creation_time + ((double)wpt->microseconds / 1000000));
+}
+
+/*
+ * calculates the speed between points "A" and "B"
+ * the result comes in meters per second and is always positive
+ */ 
+
+double
+waypt_speed(const waypoint *A, const waypoint *B)
+{
+	double dist, time;
+	
+	dist = radtometers(gcdist(
+		RAD(A->latitude), RAD(A->longitude),
+		RAD(B->latitude), RAD(B->longitude)));
+	if (dist < 0.1) dist = 0;	/* calc. diffs on 32- and 64-bit hosts */
+	if (dist == 0) return 0;
+	
+	time = fabs(waypt_time(A) - waypt_time(B));
+	if (time > 0)
+		return (dist / time);
+	else
+		return 0;
 }

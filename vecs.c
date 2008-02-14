@@ -114,6 +114,10 @@ extern ff_vecs_t dmtlog_vecs;
 extern ff_vecs_t raymarine_vecs;
 extern ff_vecs_t alanwpr_vecs;
 extern ff_vecs_t alantrl_vecs;
+extern ff_vecs_t vitovtt_vecs;
+extern ff_vecs_t ggv_log_vecs;
+extern ff_vecs_t g7towin_vecs;
+extern ff_vecs_t garmin_gpi_vecs;
 
 static
 vecs_t vec_list[] = {
@@ -394,13 +398,19 @@ vecs_t vec_list[] = {
                 &wbt_svecs,
                 "wbt",
                 "Wintec WBT-100/200 GPS Download",
-                "bin"
+                NULL
         },
         {
                 &wbt_fvecs,
                 "wbt-bin",
-                "Wintec WBT-100/200 Binary file format",
-                NULL
+                "Wintec WBT-100/200 Binary File Format",
+                "bin"
+        },
+        {
+                &wbt_fvecs,
+                "wbt-tk1",
+                "Wintec WBT-201/G-Rays 2 Binary File Format",
+                "tk1"
         },
         {
                 &hiketech_vecs,
@@ -455,7 +465,7 @@ vecs_t vec_list[] = {
 	{
 		&tomtom_vecs,
 		"tomtom",
-		"TomTom POI file",
+		"TomTom POI file (.ov2)",
 		"ov2"
 	},
 	{
@@ -629,6 +639,32 @@ vecs_t vec_list[] = {
                 "alantrl",
                 "Alan Map500 tracklogs (.trl)",
                 "trl"
+        },
+        {
+                &vitovtt_vecs,
+                "vitovtt",
+		"Vito SmartMap tracks (.vtt)",
+		"vtt"
+        },
+        {
+                &ggv_log_vecs,
+                "ggv_log",
+                "Geogrid Viewer tracklogs (.log)",
+                "log"
+        },
+#if CSVFMTS_ENABLED
+        {
+		&g7towin_vecs,
+		"g7towin",
+		"G7ToWin data files (.g7t)",
+		"g7t"
+	},
+#endif
+        {
+                &garmin_gpi_vecs,
+                "garmin_gpi",
+                "Garmin Points of Interest (.gpi)",
+                "gpi"
         },
 	{
 		NULL,

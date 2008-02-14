@@ -17,7 +17,7 @@ else
 	OD=${OD:-od -Ax -txC -v}
 fi
 
-TMPDIR=/tmp/gpsbabel.$$
+TMPDIR=${GBTEMP:-/tmp}/gpsbabel.$$
 mkdir -p $TMPDIR
 trap "rm -fr $TMPDIR" 0 1 2 3 15
 
@@ -1033,6 +1033,8 @@ echo "lat,lon,descr,name,notes,unk,unk" > ${TMPDIR}/unicsv.txt
 cat ${REFERENCE}/mxf.mxf >> ${TMPDIR}/unicsv.txt
 ${PNAME} -i unicsv -f ${TMPDIR}/unicsv.txt -o gpx -F ${TMPDIR}/unicsv.gpx
 compare ${TMPDIR}/unicsv.gpx ${REFERENCE}/unicsv.gpx
+${PNAME} -i garmin_txt -f ${REFERENCE}/garmin_txt.txt -x nuketypes,routes,tracks -o unicsv -F ${TMPDIR}/garmin_txt-uni.csv
+compare ${TMPDIR}/garmin_txt-uni.csv ${REFERENCE}/garmin_txt-uni.csv
 
 #
 # Basic NMEA tests
@@ -1112,6 +1114,15 @@ grep -v time <${TMPDIR}/wbt-200.gpx >${TMPDIR}/wbt-200.gpx2
 compare ${TMPDIR}/wbt-200.gpx2 ${REFERENCE}/wbt-200.gpx
 
 #
+# WBT-201 tests
+#
+rm -f ${TMPDIR}/wbt-200.*
+${PNAME} -t -w -i wbt-bin -f ${REFERENCE}/wbt-201.tk1 -o gpx -F ${TMPDIR}/wbt-201.gpx
+# Remove the timestamp
+grep -v time <${TMPDIR}/wbt-201.gpx >${TMPDIR}/wbt-201.gpx2
+compare ${TMPDIR}/wbt-201.gpx2 ${REFERENCE}/wbt-201.gpx
+
+#
 # Sportsim style-sheet
 #
 rm -f ${TMPDIR}/sportsim*
@@ -1157,9 +1168,9 @@ compare ${TMPDIR}/ge-eg.kml ${REFERENCE}/earth-expertgps.kml
 # Transformation filter (transform) tests
 #
 rm -f ${TMPDIR}/transform*
-${PNAME} -i gpx -f ${REFERENCE}/expertgps.gpx -x nuketypes,routes,tracks -x transform,rte=wpt,del=y -o gpx -F ${TMPDIR}/transform-rte.gpx
+${PNAME} -i gpx -f ${REFERENCE}/expertgps.gpx -x nuketypes,routes,tracks -x transform,rte=wpt,del=y -o gpx,gpxver=1.1 -F ${TMPDIR}/transform-rte.gpx
 compare ${TMPDIR}/transform-rte.gpx ${REFERENCE}/transform-rte.gpx
-${PNAME} -i gpx -f ${REFERENCE}/expertgps.gpx -x nuketypes,waypoints,tracks -x transform,wpt=rte,del=y -o gpx -F ${TMPDIR}/transform-wpt.gpx
+${PNAME} -i gpx -f ${REFERENCE}/expertgps.gpx -x nuketypes,waypoints,tracks -x transform,wpt=rte,del=y -o gpx,gpxver=1.1 -F ${TMPDIR}/transform-wpt.gpx
 compare ${TMPDIR}/transform-wpt.gpx ${REFERENCE}/transform-wpt.gpx
 
 #
@@ -1186,5 +1197,61 @@ rm -f ${TMPDIR}/alantrl*
 ${PNAME} -i alantrl -f ${REFERENCE}/alantrl.trl -o alantrl -F ${TMPDIR}/alantrl-new.trl
 ${PNAME} -i alantrl -f ${TMPDIR}/alantrl-new.trl -o gpx -F ${TMPDIR}/alantrl-new.gpx
 compare ${TMPDIR}/alantrl-new.gpx ${REFERENCE}/alantrl.gpx
+
+#
+# VITO SmartMap .vtt track file 'vitovtt' test
+#
+rm -f ${TMPDIR}/vitovtt-*
+${PNAME} -i vitovtt -f ${REFERENCE}/track/vitovtt-sample.vtt -o gpx -F ${TMPDIR}/vitovtt-sample.gpx
+compare ${REFERENCE}/track/vitovtt-sample.gpx ${TMPDIR}/vitovtt-sample.gpx
+
+#
+# Test > 1 URL in selected files.
+#
+rm -f ${TMPDIR}/mlink*
+${PNAME} -i gpx -f reference/multiple-links.gpx -o gpx,gpxver=1.1 -F ${TMPDIR}/mlink-1.gpx
+compare ${TMPDIR}/mlink-1.gpx reference/multiple-links.gpx
+
+#
+# Geogrid Viewer tracklogs
+#
+rm -f ${TMPDIR}/ggv_log*
+${PNAME} -i gdb -f ${REFERENCE}/gdb-sample.gdb -x track,pack -o ggv_log -F ${TMPDIR}/ggv_log-sample.log
+bincompare ${REFERENCE}/track/ggv_log-sample.log ${TMPDIR}/ggv_log-sample.log
+${PNAME} -i ggv_log -f ${REFERENCE}/track/ggv_log-sample.log -o ggv_log -F ${TMPDIR}/ggv_log-sample2.log
+bincompare ${REFERENCE}/track/ggv_log-sample.log ${TMPDIR}/ggv_log-sample2.log
+
+#
+# G7ToWin (read only) test
+#
+${PNAME} -i g7towin -f ${REFERENCE}/expertgps.g7t -o garmin_txt,utc=0 -F ${TMPDIR}/expertgps-g7t.txt
+compare ${REFERENCE}/expertgps-g7t.txt ${TMPDIR}/expertgps-g7t.txt
+
+#
+# TomTom Navigator Places of Interest (.asc)
+#
+${PNAME} -i tomtom_asc -f ${REFERENCE}/tomtom_poi.asc -o tomtom_asc -F ${TMPDIR}/tomtom_poi.asc
+compare ${REFERENCE}/tomtom_poi.asc ${TMPDIR}/tomtom_poi.asc
+
+#
+# TomTom Navigator Itinerary files (.asc)
+#
+${PNAME} -i tomtom_itn -f ${REFERENCE}/route/tomtom_itn.itn -o tomtom_itn -F ${TMPDIR}/tomtom_itn.itn
+compare ${REFERENCE}/route/tomtom_itn.itn ${TMPDIR}/tomtom_itn.itn
+
+#
+# Garmin Points of Interest "garmin_gpi" (.gpi)
+#
+${PNAME} -i garmin_gpi -f ${REFERENCE}/garmin_gpi.gpi -o gpx -F ${TMPDIR}/garmin_gpi.gpx
+compare ${REFERENCE}/garmin_gpi.gpx ${TMPDIR}/garmin_gpi.gpx
+${PNAME} -i gpx -f ${REFERENCE}/garmin_gpi.gpx -o garmin_gpi -F ${TMPDIR}/garmin_gpi.gpi
+${PNAME} -i garmin_gpi -f ${TMPDIR}/garmin_gpi.gpi -o gpx -F ${TMPDIR}/garmin_gpi2.gpx
+compare ${REFERENCE}/garmin_gpi2.gpx ${TMPDIR}/garmin_gpi2.gpx
+${PNAME} -i gpx -f ${REFERENCE}/track/vitovtt-sample.gpx -x transform,wpt=trk -o garmin_gpi -F ${TMPDIR}/garmin_gpi3a.gpi
+${PNAME} -i garmin_gpi -f ${TMPDIR}/garmin_gpi3a.gpi -o garmin_gpi -F ${TMPDIR}/garmin_gpi3b.gpi
+bincompare ${TMPDIR}/garmin_gpi3a.gpi ${TMPDIR}/garmin_gpi3b.gpi
+${PNAME} -i garmin_gpi -f ${REFERENCE}/gpi_ext-sample.gpi -o unicsv -F ${TMPDIR}/gpi_ext-sample.csv
+compare ${REFERENCE}/gpi_ext-sample.csv ${TMPDIR}/gpi_ext-sample.csv
+
 
 exit 0

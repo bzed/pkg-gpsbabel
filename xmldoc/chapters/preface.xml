@@ -1,7 +1,7 @@
    <preface id="Introduction">
       <title>Introduction</title>
       <section id="The_Problem">
-         <title>The Problem: Too many incompatible formats</title>
+         <title>The Problem: Too many incompatible GPS file formats</title>
          <para> There are simply too many gratuitously different file formats
 to hold waypoint, track, and route information in various programs
 used by computers and GPS receivers.  
@@ -30,7 +30,7 @@ that it was easy to add new formats and made the program freely available. <ulin
 	lines of reasonable ISO C so they can be stamped
 	out pretty trivially.  Formats that are ASCII text delimited in some
 	fixed way can be added with no programming at all via our 
-	<link linkend ="Styles">style</link> mechanism.
+	<link linkend="Styles">style</link> mechanism.
 	</para>
       </section>
    </preface>

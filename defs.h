@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2002, 2003, 2004, 2005  Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007  Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -63,6 +63,24 @@
 
 #define SECONDS_PER_HOUR (60L*60)
 #define SECONDS_PER_DAY (24L*60*60)
+
+/* meters/second to kilometers/hour */
+#define MPS_TO_KPH(a) ((double)(a)*SECONDS_PER_HOUR/1000)
+
+/* meters/second to miles/hour */
+#define MPS_TO_MPH(a) (METERS_TO_MILES(a) * SECONDS_PER_HOUR)
+
+/* meters/second to knots */
+#define MPS_TO_KNOTS(a) (MPS_TO_KPH((a)/1.852))
+
+/* kilometers/hour to meters/second */
+#define KPH_TO_MPS(a) ((double)(a)*1000/SECONDS_PER_HOUR)
+
+/* miles/hour to meters/second */
+#define MPH_TO_MPS(a) (MILES_TO_METERS(a) / SECONDS_PER_HOUR)
+
+/* knots to meters/second */
+#define KNOTS_TO_MPS(a) (KPH_TO_MPS((a)*1.852))
 
 /*
  * Snprintf is in SUS (so it's in most UNIX-like substance) and it's in 
@@ -218,6 +236,7 @@ typedef struct {
 	time_t exported;
 	time_t last_found;
 	char *placer; /* Placer name */
+	int placer_id; /* Placer id */
 	char *hint; /* all these UTF8, XML entities removed, May be not HTML. */
 	utf_string desc_short;
 	utf_string desc_long; 
@@ -268,14 +287,38 @@ fs_xml *fs_xml_alloc( long type );
 #define FS_GMSD 0x474d5344L	/* GMSD = Garmin specific data */
 
 /*
+ * Structures and functions for multiple URLs per waypoint.
+ */
+typedef struct url_link {
+	struct url_link *url_next;
+	char *url;
+	char *url_link_text;
+} url_link;
+
+/*
  * Misc bitfields inside struct waypoint;
  */
 typedef struct {
 	unsigned int icon_descr_is_dynamic:1; 
 	unsigned int shortname_is_synthetic:1;
 	unsigned int cet_converted:1;		/* strings are converted to UTF8; interesting only for input */
+	/* "flagged fields" */
+	unsigned int temperature:1;		/* temperature field is set */
+	unsigned int proximity:1;		/* proximity field is set */
+	unsigned int course:1;			/* course field is set */
+	unsigned int speed:1;			/* speed field is set */
+	unsigned int depth:1;			/* depth field is set */
+	/* !ToDo!
+	unsigned int altitude:1;		/+ altitude field is set +/
+	... and others
+	*/
+	
 } wp_flags;
 
+#define WAYPT_SET(wpt,member,val) { wpt->member = (val); wpt->wpt_flags.member = 1; }
+#define WAYPT_GET(wpt,member,def) (wpt->wpt_flags.member) ? (wpt->member) : (def)
+#define WAYPT_UNSET(wpt,member) wpt->wpt_flags.member = 0
+#define WAYPT_HAS(wpt,member) (wpt->wpt_flags.member)
 /*
  * This is a waypoint, as stored in the GPSR.   It tries to not 
  * cater to any specific model or protocol.  Anything that needs to
@@ -325,6 +368,15 @@ typedef struct {
 	 * Few formats support this.
 	 */
 	char *notes;
+
+	/* This is a bit icky.   Multiple waypoint support is an
+	 * afterthought and I don't want to change our data structures.
+	 * So we have the first in the waypoint itself and subsequent
+	 * ones in a linked list.
+	 * We also use an implicit anonymous union here, so these three
+	 * members must match struct url_link...
+	 */
+	struct url_link *url_next;
 	char *url;
 	char *url_link_text;
 
@@ -400,13 +452,17 @@ typedef struct {
 typedef struct {
 	double max_lat;
 	double max_lon;
+	double max_alt;
 	double min_lat;
 	double min_lon;
+	double min_alt;
 } bounds;
 
 typedef struct {
-	int request_terminate;
+	volatile int request_terminate;
 } posn_status;
+
+extern posn_status tracking_status;
 
 typedef void (*ff_init) (char const *);
 typedef void (*ff_deinit) (void);
@@ -446,6 +502,7 @@ void waypt_flush(queue *);
 void waypt_flush_all(void);
 unsigned int waypt_count(void);
 void set_waypt_count(unsigned int nc);
+void waypt_add_url(waypoint *wpt, char *link, char *url_link_text);
 void free_gpx_extras (xml_tag * tag);
 void xcsv_setup_internal_style(const char *style_buf);
 void xcsv_read_internal_style(const char *style_buf);
@@ -639,6 +696,8 @@ void waypt_init(void);
 void route_init(void);
 void waypt_disp(const waypoint *);
 void waypt_status_disp(int total_ct, int myct);
+double waypt_time(const waypoint *wpt);
+double waypt_speed(const waypoint *A, const waypoint *B);
 
 NORETURN fatal(const char *, ...) PRINTFLIKE(1, 2);
 void is_fatal(const int condition, const char *, ...) PRINTFLIKE(2, 3);
@@ -706,6 +765,7 @@ int case_ignore_strcmp(const char *s1, const char *s2);
 int case_ignore_strncmp(const char *s1, const char *s2, int n);
 int str_match(const char *str, const char *match);
 int case_ignore_str_match(const char *str, const char *match);
+char * strenquote(const char *str, const char quot_char);
 
 char *strsub(const char *s, const char *search, const char *replace);
 char *gstrsub(const char *s, const char *search, const char *replace);
@@ -729,7 +789,7 @@ char * strip_html(const utf_string*);
 char * strip_nastyhtml(const char * in);
 char * convert_human_date_format(const char *human_datef);	/* "MM,YYYY,DD" -> "%m,%Y,%d" */
 char * convert_human_time_format(const char *human_timef);	/* "HH+mm+ss"   -> "%H+%M+%S" */
-char * pretty_deg_format(double lat, double lon, char fmt, int html);   /* decimal ->  dd.dddd or dd mm.mmm or dd mm ss */
+char * pretty_deg_format(double lat, double lon, char fmt, char *sep, int html);   /* decimal ->  dd.dddd or dd mm.mmm or dd mm ss */
 
 char * get_filename(const char *fname);				/* extract the filename portion */
 
@@ -825,6 +885,24 @@ void   le_write_double(void *p, double d);
 double ddmm2degrees(double ddmm_val);
 double degrees2ddmm(double deg_val);
 
+typedef enum {
+	grid_unknown = -1,
+	grid_lat_lon_ddd = 0,
+	grid_lat_lon_dmm = 1,
+	grid_lat_lon_dms = 2,
+	grid_bng = 3,
+	grid_utm = 4
+} grid_type;
+
+#define GRID_INDEX_MIN	grid_lat_lon_ddd
+#define GRID_INDEX_MAX	grid_utm
+
+#define DATUM_OSGB36	86
+#define DATUM_WGS84	118
+
+int parse_coordinates(const char *str, int datum, const grid_type grid,
+	double *latitude, double *longitude, const char *module);
+
 /*
  *  From util_crc.c
  */
@@ -864,28 +942,5 @@ int color_to_bbggrr(char *cname);
  * but that's not very nice for the folks near sea level.
  */
 #define unknown_alt 	-99999999.0
-#define unknown_course 	     -999.0
-#define unknown_speed	     -999.0
-/*
- * textfile: buffered OS independent (CRLF,NL,CR) text reader
- */
- 
-typedef struct
-{
-	FILE *file_in;
-	char buf[1024];
-	char *buf_pos;
-	char *buf_end;
-	char *line;
-	int line_size;
-	int line_no;
-	unsigned char tfclose:1;
-} textfile_t;
-
-textfile_t *textfile_init(const FILE *file_in);
-textfile_t *textfile_open_read(const char *filename, const char *module);
-void textfile_done(textfile_t *tf);
-char *textfile_read(textfile_t *tf);
-int textfile_getc(textfile_t *tf);
 
 #endif /* gpsbabel_defs_h_included */

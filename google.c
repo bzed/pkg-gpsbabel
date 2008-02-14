@@ -22,7 +22,8 @@
 static char *encoded_points = NULL;
 static char *encoded_levels = NULL;
 static char *script = NULL;
-static route_head *routehead;
+static route_head **routehead;
+static int *routecount;
 static short_handle desc_handle;
 
 static int serial = 0;
@@ -56,8 +57,11 @@ xg_tag_mapping google_map[] = {
 	{ goog_segment_s, cb_start,      "/page/directions/segments/segment" },
 	{ goog_segment, cb_cdata,      "/page/directions/segments/segment" },
 	{ goog_td_s,    cb_start,      "/div/table/tr/td" },
+	{ goog_td_s,    cb_start,      "/div/div/table/tr/td" },
 	{ goog_td_b,      cb_cdata,      "/div/table/tr/td/b" },
+	{ goog_td_b,      cb_cdata,      "/div/div/table/tr/td/b" },
 	{ goog_td_e,    cb_end,        "/div/table/tr/td" },
+	{ goog_td_e,    cb_end,        "/div/div/table/tr/td" },
 	{ NULL,         0,              NULL }
 };
 
@@ -108,6 +112,7 @@ void goog_levels( const char *args, const char **unused )
 
 static char goog_segname[7];
 static char *goog_realname = NULL;
+static int goog_segroute = 0;
 
 /*
  * The segments contain an index into the points array.  We use that
@@ -129,7 +134,7 @@ void goog_segment( const char *args, const char **unused )
 {
 	waypoint *wpt_tmp;
 
-	wpt_tmp = route_find_waypt_by_name( routehead, goog_segname);
+	wpt_tmp = route_find_waypt_by_name( routehead[goog_segroute], goog_segname);
 	if (wpt_tmp) {
 		xfree(wpt_tmp->shortname);
 		wpt_tmp->shortname = mkshort(desc_handle,args);
@@ -141,14 +146,28 @@ void goog_td_s( const char *args, const char **attrv )
 {
 	const char **avp = &attrv[0];
 	int isdesc = 0;
+	int isseg = 0;
 	while (*avp) {
 		if ( 0 == strcmp(avp[0], "class" )) {
 			isdesc = !strcmp(avp[1], "desc" );
+			isseg = !strcmp(avp[1], "dirsegtext" );
 		}
 		else if ( isdesc && (0 == strcmp( avp[0], "id" ))) {
+			goog_segroute = 0;
 			snprintf( goog_segname, sizeof(goog_segname),
 				"\\%5.5x",
 				atoi(avp[1] + 6 ));
+		}
+		else if ( isseg && (0 == strcmp( avp[0], "id" ))) {
+			if ( strchr(strchr(avp[1],'_')+1,'_')) {
+  			  goog_segroute = atoi(strchr(avp[1],'_')+1);
+			}
+			else {
+			  goog_segroute = 0;
+			}
+			snprintf( goog_segname, sizeof(goog_segname),
+				"\\%5.5x",
+				atoi(strrchr( avp[1],'_') + 1 )+routecount[goog_segroute]);
 		}
 		avp += 2;
 	}
@@ -209,9 +228,10 @@ void goog_poly_e( const char *args, const char **unused )
 	long level2 = -9999;
         char *str = encoded_points;
 	char *lstr = encoded_levels;
-
-	routehead = route_head_alloc();
-	route_add_head(routehead);
+	
+	routehead[goog_segroute] = route_head_alloc();
+	route_add_head(routehead[goog_segroute]);
+	routecount[goog_segroute] = serial;
 
 	while ( str && *str ) 
 	{
@@ -241,7 +261,7 @@ void goog_poly_e( const char *args, const char **unused )
 			wpt_tmp->route_priority=level;
 			wpt_tmp->shortname = (char *) xmalloc(7);
 			sprintf( wpt_tmp->shortname, "\\%5.5x", serial++ );
-			route_add_wpt(routehead, wpt_tmp);
+			route_add_wpt(routehead[goog_segroute], wpt_tmp);
 		}
 	}
 	
@@ -259,7 +279,13 @@ google_rd_init(const char *fname)
 static void
 google_read(void)
 {
+	routehead = (route_head **)xmalloc(sizeof(route_head *));
+	routecount = (int *)xmalloc(sizeof(int));
+	goog_segroute = 0;
 	xml_read();
+	xfree( routehead );
+	xfree( routecount );
+
 	if ( encoded_points ) 
 	{
 		xfree( encoded_points );
@@ -278,6 +304,9 @@ google_read(void)
 		char *end = NULL;
 		
 		if ( xml && (!dict || (xml < dict ))) {
+			routehead = (route_head **)xmalloc(sizeof(route_head *));
+			routecount = (int *)xmalloc(sizeof(int));
+			goog_segroute = 0;
 			xml++;
 			end = strchr( xml+1, '\'' );
 			if ( end ) {
@@ -298,53 +327,193 @@ google_read(void)
 			}
 		}
 		else if ( dict ) {
+		  char qc = '\'';
+		  int ofs = 9;
+		  int panelofs = 8;
+		  int count = 0;
+		  char *tmp = NULL;
+		  char *start = NULL;
+		  
 		  char *panel = strstr( dict, "panel: '" );
 		  encoded_points = strstr( dict, "points: '" );
 		  encoded_levels = strstr( dict, "levels: '" );
+		  if ( !encoded_points ) {
+		    ofs = 10;
+		    qc = '"';
+	            encoded_points = strstr( dict, "\"points\":\"" );
+	            encoded_levels = strstr( dict, "\"levels\":\"" );
+		    if ( !encoded_points ) { 
+		      encoded_points = strstr(dict, "points:\"" );
+		      encoded_levels = strstr(dict, "levels:\"" );
+		      ofs = 8;
+		    }
+		  }
 		  
-		  if ( encoded_points && encoded_levels ) {
-	            encoded_points += 9;
-		    encoded_levels += 9;
-		    end = strchr( encoded_points, '\'' );
-		    if ( end ) {
-	              *end = '\0';
-		      end = encoded_points;
-		      while ( (end = strstr(end, "\\\\" ))) {
-			memmove( end, end+1, strlen(end)+1 );
-			end++;
+		  if ( !panel ) {
+		    panel = strstr( dict, "panel:\"");
+		    panelofs = 7;
+		  }
+		  
+		  tmp = panel;
+		  while ( tmp ) {
+	            if ( qc == '"' ) {
+		      char *tmp1 = strstr( tmp, "\"points\":\"" );
+		      if ( !tmp1 ) {
+		        tmp1 = strstr( tmp, "points:\"" );
 		      }
-		      end = strchr( encoded_levels, '\'' );
+		      tmp = tmp1;
+		    }
+		    else {
+		      tmp = strstr( tmp, "points: '" );
+		    }
+		    count++;
+		    if ( tmp ) {
+		      tmp++;
+		    }			  
+		  } 
+		  routehead = (route_head **)xmalloc(sizeof(route_head *)*count);
+		  routecount = (int *)xmalloc(sizeof(int)*count);
+		  goog_segroute = 0;
+		  
+		  do {
+		  
+		    if ( encoded_points && encoded_levels ) {
+	              encoded_points += ofs;
+		      encoded_levels += ofs;
+		      end = strchr( encoded_points, qc );		 
 		      if ( end ) {
-			*end = '\0';
-		        end = encoded_levels;
-  		        while ( (end = strstr(end, "\\\\" ))) {
-			  memmove( end, end+1, strlen(end)+1 );
+	                *end = '\0';
+		        end = encoded_points;
+		        while ( (end = strstr(end, "\\\\" ))) {
+		  	  memmove( end, end+1, strlen(end)+1 );
 			  end++;
 		        }
-			goog_poly_e( NULL, NULL );
-		      }
-		    }		      
-		  }
+		        end = strchr( encoded_levels, qc );
+		        if ( end ) {
+			  start = end;
+	 		  *end = '\0';
+		          end = encoded_levels;			  
+  		          while ( (end = strstr(end, "\\\\" ))) {
+			    memmove( end, end+1, strlen(end)+1 );
+			    end++;
+		          }
+			  goog_poly_e( NULL, NULL );
+			  
+		          goog_segroute++;
+			  start++;
+			  {
+		            encoded_points = strstr( start, "points: '" );
+		            encoded_levels = strstr( start, "levels: '" );
+			  }
+                          if ( !encoded_points ) {
+	                    encoded_points = strstr( start, "\"points\":\"" );
+	                    encoded_levels = strstr( start, "\"levels\":\"" );
+			  }
+			  if ( !encoded_points ) {
+		            encoded_points = strstr( start, "points:\"" );
+			    encoded_levels = strstr( start, "levels:\"" );
+			  }
+		        }
+		      }		      
+		    }
+		  } while ( start && encoded_points && encoded_levels );
 	          if ( panel ) {
-		    panel += 8;
+		    panel += panelofs;
 		    end = strstr( panel, "/table><div class=\\\"legal" );
-		    if ( end ) {
-	              strcpy(end,"/table></div>");
-		      end = panel;
-		      while ( (end = strstr( end, "\\\"" ))) {
-		        memmove( end, end+1, strlen(end)+1 );
+		    if ( !end ) {
+	              end = strstr( panel, "/table><div class=\\042legal" );
+		    }		    
+		    if ( !end ) {
+		      end = strstr( panel, "/table\\u003e\\u003cdiv id=\\\"mrDragRouteTip\\\"" );
+		    }		   
+                    if ( end ) {
+                      strcpy(end,"/table></div>");
+                    }
+		    if ( !end ) {
+		      end = strstr( panel, "/div><div class=\\042legal");
+		      if ( end ) {
+			strcpy( end, "/div></div>");
 		      }
-		      end = panel;
-		      while ( (end = strstr( end, "\\'" ))) {
-			memmove( end, end+1, strlen(end)+1 );
+		    }
+		    
+		    if ( end ) {		    		      
+		      char *to = panel;
+		      char *from = panel;
+		      while ( *from ) {
+			if ( !strncmp( from, "\\\"", 2 )) {
+			  *to++ = '"';
+			  from += 2;
+			  if ( *(to-2) != '=' ) { 
+  			    *to++ = ' ';				  
+			  }
+			}
+			else if ( !strncmp( from, "\\042", 4)) {
+			  *to++ = '"';
+			  from += 4;
+			  
+			  if ( *(to-2) != '=' ) { 
+  			    *to++ = ' ';				  
+			  }
+			}
+			else if ( !strncmp( from, "\\u0026utm", 9)) {
+			  strcpy( to, "&amp;utm" );
+			  to += 8;
+			  from += 9;
+			} 
+			else if ( !strncmp( from, "\\u0026", 6 )) {
+			  *to++='&';
+			  from += 6;
+			}
+			else if ( !strncmp( from, "\\u003c", 6 )) {
+			  *to++='<';
+			  from += 6;
+			}
+			else if ( !strncmp( from, "\\u003e", 6 )) {
+			  *to++='>';
+			  from += 6;
+			}
+			else if ( !strncmp( from, "\\'", 2)) {
+			  *to++ = '\'';
+			  from += 2;
+			}
+			else if ( !strncmp( from, " nowrap ", 8)) {
+			  *to++ = ' ';
+			  from += 8;
+			}
+			else if ( !strncmp( from, "tr style=\\\"display:none", 23 )) {
+			  if ( strcmp( to-5, "/tr><" )) {
+			    /* broken 6-26-07 missing </tr> that apparently doesn't bother browsers */
+		            strcpy(to, "/tr><" );
+			    to += 5;
+		          }
+			  *to++ = *from++;
+			}
+			else {
+			  *to++ = *from++;
+			}			  
 		      }
+		      *to = '\0';
+		      
+#if 0 
+		      {
+			FILE *foo = fopen( "foo.xml", "w" );
+			fwrite( panel, sizeof(char), strlen(panel), foo );
+			fclose( foo );
+		      }
+#endif
+
 		      xml_deinit();
 		      xml_init( NULL, google_map, NULL );
+		      xml_readprefixstring( "<!DOCTYPE foo [" );
+		      xml_readprefixstring( xhtml_entities ); 
+		      xml_readprefixstring( "]>" );
 		      xml_readstring( panel );
 		    }
 		  }
 		}
 		xfree( script );
+		xfree( routehead );
+		xfree( routecount );
 		script = NULL;
 	}
 

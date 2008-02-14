@@ -117,10 +117,14 @@ void *gbser_init(const char *port_name) {
 	h->magic = MYMAGIC;
 	h->vmin = h->vtime = 0;
 
-    if (h->fd = open(port_name, O_RDWR | O_NOCTTY), h->fd == -1) {
+	if (0 == strcmp(port_name, "-")) {
+		h->fd = 0;
+		return h;
+	}
+        else if (h->fd = open(port_name, O_RDWR | O_NOCTTY), h->fd == -1) {
 		gbser__db(1, "Failed to open port (%s)\n", strerror(errno));	
-        goto failed;
-    }
+	        goto failed;
+	}
 
 	if (!isatty(h->fd)) { 
 		gbser__db(1, "%s is not a TTY\n");
@@ -393,12 +397,12 @@ const char *fix_win_serial_name(const char *comname) {
 
 /* Read from the serial port until the specified |eol| character is
  * found. Any character matching |discard| will be discarded. To
- * read lines terminated by 0x0A0x0D discarding linefeeds use
+ * read lines terminated by 0x0A, 0x0D discarding linefeeds use
  * gbser_read_line(h, buf, len, 1000, 0x0D, 0x0A);
+ * The terminating character and any discarded characters are not
+ * stored in the buffer.
  */
-int gbser_read_line(void *handle, void *buf, 
-                    unsigned len, unsigned ms,
-                    int eol, int discard) {
+int gbser_read_line(void *handle, void *buf, unsigned len, unsigned ms, int eol, int discard) {
     char *bp = buf;
     unsigned pos = 0;
     hp_time tv;

@@ -2,7 +2,7 @@
 
     Character encoding transformation - utilities
 
-    Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
+    Copyright (C) 2005,2006,2007 Olaf Klein, o.b.klein@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -49,9 +49,15 @@ static int cet_cs_alias_ct = 0;
 static int cet_cs_vec_ct = 0;
 static int cet_output = 0;
 
+/* %%% fixed inbuild character sets %%% */
+
+#include "cet/ansi_x3_4_1968.h"
+#include "cet/iso_8859_1.h"
+#include "cet/iso_8859_15.h"
+#include "cet/cp1252.h"
+
 /* %%% short hand strings transmission for main character sets %%% */
 
-#include "cet/iso_8859_1.h"
 char *
 cet_str_utf8_to_iso8859_1(const char *src)
 {
@@ -63,8 +69,6 @@ cet_str_iso8859_1_to_utf8(const char *src)
 {
 	return cet_str_any_to_utf8(src, &cet_cs_vec_iso_8859_1);
 }
-
-#include "cet/iso_8859_15.h"
 
 char *
 cet_str_utf8_to_iso8859_15(const char *src)
@@ -78,8 +82,6 @@ cet_str_iso8859_15_to_utf8(const char *src)
 	return cet_str_any_to_utf8(src, &cet_cs_vec_iso_8859_15);
 }
 
-#include "cet/ansi_x3_4_1968.h"
-
 char *
 cet_str_utf8_to_us_ascii(const char *src)
 {
@@ -91,8 +93,6 @@ cet_str_us_ascii_to_utf8(const char *src)
 {
 	return cet_str_any_to_utf8(src, &cet_cs_vec_ansi_x3_4_1968);
 }
-
-#include "cet/cp1252.h"
 
 char *
 cet_str_utf8_to_cp1252(const char *src)
@@ -333,7 +333,7 @@ void
 cet_check_cs(cet_cs_vec_t *vec)	/* test well sorted link & extra tables */
 {
 	cet_ucs4_link_t *link;
-	
+
 	if ((link = (cet_ucs4_link_t *)vec->ucs4_link))
 	{
 	    int i, j;
@@ -810,10 +810,28 @@ cet_register_cs(&cet_cs_vec_vps);
 	    qsort(list, c, sizeof(*list), cet_cs_alias_qsort_cb);
 	    cet_cs_alias = list;
 	    cet_cs_alias_ct = c;
+
+	    /* install fallback for ascii-like (first 128 ch.) character sets */
+	    for (i = 1250; i <= 1258; i++) {
+		char name[16];
+		cet_cs_vec_t *vec;
+		
+		snprintf(name, sizeof(name), "WIN-CP%d", i);
+		if ((vec = cet_find_cs_by_name(name)))
+		    vec->fallback = &cet_cs_vec_ansi_x3_4_1968;
+	    }
+	    for (i = 1; i <= 15; i++) {
+		char name[16];
+		cet_cs_vec_t *vec;
+		
+		snprintf(name, sizeof(name), "ISO-8859-%d", i);
+		if ((vec = cet_find_cs_by_name(name)))
+		    vec->fallback = &cet_cs_vec_ansi_x3_4_1968;
+	    }
+	}
 #ifdef CET_DEBUG	    
 	    printf("We have registered %d character sets with %d aliases\n", cet_cs_vec_ct, cet_cs_alias_ct);
 #endif
-	}
 }
 
 cet_cs_vec_t *
@@ -909,6 +927,28 @@ cet_convert_init(const char *cs_name, const int force)
 }
 
 /* -------------------------------------------------------------------- */
+
+static void
+cet_flag_waypt(const waypoint *wpt)
+{
+	((waypoint *)(wpt))->wpt_flags.cet_converted = 1;
+}
+
+static void
+cet_flag_route(const route_head *rte)
+{
+	((route_head *)(rte))->cet_converted = 1;
+}
+
+static void
+cet_flag_all(void)
+{
+	waypt_disp_all(cet_flag_waypt);
+	route_disp_all(cet_flag_route, NULL, cet_flag_waypt);
+	track_disp_all(cet_flag_route, NULL, cet_flag_waypt);
+}
+
+/* -------------------------------------------------------------------- */
 /* %%%         complete data strings transformation                 %%% */
 /* -------------------------------------------------------------------- */
 
@@ -950,6 +990,7 @@ cet_convert_waypt(const waypoint *wpt)
 {
 	waypoint *w = (waypoint *)wpt;
 	format_specific_data *fs;
+	url_link *url_next;
 	
 	if ((cet_output == 0) && (w->wpt_flags.cet_converted != 0)) return;
 	
@@ -960,6 +1001,10 @@ cet_convert_waypt(const waypoint *wpt)
 	w->notes = cet_convert_string(wpt->notes);
 	w->url = cet_convert_string(wpt->url);
 	w->url_link_text = cet_convert_string(wpt->url_link_text);
+	for (url_next = w->url_next; url_next; url_next = url_next->url_next) {
+		url_next->url = cet_convert_string(url_next->url);
+		url_next->url_link_text = cet_convert_string(url_next->url_link_text);
+	}
 	
 	fs = wpt->fs;
 	while (fs != NULL)
@@ -1008,25 +1053,30 @@ cet_convert_strings(const cet_cs_vec_t *source, const cet_cs_vec_t *target, cons
 	
 	if ((source == NULL) || (source == &cet_cs_vec_utf8))
 	{
-	    if ((target == NULL) || (target == &cet_cs_vec_utf8)) return;	/* Nothing to do */
-	    
-	    cet_output = 1;
+		if ((target == NULL) || (target == &cet_cs_vec_utf8)) {
+			cet_flag_all();
+			return;
+		}
 
-	    converter = cet_convert_from_utf8;
-	    cs_name_from = (char *)cet_cs_vec_utf8.name;
-	    cs_name_to = (char *)target->name;
+		cet_output = 1;
+		
+		converter = cet_convert_from_utf8;
+		cs_name_from = (char *)cet_cs_vec_utf8.name;
+		cs_name_to = (char *)target->name;
 	}
-	else
-	{
-	    if ((target != NULL) && (target != &cet_cs_vec_utf8))
-		fatal(MYNAME ": Internal error!\n");
-	    converter = cet_convert_to_utf8;
-	    cs_name_to = (char *)cet_cs_vec_utf8.name;
-	    cs_name_from = (char *)source->name;
+	else {
+		if ((target != NULL) && (target != &cet_cs_vec_utf8))
+			fatal(MYNAME ": Internal error!\n");
+
+		cet_output = 0;
+		
+		converter = cet_convert_to_utf8;
+		cs_name_to = (char *)cet_cs_vec_utf8.name;
+		cs_name_from = (char *)source->name;
 	}
 	
 	if (global_opts.debug_level > 0)
-	    printf(MYNAME ": Converting from \"%s\" to \"%s\"", cs_name_from, cs_name_to);
+		printf(MYNAME ": Converting from \"%s\" to \"%s\"", cs_name_from, cs_name_to);
 
 	waypt_disp_all(cet_convert_waypt);
 	route_disp_all(cet_convert_route_hdr, cet_convert_route_tlr, cet_convert_waypt);
@@ -1035,7 +1085,7 @@ cet_convert_strings(const cet_cs_vec_t *source, const cet_cs_vec_t *target, cons
 	cet_output = 0;
 	
 	if (global_opts.debug_level > 0)
-	    printf(", done.\n");
+		printf(", done.\n");
 }
 
 /* %%% cet_disp_character_set_names %%%

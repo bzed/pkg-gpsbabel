@@ -30,7 +30,7 @@
 
 static vmem_t current_tag;
 static vmem_t cdatastr;
-static FILE *ifd;
+static gbfile *ifd;
 static xg_tag_mapping *xg_tag_tbl;
 static const char **xg_ignore_taglist;
 
@@ -160,7 +160,7 @@ xml_tbl_lookup(const char *tag, xg_cb_type cb_type)
 {
 	xg_tag_mapping *tm;
         for (tm = xg_tag_tbl; tm->tag_cb != NULL; tm++) {
-		if (0 == strcmp(tm->tag_name, tag) && (cb_type == tm->cb_type)) {
+		if (str_match(tag, tm->tag_name) && (cb_type == tm->cb_type)) {
 			return tm->tag_cb;
 		}
 	}
@@ -266,8 +266,8 @@ void xml_read(void)
 	int len;
 	char buf[MY_CBUF];
 	
-	while ((len = fread(buf, 1, sizeof(buf), ifd))) {
-		if (!XML_Parse(psr, buf, len, feof(ifd))) {
+	while ((len = gbfread(buf, 1, sizeof(buf), ifd))) {
+		if (!XML_Parse(psr, buf, len, gbfeof(ifd))) {
 			fatal(MYNAME ":Parse error at %d: %s\n",
 				(int) XML_GetCurrentLineNumber(psr),
 				XML_ErrorString(XML_GetErrorCode(psr)));
@@ -288,6 +288,16 @@ void xml_readstring( char *str )
 	XML_ParserFree(psr);
 }
 
+void xml_readprefixstring( char *str ) 
+{
+	int len = strlen(str);
+	if (!XML_Parse(psr, str, len, 0)) {
+		fatal( MYNAME ":Parse error at %d: %s\n",
+				(int) XML_GetCurrentLineNumber(psr),
+				XML_ErrorString(XML_GetErrorCode(psr)));
+	}
+}
+
 void xml_ignore_tags(const char **taglist)
 {
 	xg_ignore_taglist = taglist;
@@ -297,7 +307,9 @@ void
 xml_init(const char *fname, xg_tag_mapping *tbl, const char *encoding)
 {
 	if (fname) {
-		ifd = xfopen(fname, "r", MYNAME);
+		ifd = gbfopen(fname, "r", MYNAME);
+	} else {
+		ifd = NULL;
 	}
 
 	current_tag = vmem_alloc(1,0);
@@ -324,7 +336,7 @@ xml_deinit(void)
 	vmem_free(&current_tag);
 	vmem_free(&cdatastr);
 	if (ifd) {
-		fclose(ifd);
+		gbfclose(ifd);
 		ifd = NULL;
 	}
 	xg_ignore_taglist = NULL;

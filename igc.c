@@ -91,11 +91,15 @@ static igc_rec_type_t get_record(char **rec)
 {
     size_t len;
     char *c;
-
+retry:
     *rec = c = gbfgetstr(file_in);
     if (c == NULL) return rec_none;
 
     len = strlen(c);
+
+    /* Trackwiev writes (bogus) blank links between each record */
+    if (len == 0) goto retry;
+
     if (len < 3 || c[0] < 'A' || c[0] > 'Z') {
 	warning(MYNAME " bad input record: '%s'\n", c);
 	return rec_bad;
@@ -623,6 +627,9 @@ static void wr_task_hdr(const route_head * rte)
     }
     if (num_tps < 0) {
 	fatal(MYNAME ": Too few waypoints in task route\n");
+    }
+    else if (num_tps > 99) {
+	fatal(MYNAME ": Too much waypoints (more than 99) in task route.\n");
     }
     // Gather data to write to the task identification (first) record
     rte_time = wpt->creation_time ? wpt->creation_time : current_time();

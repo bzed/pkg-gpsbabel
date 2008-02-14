@@ -586,9 +586,9 @@ static void trl_read(void) {
       WP->longitude =  pt2deg(trklog->pt[j].x);
       WP->altitude  =  hgt2m(trklog->sh[j].height);
       if ( trklog->sh[j].speed >= 0 )
-	WP->speed     =  sp2mps(trklog->sh[j].speed);
+	WAYPT_SET(WP, speed, sp2mps(trklog->sh[j].speed))
       else				/* bad speed < 0 - set to 0.0 */
-	WP->speed     =  unknown_speed;
+	WAYPT_UNSET(WP, speed);
       track_add_wpt(TL, WP);
     }
   }
@@ -796,7 +796,7 @@ static void trl_track_wpt(const waypoint *WP) {
   trklog = &(TRL.trklog[trk_idx]);
   trklog->pt[log_idx].x = deg2pt( WP->longitude);
   trklog->pt[log_idx].y = deg2pt(-WP->latitude);
-  if ( WP->speed != unknown_speed )
+  if WAYPT_HAS(WP, speed)
     trklog->sh[log_idx].speed =  mps2sp(WP->speed);
   if ( WP->altitude != unknown_alt )
     trklog->sh[log_idx].height = m2hgt(WP->altitude);
@@ -872,7 +872,7 @@ static void trl_write(void) {
 /**************************************************************************/
 
 static void alan_rd_init(const char *fname) {
-  fin = gbfopen(fname, "r", MYNAME);
+  fin = gbfopen(fname, "rb", MYNAME);
 }
 
 static void alan_rd_deinit(void) {
@@ -882,7 +882,7 @@ static void alan_rd_deinit(void) {
 
 
 static void alan_wr_init(const char *fname) {
-  fout = gbfopen(fname, "w", MYNAME);
+  fout = gbfopen(fname, "wb", MYNAME);
 }
 
 static void alan_wr_deinit(void) {

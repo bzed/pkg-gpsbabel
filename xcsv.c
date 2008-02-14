@@ -61,7 +61,7 @@ arglist_t xcsv_args[] = {
 		"Use shortname instead of description", 
 		NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"datum", &opt_datum, "GPS datum (def. WGS 84)", 
-		NULL, ARGTYPE_STRING, ARG_NOMINMAX}, 
+		"WGS 84", ARGTYPE_STRING, ARG_NOMINMAX}, 
 	ARG_TERMINATOR
 };
 
@@ -546,11 +546,8 @@ xcsv_rd_init(const char *fname)
     }
 
     xcsv_file.xcsvfp = gbfopen(fname, "r", MYNAME);
-    if (opt_datum) {
-	xcsv_file.gps_datum = GPS_Lookup_Datum_Index(opt_datum);
-	is_fatal(xcsv_file.gps_datum < 0, MYNAME ": datum \"%s\" is not supported.", opt_datum);
-    }
-
+    xcsv_file.gps_datum = GPS_Lookup_Datum_Index(opt_datum);
+    is_fatal(xcsv_file.gps_datum < 0, MYNAME ": datum \"%s\" is not supported.", opt_datum);
 }
 
 static void
@@ -599,18 +596,51 @@ xcsv_wr_init(const char *fname)
         setshort_badchars(xcsv_file.mkshort_handle, xcsv_file.badchars);
 
     }
-    if (opt_datum) {
-	xcsv_file.gps_datum = GPS_Lookup_Datum_Index(opt_datum);
-	is_fatal(xcsv_file.gps_datum < 0, MYNAME ": datum \"%s\" is not supported.", opt_datum);
-    }
+    xcsv_file.gps_datum = GPS_Lookup_Datum_Index(opt_datum);
+    is_fatal(xcsv_file.gps_datum < 0, MYNAME ": datum \"%s\" is not supported.", opt_datum);
+}
+
+static void
+xcsv_wr_position_init(const char *fname)
+{
+	xcsv_wr_init(fname);
 }
 
 static void
 xcsv_wr_deinit(void)
 {
-    gbfclose(xcsv_file.xcsvfp);
+	gbfclose(xcsv_file.xcsvfp);
 
-    xcsv_destroy_style();
+	xcsv_destroy_style();
+}
+
+static void
+xcsv_wr_position_deinit(void)
+{
+	xcsv_wr_deinit();
+}
+
+
+static void
+xcsv_wr_position(waypoint *wpt)
+{
+	/* Tweak incoming name if we don't have a fix */
+	switch(wpt->fix) {
+		case fix_none: 
+			if (wpt->shortname) {
+				xfree(wpt->shortname);
+			}
+			wpt->shortname = xstrdup("ESTIMATED Position");
+			break;
+		default: 
+			break;
+	}
+
+	waypt_add(wpt);
+	xcsv_data_write();
+	waypt_del(wpt);
+
+	gbfflush(xcsv_file.xcsvfp);
 }
 
 ff_vecs_t xcsv_vecs = {
@@ -624,7 +654,9 @@ ff_vecs_t xcsv_vecs = {
     xcsv_data_write,
     NULL, 
     xcsv_args,
-    CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+    CET_CHARSET_ASCII, 0,	/* CET-REVIEW */
+    { NULL, NULL, NULL, xcsv_wr_position_init, xcsv_wr_position, xcsv_wr_position_deinit }
+
 };
 #else
 void xcsv_read_internal_style(const char *style_buf) {}

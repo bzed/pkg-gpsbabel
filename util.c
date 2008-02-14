@@ -20,6 +20,8 @@
  */
 
 #include "defs.h"
+#include "jeeps/gpsmath.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -432,8 +434,16 @@ lrtrim(char *buff)
 
 	c = buff;
 	while ((*c != '\0') && ((unsigned char)*c <= ' ')) c++;
+	
+	if (c != buff) {
+		char *src = c;
+		char *dst = buff;
+		
+		while (*src) *dst++ = *src++;
+		*dst = '\0';
+	}
 
-	return c;
+	return buff;
 }
 
 /*
@@ -583,6 +593,33 @@ case_ignore_str_match(const char *str, const char *match)
 	xfree(s2);
 	
 	return res;
+}
+
+char *
+strenquote(const char *str, const char quot_char)
+{
+	int len;
+	char *cin, *cout;
+	char *tmp;
+
+	if (str == NULL) cin = "";
+	else cin = (char *)str;
+	
+	len = strlen(cin);
+	cout = tmp = xmalloc((len * 2) + 3);
+	
+	*cout++ = quot_char;
+	while (*cin) {
+		*cout++	= *cin;
+		if (*cin++ == quot_char)
+			*cout++	= quot_char;
+	}
+	*cout++ = quot_char;
+	*cout = '\0';
+	
+	cout = xstrdup(tmp);
+	xfree(tmp);
+	return cout;
 }
 
 void
@@ -992,6 +1029,118 @@ double degrees2ddmm(double deg_val) {
 	return (double) (deg * 100.0) + ((deg_val - deg) * 60.0);
 }
 
+/* 
+ * Convert string 'str' into geodetic latitide & longitude values. The format
+ * will be interpreted depending on 'grid' parameter.
+ *
+ * return value: number of characters efective parsed
+ */
+
+int
+parse_coordinates(const char *str, int datum, const grid_type grid, 
+	double *latitude, double *longitude, const char *module)
+{
+	double lat, lon;
+	unsigned char lathemi, lonhemi;
+	int deg_lat, deg_lon, min_lat, min_lon;
+	char map[3];
+	int utmz;
+	double utme, utmn;
+	char utmc;
+	int valid, result, ct;
+	double lx, ly;
+	const char *format;
+	
+	valid = 1;
+	
+	switch(grid) {
+
+		case grid_lat_lon_ddd:
+			format = "%c%lf %c%lf%n";
+			ct = sscanf(str, format,
+				&lathemi, &lat, &lonhemi, &lon, &result);
+			valid = (ct == 4);
+			break;
+
+		case grid_lat_lon_dmm:
+			format = "%c%d %lf %c%d %lf%n";
+			ct = sscanf(str, format,
+				&lathemi, &deg_lat, &lat, &lonhemi, &deg_lon, &lon, &result);
+			valid = (ct == 6);
+			if (valid) {
+				lat = (double)deg_lat + (lat / (double)60);
+				lon = (double)deg_lon + (lon / (double)60);
+			}
+			break;
+		
+		case grid_lat_lon_dms:
+			format = "%c%d %d %lf %c%d %d %lf%n";
+			ct = sscanf(str, format,
+				&lathemi, &deg_lat, &min_lat, &lat, &lonhemi, &deg_lon, &min_lon, &lon,
+				&result);
+			valid = (ct == 8);
+			if (valid) {
+				lat = (double)deg_lat + ((double)min_lat / (double)60) + (lat / (double)3600.0);
+				lon = (double)deg_lon + ((double)min_lon / (double)60) + (lon / (double)3600.0);
+			}
+			break;
+		
+		case grid_bng:
+			format = "%2s %lf %lf%n";
+			ct = sscanf(str, format,
+				map, &lx, &ly,
+				&result);
+			valid = (ct == 3);
+			if (valid) {
+				if (! GPS_Math_UKOSMap_To_WGS84_M(map, lx, ly, &lat, &lon))
+					fatal("%s: Unable to convert BNG coordinates (%s)!\n",
+						module, str);
+			}
+			datum = DATUM_WGS84;	/* fix */
+			lathemi = lonhemi = '\0';
+			break;
+			
+		case grid_utm:
+			format = "%d %c %lf %lf%n";
+			ct = sscanf(str, format,
+				&utmz, &utmc, &utme, &utmn,
+				&result);
+			valid = (ct == 4);
+			if (valid) {
+				if (! GPS_Math_UTM_EN_To_Known_Datum(&lat, &lon, utme, utmn, utmz, utmc, datum))
+					fatal("%s: Unable to convert UTM coordinates (%s)!\n",
+						module, str);
+			}
+			lathemi = lonhemi = '\0';
+			break;
+			
+		default:
+			/* this should never happen in a release version */
+			fatal("%s/util: Unknown grid in parse_coordinates (%d)!\n",
+				module, (int)grid);
+	}
+	
+	if (! valid) {
+		warning("%s: sscanf error using format \"%s\"!\n", module, format);
+		warning("%s: parsing has stopped at parameter number %d.\n", module, ct);
+		fatal("%s: could not convert coordinates \"%s\"!\n", module, str);
+	}
+	
+	if (lathemi == 'S') lat = -lat;
+	if (lonhemi == 'W') lon = -lon;
+
+	if (datum != DATUM_WGS84) {
+		double alt;
+		GPS_Math_Known_Datum_To_WGS84_M(lat, lon, (double) 0.0,
+			&lat, &lon, &alt, datum);
+	}
+
+	if (latitude) *latitude = lat;
+	if (longitude) *longitude = lon;
+		
+	return result;
+}
+
 /*
  * replace a single occurrence of "search" in  "s" with "replace".
  * Returns an allocated copy if substitution was made, otherwise returns NULL.
@@ -1272,10 +1421,11 @@ convert_human_time_format(const char *human_timef)
  * Return a decimal degree pair as
  * DD.DDDDD  DD MM.MMM or DD MM SS.S
  * fmt = ['d', 'm', 's']
+ * sep = string between lat and lon (separator)
  * html = 1 for html output otherwise text
  */
 char *
-pretty_deg_format(double lat, double lon, char fmt, int html) 
+pretty_deg_format(double lat, double lon, char fmt, char *sep, int html) 
 {
 	double  latmin, lonmin, latsec, lonsec;
 	int     latint, lonint;
@@ -1289,19 +1439,20 @@ pretty_deg_format(double lat, double lon, char fmt, int html)
 	lonmin = 60.0 * (fabs(lon) - lonint);
 	latsec = 60.0 * (latmin - floor(latmin));
 	lonsec = 60.0 * (lonmin - floor(lonmin));
+	if (sep == NULL) sep = " ";	/* default " " */
 	if (fmt == 'd') { /* ddd */
-		xasprintf ( &result, "%c%6.5f%s %c%6.5f%s",
-			latsig, fabs(lat), html?"&deg;":"", 
+		xasprintf ( &result, "%c%6.5f%s%s%c%6.5f%s",
+			latsig, fabs(lat), html?"&deg;":"", sep,
 			lonsig, fabs(lon), html?"&deg;":"" );
 	}
 	else if (fmt == 's') { /* dms */
-		xasprintf ( &result, "%c%d%s%02d'%04.1f\" %c%d%s%02d'%04.1f\"",
-                        latsig, latint, html?"&deg;":" ", (int)latmin, latsec,
+		xasprintf ( &result, "%c%d%s%02d'%04.1f\"%s%c%d%s%02d'%04.1f\"",
+                        latsig, latint, html?"&deg;":" ", (int)latmin, latsec, sep,
 			lonsig, lonint, html?"&deg;":" ", (int)lonmin, lonsec);
 	}
 	else { /* default dmm */
-		xasprintf ( &result,  "%c%d%s%06.3f %c%d%s%06.3f",
-			latsig, latint, html?"&deg;":" ", latmin, 
+		xasprintf ( &result,  "%c%d%s%06.3f%s%c%d%s%06.3f",
+			latsig, latint, html?"&deg;":" ", latmin, sep,
 			lonsig, lonint, html?"&deg;":" ", lonmin);
 	} 
 	return result;

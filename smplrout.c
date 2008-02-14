@@ -65,6 +65,7 @@ static char *countopt = NULL;
 static char *erroropt = NULL;
 static char *xteopt = NULL;
 static char *lenopt = NULL;
+void (*waypt_del_fnp) (route_head *rte, waypoint *wpt);
 
 static
 arglist_t routesimple_args[] = {
@@ -194,6 +195,9 @@ routesimple_head( const route_head *rte )
 	/* short-circuit if we already have fewer than the max points */
 	if ( countopt && count >= rte->rte_waypt_ct) return;
 	
+	/* short-circuit if the route is impossible to simplify, too. */
+	if ( 2 >= rte->rte_waypt_ct ) return;
+	
 	xte_recs = (struct xte *) xcalloc(  rte->rte_waypt_ct, sizeof (struct xte));
 	cur_rte = rte;
 	
@@ -269,7 +273,7 @@ routesimple_tail( const route_head *rte )
 				totalerror += xte_recs[i].distance;
 			}
 		}
-		route_del_wpt( (route_head *)(void *)rte,
+		(*waypt_del_fnp)( (route_head *)(void *)rte,
 				(waypoint *)(void *)(xte_recs[i].intermed->wpt));
 		waypt_free((waypoint *)(void *)(xte_recs[i].intermed->wpt));
               	
@@ -299,7 +303,10 @@ routesimple_tail( const route_head *rte )
 void 
 routesimple_process( void ) 
 {
+	waypt_del_fnp = route_del_wpt;
 	route_disp_all( routesimple_head, routesimple_tail, routesimple_waypt_pr );
+
+	waypt_del_fnp = track_del_wpt;
 	track_disp_all( routesimple_head, routesimple_tail, routesimple_waypt_pr );
 }
 
