@@ -24,11 +24,13 @@
 
 #include "defs.h"
 #include "csv_util.h"
+#include "jeeps/gpsmath.h"
 #include <ctype.h>
 #include <math.h>                /* for floor */
 
 #define MYNAME        "OZI"
-#define BADCHARS	",\n"
+#define BADCHARS	",\r\n"
+#define DAYS_SINCE_1990	25569
 
 typedef struct {
 	format_specific_data fs;
@@ -54,8 +56,9 @@ static char *snuniqueopt = NULL;
 static char *wptfgcolor = NULL;
 static char *wptbgcolor = NULL;
 static char *pack_opt = NULL;
-
-
+static int datum;
+static char *proximityarg = NULL;
+static int proximity;
 
 static
 arglist_t ozi_args[] = {
@@ -73,6 +76,8 @@ arglist_t ozi_args[] = {
 		"black", ARGTYPE_STRING, ARG_NOMINMAX},
 	{"wptbgcolor", &wptbgcolor, "Waypoint background color",
 		"yellow", ARGTYPE_STRING, ARG_NOMINMAX},
+	{"proximity", &proximityarg, "Proximity distance",
+		"0", ARGTYPE_INT, ARG_NOMINMAX},
 	ARG_TERMINATOR
 };
 
@@ -110,6 +115,54 @@ ozi_alloc_fsdata(void)
 	fsdata->bgcolor = color_to_bbggrr(wptbgcolor);
 
 	return fsdata;
+}
+
+void
+ozi_get_time_str(const waypoint *waypointp, char *buff, gbsize_t buffsz)
+{
+	if (waypointp->creation_time) {
+	    double time = (waypt_time(waypointp) / SECONDS_PER_DAY) + DAYS_SINCE_1990;
+	    snprintf(buff, buffsz, "%.7f", time);
+	}
+	else *buff = '\0';
+}
+
+void
+ozi_set_time_str(const char *str, waypoint *waypointp)
+{
+	double ozi_time;
+	char *dot;
+	int len;
+
+	ozi_time = atof(str);
+	waypointp->creation_time = (ozi_time - DAYS_SINCE_1990) * SECONDS_PER_DAY;
+
+	dot = strchr(str, '.');
+	/* get number of characters after dot */
+	len = (dot) ? strlen(str) - (dot - str) - 1 : 0;
+	if (len >= 7) {
+	    /* with default ozi time precision (%.7f) we can only handle tenths of second */
+	    ozi_time -= ((double)waypointp->creation_time / SECONDS_PER_DAY ) + DAYS_SINCE_1990;
+	    ozi_time *= SECONDS_PER_DAY;
+	    waypointp->microseconds = (ozi_time * 10) + 0.5;
+	    if (waypointp->microseconds == 10) {
+		waypointp->creation_time++;
+		waypointp->microseconds = 0;
+	    }
+	    waypointp->microseconds *= 100000;
+	}
+}
+
+static void
+ozi_convert_datum(waypoint *wpt)
+{
+    if (datum != DATUM_WGS84) {
+	double lat, lon, alt;
+	GPS_Math_Known_Datum_To_WGS84_M(wpt->latitude, wpt->longitude, 0.0, 
+	    &lat, &lon, &alt, datum);
+	wpt->latitude = lat;
+	wpt->longitude = lon;
+    }
 }
 
 static void
@@ -180,9 +233,9 @@ static void
 ozi_track_disp(const waypoint * waypointp)
 {
     double alt_feet;
-    double ozi_time;
+    char ozi_time[16];
 
-    ozi_time = (waypointp->creation_time / 86400.0) + 25569.0;
+    ozi_get_time_str(waypointp, ozi_time, sizeof(ozi_time));
 
     if (waypointp->altitude == unknown_alt) {
         alt_feet = -777;
@@ -190,7 +243,7 @@ ozi_track_disp(const waypoint * waypointp)
         alt_feet = METERS_TO_FEET(waypointp->altitude);
     }
 
-    gbfprintf(file_out, "%.6f,%.6f,%d,%.0f,%.5f,,\r\n",
+    gbfprintf(file_out, "%.6f,%.6f,%d,%.0f,%s,,\r\n",
        	waypointp->latitude, waypointp->longitude, new_track, 
 	alt_feet, ozi_time);
 
@@ -248,11 +301,11 @@ static void
 ozi_route_disp(const waypoint * waypointp)
 {
     double alt_feet;
-    double ozi_time;
+    char ozi_time[16];
 
     route_wpt_count++;
 
-    ozi_time = (waypointp->creation_time / 86400.0) + 25569.0;
+    ozi_get_time_str(waypointp, ozi_time, sizeof(ozi_time));
 
     if (waypointp->altitude == unknown_alt) {
         alt_feet = -777;
@@ -281,7 +334,7 @@ ozi_route_disp(const waypoint * waypointp)
  * W,1,7,7,007,-25.581670,-48.316660,36564.54196,10,1,4,0,65535,TR ILHA GALHETA,0,0 
  */
 
-    gbfprintf(file_out, "W,%d,%d,,%s,%.6f,%.6f,%.5f,0,1,3,0,65535,%s,0,0\r\n", 
+    gbfprintf(file_out, "W,%d,%d,,%s,%.6f,%.6f,%s,0,1,3,0,65535,%s,0,0\r\n", 
             route_out_count,
             route_wpt_count,
             waypointp->shortname ? waypointp->shortname : "",
@@ -348,6 +401,9 @@ wr_init(const char *fname)
 
         setshort_badchars(mkshort_handle, "\",");
     }
+
+    proximity = atoi(proximityarg);
+
     file_out = NULL;
 }
 
@@ -369,6 +425,8 @@ ozi_parse_waypt(int field, char *str, waypoint * wpt_tmp, ozi_fsdata *fsdata)
 {
     double alt;
 
+    if (*str == '\0') return;
+
     switch (field) {
     case 0:
         /* sequence # */
@@ -387,7 +445,7 @@ ozi_parse_waypt(int field, char *str, waypoint * wpt_tmp, ozi_fsdata *fsdata)
         break;
     case 4:
         /* DAYS since 1900 00:00:00 in days.days (5.5) */
-        wpt_tmp->creation_time = (atof(str) - 25569.0) * 86400.0;
+	ozi_set_time_str(str, wpt_tmp);
         break;
     case 5:
         /* icons 0-xx */
@@ -453,6 +511,8 @@ ozi_parse_track(int field, char *str, waypoint * wpt_tmp)
 {
     double alt;
 
+    if (*str == '\0') return;
+    
     switch (field) {
     case 0:
         /* latitude */
@@ -463,7 +523,11 @@ ozi_parse_track(int field, char *str, waypoint * wpt_tmp)
         wpt_tmp->longitude = atof(str);
         break;
     case 2:
-        /* ignore */
+        /* new track flag */
+	if ((atoi(str) == 1) && (trk_head->rte_waypt_ct > 0)) {
+	    trk_head = route_head_alloc();
+	    track_add_head(trk_head);
+	}
         break;
     case 3:
         /* altitude in feet */
@@ -476,7 +540,7 @@ ozi_parse_track(int field, char *str, waypoint * wpt_tmp)
         break;
     case 4:
         /* DAYS since 1900 00:00:00 in days.days (5.5) */
-        wpt_tmp->creation_time = (atof(str) - 25569.0) * 86400.0;
+	ozi_set_time_str(str, wpt_tmp);
         break;
     default:
         break;
@@ -486,6 +550,7 @@ ozi_parse_track(int field, char *str, waypoint * wpt_tmp)
 static void
 ozi_parse_routepoint(int field, char *str, waypoint * wpt_tmp)
 {
+    if (*str == '\0') return;
 
     switch (field) {
     case 0:
@@ -514,7 +579,7 @@ ozi_parse_routepoint(int field, char *str, waypoint * wpt_tmp)
         break;
     case 7:
         /* DAYS since 1900 00:00:00 in days.days (5.5) */
-        wpt_tmp->creation_time = (atof(str) - 25569.0) * 86400.0;
+	ozi_set_time_str(str, wpt_tmp);
         break;
     case 8:
         /* symbol */
@@ -598,10 +663,10 @@ data_read(void)
                 ozi_objective = wptdata;
             }
         }
-
-        if (linecount == 2) {
-	    if (case_ignore_strncmp(buff, "WGS 84", 6)) {
-		warning(MYNAME "Only supports reading WGS 84 datum, not '%s'\n", buff);
+	else if (linecount == 2) {
+	    datum = GPS_Lookup_Datum_Index(buff);
+	    if (datum < 0) {
+		fatal(MYNAME ": Unsupported datum '%s'.\n", buff);
 	    }
 	}
 
@@ -640,14 +705,18 @@ data_read(void)
 
             switch (ozi_objective) {
             case trkdata:
-                if (linecount > 6) /* skipping over file header */
-                    track_add_wpt(trk_head, wpt_tmp);
+                if (linecount > 6) {/* skipping over file header */
+		    ozi_convert_datum(wpt_tmp);
+		    track_add_wpt(trk_head, wpt_tmp);
+		}
                 else
                     waypt_free(wpt_tmp);
                 break;
             case rtedata:
-                if (linecount > 5) /* skipping over file header */
+                if (linecount > 5) {/* skipping over file header */
+		    ozi_convert_datum(wpt_tmp);
                     route_add_wpt(rte_head, wpt_tmp);
+		}
                 else
                     waypt_free(wpt_tmp);
                 break;
@@ -655,6 +724,7 @@ data_read(void)
                 if (linecount > 4) {  /* skipping over file header */ 
 		    fs_chain_add(&(wpt_tmp->fs), 
 			(format_specific_data *) fsdata);
+		    ozi_convert_datum(wpt_tmp);
                     waypt_add(wpt_tmp);
                 } else {
                     waypt_free(wpt_tmp);
@@ -677,7 +747,7 @@ ozi_waypt_pr(const waypoint * wpt)
 {
     static int index = 0;
     double alt_feet;
-    double ozi_time;
+    char ozi_time[16];
     char *description;
     char *shortname;
     int faked_fsdata = 0;
@@ -690,7 +760,7 @@ ozi_waypt_pr(const waypoint * wpt)
 	faked_fsdata = 1;
     }
 
-    ozi_time = (wpt->creation_time / 86400.0) + 25569.0;
+    ozi_get_time_str(wpt, ozi_time, sizeof(ozi_time));
 
     if (wpt->altitude == unknown_alt) {
         alt_feet = -777;
@@ -725,13 +795,13 @@ ozi_waypt_pr(const waypoint * wpt)
     index++;
 
     gbfprintf(file_out,
-            "%d,%s,%.6f,%.6f,%.5f,%d,%d,%d,%d,%d,%s,%d,%d,",
+            "%d,%s,%.6f,%.6f,%s,%d,%d,%d,%d,%d,%s,%d,%d,",
             index, shortname, wpt->latitude, wpt->longitude, ozi_time, 0,
             1, 3, fs->fgcolor, fs->bgcolor, description, 0, 0);
     if (WAYPT_HAS(wpt, proximity) && (wpt->proximity > 0))
 	gbfprintf(file_out, "%.1f,", wpt->proximity);
     else
-	gbfprintf(file_out,"0,");
+	gbfprintf(file_out,"%d,", proximity);
     gbfprintf(file_out, "%.0f,%d,%d,%d\r\n", alt_feet, 6, 0, 17);
 
     xfree(description);

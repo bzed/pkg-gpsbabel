@@ -1,7 +1,7 @@
 /*
     Communicate Thales/Magellan serial protocol.
 
-    Copyright (C) 2002, 2003, 2004, 2005, 2006 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@ static int bitrate = 4800;
 static int wptcmtcnt;
 static int wptcmtcnt_max;
 static int explorist;
+static int broken_sportrak;
 #define MYNAME "MAGPROTO"
 #define MAXCMTCT 200
 
@@ -88,7 +89,7 @@ typedef struct mag_rte_head {
 
 static queue rte_wpt_tmp; /* temporary PGMNWPL msgs for routes */
 
-static FILE *magfile_h;
+static gbfile *magfile_h;
 static mag_rxstate magrxstate;
 static int mag_error;
 static unsigned int last_rx_csum;
@@ -369,6 +370,11 @@ mag_verparse(char *ibuf)
 			break;
 		}
 	}
+
+	if (prodid == 37) {
+		broken_sportrak = 1;
+	}
+
 	switch (pp->model) {
 		case mm_gps315320:
 		case mm_map410:
@@ -527,7 +533,7 @@ retry:
 		ignore_unable = 0;
 		return;
 	}
-	if (IS_TKN("$PMGNCMD,END") || (is_file && (feof(magfile_h)))) {
+	if (IS_TKN("$PMGNCMD,END") || (is_file && (gbfeof(magfile_h)))) {
 		found_done = 1;
 		return;
 	} 
@@ -556,7 +562,7 @@ terminit(const char *portname, int create_ok)
 		return 1;
 	} else {
 		/* Does this check for an error? */
-		magfile_h = xfopen(portname, create_ok ? "w+b" : "rb", MYNAME);
+		magfile_h = gbfopen(portname, create_ok ? "w+b" : "rb", MYNAME);
 		is_file = 1;
 		icon_mapping = map330_icon_table;
 		mag_cleanse = m330_cleanse;
@@ -568,7 +574,7 @@ terminit(const char *portname, int create_ok)
 static char *termread(char *ibuf, int size) 
 {
 	if (is_file) {
-		return fgets(ibuf, size, magfile_h);
+		return gbfgets(ibuf, size, magfile_h);
 	} else {
 		int rc;
 		rc = gbser_read_line(serial_handle, ibuf, size, 2000, 0x0a, 0x0d);
@@ -627,7 +633,7 @@ termwrite(char *obuf, int size)
 {
 	if (is_file) {
 		size_t nw;
-		if (nw = fwrite(obuf, 1, size, magfile_h), nw < (size_t) size) {
+		if (nw = gbfwrite(obuf, 1, size, magfile_h), nw < (size_t) size) {
 			fatal(MYNAME ": Write error");
 		}
 	} else {
@@ -641,7 +647,7 @@ termwrite(char *obuf, int size)
 static void termdeinit() 
 {
 	if (is_file) {
-		fclose(magfile_h);
+		gbfclose(magfile_h);
 		magfile_h = NULL;
 	} else {
 		gbser_deinit(serial_handle);
@@ -797,6 +803,10 @@ mag_wr_init_common(const char *portname)
 	suppress_ack = 0;
 	if (bs) {
 		bitrate=atoi(bs);
+	}
+
+	if (waypt_count() > 500) {
+		fatal(MYNAME ": Meridian/Explorist does not support more than 500 waypoints in one file. Only\n200 waypoints may have comments.\nDecrease the number of waypoints sent.\n");
 	}
 
 	if (cmts) {
@@ -1027,6 +1037,20 @@ mag_rteparse(char *rtemsg)
 		rte_elem->wpt_icon = xstrdup(abuf);
 
 		ENQUEUE_TAIL(&mag_rte_head->Q, &rte_elem->Q);
+
+		/* Sportrak (the non-mapping unit) creates malformed
+		 * RTE sentence with no icon info after the routepoint
+		 * name.  So if we saw an "icon" treat that as new 
+		 * routepoint.
+		 */
+		if (broken_sportrak && abuf[0]) {
+			rte_elem = xcalloc(sizeof (*rte_elem),1);
+			QUEUE_INIT(&rte_elem->Q);
+			rte_elem->wpt_name = xstrdup(abuf);
+
+			ENQUEUE_TAIL(&mag_rte_head->Q, &rte_elem->Q);
+		}
+
 		next_stop[0] = 0;
 		currtemsg += n;
 	}
@@ -1415,6 +1439,9 @@ mag_route_trl(const route_head * rte)
 			pbuff = buff2;
 
 		owpt = waypointp->shortname;
+		if (strlen(owpt) > sizeof(buff1) - 3) {
+			owpt[sizeof(buff1) - 3] = 0;
+		}
 		owpt = mag_cleanse(owpt);
 
 		sprintf(pbuff, "%s,%s", owpt, icon_token);

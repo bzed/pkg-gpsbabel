@@ -289,18 +289,17 @@ gbfread(void *buf, const gbsize_t size, const gbsize_t members, gbfile *file)
 }
 
 /*
- * gbfprintf: (as fprintf)
+ * gbvfprintf: (as vfprintf)
  */
  
-int 
-gbfprintf(gbfile *file, const char *format, ...)
+int gbvfprintf(gbfile *file, const char *format, va_list ap)
 {
 	int len;
 	
 	for (;;) {
 		va_list args;
 		
-		va_start(args, format);
+		va_copy(args, ap);
 		len = vsnprintf(file->buff, file->buffsz, format, args);
 		va_end(args);
 
@@ -327,6 +326,23 @@ gbfprintf(gbfile *file, const char *format, ...)
 		file->buff = xrealloc(file->buff, file->buffsz);
 	}
 	return gbfwrite(file->buff, 1, len, file);
+}
+
+/*
+ * gbfprintf: (as fprintf)
+ */
+ 
+int 
+gbfprintf(gbfile *file, const char *format, ...)
+{
+	va_list args;
+	int result;
+	
+	va_start(args, format);
+	result = gbvfprintf(file, format, args);
+	va_end(args);
+	
+	return result;
 }
 
 /*
@@ -377,9 +393,9 @@ gbfwrite(const void *buf, const gbsize_t size, const gbsize_t members, gbfile *f
 	}
 
 	if (result != members) {
-		fatal("%s: Could not write %u bytes to %s!\n", 
+		fatal("%s: Could not write %lld bytes to %s!\n", 
 			file->module,
-			(members - result) * size,
+			(long long int) (members - result) * size,
 			file->name);
 	}
 		
@@ -455,7 +471,7 @@ gbferror(gbfile *file)
 void
 gbfrewind(gbfile *file)
 {
-	(void)gbfseek(file, 0, SEEK_SET);
+	(void) gbfseek(file, 0, SEEK_SET);
 	gbfclearerr(file);
 }
 
@@ -466,9 +482,9 @@ gbfrewind(gbfile *file)
 int
 gbfseek(gbfile *file, gbint32 offset, int whence)
 {
+	int result;
 
 	if (file->gzapi) {
-		int result;
 		
 		assert(whence != SEEK_END);
 
@@ -485,10 +501,26 @@ gbfseek(gbfile *file, gbint32 offset, int whence)
 			fatal("%s: online compression not yet supported for this format!", file->module);
 		}
 		return 0;
-		
 	}
 	else {
-		return fseek(file->handle.std, offset, whence);
+		gbsize_t pos = 0;
+		
+		if (whence != SEEK_SET) pos = ftell(file->handle.std);
+
+		result = fseek(file->handle.std, offset, whence);
+		if (result != 0) {
+			switch (whence) {
+			case SEEK_CUR:
+			case SEEK_END: pos = pos + offset; break;
+			case SEEK_SET: pos = offset; break;
+			default:
+				fatal("%s: Unknown seek operation (%d) for file %s!\n",
+					file->module, whence, file->name);
+			}
+			fatal("%s: Unable to set file (%s) to position (%llu)!\n",
+				file->module, file->name, (long long unsigned) pos);
+		}
+		return 0;
 	}
 }
 
@@ -499,22 +531,27 @@ gbfseek(gbfile *file, gbint32 offset, int whence)
 gbsize_t 
 gbftell(gbfile *file)
 {
+	gbsize_t result;
+	
 	if (file->gzapi) {
 #if !ZLIB_INHIBITED
-		gbsize_t result = gztell(file->handle.gz);
+		result = gztell(file->handle.gz);
 		if (file->back != -1) {
 //			file->back = -1;
 			result--;
 		}
-		return result;
 #else
 		fatal(NO_ZLIB);
-		return -1;
+		result = -1;
 #endif
 	}
 	else {
-		return ftell(file->handle.std);
+		result = ftell(file->handle.std);
 	}
+	if ((signed) result == -1)
+		fatal("%s: Could not determine position of file '%s'!\n",
+			file->module, file->name);
+	return result;
 }
 
 /*
@@ -532,7 +569,7 @@ gbfeof(gbfile *file)
 
 		res  = gzeof(file->handle.gz);
 		if (!res) {
-			signed char test;
+			unsigned char test;
 			int len = gzread(file->handle.gz, &test, 1);
 			if (len == 1) {
 				/* No EOF, put the single byte back into stream */
@@ -597,7 +634,8 @@ gbfgetint32(gbfile *file)
 {
 	char buf[4];
 	
-	gbfread(&buf, 1, sizeof(buf), file);
+	is_fatal((gbfread(&buf, 1, sizeof(buf), file) != sizeof(buf)),
+		"%s: Unexpected end of file (%s)!\n", file->module, file->name);
 
 	if (file->big_endian)
 		return be_read32(buf);
@@ -614,7 +652,8 @@ gbfgetint16(gbfile *file)
 {
 	char buf[2];
 	
-	gbfread(&buf, 1, sizeof(buf), file);
+	is_fatal((gbfread(&buf, 1, sizeof(buf), file) != sizeof(buf)),
+		"%s: Unexpected end of file (%s)!\n", file->module, file->name);
 	
 	if (file->big_endian)
 		return be_read16(buf);
@@ -631,7 +670,8 @@ gbfgetdbl(gbfile *file)
 {
 	char buf[8];
 
-	gbfread(&buf, 1, sizeof(buf), file);
+	is_fatal((gbfread(&buf, 1, sizeof(buf), file) != sizeof(buf)),
+		"%s: Unexpected end of file (%s)!\n", file->module, file->name);
 
 	return endian_read_double(buf, ! file->big_endian);
 }
@@ -645,7 +685,8 @@ gbfgetflt(gbfile *file)
 {
 	char buf[4];
 	
-	gbfread(&buf, 1, sizeof(buf), file);
+	is_fatal((gbfread(&buf, 1, sizeof(buf), file) != sizeof(buf)),
+		"%s: Unexpected end of file (%s)!\n", file->module, file->name);
 
 	return endian_read_float(buf, ! file->big_endian);
 }

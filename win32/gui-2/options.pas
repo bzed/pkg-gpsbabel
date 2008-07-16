@@ -1,7 +1,7 @@
 unit options;
 
 {
-    Copyright (C) 2005,2006 Olaf Klein, o.b.klein@gpsbabel.org
+    Copyright (C) 2005-2007 Olaf Klein, o.b.klein@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -40,6 +40,7 @@ type
     procedure FormKeyDown(Sender: TObject; var Key: Word;
       Shift: TShiftState);
     procedure btnOKClick(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
     { Private declarations }
     FOpts: TStringList;
@@ -158,9 +159,11 @@ var
   xy, _xy: TPoint;
   xmax: Integer;
   lb: TLabel;
+  us: string;
+
 begin
   if (AList = nil) then Exit;
-  
+
   FOpts := AList;
 
   xy.x := 0;
@@ -187,13 +190,16 @@ begin
       btnHelp.ShowHint := True;
     end;
 
-    if FIsInput and (
-       (AnsiPos('generate ', o.hint) <> 0) or
-       (AnsiPos(' generate', o.hint) <> 0) or
-       (AnsiPos('output ', o.hint) <> 0) or
-       (AnsiPos(' output', o.hint) <> 0) or
-       (AnsiPos('write', o.hint) <> 0) or
-       (AnsiPos(' write', o.hint) <> 0)) then Continue;
+    us := AnsiLowerCase(o.hint);
+    if FIsInput and (AnsiPos('read', us) = 0) and
+      (
+       (AnsiPos('generate ', us) <> 0) or
+       (AnsiPos(' generate', us) <> 0) or
+       (AnsiPos('output ', us) <> 0) or
+       (AnsiPos(' output', us) <> 0) or
+       (AnsiPos('write', us) <> 0) or
+       (AnsiPos(' write', us) <> 0)
+      ) then Continue;
 
     chb := TCheckBox.Create(nil);
     o.chb := chb;
@@ -486,6 +492,7 @@ end;
 procedure TfrmOptions.FormCreate(Sender: TObject);
 begin
   TranslateComponent(Self);
+  RestoreBounds('options_form', Self);
 end;
 
 procedure TfrmOptions.btnHelpClick(Sender: TObject);
@@ -845,6 +852,11 @@ procedure TfrmOptions.btnOKClick(Sender: TObject);
 begin
 //StoreOptionsToInifile();
   StoreOptionsToRegistry();
+end;
+
+procedure TfrmOptions.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  StoreBounds('options_form', Self);
 end;
 
 end.

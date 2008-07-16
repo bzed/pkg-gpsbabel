@@ -1,7 +1,7 @@
 /*
     Describe vectors containing file operations.
  
-    Copyright (C) 2002, 2004, 2005, 2006  Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002, 2004, 2005, 2006, 2007 Robert Lipe, robertlipe@usa.net
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include "defs.h"
 #include "csv_util.h"
 #include "inifile.h"
+#include "gbversion.h"
 
 #define MYNAME "vecs.c"
 
@@ -44,6 +45,7 @@ extern ff_vecs_t compegps_vecs;
 extern ff_vecs_t copilot_vecs;
 extern ff_vecs_t coto_vecs;
 extern ff_vecs_t cst_vecs;
+extern ff_vecs_t dg100_vecs;
 extern ff_vecs_t easygps_vecs;
 extern ff_vecs_t garmin_vecs;
 extern ff_vecs_t garmin_txt_vecs;
@@ -77,6 +79,8 @@ extern ff_vecs_t magX_fvecs;
 extern ff_vecs_t mapsend_vecs;
 extern ff_vecs_t mps_vecs;
 extern ff_vecs_t msroute_vecs;
+extern ff_vecs_t mtk_vecs;
+extern ff_vecs_t mtk_fvecs;
 extern ff_vecs_t navicache_vecs;
 extern ff_vecs_t netstumbler_vecs;
 extern ff_vecs_t nmea_vecs;
@@ -91,8 +95,12 @@ extern ff_vecs_t psp_vecs;
 extern ff_vecs_t quovadis_vecs;
 extern ff_vecs_t saroute_vecs;
 extern ff_vecs_t shape_vecs;
+#if CSVFMTS_ENABLED
 extern ff_vecs_t stmsdf_vecs;
+#endif
+#if CSVFMTS_ENABLED
 extern ff_vecs_t stmwpp_vecs;
+#endif
 extern ff_vecs_t tef_xml_vecs;
 extern ff_vecs_t text_vecs;
 extern ff_vecs_t tiger_vecs;
@@ -118,6 +126,17 @@ extern ff_vecs_t vitovtt_vecs;
 extern ff_vecs_t ggv_log_vecs;
 extern ff_vecs_t g7towin_vecs;
 extern ff_vecs_t garmin_gpi_vecs;
+extern ff_vecs_t lmx_vecs;
+extern ff_vecs_t random_vecs;
+extern ff_vecs_t xol_vecs;
+extern ff_vecs_t navilink_vecs;
+extern ff_vecs_t ik3d_vecs;
+extern ff_vecs_t osm_vecs;
+extern ff_vecs_t destinator_poi_vecs;
+extern ff_vecs_t destinator_trl_vecs;
+extern ff_vecs_t destinator_itn_vecs;
+extern ff_vecs_t exif_vecs;
+extern ff_vecs_t vidaone_vecs;
 
 static
 vecs_t vec_list[] = {
@@ -161,22 +180,41 @@ vecs_t vec_list[] = {
 		"upt"
 	},
 	{
+		&garmin_vecs,
+		"garmin",
+		"Garmin serial/USB protocol", 
+		NULL
+	},
+	{
 		&mapsend_vecs,
 		"mapsend",
 		"Magellan Mapsend", 
 		NULL
 	},
 	{
-		&pcx_vecs,
-		"pcx",
-		"Garmin PCX5",
-		"pcx"
-	},
-	{
 		&mps_vecs,
 		"mapsource",
 		"Garmin MapSource - mps",
 		"mps"
+	},
+	{
+		&nmea_vecs,
+		"nmea",
+		"NMEA 0183 sentences",
+		NULL
+	},
+        {
+                &kml_vecs,
+                "kml",
+                "Google Earth (Keyhole) Markup Language",
+                "kml"
+	},
+#if MAXIMAL_ENABLED
+	{
+		&pcx_vecs,
+		"pcx",
+		"Garmin PCX5",
+		"pcx"
 	},
 	{
 		&gpsutil_vecs,
@@ -222,12 +260,6 @@ vecs_t vec_list[] = {
 		"pdb"
 	},
 #endif /* PDBFMTS_ENABLED */
-	{
-		&garmin_vecs,
-		"garmin",
-		"Garmin serial/USB protocol", 
-		NULL
-	},
 	{
 		&holux_vecs,
 		"holux",
@@ -345,12 +377,6 @@ vecs_t vec_list[] = {
 		NULL
 	},
 	{
-		&nmea_vecs,
-		"nmea",
-		"NMEA 0183 sentences",
-		NULL
-	},
-	{
 		&text_vecs,
 		"text",
 		"Textual Output",
@@ -395,6 +421,18 @@ vecs_t vec_list[] = {
                 NULL
         },
         {
+                &mtk_vecs,
+                "mtk",
+                "MTK Logger (iBlue 747,Qstarz BT-1000,...) download",
+                NULL
+        },
+        {
+                &mtk_fvecs,
+                "mtk-bin",
+                "MTK Logger (iBlue 747,...) Binary File Format",
+                "bin"
+        },
+        {
                 &wbt_svecs,
                 "wbt",
                 "Wintec WBT-100/200 GPS Download",
@@ -424,12 +462,6 @@ vecs_t vec_list[] = {
                 "Garmin Logbook XML",
                 "xml"
         },
-        {
-                &kml_vecs,
-                "kml",
-                "Google Earth (Keyhole) Markup Language",
-                "kml"
-	},
 	{
                 &vcf_vecs,
                 "vcard",
@@ -520,18 +552,22 @@ vecs_t vec_list[] = {
 		"IGN Rando track files",
 		"rdn"
 	},
+#if CSVFMTS_ENABLED
 	{
 		&stmsdf_vecs,
 		"stmsdf",
 		"Suunto Trek Manager (STM) .sdf files",
 		"sdf"
 	},
+#endif
+#if CSVFMTS_ENABLED
 	{
 		&stmwpp_vecs,
 		"stmwpp",
 		"Suunto Trek Manager (STM) WaypointPlus files",
 		"txt"
 	},
+#endif //  CSVFMTS_ENABLED
 	{
 		&msroute_vecs,
 		"msroute",
@@ -666,6 +702,79 @@ vecs_t vec_list[] = {
                 "Garmin Points of Interest (.gpi)",
                 "gpi"
         },
+        {
+                &lmx_vecs,
+                "lmx",
+                "Nokia Landmark Exchange",
+                NULL
+        },
+        {
+                &random_vecs,
+                "random",
+                "Internal GPS data generator",
+                NULL
+        },
+        {
+                &xol_vecs,
+                "xol",
+                "Swiss Map # (.xol) format",
+                "xol"
+        },
+        {
+                &dg100_vecs,
+                "dg-100",
+                "GlobalSat DG-100/BT-335 Download",
+                NULL
+        },
+        {
+                &navilink_vecs,
+                "navilink",
+                "NaviGPS GT-11/BGT-11 Download",
+                NULL
+        },
+        {
+                &ik3d_vecs,
+                "ik3d",
+                "MagicMaps IK3D project file (.ikt)",
+                "ikt"
+        },
+        {
+                &osm_vecs,
+                "osm",
+                "OpenStreetMap data files",
+                "xml"
+        },
+        {
+                &destinator_poi_vecs,
+                "destinator_poi",
+                "Destinator Points of Interest (.dat)",
+                "dat"
+        },
+        {
+                &destinator_itn_vecs,
+                "destinator_itn",
+                "Destinator Itineraries (.dat)",
+                "dat"
+        },
+        {
+                &destinator_trl_vecs,
+                "destinator_trl",
+                "Destinator TrackLogs (.dat)",
+                "dat"
+        },
+        {
+                &exif_vecs,
+                "exif",
+                "Embedded Exif-GPS data (.jpg)",
+		"jpg"
+        },
+        {
+                &vidaone_vecs,
+                "vidaone",
+                "VidaOne GPS for Pocket PC (.gpb)",
+		"gpb"
+        },
+#endif // MAXIMAL_ENABLED
 	{
 		NULL,
 		NULL,
@@ -832,7 +941,9 @@ find_vec(char *const vecname, char **opts)
 		if (global_opts.debug_level >= 1)
 			disp_vec_options(vec->name, vec->vec->args);
 		
+#if CSVFMTS_ENABLED		
 		xcsv_setup_internal_style( NULL );
+#endif // CSVFMTS_ENABLED		
 		xfree(v);
 		return vec->vec;
 		
@@ -884,8 +995,9 @@ find_vec(char *const vecname, char **opts)
 
 		if (global_opts.debug_level >= 1)
 			disp_vec_options(svec->name, vec_list[0].vec->args);
-		
+#if CSVFMTS_ENABLED		
 		xcsv_setup_internal_style(svec->style_buf);
+#endif // CSVFMTS_ENABLED		
 
 		xfree(v);
 
@@ -974,13 +1086,19 @@ sort_and_unify_vecs(int *ctp)
 	int vc;
 	vecs_t **svp;
 	vecs_t *vec;
+#if CSVFMTS_ENABLED
 	style_vecs_t *svec;
+#endif
 	int i = 0;
 
 	/* Get a count from both the vec (normal) and the svec (csv) lists */
 
+#if CSVFMTS_ENABLED
 	extern size_t nstyles;
-	vc = sizeof vec_list / sizeof vec_list[0] -1 + nstyles;
+	vc = sizeof vec_list / sizeof vec_list[0] - 1 + nstyles;
+#else
+	vc = sizeof vec_list / sizeof vec_list[0] - 1;
+#endif // CSVFMTS_ENABLED
 
 
 	svp = xcalloc(vc, sizeof(style_vecs_t *));
@@ -992,6 +1110,7 @@ sort_and_unify_vecs(int *ctp)
 		}
 	}
 
+#if CSVFMTS_ENABLED
 	/* Walk the style list, parse the entries, dummy up a "normal" vec */
 	for (svec = style_list; svec->name; svec++, i++)  {
 		xcsv_read_internal_style(svec->style_buf);
@@ -1026,6 +1145,8 @@ sort_and_unify_vecs(int *ctp)
 		svp[i]->desc = xcsv_file.description;
 		svp[i]->parent = "xcsv";
 	}
+#endif // CSVFMTS_ENABLED
+
 	/* Now that we have everything in an array, alphabetize them */
 	qsort(svp, vc, sizeof(*svp), alpha);
 
@@ -1139,14 +1260,26 @@ name_option(long type)
 	return at[0];
 }
 
+static 
+void disp_help_url(const vecs_t *vec, arglist_t *arg)
+{
+	printf("\t" WEB_DOC_DIR "/fmt_%s.html", vec->name);
+	if (arg) {
+		printf("#fmt_%s_o_%s",vec->name, arg->argstring);
+	}
+	printf("\n");
+}
+
+
 static void 
-disp_v3(vecs_t *vec)
+disp_v3(const vecs_t *vec)
 {
 	arglist_t *ap;
 
+	disp_help_url(vec, NULL);
 	for (ap = vec->vec->args; ap && ap->argstring; ap++) {
-		if ( !(ap->argtype & ARGTYPE_HIDDEN))
-			printf("option\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		if ( !(ap->argtype & ARGTYPE_HIDDEN)) {
+			printf("option\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
 			vec->name, 
 			ap->argstring, 
 			ap->helpstring, 
@@ -1154,6 +1287,9 @@ disp_v3(vecs_t *vec)
 			ap->defaultvalue? ap->defaultvalue : "",
 			ap->minvalue? ap->minvalue : "",
 			ap->maxvalue? ap->maxvalue : "");
+		}
+		disp_help_url(vec, ap);
+		printf("\n");
 	}
 }
 

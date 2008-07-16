@@ -46,6 +46,7 @@ static vmem_t current_tag;
 static waypoint *wpt_tmp;
 static int cache_descr_is_html;
 static gbfile *fd;
+static const char *input_fname;
 static gbfile *ofd;
 static short_handle mkshort_handle;
 static const char *link_url;
@@ -291,17 +292,21 @@ tag_mapping tag_path_map[] = {
 	/* Double up the GPX 1.0 and GPX 1.1 styles */
 #define GEOTAG(type,name) \
   {type, 1, "/gpx/wpt/groundspeak:cache/groundspeak:" name, 0UL }, \
-  {type, 1, "/gpx/wpt/extensions/cache/" name, 0UL }
+  {type, 1, "/gpx/wpt/extensions/cache/" name, 0UL }, \
+  {type, 1, "/gpx/wpt/geocache/" name, 0UL }  /* opencaching.de */
 
 #define GARMIN_WPT_EXT "/gpx/wpt/extensions/gpxx:WaypointExtension"
 
-	GEOTAG( tt_cache, 		"cache"),
+//	GEOTAG( tt_cache, 		"cache"),
+	{ tt_cache, 1, "/gpx/wpt/groundspeak:cache" },
+
 	GEOTAG( tt_cache_name, 		"name"),
 	GEOTAG( tt_cache_container, 	"container"),
 	GEOTAG( tt_cache_type, 		"type"),
 	GEOTAG( tt_cache_difficulty, 	"difficulty"),
 	GEOTAG( tt_cache_terrain, 	"terrain"),
 	GEOTAG( tt_cache_hint, 		"encoded_hints"),
+	GEOTAG( tt_cache_hint, 		"hints"), /* opencaching.de */
 	GEOTAG( tt_cache_desc_short, 	"short_description"),
 	GEOTAG( tt_cache_desc_long, 	"long_description"),
 	GEOTAG( tt_cache_placer, 	"owner"),
@@ -480,6 +485,20 @@ tag_gs_cache(const char **attrv)
 	for (avp = &attrv[0]; *avp; avp+=2) {
 		if (strcmp(avp[0], "id") == 0) {
 				wpt_tmp->gc_data.id = atoi(avp[1]);
+		} else if (strcmp(avp[0], "available") == 0) {
+			if (case_ignore_strcmp(avp[1], "True") == 0) {
+				wpt_tmp->gc_data.is_available = status_true;
+			}
+			else if (case_ignore_strcmp(avp[1], "False") == 0) {
+				wpt_tmp->gc_data.is_available = status_false;
+			}			
+		} else if (strcmp(avp[0], "archived") == 0) {
+			if (case_ignore_strcmp(avp[1], "True") == 0) {
+				wpt_tmp->gc_data.is_archived = status_true;
+			}
+			else if (case_ignore_strcmp(avp[1], "False") == 0) {
+				wpt_tmp->gc_data.is_archived = status_false;
+			}			
 		}
 	}
 }
@@ -685,12 +704,18 @@ gs_type_mapping{
 	const char *name;
 } gs_type_map[] = {
 	{ gt_traditional, "Traditional Cache" },
+	{ gt_traditional, "Traditional" }, /* opencaching.de */
 	{ gt_multi, "Multi-cache" },
+	{ gt_multi, "Multi" }, /* opencaching.de */
 	{ gt_virtual, "Virtual Cache" },
+	{ gt_virtual, "Virtual" }, /* opencaching.de */
 	{ gt_event, "Event Cache" },
+	{ gt_event, "Event" }, /* opencaching.de */
 	{ gt_webcam, "Webcam Cache" },
+	{ gt_webcam, "Webcam" }, /* opencaching.de */
 	{ gt_suprise, "Unknown Cache" },
 	{ gt_earth, "Earthcache" },
+	{ gt_earth, "Earth" }, /* opencaching.de */
 	{ gt_cito, "Cache In Trash Out Event" },
 	{ gt_letterbox, "Letterbox Hybrid" },
 	{ gt_locationless, "Locationless (Reverse) Cache" },
@@ -886,22 +911,6 @@ gpx_end(void *data, const XML_Char *xml_el)
 	/*
 	 * Waypoint-specific tags.
 	 */
-	case tt_wpt_url:
-		wpt_tmp->url = xstrdup(cdatastrp);
-		break;
-	case tt_wpt_urlname:
-		wpt_tmp->url_link_text = xstrdup(cdatastrp);
-		break;
-	case tt_wpt_link: {
-		char *lt = link_text;
-		if (lt) {
-			lt = xstrdup(lrtrim(link_text));
-		}
-		
-		waypt_add_url(wpt_tmp, xstrdup(link_url), lt);
-		link_text = NULL;
-		}
-		break;
 	case tt_wpt:
 		waypt_add(wpt_tmp);
 		logpoint_ct = 0;
@@ -1085,6 +1094,29 @@ gpx_end(void *data, const XML_Char *xml_el)
 				wpt_tmp->fix = fix_unknown;
 		}
 		break;
+	case tt_wpt_url:
+	case tt_trk_trkseg_trkpt_url:
+	case tt_rte_rtept_url:
+		wpt_tmp->url = xstrdup(cdatastrp);
+		break;
+	case tt_wpt_urlname:
+	case tt_trk_trkseg_trkpt_urlname:
+	case tt_rte_rtept_urlname:
+		wpt_tmp->url_link_text = xstrdup(cdatastrp);
+		break;
+	case tt_wpt_link: 
+//TODO: implement GPX 1.1 	case tt_trk_trkseg_trkpt_link: 
+//TODO: implement GPX 1.1 	case tt_rte_rtept_link: 
+		{
+		char *lt = link_text;
+		if (lt) {
+			lt = xstrdup(lrtrim(link_text));
+		}
+		
+		waypt_add_url(wpt_tmp, xstrdup(link_url), lt);
+		link_text = NULL;
+		}
+		break;
 	case tt_unknown:
 		end_something_else();
 		*s = 0;
@@ -1164,11 +1196,13 @@ gpx_rd_init(const char *fname)
 {
 	if ( fname[0] ) {
 		fd = gbfopen(fname, "r", MYNAME);
+		input_fname = fname;
 	}
 	else {
 		fd = NULL;
 		input_string = fname+1;
 		input_string_len = strlen(input_string);
+		input_fname = NULL;
 	}
 
 
@@ -1245,6 +1279,7 @@ gpx_rd_deinit(void)
 	psr = NULL;
 	wpt_tmp = NULL;
 	cur_tag = NULL;
+	input_fname = NULL;
 }
 #endif
 
@@ -1320,11 +1355,12 @@ gpx_read(void)
 					semi = strchr( badchar, ';' );
 					if ( semi ) {
 						while (*hexit && *hexit != ';') {
+							char hc = isalpha(*hexit) ? tolower (*hexit) : *hexit;
 							val *= 16;
-							val += strchr( hex, *hexit )-hex;
+							val += strchr( hex, hc)-hex;
 							hexit++;
 						}
-						
+
 						if ( val < 32 ) {
 							warning( MYNAME ": Ignoring illegal character %s;\n\tConsider emailing %s at <%s>\n\tabout illegal characters in their GPX files.\n", badchar, gpx_author?gpx_author:"(unknown author)", gpx_email?gpx_email:"(unknown email address)" );
 							memmove( badchar, semi+1, strlen(semi+1)+1 );
@@ -1348,8 +1384,9 @@ gpx_read(void)
 			result = -1;
 		}
 		if (!result) {
-			fatal(MYNAME ": XML parse error at %d: %s\n", 
+			fatal(MYNAME ": XML parse error at line %d of '%s' : %s\n", 
 				(int) XML_GetCurrentLineNumber(psr),
+				input_fname ? input_fname : "unknown file",
 				XML_ErrorString(XML_GetErrorCode(psr)));
 		}
 	}

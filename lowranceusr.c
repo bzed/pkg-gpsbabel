@@ -2,7 +2,7 @@
 	Access to Lowrance USR files.
 	Contributed to gpsbabel by Jason Rust (jrust at rustyparts.com)
 
-	Copyright (C) 2005, 2006 Robert Lipe, robertlipe@usa.net
+	Copyright (C) 2005, 2006, 2007, 2008 Robert Lipe, robertlipe@usa.net
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -23,6 +23,12 @@
 	6/21/05 - Ling Nero (rnlnero@yahoo.com)
 	- Added Routes, Icons, & Tracks support
 	- Fixed waypoint date/time stamp conversion
+	02/09/08 - oliskoli
+	- gbfile API
+	- check for buffer overflows when reading names or comments
+	02/25/2008 - Alan Porter (alan@kr4jb.net)
+	- Added new icons for Lowrance iFinder Expedition C
+	- Categorized geocaching waypoints using different icons
 */
 
 
@@ -31,8 +37,8 @@
 #include <math.h> /* for lat/lon conversion */
 
 typedef struct lowranceusr_icon_mapping {
-	const long int	value;
-	const char		*icon;
+	const int	value;
+	const char	*icon;
 } lowranceusr_icon_mapping_t;
 
 #define DEF_ICON 10001
@@ -82,15 +88,6 @@ const lowranceusr_icon_mapping_t lowranceusr_icon_value_table[] = {
 	{ 10040, "swimmer" },
 	{ 10041, "pier"},
 
-	{ 10038, "Micro-Cache" },   	/* icon for "flag buoy" */
-	{ 10030, "Virtual cache" }, 	/* icon for "skull and crossbones" */
-	{ 10032, "Multi-Cache" },   	/* icon for "two fish" */
-	{ 10003, "Unknown Cache" },   	/* icon for "x 1" */
-	{ 10018, "Locationless (Reverse) Cache" }, /* Icon for "american flag" */
-	{ 10007, "Post Office" },  	/* Icon for "house" */
-	{ 10019, "Event Cache" }, 	/* Icon for "person" */
-	{ 10020, "Webcam Cache" }, 	/* Icon for "restrooms" */
-
 /* The following list is from TopoFusion */
 
 	{ 10000, "Waypoint" },		/* diamond 1 */
@@ -102,8 +99,8 @@ const lowranceusr_icon_mapping_t lowranceusr_icon_value_table[] = {
 	{ DEF_ICON, "Short Tower" },
 	{ 10021, "Forest" },		/* tree */
 	{ DEF_ICON, "Mine" },
-	{ 10038, "Geocache" },		/* flag buoy */
-	{ 10016, "Geocache Found" },	/* exclamation */
+//	{ 10038, "Geocache" },		/* flag buoy */
+//	{ 10016, "Geocache Found" },	/* exclamation */
 	{ DEF_ICON, "Skiing Area" },
 	{ 10029, "Crossing" },		/* bridge */
 	{ 10007, "House" },			/* house */
@@ -132,34 +129,71 @@ const lowranceusr_icon_mapping_t lowranceusr_icon_value_table[] = {
 	{ DEF_ICON, "Tunnel" },
 
 	/* This list comes from 'wifinder' from ifinder H20 Color */
-	
-        { 10062, "Interesting Land Feature" },
-        { 10063, "Global Location" },
-        { 10064, "Note" },
-        { 10065, "Ghost" },
-        { 10066, "Letter" },
-        { 10067, "Multi-Treasure" },
-        { 10068, "Mystery Or Puzzle" },
-        { 10069, "Treasure" },
-        { 10070, "Webmail" },
-        { 10071, "Sun" },
-        { 10072, "Musical Note" },
-        { 10073, "Camera/Movie Theater" },
-        { 10074, "Star" },
-        { 10075, "Coffee Mug" },
-        { 10076, "Books" },
-        { 10077, "Historical Marker" },
-        { 10078, "Tools/Repair" },
-        { 10079, "Favorite" },
-        { 10080, "Arena" },
-        { 10081, "Golf Course" },
-        { 10082, "Money/Atm" },
+
+	{ 10062, "Interesting Land Feature" },
+	{ 10063, "Global Location" },
+	{ 10064, "Note" },
+	{ 10065, "Ghost" },
+	{ 10066, "Letter" },
+	{ 10067, "Multi-Treasure" },
+	{ 10068, "Mystery Or Puzzle" },
+	{ 10069, "Treasure" },
+	{ 10070, "Webmail" },
+	{ 10071, "Sun" },
+	{ 10072, "Musical Note" },
+	{ 10073, "Camera/Movie Theater" },
+	{ 10074, "Star" },
+	{ 10075, "Coffee Mug" },
+	{ 10076, "Books" },
+	{ 10077, "Historical Marker" },
+	{ 10078, "Tools/Repair" },
+	{ 10079, "Favorite" },
+	{ 10080, "Arena" },
+	{ 10081, "Golf Course" },
+	{ 10082, "Money/Atm" },
+
+	/* This list comes from Alan Porter <alan@kr4jb.net>, using an iFinder Expedition C */
+
+	{ 10042, "icon42" },  // black box with red X
+	{ 10043, "icon43" },  // small red dot
+	{ 10044, "icon44" },  // 4-wheeler
+	{ 10045, "icon45" },  // hiding hunter
+	{ 10046, "icon46" },  // tree (yellow base)
+	{ 10047, "icon47" },  // windmill
+	{ 10048, "icon48" },  // camera
+	{ 10049, "icon49" },  // tree (something in front of base)
+	{ 10050, "icon50" },  // tree (something hanging from left side)
+	{ 10051, "icon51" },  // 4 dots in rhombus shape
+	{ 10052, "icon52" },  // bare winter tree
+	{ 10053, "icon53" },  // hiding deer head peeking over bushes
+	{ 10054, "icon54" },  // piston? over a pile of salt?
+	{ 10055, "icon55" },  // corn
+	{ 10056, "icon56" },  // turkey
+	{ 10057, "icon57" },  // duck
+	{ 10058, "icon58" },  // hen
+	{ 10059, "icon59" },  // rabbit
+	{ 10060, "icon60" },  // paw print
+	{ 10061, "icon61" },  // 2 red flames?
+
+	/* These are the icons that gpsbabel will use */
+
+	{ 10038, "Geocache" },                      // flag buoy
+	{ 10016, "Geocache Found" },                // exclamation
+	{ 10043, "Micro-Cache" },                   // small red dot
+	{ 10065, "Virtual cache" },                 // ghost
+	{ 10051, "Multi-Cache" },                   // 4 dots in rhombus shape
+	{ 10068, "Unknown Cache" },                 // ? mark
+	{ 10045, "Locationless (Reverse) Cache" },  // hiding hunter
+	{ 10066, "Post Office" },                   // letter
+	{ 10019, "Event Cache" },                   // person
+	{ 10070, "Webcam Cache" },                  // webcam
+	{ 10042, "Disabled Cache" },                // black box with red X
 
 	{	 -1, NULL }
 };
 
-static FILE *file_in;
-static FILE *file_out;
+static gbfile *file_in;
+static gbfile *file_out;
 static short_handle mkshort_handle;
 
 static unsigned short waypt_out_count;
@@ -173,6 +207,7 @@ static char *ignoreicons;
 static char *writeasicons;
 static char *merge;
 static char *seg_break;
+static int reading_version;
 
 #define MYNAME "Lowrance USR"
 
@@ -186,20 +221,20 @@ static char *seg_break;
 /* Jan 1, 2000 00:00:00 */
 const time_t base_time_secs = 946706400;
 
-static
-size_t
-my_fwrite4(int *ptr, FILE *stream)
+static int
+lowranceusr_readstr(char *buf, const int maxlen, gbfile *file)
 {
-        int i = le_read32(ptr);
-        return fwrite(&i, 4, 1, stream);
-}
+	int org, len;
+	
+	org = len = gbfgetint32(file);
+	if (len < 0) fatal(MYNAME ": Invalid item length (%d)!\n", len);
+	else if (len) {
+		if (len > maxlen) len = maxlen;
+		(void) gbfread(buf, 1, len, file);
+		if (org > maxlen) (void) gbfseek(file, org - maxlen, SEEK_CUR);
+	}
 
-static
-size_t
-my_fwrite2(short *ptr, FILE *stream)
-{
-	short i = le_read16(ptr);
-	return fwrite(&i, 2, 1, stream);
+	return len;
 }
 
 const char *
@@ -216,7 +251,7 @@ lowranceusr_find_desc_from_icon_number(const int icon)
 	return "";
 }
 
-long int
+int
 lowranceusr_find_icon_number_from_desc(const char *desc)
 {
 	const lowranceusr_icon_mapping_t *i;
@@ -244,20 +279,6 @@ lowranceusr_find_icon_number_from_desc(const char *desc)
 
 	return DEF_ICON;
 }
-static int
-lowranceusr_fread(void *buff, size_t size, size_t members, FILE * fp) 
-{
-	size_t br;
-
-	br = fread(buff, size, members, fp);
-
-	if (br != members) {
-		fatal(MYNAME ": requested to read %lu bytes, read %lu bytes.\n", 
-		            (unsigned long) members, (unsigned long) br);
-	}
-
-	return (br);
-}
 
 static
 arglist_t lowranceusr_args[] = {
@@ -275,19 +296,19 @@ arglist_t lowranceusr_args[] = {
 static void
 rd_init(const char *fname)
 {
-	file_in = xfopen(fname, "rb", MYNAME);
+	file_in = gbfopen_le(fname, "rb", MYNAME);
 }
 
 static void
 rd_deinit(void)
 {
-	fclose(file_in);
+	gbfclose(file_in);
 }
 
 static void
 wr_init(const char *fname)
 {
-	file_out = xfopen(fname, "wb", MYNAME);
+	file_out = gbfopen_le(fname, "wb", MYNAME);
 	mkshort_handle = mkshort_new_handle();
 	waypt_out_count = 0;
 }
@@ -295,7 +316,7 @@ wr_init(const char *fname)
 static void
 wr_deinit(void)
 {
-	fclose(file_out);
+	gbfclose(file_out);
 	mkshort_del_handle(&mkshort_handle);
 }
 
@@ -327,54 +348,46 @@ static void
 lowranceusr_parse_waypt(waypoint *wpt_tmp)
 {
 	char buff[MAXUSRSTRINGSIZE + 1];
-	long int TextLen;
+	int text_len;
 	time_t waypt_time;
 	short waypt_type;
 
-	lowranceusr_fread(&buff[0], 4, 1, file_in);
-	wpt_tmp->latitude = lat_mm_to_deg(le_read32(&buff[0]));
-	lowranceusr_fread(&buff[0], 4, 1, file_in);
-	wpt_tmp->longitude = lon_mm_to_deg(le_read32(&buff[0]));
-	lowranceusr_fread(&buff[0], 4, 1, file_in);
-	wpt_tmp->altitude = FEET_TO_METERS(le_read32(&buff[0]));
+	wpt_tmp->latitude = lat_mm_to_deg(gbfgetint32(file_in));
+	wpt_tmp->longitude = lon_mm_to_deg(gbfgetint32(file_in));
+	wpt_tmp->altitude = FEET_TO_METERS(gbfgetint32(file_in));
 	if (wpt_tmp->altitude <= UNKNOWN_USR_ALTITUDE) {
 		wpt_tmp->altitude = unknown_alt;
 	}
-	lowranceusr_fread(&buff[0], 4, 1, file_in);
-	TextLen = buff[0];
-	if (TextLen)
-		lowranceusr_fread(&buff[0], TextLen, 1, file_in);
-	buff[TextLen] = '\0';
-	wpt_tmp->shortname = xstrdup(buff);
+	text_len = lowranceusr_readstr(&buff[0], MAXUSRSTRINGSIZE, file_in);
+	if (text_len) {
+		buff[text_len] = '\0';
+		wpt_tmp->shortname = xstrdup(buff);
+	}
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE parse_waypt: Waypt name = %s Lat = %f Lon = %f alt = %f\n",wpt_tmp->shortname, wpt_tmp->latitude,
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " parse_waypt: Waypt name = %s Lat = %f Lon = %f alt = %f\n",wpt_tmp->shortname, wpt_tmp->latitude,
 			wpt_tmp->longitude, wpt_tmp->altitude);
 
-	lowranceusr_fread(&buff[0], 4, 1, file_in);
-	TextLen = buff[0];
-	if (TextLen) {
-		lowranceusr_fread(&buff[0], TextLen, 1, file_in);
-		buff[TextLen] = '\0';
+	text_len = lowranceusr_readstr(&buff[0], MAXUSRSTRINGSIZE, file_in);
+	if (text_len) {
+		buff[text_len] = '\0';
 		wpt_tmp->description = xstrdup(buff);
 	}
-	lowranceusr_fread(&buff[0], 4, 1, file_in);
 	/* Time is number of seconds since Jan. 1, 2000 */
-	waypt_time = le_read32(&buff[0]);
+	waypt_time = gbfgetint32(file_in);
 	if (waypt_time)
 		wpt_tmp->creation_time = base_time_secs + waypt_time;
 
-    if (global_opts.debug_level >= 2)
+	if (global_opts.debug_level >= 2)
 	{
-		printf("LOWRANCE parse_waypt: creation time %d\n", 
+		printf(MYNAME " parse_waypt: creation time %d\n", 
 			(int)wpt_tmp->creation_time);
-		printf("LOWRANCE parse_waypt: base_time %d\n", (int)base_time_secs);
-		printf("LOWRANCE parse_waypt: waypt time %d\n", (int)waypt_time);
+		printf(MYNAME " parse_waypt: base_time %d\n", (int)base_time_secs);
+		printf(MYNAME " parse_waypt: waypt time %d\n", (int)waypt_time);
 	}
 
 	/* Symbol ID */
-	lowranceusr_fread(&buff[0], 4, 1, file_in);
-	wpt_tmp->icon_descr = lowranceusr_find_desc_from_icon_number(le_read32(&buff[0]));
+	wpt_tmp->icon_descr = lowranceusr_find_desc_from_icon_number(gbfgetint32(file_in));
 	if (!wpt_tmp->icon_descr[0]) {
 		char nbuf[10];
 		snprintf(nbuf, sizeof(nbuf), "%d", le_read32(buff));
@@ -383,11 +396,15 @@ lowranceusr_parse_waypt(waypoint *wpt_tmp)
 	}
 
 	/* Waypoint Type (USER, TEMPORARY, POINT_OF_INTEREST) */
-	lowranceusr_fread(&buff[0], 2, 1, file_in);
-	waypt_type = le_read16(&buff[0]);
-    if (global_opts.debug_level >= 1)
-		printf("LOWRANCEUSR parse_waypt: waypt_type = %d\n",waypt_type);
+	waypt_type = gbfgetint16(file_in);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " parse_waypt: waypt_type = %d\n",waypt_type);
 
+    // Version 3 has an extra word in here that we don't know about.
+    if (reading_version >= 3) {
+      int junkword = gbfgetint32(file_in);
+      (void)junkword;
+    }
 }
 
 
@@ -398,14 +415,13 @@ lowranceusr_parse_routes(void)
 	char buff[MAXUSRSTRINGSIZE + 1];
 	short int num_routes, num_legs;
 	int i,j;
-	long int text_len;
+	int text_len;
 	waypoint *wpt_tmp;
 
-	lowranceusr_fread(&buff[0], 2, 1, file_in);
-	num_routes = le_read16(&buff[0]);
+	num_routes = gbfgetint16(file_in);
 
-    if (global_opts.debug_level >= 1)
-		printf("LOWRANCAE parse_routes: Num Routes = %d\n", num_routes);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " parse_routes: Num Routes = %d\n", num_routes);
 
 	for (i=0; i < num_routes; i++)
 	{
@@ -414,22 +430,19 @@ lowranceusr_parse_routes(void)
 		rte_head->rte_num = i+1;
 
 		/* route name */
-		lowranceusr_fread(&buff[0], 4, 1, file_in);
-		text_len = buff[0];
+		text_len = lowranceusr_readstr(&buff[0], MAXUSRSTRINGSIZE, file_in);
 		if (text_len)
 		{
-			lowranceusr_fread(&buff[0], text_len, 1, file_in);
 			buff[text_len] = '\0';
+			rte_head->rte_name = xstrdup(buff);
 		}
-		rte_head->rte_name = xstrdup(buff);
-		rte_head->rte_desc = '\0';
+		rte_head->rte_desc = '\0';	/* ???????? */
 
 		/* num Legs */
-		lowranceusr_fread(&buff[0], 2, 1, file_in);
-		num_legs = le_read16(&buff[0]);
+		num_legs = gbfgetint16(file_in);
 
 		/* route reversed */
-		lowranceusr_fread(&buff[0], 1, 1, file_in);
+		(void) gbfread(&buff[0], 1, 1, file_in);
 
 		/* waypoints */
 		for (j=0; j < num_legs; j++)
@@ -452,20 +465,19 @@ lowranceusr_parse_icons(void)
 	short int num_icons;
 	int i;
 
-	lowranceusr_fread(&buff[0], 2, 1, file_in);
-	num_icons = le_read16(&buff[0]);
+	num_icons = gbfgetint16(file_in);
 
-    if (global_opts.debug_level >= 1)
-		printf("LOWRANCE parse_icons: num Icons = %d\n", num_icons);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " parse_icons: num Icons = %d\n", num_icons);
 
 	for (i=0; i < num_icons; i++)
 	{
 		if (ignoreicons)
 		{
 			/* position coord lat & long */
-			lowranceusr_fread(&buff[0], 4, 2, file_in);
+			(void) gbfread(&buff[0], 4, 2, file_in);
 			/* symbol */
-			lowranceusr_fread(&buff[0], 4, 1, file_in);
+			(void) gbfread(&buff[0], 4, 1, file_in);
 		}
 		else
 		{
@@ -473,16 +485,13 @@ lowranceusr_parse_icons(void)
 			wpt_tmp = waypt_new();
 
 			/* position coord lat & long */
-			lowranceusr_fread(&buff[0], 4, 1, file_in);
-			wpt_tmp->latitude = lat_mm_to_deg(le_read32(&buff[0]));
-			lowranceusr_fread(&buff[0], 4, 1, file_in);
-			wpt_tmp->longitude = lon_mm_to_deg(le_read32(&buff[0]));
+			wpt_tmp->latitude = lat_mm_to_deg(gbfgetint32(file_in));
+			wpt_tmp->longitude = lon_mm_to_deg(gbfgetint32(file_in));
 			wpt_tmp->altitude = 0;
-			sprintf(buff,"Icon %d", i+1);
+			snprintf(buff, sizeof(buff), "Icon %d", i+1);
 			wpt_tmp->shortname = xstrdup(buff);
 			/* symbol */
-			lowranceusr_fread(&buff[0], 4, 1, file_in);
-			wpt_tmp->icon_descr = lowranceusr_find_desc_from_icon_number(le_read32(&buff[0]));
+			wpt_tmp->icon_descr = lowranceusr_find_desc_from_icon_number(gbfgetint32(file_in));
 			waypt_add(wpt_tmp);
 		}
 	}
@@ -494,17 +503,16 @@ lowranceusr_parse_trails(void)
 {
 	char buff[MAXUSRSTRINGSIZE + 1];
 	short int num_trails, num_trail_points, num_section_points;
-	int i,j, trk_num;
-	long int text_len;
+	int i,j, trk_num, itmp;
+	int text_len;
 	waypoint *wpt_tmp;
 	route_head *trk_tmp;
 
 	/* num trails */
-	lowranceusr_fread(&buff[0], 2, 1, file_in);
-	num_trails = le_read16(&buff[0]);
+	num_trails = gbfgetint16(file_in);
 
-    if (global_opts.debug_level >= 1)
-		printf("LOWRANCE parse_trails: num trails = %d\n", num_trails);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " parse_trails: num trails = %d\n", num_trails);
 
 	for (i=trk_num=0; i < num_trails; i++)
 	{
@@ -513,36 +521,33 @@ lowranceusr_parse_trails(void)
 		track_add_head(trk_head);
 
 		/* trail name */
-		lowranceusr_fread(&buff[0], 4, 1, file_in);
-		text_len = buff[0];
+		text_len = lowranceusr_readstr(&buff[0], MAXUSRSTRINGSIZE, file_in);
 
-if (global_opts.debug_level >= 1)
-	printf("LOWRANCE parse_trails: name text len = %ld\n", text_len);
+		if (global_opts.debug_level >= 1)
+			printf(MYNAME " parse_trails: name text len = %d\n", text_len);
 
-		if (text_len)
-			lowranceusr_fread(&buff[0], text_len, 1, file_in);
-
-		buff[text_len] = '\0';
-		trk_head->rte_name = xstrdup(buff);
+		if (text_len) {
+			buff[text_len] = '\0';
+			trk_head->rte_name = xstrdup(buff);
+		}
 		trk_head->rte_desc = '\0';
 
-if (global_opts.debug_level >= 1)
-	printf("LOWRANCE parse_trails: trail name = %s\n", trk_head->rte_name);
+		if (global_opts.debug_level >= 1)
+			printf(MYNAME " parse_trails: trail name = %s\n", trk_head->rte_name);
 
 		/* visible */
-		lowranceusr_fread(&buff[0], 1, 1, file_in);
+		(void) gbfread(&buff[0], 1, 1, file_in);
 		/* num trail points */
-		lowranceusr_fread(&buff[0], 2, 1, file_in);
-		num_trail_points = le_read16(&buff[0]);
+		num_trail_points = gbfgetint16(file_in);
 
-if (global_opts.debug_level >= 1)
-	printf("LOWRANCE parse_trails: num trail points = %d\n", num_trail_points);
+		if (global_opts.debug_level >= 1)
+			printf(MYNAME " parse_trails: num trail points = %d\n", num_trail_points);
 
 		/* max trail size */
-		lowranceusr_fread(&buff[0], 2, 1, file_in);
+		itmp = gbfgetint16(file_in);
 
-if (global_opts.debug_level >= 1)
-	printf("LOWRANCE parse_trails: max trail size = %d\n", le_read16(&buff[0]));
+		if (global_opts.debug_level >= 1)
+			printf(MYNAME " parse_trails: max trail size = %d\n", itmp);
 
 		if (num_trail_points)
 		{
@@ -550,34 +555,31 @@ if (global_opts.debug_level >= 1)
 			while (num_trail_points)
 			{
 			/* num section points */
-			lowranceusr_fread(&buff[0], 2, 1, file_in);
-			num_section_points = le_read16(&buff[0]);
+			num_section_points = gbfgetint16(file_in);
 
-if (global_opts.debug_level >= 1)
-	printf("LOWRANCE parse_trails: num section points = %d\n", num_section_points);
+			if (global_opts.debug_level >= 1)
+				printf(MYNAME " parse_trails: num section points = %d\n", num_section_points);
 
 				for (j=0; j < num_section_points; j++, num_trail_points--)
 				{
-				wpt_tmp = waypt_new();
-				lowranceusr_fread(&buff[0], 4, 1, file_in);
-				wpt_tmp->latitude = lat_mm_to_deg(le_read32(&buff[0]));
-				lowranceusr_fread(&buff[0], 4, 1, file_in);
-				wpt_tmp->longitude = lon_mm_to_deg(le_read32(&buff[0]));
-				/* continuous */
-				lowranceusr_fread(&buff[0], 1, 1, file_in);
-				if (!buff[0] && seg_break && j)
-				{
-					trk_tmp = route_head_alloc();
-					trk_tmp->rte_num = ++trk_num;
-					trk_tmp->rte_name = xstrdup(trk_head->rte_name);
-					trk_tmp->rte_desc = '\0';
-					track_add_head(trk_tmp);
-					trk_head = trk_tmp;
-				}
-				track_add_wpt(trk_head, wpt_tmp);
+					wpt_tmp = waypt_new();
+					wpt_tmp->latitude = lat_mm_to_deg(gbfgetint32(file_in));
+					wpt_tmp->longitude = lon_mm_to_deg(gbfgetint32(file_in));
+					/* continuous */
+					(void) gbfread(&buff[0], 1, 1, file_in);
+					if (!buff[0] && seg_break && j)
+					{
+						trk_tmp = route_head_alloc();
+						trk_tmp->rte_num = ++trk_num;
+						trk_tmp->rte_name = xstrdup(trk_head->rte_name);
+						trk_tmp->rte_desc = '\0';
+						track_add_head(trk_tmp);
+						trk_head = trk_tmp;
+					}
+					track_add_wpt(trk_head, wpt_tmp);
 			
-if (global_opts.debug_level >= 1)
-	printf("LOWRANCE parse_trails: Trail pt lat %f lon %f\n", wpt_tmp->latitude, wpt_tmp->longitude);
+					if (global_opts.debug_level >= 1)
+						printf(MYNAME " parse_trails: Trail pt lat %f lon %f\n", wpt_tmp->latitude, wpt_tmp->longitude);
 				}
 			}
 		}
@@ -589,27 +591,24 @@ if (global_opts.debug_level >= 1)
 static void
 data_read(void)
 {
-	char buff[MAXUSRSTRINGSIZE + 1];
 	short int NumWaypoints, MajorVersion, MinorVersion, object_num;
 	int i;
 
-	lowranceusr_fread(&buff[0], 2, 1, file_in);
-	MajorVersion = le_read16(&buff[0]);
-	lowranceusr_fread(&buff[0], 2, 1, file_in);
-	MinorVersion = le_read16(&buff[0]);
+	MajorVersion = gbfgetint16(file_in);
+	reading_version = MajorVersion;
+	MinorVersion = gbfgetint16(file_in);
 	
 	if (global_opts.debug_level >= 1)
-		printf("LOWRANCE data_read: Major Version %d Minor Version %d\n", MajorVersion, MinorVersion);
+		printf(MYNAME " data_read: Major Version %d Minor Version %d\n", MajorVersion, MinorVersion);
 
 	if (MajorVersion < 2) {
 		fatal(MYNAME ": input file is from an old version of the USR file and is not supported\n");
 	}
 
-	lowranceusr_fread(&buff[0], 2, 1, file_in);
-	NumWaypoints = le_read16(&buff[0]);
+	NumWaypoints = gbfgetint16(file_in);
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE data_read: Num waypoints %d\n", NumWaypoints);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " data_read: Num waypoints %d\n", NumWaypoints);
 
 	for (i = 0; i < NumWaypoints; i++) {
 		waypoint *wpt_tmp;
@@ -617,10 +616,9 @@ data_read(void)
 		wpt_tmp = waypt_new();
 
 		/* Object num */
-		lowranceusr_fread(&buff[0], 2, 1, file_in);
-		object_num = le_read16(&buff[0]);
+		object_num = gbfgetint16(file_in);
 		if (global_opts.debug_level >= 1)
-			printf("LOWRANCE data_read: object_num = %d\n", object_num);
+			printf(MYNAME " data_read: object_num = %d\n", object_num);
 
 		/* waypoint */
 		lowranceusr_parse_waypt(wpt_tmp);
@@ -636,7 +634,7 @@ data_read(void)
 static void
 lowranceusr_waypt_disp(const waypoint *wpt)
 {
-	int TextLen, Lat, Lon, Time, SymbolId;
+	int text_len, Lat, Lon, Time, SymbolId;
 	short int WayptType;
 	char *name;
 	char *comment;
@@ -647,13 +645,15 @@ lowranceusr_waypt_disp(const waypoint *wpt)
 	}
 
 	Lat = lat_deg_to_mm(wpt->latitude);
-	my_fwrite4(&Lat, file_out);
 	Lon = lon_deg_to_mm(wpt->longitude);
-	my_fwrite4(&Lon, file_out);
-	my_fwrite4(&alt, file_out);
+	gbfputint32(Lat, file_out);
+	gbfputint32(Lon, file_out);
+	gbfputint32(alt, file_out);
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE waypt_disp: Lat = %d\nLon = %d\nAlt = %d\n",Lat, Lon, alt);
+	if (global_opts.debug_level >= 1) {
+		/* print lat/lon/alt on one easily greppable line */
+		printf(MYNAME " waypt_disp: Lat = %d   Lon = %d   Alt = %d\n",Lat, Lon, alt);
+	}
 
 	/* Try and make sure we have a name */
 	if ((! wpt->shortname) || global_opts.synthesize_shortnames) {
@@ -670,27 +670,29 @@ lowranceusr_waypt_disp(const waypoint *wpt)
 		name = xstrdup(wpt->shortname);
 	}
 
-	TextLen = strlen(name);
-	my_fwrite4(&TextLen, file_out);
-	fwrite(name, 1, TextLen, file_out);
+	text_len = strlen(name);
+	if (text_len > MAXUSRSTRINGSIZE) text_len = MAXUSRSTRINGSIZE;
+	gbfputint32(text_len, file_out);
+	gbfwrite(name, 1, text_len, file_out);
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE waypt_disp: Waypt name = %s\n",name);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " waypt_disp: Waypt name = %s\n",name);
 
 	xfree(name);
 
 	/**
-	 * Comments aren't used by the iFinder yet so they just take up space...
+	 * Comments are now used by the iFinder (Expedition C supports them)
 	 */
-	if (0 && wpt->description && strcmp(wpt->description, wpt->shortname) != 0) {
+	if (wpt->description && strcmp(wpt->description, wpt->shortname) != 0) {
 		comment = xstrdup(wpt->description);
-		TextLen = strlen(comment);
-		my_fwrite4(&TextLen, file_out);
-		fwrite(comment, 1, TextLen, file_out);
+		text_len = strlen(comment);
+		if (text_len > MAXUSRSTRINGSIZE) text_len = MAXUSRSTRINGSIZE;
+		gbfputint32(text_len, file_out);
+		gbfwrite(comment, 1, text_len, file_out);
 		xfree(comment);
 	} else {
-		TextLen = 0;
-		my_fwrite4(&TextLen, file_out);
+		text_len = 0;
+		gbfputint32(text_len, file_out);
 	}
 
 	if (wpt->creation_time > base_time_secs) {
@@ -699,28 +701,32 @@ lowranceusr_waypt_disp(const waypoint *wpt)
 		Time = 0;
 	}
 
-    if (global_opts.debug_level >= 2)
+	if (global_opts.debug_level >= 2)
 	{
 		time_t wpt_time = Time;
-		printf("LOWRANCE waypt_disp: base_time : %d\n", (int)base_time_secs);
-		printf("LOWRANCE waypt_disp: creation time : %d\n", (int)wpt->creation_time);
-		printf("LOWRANCE waypt_disp: waypt time : %d\n", (int)wpt_time);
-		printf("LOWRANCE waypt_disp: waypt time (local): %s\n", ctime(&wpt_time));
+		printf(MYNAME " waypt_disp: base_time : %d\n", (int)base_time_secs);
+		printf(MYNAME " waypt_disp: creation time : %d\n", (int)wpt->creation_time);
+		printf(MYNAME " waypt_disp: waypt time : %d\n", (int)wpt_time);
+		printf(MYNAME " waypt_disp: waypt time (local): %s\n", ctime(&wpt_time));
 	}
 
-	my_fwrite4(&Time, file_out);
+	gbfputint32(Time, file_out);
 
 	if (get_cache_icon(wpt) && wpt->icon_descr && (strcmp(wpt->icon_descr, "Geocache Found") != 0)) {
 		SymbolId = lowranceusr_find_icon_number_from_desc(get_cache_icon(wpt));
 	} else {
 		SymbolId = lowranceusr_find_icon_number_from_desc(wpt->icon_descr);
 	}
+	/* If the waypoint is archived or disabled, use a "disabled" icon instead. */
+	if ( (wpt->gc_data.is_archived==status_true) || (wpt->gc_data.is_available==status_false) ) {
+		SymbolId = lowranceusr_find_icon_number_from_desc("Disabled Cache");
+	}
 
-	my_fwrite4(&SymbolId, file_out);
+	gbfputint32(SymbolId, file_out);
 
 	/* USER waypoint type */
 	WayptType = 0;
-	my_fwrite2(&WayptType, file_out);
+	gbfputint16(WayptType, file_out);
 }
 
 static void
@@ -728,10 +734,10 @@ lowranceusr_waypt_pr(const waypoint *wpt)
 {
 
 	/* our personal waypoint counter */
-	my_fwrite2((short *) &waypt_out_count, file_out);
+	gbfputint16(waypt_out_count, file_out);
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE waypt_pr: waypoint #%d ",waypt_out_count);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " waypt_pr: waypoint #%d ",waypt_out_count);
 
 	waypt_out_count++;
 
@@ -755,9 +761,9 @@ lowranceusr_write_icon(const waypoint *wpt)
 		lowranceusr_find_icon_number_from_desc(wpt->icon_descr) :
 		10003;
 
-	my_fwrite4(&latmm, file_out);
-	my_fwrite4(&lonmm, file_out);
-	my_fwrite4(&icon, file_out);
+	gbfputint32(latmm, file_out);
+	gbfputint32(lonmm, file_out);
+	gbfputint32(icon, file_out);
 }
 
 /*
@@ -791,19 +797,20 @@ lowranceusr_track_hdr(const route_head *trk)
 	} else
 	{
 		tmp_name[0]='\0';
-		sprintf(tmp_name, "Babel %d", trail_count);
+		snprintf(tmp_name, sizeof(tmp_name), "Babel %d", trail_count);
 		name = xstrdup(tmp_name);
 	}
 
 	text_len = strlen(name);
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE track_hdr: trail name text len = %d\n", text_len);
-	my_fwrite4(&text_len, file_out);
+	if (text_len > MAXUSRSTRINGSIZE) text_len = MAXUSRSTRINGSIZE;
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " track_hdr: trail name text len = %d\n", text_len);
+	gbfputint32(text_len, file_out);
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE track_hdr: trail name = %s\n", name);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " track_hdr: trail name = %s\n", name);
 
-	fwrite(name, 1, text_len, file_out);
+	gbfwrite(name, 1, text_len, file_out);
 
 	num_trail_points = (short) trk->rte_waypt_ct;
 	max_trail_size = MAX_TRAIL_POINTS;
@@ -811,14 +818,14 @@ lowranceusr_track_hdr(const route_head *trk)
 		num_trail_points = max_trail_size;
 	num_section_points = num_trail_points;
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE track_hdr: num_trail_points = %d\nmax_trail_size = %d\nnum_section_points = %d\n",
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " track_hdr: num_trail_points = %d\nmax_trail_size = %d\nnum_section_points = %d\n",
 			num_trail_points, max_trail_size, num_section_points);
 
-	fwrite(&visible, 1, 1, file_out);
-	my_fwrite2(&num_trail_points, file_out);
-	my_fwrite2(&max_trail_size, file_out);
-	my_fwrite2(&num_section_points, file_out);
+	gbfwrite(&visible, 1, 1, file_out);
+	gbfputint16(num_trail_points, file_out);
+	gbfputint16(max_trail_size, file_out);
+	gbfputint16(num_section_points, file_out);
 	xfree(name);
 	trail_point_count=1;
 }
@@ -839,21 +846,22 @@ lowranceusr_route_hdr(const route_head *rte)
 	} else
 	{
 		tmp_name[0]='\0';
-		sprintf(tmp_name, "Babel R%d", ++lowrance_route_count);
+		snprintf(tmp_name, sizeof(tmp_name), "Babel R%d", ++lowrance_route_count);
 		name = xstrdup(tmp_name);
 	}
 	text_len = strlen(name);
-	my_fwrite4(&text_len, file_out);
-	fwrite(name, 1, text_len, file_out);
+	if (text_len > MAXUSRSTRINGSIZE) text_len = MAXUSRSTRINGSIZE;
+	gbfputint32(text_len, file_out);
+	gbfwrite(name, 1, text_len, file_out);
 	xfree(name);
 
 	/* num legs */
 	num_legs = (short) rte->rte_waypt_ct;
-	my_fwrite2(&num_legs, file_out);
-	fwrite(&route_reversed, 1, 1, file_out);
+	gbfputint16(num_legs, file_out);
+	gbfwrite(&route_reversed, 1, 1, file_out);
 
-    if (global_opts.debug_level >= 1)
-		printf("LOWRANCE route_hdr: route name \"%s\" num_legs = %d\n",
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " route_hdr: route name \"%s\" num_legs = %d\n",
 			rte->rte_name, num_legs);
 
 }
@@ -868,12 +876,12 @@ lowranceusr_track_disp(const waypoint *wpt)
 		lat = lat_deg_to_mm(wpt->latitude);
 		lon = lon_deg_to_mm(wpt->longitude);
 
-    if (global_opts.debug_level >= 1)
-		printf("LOWRANCE track_disp: Trail point #%d lat = %d long = %d\n",trail_point_count, lat, lon);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " track_disp: Trail point #%d lat = %d long = %d\n",trail_point_count, lat, lon);
 
-		my_fwrite4(&lat, file_out);
-		my_fwrite4(&lon, file_out);
-		fwrite(&continuous, 1, 1, file_out);
+		gbfputint32(lat, file_out);
+		gbfputint32(lon, file_out);
+		gbfwrite(&continuous, 1, 1, file_out);
 		if (!continuous)
 			continuous = 1;
 	}
@@ -894,16 +902,17 @@ lowranceusr_merge_track_hdr(const route_head *trk)
 		} else
 		{
 			tmp_name[0]='\0';
-			sprintf(tmp_name, "Babel %d", trail_count);
+			snprintf(tmp_name, sizeof(tmp_name), "Babel %d", trail_count);
 			name = xstrdup(tmp_name);
 		}
 		text_len = strlen(name);
-		my_fwrite4(&text_len, file_out);
+		if (text_len > MAXUSRSTRINGSIZE) text_len = MAXUSRSTRINGSIZE;
+		gbfputint32(text_len, file_out);
 
 		if (global_opts.debug_level >= 1)
-			printf("LOWRANCE track_hdr: trail name = %s\n", name);
+			printf(MYNAME " track_hdr: trail name = %s\n", name);
 
-		fwrite(name, 1, text_len, file_out);
+		gbfwrite(name, 1, text_len, file_out);
 	}
 
 	trail_point_count += (short) trk->rte_waypt_ct;
@@ -923,14 +932,14 @@ lowranceusr_merge_track_tlr(const route_head *trk)
 			num_trail_points = max_trail_size;
 		num_section_points = num_trail_points;
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE merge_track_tlr: num_trail_points = %d\nmax_trail_size = %d\nnum_section_points = %d\n",
-			num_trail_points, max_trail_size, num_section_points);
+		if (global_opts.debug_level >= 1)
+			printf(MYNAME " merge_track_tlr: num_trail_points = %d\nmax_trail_size = %d\nnum_section_points = %d\n",
+				num_trail_points, max_trail_size, num_section_points);
 
-		fwrite(&visible, 1, 1, file_out);
-		my_fwrite2(&num_trail_points, file_out);
-		my_fwrite2(&max_trail_size, file_out);
-		my_fwrite2(&num_section_points, file_out);
+		gbfwrite(&visible, 1, 1, file_out);
+		gbfputint16(num_trail_points, file_out);
+		gbfputint16(max_trail_size, file_out);
+		gbfputint16(num_section_points, file_out);
 	}
 }
 static void
@@ -950,26 +959,26 @@ data_write(void)
 
 	NumWaypoints = waypt_count();
 
-	my_fwrite2(&MajorVersion, file_out);
-	my_fwrite2(&MinorVersion, file_out);
+	gbfputint16(MajorVersion, file_out);
+	gbfputint16(MinorVersion, file_out);
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE data_write: Num waypoints = %d\n", NumWaypoints);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " data_write: Num waypoints = %d\n", NumWaypoints);
 
-    if (writeasicons) {
-	    short zero = 0;
-	    my_fwrite2(&zero, file_out);
-    } else {
-	    my_fwrite2(&NumWaypoints, file_out);
-	    waypt_disp_all(lowranceusr_waypt_pr);
-    }
+	if (writeasicons) {
+		short zero = 0;
+		gbfputint16(zero, file_out);
+	} else {
+		gbfputint16(NumWaypoints, file_out);
+		waypt_disp_all(lowranceusr_waypt_pr);
+	}
 
-    /* Route support added 6/21/05 */
-    NumRoutes = route_count();
-    my_fwrite2(&NumRoutes, file_out);
+	/* Route support added 6/21/05 */
+	NumRoutes = route_count();
+	gbfputint16(NumRoutes, file_out);
 
-    if (global_opts.debug_level >= 1)
-	printf("LOWRANCE data_write: Num routes = %d\n", NumRoutes);
+	if (global_opts.debug_level >= 1)
+		printf(MYNAME " data_write: Num routes = %d\n", NumRoutes);
 
 	if (NumRoutes)
 	{
@@ -978,11 +987,11 @@ data_write(void)
 	}
 
 	if (NumWaypoints && writeasicons) {
-		my_fwrite2(&NumWaypoints, file_out);
+		gbfputint16(NumWaypoints, file_out);
 		waypt_disp_all(lowranceusr_write_icon);
 	} else {
 		NumIcons = 0;
-		my_fwrite2(&NumIcons, file_out);
+		gbfputint16(NumIcons, file_out);
 	}
 	
 	/* Track support added 6/21/05 */
@@ -991,7 +1000,7 @@ data_write(void)
 	if (NumTrails && merge)
 	{
 		NumTrails = 1;
-		my_fwrite2(&NumTrails, file_out);
+		gbfputint16(NumTrails, file_out);
 		trail_point_count = 0;
 		trail_count = 0;
 		/* count the number of total track points */
@@ -1004,10 +1013,10 @@ data_write(void)
 	else
 	{
 	
-		my_fwrite2(&NumTrails, file_out);
+		gbfputint16(NumTrails, file_out);
 
 		if (global_opts.debug_level >= 1)
-		printf("LOWRANCE data_write: Num tracks = %d\n", NumTrails);
+			printf(MYNAME " data_write: Num tracks = %d\n", NumTrails);
 
 		if (NumTrails)
 		{

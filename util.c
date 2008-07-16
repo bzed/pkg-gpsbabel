@@ -101,7 +101,7 @@ xcalloc(size_t nmemb, size_t size)
 #endif
 
 	if (!obj) {
-		fatal("gpsbabel: Unable to allocate %ld bytes of memory.\n", (unsigned long) size);
+		fatal("gpsbabel: Unable to allocate %ld units of %ld bytes of memory.\n", (unsigned long) nmemb, (unsigned long) size);
 	}
 
 	return obj;
@@ -300,6 +300,19 @@ xfputs(const char *errtxt, const char *s, FILE *stream)
 int
 xasprintf(char **strp, const char *fmt, ...)
 {
+	va_list args;
+	int res;
+	
+	va_start(args, fmt);
+	res = xvasprintf(strp, fmt, args);
+	va_end(args);
+	
+	return res;
+}
+
+int
+xvasprintf(char **strp, const char *fmt, va_list ap)
+{
 /* From http://perfec.to/vsnprintf/pasprintf.c */
 /* size of first buffer malloc; start small to exercise grow routines */
 #ifdef DEBUG_MEM
@@ -331,7 +344,7 @@ xasprintf(char **strp, const char *fmt, ...)
 			return -1;
 		}
 
-		va_start(args, fmt);
+		va_copy(args, ap);
 		outsize = vsnprintf(buf, bufsize, fmt, args);
 		va_end(args);
 		
@@ -382,6 +395,7 @@ xasprintf(char **strp, const char *fmt, ...)
 	*strp = buf;
 	return outsize;
 }
+
 
 /* 
  * Duplicate a pascal string into a normal C string.
@@ -693,8 +707,22 @@ le_read16(const void *addr)
 	return p[0] | (p[1] << 8);
 }
 
+unsigned int
+le_readu16(const void *addr)
+{
+	const unsigned char *p = addr;
+	return p[0] | (p[1] << 8);
+}
+
 signed int
 le_read32(const void *addr)
+{
+	const unsigned char *p = addr;
+	return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
+}
+
+unsigned int
+le_readu32(const void *addr)
 {
 	const unsigned char *p = addr;
 	return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
@@ -897,6 +925,7 @@ get_cache_icon(const waypoint *waypointp)
 		default:
 			break;
 	}
+
 	switch (waypointp->gc_data.container) {
 		case gc_micro: 
 			return "Micro-Cache";
@@ -904,6 +933,11 @@ get_cache_icon(const waypoint *waypointp)
 		default:
 			break;
 	}
+
+	if (waypointp->gc_data.diff > 1) {
+		return "Geocache";
+	}
+
 	return NULL;
 }
 
@@ -1029,118 +1063,6 @@ double degrees2ddmm(double deg_val) {
 	return (double) (deg * 100.0) + ((deg_val - deg) * 60.0);
 }
 
-/* 
- * Convert string 'str' into geodetic latitide & longitude values. The format
- * will be interpreted depending on 'grid' parameter.
- *
- * return value: number of characters efective parsed
- */
-
-int
-parse_coordinates(const char *str, int datum, const grid_type grid, 
-	double *latitude, double *longitude, const char *module)
-{
-	double lat, lon;
-	unsigned char lathemi, lonhemi;
-	int deg_lat, deg_lon, min_lat, min_lon;
-	char map[3];
-	int utmz;
-	double utme, utmn;
-	char utmc;
-	int valid, result, ct;
-	double lx, ly;
-	const char *format;
-	
-	valid = 1;
-	
-	switch(grid) {
-
-		case grid_lat_lon_ddd:
-			format = "%c%lf %c%lf%n";
-			ct = sscanf(str, format,
-				&lathemi, &lat, &lonhemi, &lon, &result);
-			valid = (ct == 4);
-			break;
-
-		case grid_lat_lon_dmm:
-			format = "%c%d %lf %c%d %lf%n";
-			ct = sscanf(str, format,
-				&lathemi, &deg_lat, &lat, &lonhemi, &deg_lon, &lon, &result);
-			valid = (ct == 6);
-			if (valid) {
-				lat = (double)deg_lat + (lat / (double)60);
-				lon = (double)deg_lon + (lon / (double)60);
-			}
-			break;
-		
-		case grid_lat_lon_dms:
-			format = "%c%d %d %lf %c%d %d %lf%n";
-			ct = sscanf(str, format,
-				&lathemi, &deg_lat, &min_lat, &lat, &lonhemi, &deg_lon, &min_lon, &lon,
-				&result);
-			valid = (ct == 8);
-			if (valid) {
-				lat = (double)deg_lat + ((double)min_lat / (double)60) + (lat / (double)3600.0);
-				lon = (double)deg_lon + ((double)min_lon / (double)60) + (lon / (double)3600.0);
-			}
-			break;
-		
-		case grid_bng:
-			format = "%2s %lf %lf%n";
-			ct = sscanf(str, format,
-				map, &lx, &ly,
-				&result);
-			valid = (ct == 3);
-			if (valid) {
-				if (! GPS_Math_UKOSMap_To_WGS84_M(map, lx, ly, &lat, &lon))
-					fatal("%s: Unable to convert BNG coordinates (%s)!\n",
-						module, str);
-			}
-			datum = DATUM_WGS84;	/* fix */
-			lathemi = lonhemi = '\0';
-			break;
-			
-		case grid_utm:
-			format = "%d %c %lf %lf%n";
-			ct = sscanf(str, format,
-				&utmz, &utmc, &utme, &utmn,
-				&result);
-			valid = (ct == 4);
-			if (valid) {
-				if (! GPS_Math_UTM_EN_To_Known_Datum(&lat, &lon, utme, utmn, utmz, utmc, datum))
-					fatal("%s: Unable to convert UTM coordinates (%s)!\n",
-						module, str);
-			}
-			lathemi = lonhemi = '\0';
-			break;
-			
-		default:
-			/* this should never happen in a release version */
-			fatal("%s/util: Unknown grid in parse_coordinates (%d)!\n",
-				module, (int)grid);
-	}
-	
-	if (! valid) {
-		warning("%s: sscanf error using format \"%s\"!\n", module, format);
-		warning("%s: parsing has stopped at parameter number %d.\n", module, ct);
-		fatal("%s: could not convert coordinates \"%s\"!\n", module, str);
-	}
-	
-	if (lathemi == 'S') lat = -lat;
-	if (lonhemi == 'W') lon = -lon;
-
-	if (datum != DATUM_WGS84) {
-		double alt;
-		GPS_Math_Known_Datum_To_WGS84_M(lat, lon, (double) 0.0,
-			&lat, &lon, &alt, datum);
-	}
-
-	if (latitude) *latitude = lat;
-	if (longitude) *longitude = lon;
-		
-	return result;
-}
-
 /*
  * replace a single occurrence of "search" in  "s" with "replace".
  * Returns an allocated copy if substitution was made, otherwise returns NULL.
@@ -1181,14 +1103,30 @@ strsub(const char *s, const char *search, const char *replace)
 char *
 gstrsub(const char *s, const char *search, const char *replace)
 {
-	char *o = xstrdup(s);
+	int ooffs = 0;
+	char *o, *c;
+	char *src = (char *)s;
+	int olen = strlen(src);
+	int slen = strlen(search);
+	int rlen = strlen(replace);
 
-	while (strstr(o, search)) {
-		char *oo = o;
-		o = strsub(o, search, replace);
-		xfree(oo);
+	o = xmalloc(olen + 1);
+	
+	while ((c = strstr(src, search))) {
+		olen += (rlen - slen);
+		o = xrealloc(o, olen + 1);
+		memcpy(o + ooffs, src, c - src);
+		ooffs += (c - src);
+		src = c + slen;
+		if (rlen) {
+			memcpy(o + ooffs, replace, rlen);
+			ooffs += rlen;
+		}
 	}
 
+	if (ooffs < olen)
+		memcpy(o + ooffs, src, olen - ooffs);
+	o[olen] = '\0';
 	return o;
 }
 
