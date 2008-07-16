@@ -4,6 +4,7 @@
 	Version="8.00"
 	Name="GPSBabel"
 	ProjectGUID="{EB2609DB-5800-45B2-BCB2-06D72F389DCA}"
+	RootNamespace="GPSBabel"
 	>
 	<Platforms>
 		<Platform
@@ -356,6 +357,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\avltree.c"
+				>
+			</File>
+			<File
 				RelativePath="..\axim_gpb.c"
 				>
 			</File>
@@ -500,6 +505,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\dg-100.c"
+				>
+			</File>
+			<File
 				RelativePath="..\delgpl.c"
 				>
 				<FileConfiguration
@@ -534,6 +543,10 @@
 						PreprocessorDefinitions=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\destinator.c"
+				>
 			</File>
 			<File
 				RelativePath="..\discard.c"
@@ -616,11 +629,11 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\fatal.c"
+				RelativePath="..\exif.c"
 				>
 			</File>
 			<File
-				RelativePath="..\filter_skeleton.c"
+				RelativePath="..\fatal.c"
 				>
 			</File>
 			<File
@@ -1156,6 +1169,9 @@
 				>
 			</File>
 			<File
+				RelativePath="..\ik3d.c">
+			</File>
+			<File
 				RelativePath="..\inifile.c"
 				>
 			</File>
@@ -1205,6 +1221,10 @@
 			</File>
 			<File
 				RelativePath="Expat\libexpat.lib"
+				>
+			</File>
+			<File
+				RelativePath="..\lmx.c"
 				>
 			</File>
 			<File
@@ -1476,6 +1496,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\mtk_logger.c"
+				>
+			</File>
+			<File
 				RelativePath="..\navicache.c"
 				>
 				<FileConfiguration
@@ -1510,6 +1534,10 @@
 						PreprocessorDefinitions=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\navilink.c"
+				>
 			</File>
 			<File
 				RelativePath="..\netstumbler.c"
@@ -1592,6 +1620,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\osm.c"
+				>
+			</File>
+			<File
 				RelativePath="..\overlay.c"
 				>
 			</File>
@@ -1666,6 +1698,10 @@
 						PreprocessorDefinitions=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\parse.c"
+				>
 			</File>
 			<File
 				RelativePath="..\pathaway.c"
@@ -1929,6 +1965,10 @@
 			</File>
 			<File
 				RelativePath="..\radius.c"
+				>
+			</File>
+			<File
+				RelativePath="..\random.c"
 				>
 			</File>
 			<File
@@ -2564,6 +2604,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\xol.c"
+				>
+			</File>
+			<File
 				RelativePath="..\yahoo.c"
 				>
 			</File>
@@ -3077,6 +3121,10 @@
 			Filter="h;hpp;hxx;hm;inl"
 			>
 			<File
+				RelativePath="..\avltree.h"
+				>
+			</File>
+			<File
 				RelativePath=".\config.h"
 				>
 			</File>
@@ -3098,6 +3146,14 @@
 			</File>
 			<File
 				RelativePath="..\jeeps\gpsdevice.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gbfile.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gbtypes.h"
 				>
 			</File>
 			<File
@@ -3127,6 +3183,9 @@
 			<File
 				RelativePath="..\quovadis.h"
 				>
+			</File>
+			<File
+				RelativePath="..\uuid.h">
 			</File>
 			<Filter
 				Name="Jeeps-Headers"

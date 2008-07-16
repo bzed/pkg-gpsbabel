@@ -35,12 +35,16 @@ static GPS_PWay *tx_routelist;
 static GPS_PWay *cur_tx_routelist_entry;
 static GPS_PTrack *tx_tracklist;
 static GPS_PTrack *cur_tx_tracklist_entry;
+static int my_track_count = 0;
 static char *getposn = NULL;
 static char *poweroff = NULL;
+static char *resettime = NULL;
 static char *snlen = NULL;
 static char *snwhiteopt = NULL;
 static char *deficon = NULL;
 static char *category = NULL;
+static char *categorybitsopt = NULL;
+static int categorybits;
 
 #define MILITANT_VALID_WAYPT_CHARS "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
@@ -58,8 +62,12 @@ arglist_t garmin_args[] = {
 		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 	{ "power_off", &poweroff, "Command unit to power itself down", 
 		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+	{ "resettime", &resettime, "Sync GPS time to computer time", 
+		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
 	{ "category", &category, "Category number to use for written waypoints", 
 		NULL, ARGTYPE_INT, "1", "16"},
+	{ "bitscategory", &categorybitsopt, "Bitmap of categories", 
+		NULL, ARGTYPE_INT, "1", "65535"},
 	ARG_TERMINATOR
 };
 
@@ -88,6 +96,20 @@ rw_init(const char *fname)
 	if (poweroff) {
 		GPS_Command_Off(fname);
 		return;
+	}
+
+	/*
+ 	 * THis is Gross. The B&W Vista sometimes sets its time decades into
+	 * the future with no way to reset it.  This apparently can "cure"
+	 * an affected unit.
+	 */
+	if (resettime) {
+		GPS_Command_Send_Time(fname, current_time());
+		return;
+	}
+
+	if (categorybitsopt) {
+		categorybits = strtol(categorybitsopt, NULL, 0);
 	}
 
         if (GPS_Init(fname) < 0) {
@@ -135,8 +157,8 @@ rw_init(const char *fname)
 				case 130:	/* Garmin Etrex (yellow) */
 					receiver_short_length = 6;
 					break;
-				case 295:
-					/* eTrex (yellow, firmware v. 3.30) */
+				case 295: 	/* eTrex (yellow, fw v. 3.30) */
+				case 696: 	/* eTrex HC */
 					receiver_short_length = 6;
 					valid_waypt_chars =
 					  MILITANT_VALID_WAYPT_CHARS " +-";
@@ -152,13 +174,21 @@ rw_init(const char *fname)
 					receiver_short_length = 30;
 					receiver_must_upper = 0;
 					break;
-				case 292: /* (60|76)C[s]X series */
-				case 421: /* Vista|Legend CX */
+				case 292: /* (60|76)C[S]x series */
+				case 421: /* Vista|Legend Cx */
+				case 694: /* Legend HCx */
+				case 695: /* Vista HCx */
+				case 786: /* HC model */
 					receiver_short_length = 14;
 					snwhiteopt = xstrdup("1");
 					receiver_must_upper = 0;
 					/* This might be 8859-1 */
 					receiver_charset = CET_CHARSET_MS_ANSI;
+					break;
+				case 291: /* GPSMAP 60CS, probably others */
+					receiver_short_length = 10;
+					valid_waypt_chars = MILITANT_VALID_WAYPT_CHARS " +-";
+					setshort_badchars(mkshort_handle, "\"$.,'!");
 					break;
 				case 231: /* Quest */
 				case 463: /* Quest 2 */
@@ -210,6 +240,8 @@ rw_init(const char *fname)
 
 	if (receiver_charset)
 		cet_convert_init(receiver_charset, 1);
+
+
 }
 
 static void
@@ -236,13 +268,15 @@ static void
 waypt_read(void)
 {
 	int i,n;
-	GPS_PWay *way;
+	GPS_PWay *way = NULL;
 
 	if (getposn) {
 		waypoint *wpt = waypt_new();
 		wpt->latitude = gps_save_lat;
 		wpt->longitude = gps_save_lon;
 		wpt->shortname = xstrdup("Position");
+		if (gps_save_time)
+			wpt->creation_time = gps_save_time;
 		waypt_add(wpt);
 		return;
 	}
@@ -295,7 +329,9 @@ waypt_read(void)
 		waypt_add(wpt_tmp);
 		GPS_Way_Del(&way[i]);
 	}
-	xfree(way);
+	if (way) {
+		xfree(way);
+	}
 }
 
 static
@@ -729,16 +765,27 @@ waypoint_write(void)
 		}
 		way[i]->ident[sizeof(way[i]->ident)-1] = 0;
 
-		if (global_opts.smart_names && 
-		     wpt->gc_data.diff && wpt->gc_data.terr) {
-	                snprintf(obuf, sizeof(obuf), "%s%d/%d %s", 
-					get_gc_info(wpt),
-					wpt->gc_data.diff, wpt->gc_data.terr, 
-					src);
-			memcpy(way[i]->cmnt, obuf, strlen(obuf));
-		} else  {
-			memcpy(way[i]->cmnt, src, strlen(src));
+		// If we were explictly given a comment from GPX, use that. 
+		if (wpt->description) {
+			memcpy(way[i]->cmnt, wpt->description, strlen(wpt->description));
+		} else {
+			if (global_opts.smart_names && 
+			     wpt->gc_data.diff && wpt->gc_data.terr) {
+#if 0
+xasprintf(&src, "%s %s", &wpt->shortname[2], src);
+#endif
+				snprintf(obuf, sizeof(obuf), "%s%d/%d %s", 
+						get_gc_info(wpt),
+						wpt->gc_data.diff, wpt->gc_data.terr, 
+						src);
+				memcpy(way[i]->cmnt, obuf, strlen(obuf));
+			} else  {
+				memcpy(way[i]->cmnt, src, strlen(src));
+			}
 		}
+
+		
+
 		way[i]->lon = wpt->longitude;
 		way[i]->lat = wpt->latitude;
 
@@ -771,6 +818,9 @@ waypoint_write(void)
 		}
 		if (category) {
 			way[i]->category = 1 << (atoi(category) - 1);
+		}
+		if (categorybits) {
+			way[i]->category = categorybits;
 		}
 #if SOON
 		garmin_fs_garmin_before_write(wpt, way[i], gps_waypt_type);
@@ -807,6 +857,7 @@ static void
 route_waypt_pr(const waypoint *wpt)
 {
 	GPS_PWay rte = *cur_tx_routelist_entry;
+ 	char *s, *d;
 
 	/*
 	 * As stupid as this is, libjeeps seems to want an empty 
@@ -830,7 +881,20 @@ route_waypt_pr(const waypoint *wpt)
 		rte->alt_is_unknown = 1;
 		rte->alt = 0;
 	}
-	strncpy(rte->ident, wpt->shortname, sizeof(rte->ident));
+
+	// Garmin protocol spec says no spaces, no lowercase, etc. in a route.
+	// enforce that here, since jeeps doesn't.
+	// 
+	// This was strncpy(rte->ident, wpt->shortname, sizeof(rte->ident));
+	d = rte->ident;
+	for (s = wpt->shortname; *s; s++) {
+		int c = *s;
+		if (isalpha(c)) c = toupper(c);
+		if (strchr(MILITANT_VALID_WAYPT_CHARS, c)) {
+			*d++ = c;
+		}
+	}
+	
 	rte->ident[sizeof(rte->ident)-1] = 0;
 
 	if (wpt->description) {
@@ -872,8 +936,11 @@ track_hdr_pr(const route_head *trk_head)
 	if ( trk_head->rte_name ) {
 		strncpy((*cur_tx_tracklist_entry)->trk_ident, trk_head->rte_name, sizeof((*cur_tx_tracklist_entry)->trk_ident));
 		(*cur_tx_tracklist_entry)->trk_ident[sizeof((*cur_tx_tracklist_entry)->trk_ident)-1] = 0;
-	}
+	} else {
+		sprintf((*cur_tx_tracklist_entry)->trk_ident, "TRACK%02d", my_track_count);
+        }
 	cur_tx_tracklist_entry++;
+	my_track_count++;
 }
 
 static void
@@ -901,7 +968,7 @@ track_write(void)
 	for (i = 0; i < n; i++) {
 		tx_tracklist[i] = GPS_Track_New();
 	}
-
+	my_track_count = 0;
 	track_disp_all(track_hdr_pr, route_noop, track_waypt_pr);
 
 	GPS_Command_Send_Track(portname, tx_tracklist, n);

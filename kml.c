@@ -21,6 +21,7 @@
  */
 #include "defs.h"
 #include "xmlgeneric.h"
+#include "grtcirc.h"
 
 #ifdef __WIN32__
 # include <windows.h>
@@ -35,6 +36,7 @@ static char *opt_line_color = NULL;
 static char *opt_floating = NULL;
 static char *opt_extrude = NULL;
 static char *opt_trackdata = NULL;
+static char *opt_trackdirection = NULL;
 static char *opt_units = NULL;
 static char *opt_labels = NULL;
 static char *opt_max_position_points = NULL;
@@ -44,6 +46,7 @@ static int export_points;
 static int floating;
 static int extrude;
 static int trackdata;
+static int trackdirection;
 static int max_position_points;
 
 static int indent_level;
@@ -53,13 +56,21 @@ static int wpt_tmp_queued;
 static const char *posnfilename;
 static char *posnfilenametmp;
 
-static FILE *ofd;
+static gbfile *ofd;
 
 typedef struct {
   double latitude;
   double longitude;
   double altitude;
 } point3d;
+
+typedef enum  {
+  kmlpt_unknown,
+  kmlpt_waypoint,
+  kmlpt_track,
+  kmlpt_route,
+  kmlpt_other
+} kml_point_type;
 
 static int      point3d_list_len;
 static point3d *point3d_list;
@@ -68,6 +79,23 @@ static int do_indentation = 1;
 
 #define TD(FMT,DATA) kml_write_xml(0, "<tr><td>" FMT " </td></tr>\n", DATA)
 #define TD2(FMT,DATA, DATA2) kml_write_xml(0, "<tr><td>" FMT " </td></tr>\n", DATA, DATA2)
+
+//  Icons provided and hosted by Google.  Used with permission.
+#define ICON_BASE "http://earth.google.com/images/kml-icons/"
+
+static const char kml22_hdr[] =  
+	"<kml xmlns=\"http://earth.google.com/kml/2.2\"\n"
+	"\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n";
+// 	No "baked in" schemaLocation, per Google recommendation.
+//	"\txsi:schemaLocation=\"http://earth.google.com/kml/2.2 \n"
+//	"\thttp://code.google.com/apis/kml/schema/kml22beta.xsd\">\n";
+	
+static const char kml21_hdr[] =  
+	"<kml xmlns=\"http://earth.google.com/kml/2.1\"\n"
+	"\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n";
+// 	No "baked in" schemaLocation, per Google recommendation.
+//	"\txsi:schemaLocation=\"http://earth.google.com/kml/2.1 \n"
+//	"\thttp://code.google.com/apis/kml/schema/kml21.xsd\">\n";
 
 static
 arglist_t kml_args[] = {
@@ -83,7 +111,7 @@ arglist_t kml_args[] = {
          "6", ARGTYPE_INT, ARG_NOMINMAX },
 	{"line_color", &opt_line_color, 
          "Line color, specified in hex AABBGGRR",
-         "64eeee17", ARGTYPE_STRING, ARG_NOMINMAX },
+         "99ffac59", ARGTYPE_STRING, ARG_NOMINMAX },
 	{"floating", &opt_floating, 
 	 "Altitudes are absolute and not clamped to ground", 
 	 "0", ARGTYPE_BOOL, ARG_NOMINMAX },
@@ -93,6 +121,9 @@ arglist_t kml_args[] = {
 	{"trackdata", &opt_trackdata, 
 	 "Include extended data for trackpoints (default = 1)", 
 	 "1", ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"trackdirection", &opt_trackdirection, 
+	 "Indicate direction of travel in track icons (default = 0)", 
+	 "0", ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"units", &opt_units, 
 	 "Units used when writing comments ('s'tatute or 'm'etric)", 
 	 "s", ARGTYPE_STRING, ARG_NOMINMAX },
@@ -110,10 +141,16 @@ struct {
 	int freshness;
 	char *icon;
 } kml_tracking_icons[] = {
- { 60, "http://maps.google.com/mapfiles/kml/pal4/icon15.png" }, // Red
- { 30, "http://maps.google.com/mapfiles/kml/pal4/icon31.png" }, // Yellow
- { 0, "http://maps.google.com/mapfiles/kml/pal4/icon62.png" }, // Green
+ { 60, ICON_BASE "youarehere-60.png" }, // Red
+ { 30, ICON_BASE "youarehere-30.png" }, // Yellow
+ { 0,  ICON_BASE "youarehere-0.png" }, // Green
 };
+
+#define ICON_NOSAT ICON_BASE "youarehere-warning.png";    
+#define ICON_WPT "http://maps.google.com/mapfiles/kml/pal4/icon61.png"
+#define ICON_TRK ICON_BASE "track-directional/track-none.png"
+#define ICON_RTE ICON_BASE "track-directional/track-none.png"    
+#define ICON_DIR ICON_BASE "track-directional/track-%d.png" // format string where next arg is rotational degrees.
 
 #define MYNAME "kml"
 
@@ -130,8 +167,8 @@ kml_read(void)
 }
 #else
 
-static xg_callback	wpt_s, wpt_e;
-static xg_callback	wpt_name, wpt_desc, wpt_coord, wpt_icon, trk_coord;
+static xg_callback wpt_s, wpt_e;
+static xg_callback wpt_name, wpt_desc, wpt_coord, wpt_icon, trk_coord, wpt_time;
 
 static 
 xg_tag_mapping kml_map[] = {
@@ -139,9 +176,12 @@ xg_tag_mapping kml_map[] = {
 	{ wpt_e, 	cb_end, 	"/Placemark" },
 	{ wpt_name, 	cb_cdata, 	"/Placemark/name" },
 	{ wpt_desc, 	cb_cdata, 	"/Placemark/description" },
+	{ wpt_time, 	cb_cdata, 	"/Placemark/TimeStamp/when" },
 	{ wpt_coord, 	cb_cdata, 	"/Placemark/Point/coordinates" },
 	{ wpt_icon, 	cb_cdata, 	"/Placemark/Style/Icon/href" },
 	{ trk_coord, 	cb_cdata, 	"/Placemark/MultiGeometry/LineString/coordinates" },
+	{ trk_coord, 	cb_cdata, 	"/Placemark/GeometryCollection/LineString/coordinates" },
+	{ trk_coord, 	cb_cdata,	"/Placemark/Polygon/outerBoundaryIs/LinearRing/coordinates" },
 	{ trk_coord, 	cb_cdata, 	"/Placemark/LineString/coordinates" },
 	{ NULL, 	0, 		NULL }
 };
@@ -187,6 +227,11 @@ void wpt_desc(const char *args, const char **unused)
 	}
 }
 
+void wpt_time(const char *args, const char **unused)
+{
+	wpt_tmp->creation_time = xml_parse_time(args, &wpt_tmp->microseconds);
+}
+
 void wpt_coord(const char *args, const char **attrv)
 {
 	sscanf(args, "%lf,%lf,%lf", &wpt_tmp->longitude, &wpt_tmp->latitude, &wpt_tmp->altitude);
@@ -208,9 +253,12 @@ void trk_coord(const char *args, const char **attrv)
 	waypoint *trkpt;
 
 	route_head *trk_head = route_head_alloc();
+	if (wpt_tmp->shortname) {
+		trk_head->rte_name  = xstrdup(wpt_tmp->shortname);
+	}
 	track_add_head(trk_head);
 	
-	while (3 == sscanf(args,"%lf,%lf,%lf %n", &lon, &lat, &alt, &consumed)){
+	while (3 == sscanf(args, "%lf,%lf,%lf %n", &lon, &lat, &alt, &consumed)){
 		trkpt = waypt_new();	
 		trkpt->latitude = lat;
 		trkpt->longitude = lon;
@@ -261,7 +309,7 @@ kml_wr_init(const char *fname)
 	/*
 	 * Reduce race conditions with network read link.
 	 */	
-	ofd = xfopen(fname, "w", MYNAME);
+	ofd = gbfopen(fname, "w", MYNAME);
 }
 
 /* 
@@ -287,7 +335,7 @@ kml_wr_position_init(const char *fname)
 static void
 kml_wr_deinit(void)
 {
-	fclose(ofd);
+	gbfclose(ofd);
 
 	if (posnfilenametmp) {
 #if __WIN32__
@@ -326,11 +374,11 @@ kml_write_xml(int indent, const char *fmt, ...)
 
 	if (fmt[1] != '!' && do_indentation) {
 		for (i = 0; i < indent_level; i++) {
-			fputs("  ", ofd);
+			gbfputs("  ", ofd);
 		}
 	}
 
-	vfprintf(ofd, fmt, args);
+	gbvfprintf(ofd, fmt, args);
 
 	if (indent > 0) indent_level++;
 
@@ -348,23 +396,27 @@ kml_write_xmle(const char *tag, const char *v)
 	if (v && *v) {
 		char *tmp_ent = xml_entitize(v);
 		for (i = 0; i < indent_level; i++) {
-			fputs("  ", ofd);
+			gbfputs("  ", ofd);
 		}
-		fprintf(ofd, "<%s>%s</%s>\n",tag, tmp_ent, tag);
+		gbfprintf(ofd, "<%s>%s</%s>\n",tag, tmp_ent, tag);
 		xfree(tmp_ent);
 	}
 }
 
 #define hovertag(h) h ? 'h' : 'n'
 static void kml_write_bitmap_style_(const char *style, const char * bitmap, 
-				       int highlighted)
+				    int highlighted, int force_heading)
 {
-	kml_write_xml(0,"<!-- %s %s style -->\n", 
+	kml_write_xml(0, "<!-- %s %s style -->\n", 
 		highlighted ? "Highlighted" : "Normal", style);
 	kml_write_xml(1, "<Style id=\"%s_%c\">\n", style, hovertag(highlighted));
 	kml_write_xml(1, "<IconStyle>\n");
 	if (highlighted) {
 		kml_write_xml(0, "<scale>1.2</scale>\n");
+	}
+	/* Our icons are pre-rotated, so nail them to the maps. */
+	if (force_heading) {
+		kml_write_xml(0, "<heading>0</heading>\n");
 	}
 	kml_write_xml(1, "<Icon>\n");
 	kml_write_xml(0, "<href>%s</href>\n", bitmap);
@@ -377,10 +429,21 @@ static void kml_write_bitmap_style_(const char *style, const char * bitmap,
  * and non-highlighted version of the style to allow the icons
  * to magnify slightly on a rollover.
  */
-static void kml_write_bitmap_style(const char *style, const char *bitmap)
+static void kml_write_bitmap_style(kml_point_type pt_type, const char *bitmap,
+				  const char *customstyle)
 {
-	kml_write_bitmap_style_(style, bitmap, 0);
-	kml_write_bitmap_style_(style, bitmap, 1);
+	int force_heading = 0;
+	const char *style;
+	switch (pt_type) {
+		case kmlpt_track: style = "track"; break;
+		case kmlpt_route: style = "route"; break;
+		case kmlpt_waypoint: style = "waypoint"; break;
+		case kmlpt_other: style = customstyle; force_heading = 1; break;
+		default: fatal("kml_output_point: unknown point type"); break;
+	}
+
+	kml_write_bitmap_style_(style, bitmap, 0, force_heading);
+	kml_write_bitmap_style_(style, bitmap, 1, force_heading);
 
 	kml_write_xml(1, "<StyleMap id=\"%s\">\n", style);
 	kml_write_xml(1, "<Pair>\n");
@@ -437,10 +500,10 @@ void kml_output_trkdescription(const route_head *header, computed_trkdata *td)
 	}
 	TD2("<b>Distance</b> %.1f %s", distance, distance_units);
 	if (min_alt != unknown_alt) {
-		TD2("<b>Min Alt</b> %.1f %s", min_alt, min_alt_units);
+		TD2("<b>Min Alt</b> %.3f %s", min_alt, min_alt_units);
 	}
 	if (max_alt != unknown_alt) {
-		TD2("<b>Max Alt</b> %.1f %s", max_alt, max_alt_units);
+		TD2("<b>Max Alt</b> %.3f %s", max_alt, max_alt_units);
 	}
 	if (td->min_spd) {
 		char *spd_units;
@@ -451,6 +514,14 @@ void kml_output_trkdescription(const route_head *header, computed_trkdata *td)
 		char *spd_units;
 		double spd = fmt_speed(td->max_spd, &spd_units);
 		TD2("<b>Max Speed</b> %.1f %s", spd, spd_units);
+	}
+	if (td->max_spd && td->start && td->end) {
+		char *spd_units;
+		time_t elapsed = td->end - td->start;
+		double spd = fmt_speed(td->distance_meters / elapsed, &spd_units);
+		if (spd > 1.0)  {
+			TD2("<b>Avg Speed</b> %.1f %s", spd, spd_units);
+		}
 	}
 	if (td->avg_hrt) {
 		TD("<b>Avg Heart Rate</b> %.1f bpm", td->avg_hrt);
@@ -471,9 +542,9 @@ void kml_output_trkdescription(const route_head *header, computed_trkdata *td)
 		char time_string[64];
 
 		xml_fill_in_time(time_string, td->start, 0, XML_LONG_TIME);
-		TD("<b>Start Time:</b> %s ", time_string);
+		TD("<b>Start Time</b> %s ", time_string);
 		xml_fill_in_time(time_string, td->end, 0, XML_LONG_TIME);
-		TD("<b>End Time:</b> %s ", time_string);
+		TD("<b>End Time</b> %s ", time_string);
 	}
 
 	kml_write_xml(-1, "</table>]]>\n");
@@ -537,12 +608,12 @@ static void kml_output_description(const waypoint *pt)
 
 	alt = fmt_distance(pt->altitude, &alt_units);
 
-	kml_write_xml(1,"<description><![CDATA[\n");
-	kml_write_xml(1,"<table>\n");
+	kml_write_xml(1, "<description><![CDATA[\n");
+	kml_write_xml(1, "<table>\n");
 
 	TD("Longitude: %f", pt->longitude);
 	TD("Latitude: %f", pt->latitude);
-	if (pt->altitude != unknown_alt) TD2("Altitude: %.1f %s", alt, alt_units);
+	if (pt->altitude != unknown_alt) TD2("Altitude: %.3f %s", alt, alt_units);
 	if (pt->heartrate) TD("Heart rate: %d", pt->heartrate);
 	if (pt->cadence) TD("Cadence: %d", pt->cadence);
 	if WAYPT_HAS(pt, temperature) TD("Temperature: %.1f", pt->temperature);
@@ -569,11 +640,24 @@ static void kml_output_description(const waypoint *pt)
 	kml_write_xml(-1, "]]></description>\n");
 }
 
-static void kml_output_point(const waypoint *waypointp, const char *style)
+static void kml_output_point(const waypoint *waypointp, kml_point_type pt_type)
 {
+  char *style;
   // Save off this point for later use
   point3d *pt = &point3d_list[point3d_list_len];
   point3d_list_len++;
+
+  switch (pt_type) {
+    case kmlpt_track: style = "#track"; break;
+    case kmlpt_route: style = "#route"; break;
+    default: fatal("kml_output_point: unknown point type"); break;
+  }
+
+  switch (pt_type) {
+    case kmlpt_track: style = "#track"; break;
+    case kmlpt_route: style = "#route"; break;
+    default: fatal("kml_output_point: unknown point type"); break;
+  }
 
   pt->longitude = waypointp->longitude;
   pt->latitude = waypointp->latitude;
@@ -588,13 +672,25 @@ static void kml_output_point(const waypoint *waypointp, const char *style)
 	kml_output_description(waypointp);
 	kml_output_lookat(waypointp);
 	kml_output_timestamp(waypointp);
-	kml_write_xml(0, "<styleUrl>%s</styleUrl>\n", style);
+
+	if (trackdirection && (pt_type == kmlpt_track)) {
+		char buf[100];
+		if (waypointp->speed < 1) 
+			snprintf(buf, sizeof(buf), "%s-none", style);
+		else
+			snprintf(buf, sizeof(buf), "%s-%d", style, 
+				(int) (waypointp->course / 22.5 + .5) % 16);
+		kml_write_xml(0, "<styleUrl>%s</styleUrl>\n", buf);
+	} else {
+		kml_write_xml(0, "<styleUrl>%s</styleUrl>\n", style);
+	}
+
 	kml_write_xml(1, "<Point>\n");
         if (floating) {
-          kml_write_xml(0, "<altitudeMode>absolute</altitudeMode>\n");
+		kml_write_xml(0, "<altitudeMode>absolute</altitudeMode>\n");
         }
 	if (extrude) {
-	  kml_write_xml(0, "<extrude>1</extrude>\n");
+		kml_write_xml(0, "<extrude>1</extrude>\n");
 	}
 	kml_write_xml(0, "<coordinates>%f,%f,%f</coordinates>\n",
 		pt->longitude, pt->latitude, pt->altitude);
@@ -611,14 +707,13 @@ static void kml_output_tailer(const route_head *header)
   int i;
 
   if (export_points && point3d_list_len > 0) {
-    kml_write_xml(-1,"</Folder>\n");
+    kml_write_xml(-1, "</Folder>\n");
   }
   
   // Add a linestring for this track?
   if (export_lines && point3d_list_len > 0) {
     kml_write_xml(1, "<Placemark>\n");
     kml_write_xml(0, "<name>Path</name>\n");
-//    fprintf(ofd, "\t  <MultiGeometry>\n");
     kml_write_xml(0, "<styleUrl>#lineStyle</styleUrl>\n");
     kml_write_xml(1, "<LineString>\n");
     if (floating) {
@@ -635,9 +730,8 @@ static void kml_output_tailer(const route_head *header)
               point3d_list[i].latitude,
               point3d_list[i].altitude);
     
-    kml_write_xml(-1,"</coordinates>\n");
+    kml_write_xml(-1, "</coordinates>\n");
     kml_write_xml(-1, "</LineString>\n");
-//    fprintf(ofd, "\t  </MultiGeometry>\n");
     kml_write_xml(-1, "</Placemark>\n");
   }
   
@@ -647,6 +741,29 @@ static void kml_output_tailer(const route_head *header)
   if (!realtime_positioning)  {
     kml_write_xml(-1, "</Folder>\n");
   }
+}
+
+/*
+ * Completely different writer for geocaches.
+ */	
+static 
+void kml_gc_make_ballonstyle(void) 
+{
+	// BalloonStyle for Geocaches.
+	kml_write_xml(1, "<Style id=\"geocache\"><BalloonStyle><text><![CDATA[\n");
+	kml_write_xml(0, "<a href=\"http://www.geocaching.com\"><img src=\"http://www.geocaching.com/images/nav/logo_sub.gif\"> </a>\n");
+
+	kml_write_xml(0, "<p><a href=\"http://www.geocaching.com/seek/cache_details.aspx?wp=$[gc_num]\"><b>$[gc_num]</b></a> <b>$[gc_name]</b> \n");
+	kml_write_xml(0, "a $[gc_type], by <b>$[gc_placer]</b> [<a href=\"http://www.geocaching.com/profile?id=$[gc_placer_id]\">profile</a>]<br/>\n");
+	kml_write_xml(0, "(ratings out of 5 stars. 1 is easiest, 5 is hardest)<br/>\n");
+	kml_write_xml(0, "Difficulty: <img src=\"http://www.geocaching.com/images/stars/$[gc_diff_stars].gif\" alt=\"$[gc_diff]\" width=\"61\" height=\"13\">\n");
+	kml_write_xml(0, "&nbsp;Terrain: <img src=\"http://www.geocaching.com/images/stars/$[gc_terr_stars].gif\" alt=\"$[gc_terr]\" width=\"61\" height=\"13\"><br />\n");
+	kml_write_xml(0, "Size: <img src=\"http://www.geocaching.com/images/icons/container/$[gc_cont_icon].gif\" width=\"45\" height=\"12\">&nbsp;($[gc_cont_icon])<br />\n");
+
+	kml_write_xml(0, "$[gc_issues]\n");
+	kml_write_xml(0, "$[gc_short_desc]\n");
+	kml_write_xml(0, "$[gc_long_desc]\n");
+	kml_write_xml(-1, "]]></text></BalloonStyle></Style>\n");
 }
 
 static 
@@ -679,6 +796,116 @@ kml_lookup_gc_icon(const waypoint *waypointp)
 	return rb;
 }
 
+static 
+char *
+kml_lookup_gc_container(const waypoint *waypointp)
+{
+	char *cont;
+
+	switch (waypointp->gc_data.container) {
+		case gc_micro: cont="micro"; break;
+		case gc_regular: cont="regular"; break;
+		case gc_large: cont="large"; break;
+		case gc_small: cont="small"; break;
+		case gc_virtual: cont="virtual"; break;
+		case gc_other: cont="other"; break;
+		default: cont="not_chosen"; break;
+	}
+
+	return cont;
+}
+
+// Not thread safe.  Return strings are small and it's silly to xasprintf/free
+// them so we use a static buffer.
+
+char * kml_gc_mkstar(int rating)
+{
+	static char tmp[40];
+	if (0 == rating % 10) {
+		snprintf(tmp, sizeof(tmp), "stars%d", rating / 10);
+	} else {
+		snprintf(tmp, sizeof(tmp), "stars%d_%d", rating / 10, rating % 10);
+	}
+
+	return tmp;
+}
+
+static void kml_geocache_pr(const waypoint *waypointp)
+{
+	char *p, *is;
+	double lat = waypointp->latitude;
+	double lng = waypointp->longitude;
+// optionally "fuzz" lat/lng here.
+
+	kml_write_xml(1, "<Placemark>\n");
+
+	kml_write_xml(1, "<name>\n");
+	kml_write_xml(0, "<![CDATA[%s]]>\n", waypointp->url_link_text);
+	kml_write_xml(-1, "</name>\n");
+
+	// Timestamp
+	kml_output_timestamp(waypointp);
+
+	kml_write_xml(0, "<styleUrl>#geocache</styleUrl>\n");
+	is = kml_lookup_gc_icon(waypointp);
+	kml_write_xml(1, "<Style>\n");
+	kml_write_xml(1, "<IconStyle>\n");
+	kml_write_xml(1, "<Icon>\n");
+	kml_write_xml(0, "<href>%s</href>\n", is);
+	kml_write_xml(-1, "</Icon>\n");
+	kml_write_xml(-1, "</IconStyle>\n");
+	kml_write_xml(-1, "</Style>\n");
+
+	kml_write_xml(1, "<ExtendedData>\n");
+	kml_write_xml(0, "<Data name=\"gc_num\"><value>%s</value></Data>\n", waypointp->shortname);
+
+	if(waypointp->url_link_text) {
+		p = xml_entitize(waypointp->url_link_text);
+		kml_write_xml(0, "<Data name=\"gc_name\"><value>%s</value></Data>\n", p);
+		xfree(p);
+	}
+
+	if (waypointp->gc_data.placer) {
+		p = xml_entitize(waypointp->gc_data.placer);
+		kml_write_xml(0, "<Data name=\"gc_placer\"><value>%s</value></Data>\n", p);
+		xfree(p);
+	}
+
+	kml_write_xml(0, "<Data name=\"gc_placer_id\"><value>%d</value></Data>\n", waypointp->gc_data.placer_id);
+
+	kml_write_xml(0, "<Data name=\"gc_diff_stars\"><value>%s</value></Data>\n", kml_gc_mkstar(waypointp->gc_data.diff));
+	kml_write_xml(0, "<Data name=\"gc_terr_stars\"><value>%s</value></Data>\n", kml_gc_mkstar(waypointp->gc_data.terr));
+
+	kml_write_xml(0, "<Data name=\"gc_cont_icon\"><value>%s</value></Data>\n", kml_lookup_gc_container(waypointp));
+
+ 	 // Highlight any issues with the cache, such as temp unavail 
+	 // or archived.
+	kml_write_xml(0, "<Data name=\"gc_issues\"><value>");
+	if (waypointp->gc_data.is_archived == status_true) {
+		kml_write_xml(0, "&lt;font color=\"red\"&gt;This cache has been archived.&lt;/font&gt;<br/>\n");
+	} else if (waypointp->gc_data.is_available == status_false) {
+		kml_write_xml(0, "&lt;font color=\"red\"&gt;This cache is temporarily unavailable.&lt;/font&gt;<br/>\n");
+	}
+	kml_write_xml(0, "</value></Data>\n");
+
+	kml_write_xml(0, "<Data name=\"gc_type\"><value>%s</value></Data>\n", gs_get_cachetype(waypointp->gc_data.type));
+	kml_write_xml(0, "<Data name=\"gc_short_desc\"><value><![CDATA[%s]]></value></Data>\n", waypointp->gc_data.desc_short.utfstring ? waypointp->gc_data.desc_short.utfstring : "");
+	kml_write_xml(0, "<Data name=\"gc_long_desc\"><value><![CDATA[%s]]></value></Data>\n", waypointp->gc_data.desc_long.utfstring ? waypointp->gc_data.desc_long.utfstring : "");
+	
+	kml_write_xml(-1, "</ExtendedData>\n");
+
+	// Location
+	kml_write_xml(1, "<Point>\n");
+	kml_write_xml(0, "<coordinates>%f,%f,%f</coordinates>\n",
+		lng, lat,
+		waypointp->altitude == unknown_alt ? 0.0 : waypointp->altitude);
+
+	kml_write_xml(-1, "</Point>\n");
+	kml_write_xml(-1, "</Placemark>\n");
+
+	xfree(is);
+}
+
 /*
  * WAYPOINTS
  */
@@ -687,6 +914,21 @@ static void kml_waypt_pr(const waypoint *waypointp)
 {
 	const char *icon;
 
+#if 0 // Experimental
+	if(realtime_positioning) {
+		kml_write_xml(1, "<LookAt>\n");
+		kml_write_xml(0, "<longitude>%f</longitude>\n", waypointp->longitude);
+		kml_write_xml(0, "<latitude>%f</latitude>\n", waypointp->latitude);
+		kml_write_xml(0, "<altitude>1000</altitude>\n");
+		kml_write_xml(-1, "</LookAt>\n");
+	}
+#endif
+
+	if (waypointp->gc_data.diff && waypointp->gc_data.terr) {
+		kml_geocache_pr(waypointp);
+		return;
+	}
+
 	kml_write_xml(1, "<Placemark>\n");
 
 	kml_write_xmle("name", waypointp->shortname);
@@ -694,40 +936,16 @@ static void kml_waypt_pr(const waypoint *waypointp)
 	// Description
 	if (waypointp->url && waypointp->url[0]) {
 		char * odesc = xml_entitize(waypointp->url);
-		kml_write_xml(0,"<Snippet/>\n");
-		kml_write_xml(0,"<description>\n");
+		kml_write_xml(0, "<Snippet/>\n");
+		kml_write_xml(0, "<description>\n");
 		if (waypointp->url_link_text && waypointp->url_link_text[0])  {
 			char *olink = xml_entitize(waypointp->url_link_text);
-			kml_write_xml(0,"<![CDATA[<a href=\"%s\">%s</a>]]>", odesc, olink);
+			kml_write_xml(0, "<![CDATA[<a href=\"%s\">%s</a>]]>", odesc, olink);
 			xfree(olink);
+		} else {
+			gbfputs(odesc, ofd);
 		}
-		else
-			fputs(odesc, ofd);
 
-		/* It's tempting to conditionalize this on smart_names, but
-		 * KML is so robust that it makes sense to just always do
-		 * this for geocaches.  (Plus the convenience of being able
-		 * to do a drag-n-drop into Earth without extra option is a 
-		 * win.)
-		 */
-		if (waypointp->gc_data.diff && waypointp->gc_data.terr) {
-			if (waypointp->gc_data.placer) {
-				char *p = xml_entitize(waypointp->gc_data.placer);
-				fprintf(ofd, "<![CDATA[<i> by %s</i>]]>", p);
-				xfree(p);
-			}
-			fprintf(ofd, " %s (%3.1f/%3.1f)", 
-				gs_get_container(waypointp->gc_data.container),
-				waypointp->gc_data.diff / 10.0,  
-				waypointp->gc_data.terr / 10.0);
-			if (waypointp->gc_data.desc_short.utfstring) {
-				// Dont entitize it - either XML or HTML.
-				// Wrap it in a cdata and let Earth work it out.
-
-				fprintf(ofd, "<![CDATA[<p>%s</p>]]>\n", waypointp->gc_data.desc_short.utfstring);
-
-			}
-		}
 		kml_write_xml(0, "</description>\n");
 		xfree(odesc);
 	}
@@ -745,17 +963,6 @@ static void kml_waypt_pr(const waypoint *waypointp)
 		kml_write_xml(-1, "</Icon>\n");
 		kml_write_xml(-1, "</IconStyle>\n");
 		kml_write_xml(-1, "</Style>\n");
-
-	} else if (waypointp->gc_data.diff && waypointp->gc_data.terr) {
-		char *is = kml_lookup_gc_icon(waypointp);
-		kml_write_xml(1, "<Style>\n");
-		kml_write_xml(1, "<IconStyle>\n");
-		kml_write_xml(1, "<Icon>\n");
-		kml_write_xml(0, "<href>%s</href>\n", is);
-		kml_write_xml(-1, "</Icon>\n");
-		kml_write_xml(-1, "</IconStyle>\n");
-		kml_write_xml(-1, "</Style>\n");
-		xfree(is);
 	} else {
 		kml_write_xml(0, "<styleUrl>#waypoint</styleUrl>\n");
 	}
@@ -764,19 +971,17 @@ static void kml_waypt_pr(const waypoint *waypointp)
 	kml_write_xml(1, "<Point>\n");
 
 	if (extrude) {
-	  kml_write_xml(0, "<extrude>1</extrude>\n");
+		kml_write_xml(0, "<extrude>1</extrude>\n");
 	}
 
         if (floating) {
-          kml_write_xml(0, "<altitudeMode>absolute</altitudeMode>\n");
+		kml_write_xml(0, "<altitudeMode>absolute</altitudeMode>\n");
         }
 
 	kml_write_xml(0, "<coordinates>%f,%f,%f</coordinates>\n",
 		waypointp->longitude, waypointp->latitude, 
 		waypointp->altitude == unknown_alt ? 0.0 : waypointp->altitude);
 	kml_write_xml(-1, "</Point>\n");
-
-
 
 	kml_write_xml(-1, "</Placemark>\n");
 }
@@ -795,7 +1000,7 @@ static void kml_track_hdr(const route_head *header)
 
 static void kml_track_disp(const waypoint *waypointp)
 {
-	kml_output_point(waypointp, "#track");
+	kml_output_point(waypointp, kmlpt_track);
 }
 
 static void kml_track_tlr(const route_head *header) 
@@ -814,7 +1019,7 @@ static void kml_route_hdr(const route_head *header)
 
 static void kml_route_disp(const waypoint *waypointp)
 {
-        kml_output_point(waypointp, "#route");
+        kml_output_point(waypointp, kmlpt_route);
 }
 
 static void kml_route_tlr(const route_head *header) 
@@ -833,14 +1038,24 @@ void kml_write(void)
 	floating = (!! strcmp("0", opt_floating));
 	extrude = (!! strcmp("0", opt_extrude));
 	trackdata = (!! strcmp("0", opt_trackdata));
+	trackdirection = (!! strcmp("0", opt_trackdirection));
 
-	kml_write_xml(0,"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-	kml_write_xml(1,"<kml xmlns=\"http://earth.google.com/kml/2.1\"\n"
-		"\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
-		"\txsi:schemaLocation=\"http://earth.google.com/kml/2.1 \n"
-		"\thttp://code.google.com/apis/kml/schema/kml21.xsd\">\n"
-	);
-	kml_write_xml(1,"<Document>\n");
+	kml_write_xml(0, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+
+	/*
+	 * This is a bit cowardly.   Our geocache writer takes advantage
+	 * of KML 2.2 features present only in Earth 4.2 and newer.  The
+	 * output is actually compatible with Earth versions back to 4.0
+	 * for the non-geocaching case, so we'll be conservative and not 
+	 * output the new namespace if we don't need it. 
+	 */
+	if (geocaches_present) {
+		kml_write_xml(1, kml22_hdr);
+	} else  {
+		kml_write_xml(1, kml21_hdr);
+	}
+
+	kml_write_xml(1, "<Document>\n");
 
 	now = current_time();
 	strftime(import_time, sizeof(import_time), "%c", localtime(&now));
@@ -854,17 +1069,42 @@ void kml_write(void)
 	}
 
 	// Style settings for bitmaps
-	kml_write_bitmap_style("route", "http://maps.google.com/mapfiles/kml/pal4/icon61.png");
-	kml_write_bitmap_style("track", "http://maps.google.com/mapfiles/kml/pal4/icon60.png");
-	kml_write_bitmap_style("waypoint", "http://maps.google.com/mapfiles/kml/pal4/icon61.png");
+	if (route_waypt_count()) {
+		kml_write_bitmap_style(kmlpt_route, ICON_RTE, NULL);
+	}
+
+	if (track_waypt_count()) {
+		if (trackdirection) {
+		  int i;
+	          kml_write_bitmap_style(kmlpt_other, ICON_TRK, "track-none");
+		  for (i = 0; i < 16; i++) {
+		    char buf1[100];
+		    char buf2[100];
+
+		    sprintf(buf1, "track-%d", i);
+		    sprintf(buf2, ICON_DIR, i);
+ 		    kml_write_bitmap_style(kmlpt_other, buf2, buf1);
+		  }
+		} else {
+		  kml_write_bitmap_style(kmlpt_track, ICON_TRK, NULL);
+	        }
+	}
+
+	kml_write_bitmap_style(kmlpt_waypoint, ICON_WPT, NULL);
         
-        // Style settings for line strings
-        kml_write_xml(1, "<Style id=\"lineStyle\">\n");
-        kml_write_xml(1, "<LineStyle>\n");
-        kml_write_xml(0, "<color>%s</color>\n", opt_line_color);
-        kml_write_xml(0, "<width>%s</width>\n", opt_line_width);
-        kml_write_xml(-1, "</LineStyle>\n");
-        kml_write_xml(-1, "</Style>\n");
+	if (track_waypt_count() || route_waypt_count()) {
+		// Style settings for line strings
+		kml_write_xml(1, "<Style id=\"lineStyle\">\n");
+		kml_write_xml(1, "<LineStyle>\n");
+		kml_write_xml(0, "<color>%s</color>\n", opt_line_color);
+		kml_write_xml(0, "<width>%s</width>\n", opt_line_width);
+		kml_write_xml(-1, "</LineStyle>\n");
+		kml_write_xml(-1, "</Style>\n");
+	}
+
+	if (geocaches_present) {
+		kml_gc_make_ballonstyle();
+	}
 
 	if (!realtime_positioning) {
 		kml_write_xml(1, "<Folder>\n");
@@ -878,22 +1118,30 @@ void kml_write(void)
 	}
 
 	// Output trackpoints
-	if (!realtime_positioning && track_waypt_count()) {
-		kml_write_xml(1,  "<Folder>\n");
-		kml_write_xml(0,  "<name>Tracks</name>\n");
-	}
-	track_disp_all(kml_track_hdr, kml_track_tlr, kml_track_disp);
-	if (!realtime_positioning && track_waypt_count()) {
-		kml_write_xml(-1,  "</Folder>\n");
+	if (track_waypt_count()) {
+		if (!realtime_positioning) {
+			kml_write_xml(1,  "<Folder>\n");
+			kml_write_xml(0,  "<name>Tracks</name>\n");
+		}
+
+		track_disp_all(kml_track_hdr, kml_track_tlr, kml_track_disp);
+
+		if (!realtime_positioning) {
+			kml_write_xml(-1,  "</Folder>\n");
+		}
 	}
 
 	// Output routes
-	if (!realtime_positioning && route_waypt_count()) {
-		kml_write_xml(1,  "<Folder>\n");
-		kml_write_xml(0,  "<name>Routes</name>\n");
-		route_disp_all(kml_route_hdr, kml_route_tlr, kml_route_disp);
-		kml_write_xml(-1,  "</Folder>\n");
-	}
+	if (route_waypt_count()) {
+		if (!realtime_positioning) {
+			kml_write_xml(1,  "<Folder>\n");
+			kml_write_xml(0,  "<name>Routes</name>\n");
+
+			route_disp_all(kml_route_hdr, 
+				kml_route_tlr, kml_route_disp);
+			kml_write_xml(-1,  "</Folder>\n");
+		}
+        }
 
 	kml_write_xml(-1, "</Document>\n");
 	kml_write_xml(-1, "</kml>\n");
@@ -911,7 +1159,7 @@ kml_get_posn_icon(int freshness)
 		if (freshness >= kml_tracking_icons[i].freshness)
 			return kml_tracking_icons[i].icon;
 	}
-	return "http://maps.google.com/mapfiles/kml/pal3/icon59.png";
+	return ICON_NOSAT;
 }
 
 
@@ -955,7 +1203,25 @@ kml_wr_position(waypoint *wpt)
 
 	wpt->icon_descr = kml_get_posn_icon(wpt->creation_time - last_valid_fix);
 
-	track_add_wpt(posn_trk_head, waypt_dupe(wpt));
+	
+	/* In order to avoid clutter while we're sitting still, don't add
+ 	   track points if we've not moved a minimum distance from the
+	   beginnning of our accumulated track. */
+	{
+  	waypoint *newest_posn= (waypoint *) QUEUE_LAST(&posn_trk_head->waypoint_list);
+	
+	if(radtometers(gcdist(RAD(wpt->latitude), RAD(wpt->longitude), 
+		RAD(newest_posn->latitude), RAD(newest_posn->longitude))) > 50) {
+		track_add_wpt(posn_trk_head, waypt_dupe(wpt));
+	} else {
+		/* If we haven't move more than our threshold, pretend 
+		 * we didn't move at  all to prevent Earth from jittering 
+		 * the zoom levels on us.
+		 */
+		wpt->latitude = newest_posn->latitude;
+		wpt->longitude = newest_posn->longitude;
+	}
+	}
 
 	waypt_add(wpt);
 	kml_write();

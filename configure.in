@@ -3,12 +3,18 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT(GPSBabel, 1.3.4, BUG-REPORT-ADDRESS)
-
+AC_INIT(GPSBabel, 1.3.5, BUG-REPORT-ADDRESS)
+# Increase GBBUILD for a new release
+GBBUILD=16
 # YYYYMMDD, please, if beta, i.e. "-beta20060413"
-# PACKAGE_RELEASE="-beta20070711"
+# PACKAGE_RELEASE="-beta20080305"
 AC_DEFINE_UNQUOTED(PACKAGE_RELEASE, "$PACKAGE_RELEASE", [Define to the release name of this package.])
 AC_SUBST(PACKAGE_RELEASE)
+
+DOCVERSION=`echo $PACKAGE_VERSION`
+DOCVERSION=development
+DOCVERSION=1.3.5   
+AC_SUBST(DOCVERSION)
 
 GBMAJOR=`echo $PACKAGE_VERSION | (IFS="."; read major minor micro; echo $major)`
 GBMINOR=`echo $PACKAGE_VERSION | (IFS="."; read major minor micro; echo $minor)`
@@ -16,6 +22,7 @@ GBMICRO=`echo $PACKAGE_VERSION | (IFS="."; read major minor micro; echo $micro)`
 AC_SUBST(GBMAJOR)
 AC_SUBST(GBMINOR)
 AC_SUBST(GBMICRO)
+AC_SUBST(GBBUILD)
 
 # AC_CONFIG_SRCDIR([nmea.c])
 AC_CONFIG_HEADER([config.h])
@@ -83,6 +90,20 @@ AC_ARG_ENABLE(csv,
     else
 	AC_MSG_RESULT(no)
     fi
+
+AC_MSG_CHECKING(whether to support maximum number of formats)
+AC_ARG_ENABLE(most,
+  [  --enable-most=[(yes)|no]],
+  [ enable_most="$enableval"],[enable_most="yes"])
+    if test "$enable_most" != "no" ; then
+	AC_MSG_RESULT(yes)
+        AC_DEFINE(MAXIMAL_ENABLED, 1, [1 to enable as many formats as possible])
+	FMTS='$(ALL_FMTS)'
+    else
+	AC_MSG_RESULT(no)
+	FMTS='$(MINIMAL_FMTS)'
+    fi
+  AC_SUBST(FMTS)
 
 AC_MSG_CHECKING(whether to support filters)
 AC_ARG_ENABLE(filters,
@@ -166,9 +187,15 @@ case "$target" in
 			USB_LIBS="`libusb-config --prefix`/lib/libusb.a -framework  IOKit -framework CoreFoundation"
 			LDFLAGS=$OLDFLAGS
 			CDFLAGS=$OCDFLAGS
+			OSJEEPS=jeeps/gpslibusb.o
+		    else
+			OSJEEPS=jeeps/gpsusbstub.o
 		  fi
+		  ;;
+		*)
+		  OSJEEPS=jeeps/gpslibusb.o
+		  ;;
 		esac
-		OSJEEPS=jeeps/gpslibusb.o
 		CFLAGS="$OCFLAGS"
 	#	LIBS="$LIBS `libusb-config --libs`"
 	    else
@@ -191,7 +218,9 @@ AC_ARG_WITH(expathdr,
   [  --with-expathdr[=DIR]   Use this to specify the location of expat.h],
   [ xpathdr="$withval" ], [
 	case "$target" in
-	*-*-darwin*)
+	*-*-darwin6*|*-*-darwin7*|*-*-darwin8*)
+		# Restrict test to OS/X 10.4 and earlier.  Leopard (10.5) 
+		# provides expat and in a sensible location.
 		if test -f /sw/include/expat.h ; then
 			xpathdr=/sw/include/
 		fi
@@ -213,16 +242,42 @@ fi
 AC_MSG_CHECKING(for libexpat)
 AC_ARG_WITH(libexpat,
   [  --with-libexpat[=DIR]   Use this to specify expat library .],
-  [ CFLAGS="$CFLAGS -L$withval"
-    EXPAT_LIB="-L$withval -lexpat"
+  [ 
+    # If the developer specified a reference
+    # to a FILE and not a directory, assume they are a highly
+    # trained professional that has specified a .a to to be used.
+    if test -f $withval ; then
+      EXPAT_LIB=$withval
+    else
+      CFLAGS="$CFLAGS -L$withval"
+      EXPAT_LIB="-L$withval -lexpat"
+    fi
   ], [
 	case "$target" in
-	*-*-darwin*)
+	*-*-darwin6*|*-*-darwin7*|*-*-darwin8*)
+		# Restrict test to OS/X 10.4 and earlier.  Leopard (10.5) 
+		# provides expat and in a sensible location.
 		if test -f /sw/lib/libexpat.a ; then
+			# libexpat installed via fink
 			EXPAT_LIB=/sw/lib/libexpat.a
+			LIBS="$LIBS -L/sw/lib"
 			  AC_DEFINE(HAVE_LIBEXPAT, 1, [Defined if you have libexpat])
 			  AC_SUBST(EXPAT_LIB)
 		fi
+		if test -f /opt/local/lib/libexpat.a ; then
+			# libexpat installed via macports
+			EXPAT_LIB=/opt/local/lib/libexpat.a
+			LIBS="$LIBS -L/opt/local/lib"
+			  AC_DEFINE(HAVE_LIBEXPAT, 1, [Defined if you have libexpat])
+			  AC_SUBST(EXPAT_LIB)
+		fi
+		if test -f /usr/local/lib/libexpat.a ; then
+			# libexpat installed from source
+			EXPAT_LIB=/usr/local/lib/libexpat.a
+			LIBS="$LIBS -L/usr/local/lib"
+			  AC_DEFINE(HAVE_LIBEXPAT, 1, [Defined if you have libexpat])
+			  AC_SUBST(EXPAT_LIB)
+		fi				
 		;;
 	*-*-freebsd*)
 		if test -f /usr/local/lib/libexpat.a ; then
@@ -288,5 +343,53 @@ AC_SUBST(DOCDIR)
 # AC_CHECK_FUNCS([atexit floor localtime_r memmove memset pow select sqrt strchr strcspn strdup strerror strncasecmp strrchr strspn strstr strtol strtoul])
 AC_CHECK_FUNCS([nanosleep sleep])
 
+#
+# Checks for how the system handles va_list
+# paul.bromiley@man.ac.uk
+#
+dnl **** Check for va_copy ****
+AC_CACHE_CHECK([for va_copy], ac_cv_c_va_copy,
+ AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <stdarg.h>]], [[va_list ap1, ap2;
+    va_copy(ap1,ap2);
+   ]])],[ac_cv_c_va_copy="yes"],[ac_cv_c_va_copy="no"])
+ )
+if test "$ac_cv_c_va_copy" = "yes"
+then
+    AC_DEFINE(HAVE_VA_COPY, 1, [Define if we have va_copy])
+fi
+AC_CACHE_CHECK([for __va_copy], ac_cv_c___va_copy,
+ AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <stdarg.h>]], [[va_list ap1, ap2;
+    __va_copy(ap1,ap2);
+   ]])],[ac_cv_c___va_copy="yes"],[ac_cv_c___va_copy="no"])
+ )
+if test "$ac_cv_c___va_copy" = "yes"
+then
+    AC_DEFINE(HAVE___VA_COPY, 1, [Define if we have __va_copy])
+fi
+
+#
+# Does this platform require array notation to assign to a va_list?
+#
+AC_MSG_CHECKING(va_list assignments need array notation)
+AC_CACHE_VAL(ac_cv_valistisarray,
+        [AC_RUN_IFELSE([AC_LANG_SOURCE([[#include <stdlib.h>
+                    #include <stdarg.h>
+                    void foo(int i, ...) {
+                       va_list ap1, ap2;
+                       va_start(ap1, i);
+                       ap2 = ap1;
+                       if (va_arg(ap2, int) != 123 || va_arg(ap1, int) != 123) { exit(1); }
+                       va_end(ap1); va_end(ap2);
+                    }
+                    int main()
+                    { foo(0, 123); return(0); }]])],[ac_cv_valistisarray=false],[ac_cv_valistisarray=true],[ac_cv_valistisarray=false])])
+                                            
+if test "$ac_cv_valistisarray" = true ; then
+       AC_DEFINE(HAVE_VA_LIST_AS_ARRAY, 1, [Define as 1 if your va_list type is an array])
+       AC_MSG_RESULT(yes)
+else
+       AC_MSG_RESULT(no)
+fi
 AC_CONFIG_FILES([Makefile gbversion.h xmldoc/makedoc tools/mkcapabilities win32/gpsbabel.rc jeeps/Makefile shapelib/Makefile zlib/empty])
 AC_OUTPUT
+

@@ -122,6 +122,18 @@
 #  define NORETURN void
 #endif
 
+#ifndef HAVE_VA_COPY
+#  ifdef __va_copy
+#    define va_copy(DEST,SRC) __va_copy((DEST),(SRC))
+#  else
+#    ifdef HAVE_VA_LIST_AS_ARRAY
+#      define va_copy(DEST,SRC) (*(DEST) = *(SRC))
+#    else
+#      define va_copy(DEST,SRC) ((DEST) = (SRC))
+#    endif
+#  endif
+#endif
+
 /*
  * Common definitions.   There should be no protocol or file-specific
  * data in this file.
@@ -138,6 +150,12 @@ typedef enum {
 	fix_pps
 } fix_type;
 
+typedef enum {
+	status_unknown=0,
+	status_true,
+	status_false
+} status_type;
+        
 /*
  * Define globally on which kind of data gpsbabel is working.
  * Important for "file types" that are essentially a communication
@@ -180,6 +198,7 @@ extern global_options global_opts;
 extern const char gpsbabel_version[];
 extern time_t gpsbabel_now;	/* gpsbabel startup-time; initialized in main.c with time() */
 extern time_t gpsbabel_time;	/* gpsbabel startup-time; initialized in main.c with current_time(), ! ZERO within testo ! */
+extern int geocaches_present;
 
 #define MILLI_TO_MICRO(t) (t * 1000)  /* Milliseconds to Microseconds */
 #define MICRO_TO_MILLI(t) (t / 1000)  /* Microseconds to Milliseconds*/
@@ -233,13 +252,15 @@ typedef struct {
 	geocache_container container:4;
 	unsigned int diff:6; /* (multiplied by ten internally) */
 	unsigned int terr:6; /* (likewise) */
+	status_type is_archived:2;
+	status_type is_available:2;
 	time_t exported;
 	time_t last_found;
 	char *placer; /* Placer name */
 	int placer_id; /* Placer id */
 	char *hint; /* all these UTF8, XML entities removed, May be not HTML. */
 	utf_string desc_short;
-	utf_string desc_long; 
+	utf_string desc_long;
 } geocache_data ;
 
 typedef struct xml_tag {
@@ -302,6 +323,7 @@ typedef struct {
 	unsigned int icon_descr_is_dynamic:1; 
 	unsigned int shortname_is_synthetic:1;
 	unsigned int cet_converted:1;		/* strings are converted to UTF8; interesting only for input */
+	unsigned int fmt_use:1;			/* lightweight "extra data" */
 	/* "flagged fields" */
 	unsigned int temperature:1;		/* temperature field is set */
 	unsigned int proximity:1;		/* proximity field is set */
@@ -316,7 +338,7 @@ typedef struct {
 } wp_flags;
 
 #define WAYPT_SET(wpt,member,val) { wpt->member = (val); wpt->wpt_flags.member = 1; }
-#define WAYPT_GET(wpt,member,def) (wpt->wpt_flags.member) ? (wpt->member) : (def)
+#define WAYPT_GET(wpt,member,def) ((wpt->wpt_flags.member) ? (wpt->member) : (def))
 #define WAYPT_UNSET(wpt,member) wpt->wpt_flags.member = 0
 #define WAYPT_HAS(wpt,member) (wpt->wpt_flags.member)
 /*
@@ -698,6 +720,10 @@ void waypt_disp(const waypoint *);
 void waypt_status_disp(int total_ct, int myct);
 double waypt_time(const waypoint *wpt);
 double waypt_speed(const waypoint *A, const waypoint *B);
+double waypt_speed_ex(const waypoint *A, const waypoint *B);
+double waypt_course(const waypoint *A, const waypoint *B);
+double waypt_distance(const waypoint *A, const waypoint *B);
+double waypt_distance_ex(const waypoint *A, const waypoint *B);
 
 NORETURN fatal(const char *, ...) PRINTFLIKE(1, 2);
 void is_fatal(const int condition, const char *, ...) PRINTFLIKE(2, 3);
@@ -773,6 +799,7 @@ char *xstrrstr(const char *s1, const char *s2);
 void rtrim(char *s);
 char * lrtrim(char *s);
 int xasprintf(char **strp, const char *fmt, ...);
+int xvasprintf(char **strp, const char *fmt, va_list ap);
 char *strupper(char *src);
 char *strlower(char *src);
 signed int get_tz_offset(void);
@@ -851,7 +878,9 @@ typedef struct {
 signed int be_read16(const void *p);
 signed int be_read32(const void *p);
 signed int le_read16(const void *p);
+unsigned int le_readu16(const void *p);
 signed int le_read32(const void *p);
+unsigned int le_readu32(const void *p);
 void le_read64(void *dest, const void *src);
 void be_write16(void *pp, const unsigned i);
 void be_write32(void *pp, const unsigned i);
@@ -891,17 +920,23 @@ typedef enum {
 	grid_lat_lon_dmm = 1,
 	grid_lat_lon_dms = 2,
 	grid_bng = 3,
-	grid_utm = 4
+	grid_utm = 4,
+	grid_swiss = 5
 } grid_type;
 
 #define GRID_INDEX_MIN	grid_lat_lon_ddd
-#define GRID_INDEX_MAX	grid_utm
+#define GRID_INDEX_MAX	grid_swiss
 
 #define DATUM_OSGB36	86
 #define DATUM_WGS84	118
 
+/*
+ *  From parse.c
+ */
 int parse_coordinates(const char *str, int datum, const grid_type grid,
 	double *latitude, double *longitude, const char *module);
+int parse_distance(const char *str, double *val, double scale, const char *module);
+int parse_speed(const char *str, double *val, const double scale, const char *module);
 
 /*
  *  From util_crc.c

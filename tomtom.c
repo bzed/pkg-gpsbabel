@@ -42,8 +42,8 @@
 
 #define MYNAME "TomTom"
 
-static FILE *file_in;
-static FILE *file_out;
+static gbfile *file_in;
+static gbfile *file_out;
 
 static
 arglist_t tomtom_args[] = {
@@ -53,43 +53,29 @@ arglist_t tomtom_args[] = {
 static void
 rd_init(const char *fname)
 {
-	file_in = xfopen(fname, "rb", MYNAME);
+	file_in = gbfopen_le(fname, "rb", MYNAME);
 }
 
 static void
 rd_deinit(void)
 {
-	fclose(file_in);
+	gbfclose(file_in);
 }
 
 static void
 wr_init(const char *fname)
 {
-	file_out = xfopen(fname, "wb", MYNAME);
+	file_out = gbfopen_le(fname, "wb", MYNAME);
 }
 
 static void
 wr_deinit(void)
 {
-	fclose(file_out);
+	gbfclose(file_out);
 }
 
-static unsigned long
-read_long(FILE * f)
-{
-        gbuint32 result = 0;
-	
-        fread(&result, sizeof (result), 1, f);
-        return le_read32(&result);
-}
-
-static unsigned char
-read_char( FILE *f)
-{
-	unsigned char result = 0;
-	fread( &result, 1, 1, f );
-	return result;
-}
+#define read_long(f) gbfgetint32((f))
+#define read_char(f) (unsigned char)gbfgetc((f))
 
 static void
 data_read(void)
@@ -100,7 +86,7 @@ data_read(void)
 	long y;
 	char *desc;
 	waypoint *wpt_tmp;
-	while (!feof( file_in ) ) {
+	while (!gbfeof( file_in ) ) {
 		rectype = read_char( file_in );
 		if ( rectype == 1 ) {
 			/* a block header; ignored on read */
@@ -115,7 +101,7 @@ data_read(void)
 			x = read_long( file_in );
 			y = read_long( file_in );
 			desc = (char *)xmalloc( recsize - 13 );
-			fread( desc, recsize-13, 1, file_in );
+			gbfread( desc, recsize-13, 1, file_in );
 			
 			wpt_tmp = waypt_new();
 
@@ -175,31 +161,17 @@ compare_lon(const void *a, const void *b)
 	return compare_lat(a,b);
 }
 
-static void 
-write_long( FILE *file, long value ) {
-	 gbuint32 tmp = 0;
-	 le_write32( &tmp, value );
-		 
-	 fwrite( &tmp, sizeof(tmp), 1, file );
-} 
+#define write_long(f,v) gbfputint32((v),f)
 
 static void
-write_float_as_long( FILE *file, double value ) 
+write_float_as_long( gbfile *file, double value ) 
 {
 	long tmp = (value + 0.500000000001);
 	write_long( file, tmp);
 }
 
-static void
-write_char( FILE *file, unsigned char value ) {
-	fwrite( &value, 1, 1, file );
-}
-
-static void
-write_string( FILE *file, char *str ) {
-	fwrite( str, strlen(str), 1, file );
-	write_char( file, '\0' );
-}
+#define write_char(f,c) gbfputc((c),f)
+#define write_string(f,s) gbfputcstr((s),f)
 
 struct blockheader {
 	struct hdr *start;
@@ -214,7 +186,7 @@ struct blockheader {
 };
 
 static void
-write_blocks( FILE *f, struct blockheader *blocks ) {
+write_blocks( gbfile *f, struct blockheader *blocks ) {
 	int i;
 	write_char( f, 1 );
 	write_long( f, blocks->size );
@@ -230,11 +202,26 @@ write_blocks( FILE *f, struct blockheader *blocks ) {
 	}
 	if ( !blocks->ch1 && !blocks->ch2 ) {
 		for ( i = 0; i < blocks->count; i++ ) {
+            		char desc_field [256];
 			write_char( f, 2 );
-			write_long( f, strlen( blocks->start[i].wpt->description ) + 14 );
+            if (global_opts.smart_names && 
+	      		blocks->start[i].wpt->gc_data.diff && 
+			blocks->start[i].wpt->gc_data.terr) {
+                snprintf(desc_field,sizeof(desc_field),"%s(t%ud%u)%s(type%dcont%d)",blocks->start[i].wpt->description,
+                blocks->start[i].wpt->gc_data.terr/10,
+                blocks->start[i].wpt->gc_data.diff/10,
+                blocks->start[i].wpt->shortname,
+                (int) blocks->start[i].wpt->gc_data.type,
+                (int) blocks->start[i].wpt->gc_data.container);
+                //Unfortunately enums mean we get numbers for cache type and container.
+            } else {
+                snprintf(desc_field, sizeof(desc_field), "%s",
+			blocks->start[i].wpt->description);
+            }
+			write_long( f, strlen( desc_field ) + 14 );
 			write_float_as_long( f, blocks->start[i].wpt->longitude*100000);
 			write_float_as_long( f, blocks->start[i].wpt->latitude*100000);
-			write_string( f, blocks->start[i].wpt->description);
+			write_string( f, desc_field);
 		}
 	}
 }	

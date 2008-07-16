@@ -1,7 +1,7 @@
 /*
 	Garmin GPS Database Reader/Writer
 	
-	Copyright (C) 2005,2006,2007 Olaf Klein, o.b.klein@gpsbabel.org
+	Copyright (C) 2005-2008 Olaf Klein, o.b.klein@gpsbabel.org
 	Mainly based on mapsource.c,
 	Copyright (C) 2005 Robert Lipe, robertlipe@usa.net
 	
@@ -57,6 +57,8 @@
 	    2007/05/03: Add code for tricky V3 descriptions
 	    2007/06/18: Tweak some forgotten "flagged" fields
 	    2007/07/07: Better support for new fields since V3 (postal code/street address/instruction)
+	    2008/01/09: Fix handling of option category (cat)
+	    2008/04/27: Add zero to checklist of "unknown bytes"
 */
 
 #include <stdio.h>
@@ -106,8 +108,8 @@
 
 /*******************************************************************************/
 
-/* static char gdb_release[] = "$Revision: 1.58 $"; */
-static char gdb_release_date[] = "$Date: 2007/07/14 21:06:14 $";
+/* static char gdb_release[] = "$Revision: 1.65 $"; */
+static char gdb_release_date[] = "$Date: 2008/05/04 23:09:08 $";
 
 static gbfile *fin, *fout;
 static int gdb_ver, gdb_category, gdb_via, gdb_roadbook;
@@ -119,6 +121,7 @@ static char *gdb_opt_category;
 static char *gdb_opt_ver;
 static char *gdb_opt_via;
 static char *gdb_opt_roadbook;
+static char *gdb_opt_bitcategory;
 
 static int waypt_flag;
 static int route_flag;
@@ -441,6 +444,7 @@ read_waypoint(gt_waypt_classes_e *waypt_class_out)
 	waypoint *res;
 	garmin_fs_t *gmsd;
 	char *str;
+	char *bufp = buf;
 #ifdef GMSD_EXPERIMENTAL
 	char subclass[22];
 #endif
@@ -462,7 +466,7 @@ read_waypoint(gt_waypt_classes_e *waypt_class_out)
 	if (wpt_class != 0) waypth_ct++;
 	
 	FREAD_STR(buf);					/* Country code */
-	GMSD_SETSTR(cc, buf);
+	GMSD_SETSTR(cc, bufp);
 	
 #ifdef GMSD_EXPERIMENTAL
 	FREAD(subclass, sizeof(subclass));
@@ -531,11 +535,11 @@ read_waypoint(gt_waypt_classes_e *waypt_class_out)
 	icon = FREAD_i32;
 	GMSD_SET(icon, icon);			/* icon */
 	FREAD_STR(buf);				/* city */
-	GMSD_SETSTR(city, buf);
+	GMSD_SETSTR(city, bufp);
 	FREAD_STR(buf);				/* state */
-	GMSD_SETSTR(state, buf);
+	GMSD_SETSTR(state, bufp);
 	FREAD_STR(buf);				/* facility */
-	GMSD_SETSTR(facility, buf);
+	GMSD_SETSTR(facility, bufp);
 
 	FREAD(buf, 1);
 
@@ -580,7 +584,7 @@ read_waypoint(gt_waypt_classes_e *waypt_class_out)
 		waypt_flag = 0;
 
 		FREAD_STR(buf);				/* street address */
-		GMSD_SETSTR(addr, buf);
+		GMSD_SETSTR(addr, bufp);
 
 		FREAD(buf, 5);				/* instruction depended */
 		res->description = FREAD_CSTR;		/* instruction */
@@ -636,13 +640,13 @@ read_waypoint(gt_waypt_classes_e *waypt_class_out)
 	if (gdb_ver >= GDB_VER_3) {
 		if (FREAD_i32 == 1) {
 			FREAD_STR(buf);		/* phone number */
-			GMSD_SETSTR(phone_nr, buf);
+			GMSD_SETSTR(phone_nr, bufp);
 			FREAD_STR(buf);		/* ?? fax / mobile ?? */
 		}
 		FREAD_STR(buf);			/* country */
-		GMSD_SETSTR(country, buf);
+		GMSD_SETSTR(country, bufp);
 		FREAD_STR(buf);			/* postal code */
-		GMSD_SETSTR(postal_code, buf);
+		GMSD_SETSTR(postal_code, bufp);
 	}
 	
 	res->icon_descr = gt_find_desc_from_icon_number(icon, GDB, &dynamic);
@@ -730,7 +734,8 @@ read_route(void)
 		}
 
 		FREAD(buf, 18);			/* unknown 18 bytes; but first should be 0x01 or 0x03 */
-		if ((buf[0] != 0x01) && (buf[0] != 0x03)) {
+						/* seen also 0 with VER3 */
+		if ((buf[0] != 0x00) && (buf[0] != 0x01) && (buf[0] != 0x03)) {
 			int i;
 			
 			warnings++;
@@ -1199,7 +1204,10 @@ write_waypoint(
 	FWRITE_LATLON(wpt->latitude);		/* latitude */
 	FWRITE_LATLON(wpt->longitude);		/* longitude */
 	FWRITE_DBL(wpt->altitude, unknown_alt);	/* altitude */
-	FWRITE_CSTR(wpt->notes);
+	if (wpt->notes)
+		FWRITE_CSTR(wpt->notes);
+	else 
+		FWRITE_CSTR(wpt->description);
 	FWRITE_DBL(WAYPT_GET(wpt, proximity, unknown_alt), unknown_alt);	/* proximity */
 	FWRITE_i32(display);			/* display */
 	FWRITE_i32(0);				/* color (colour) */
@@ -1625,6 +1633,16 @@ init_writer(const char *fname)
 	gdb_category = (gdb_opt_category) ? atoi(gdb_opt_category) : 0;
 	gdb_ver = (gdb_opt_ver && *gdb_opt_ver) ? atoi(gdb_opt_ver) : 0;
 
+	if (gdb_category) {
+		is_fatal((gdb_category < 1) || (gdb_category > 16),
+			MYNAME ": cat must be between 1 and 16!");
+		gdb_category = 1 << (gdb_category - 1);
+	}
+
+	if (gdb_opt_bitcategory) {
+		gdb_category = strtol(gdb_opt_bitcategory, NULL, 0);
+	}
+
 	if (gdb_ver >= GDB_VER_UTF8)
 		cet_convert_init(CET_CHARSET_UTF8, 1);
 	
@@ -1676,12 +1694,15 @@ write_data(void)
 #define GDB_OPT_VER		"ver"
 #define GDB_OPT_VIA		"via"
 #define GDB_OPT_CATEGORY	"cat"
+#define GDB_OPT_BITCATEGORY	"bitscategory"
 #define GDB_OPT_ROADBOOK	"roadbook"
 
 static arglist_t gdb_args[] = {
 	{GDB_OPT_CATEGORY, &gdb_opt_category,
 		"Default category on output (1..16)", 
 		NULL, ARGTYPE_INT, "1", "16"},
+        {GDB_OPT_BITCATEGORY, &gdb_opt_bitcategory, "Bitmap of categories",
+                NULL, ARGTYPE_INT, "1", "65535"},
 	{GDB_OPT_VER, &gdb_opt_ver, 
 		"Version of gdb file to generate (1..3)",
 		"2", ARGTYPE_INT, "1", "3"},
@@ -1691,6 +1712,7 @@ static arglist_t gdb_args[] = {
 	{GDB_OPT_ROADBOOK, &gdb_opt_roadbook,
 		"Include major turn points (with description) from calculated route",
 		NULL, ARGTYPE_BOOL, ARG_NOMINMAX},
+
 	ARG_TERMINATOR
 };
 
