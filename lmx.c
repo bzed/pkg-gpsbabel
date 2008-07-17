@@ -31,7 +31,7 @@
 
 static gbfile *ofd;
 static waypoint *wpt_tmp;
-char *linkNEW, *linkt;
+char *link, *linkt;
 
 #define MYNAME "lmx"
 
@@ -205,25 +205,25 @@ lmx_lm_desc(const char *args, const char **unused)
 static void
 lmx_lm_mlink_s(const char *args, const char **unused)
 {
-	linkNEW = linkt = NULL;
+	link = linkt = NULL;
 }
 
 static void
 lmx_lm_link(const char *args, const char **unused)
 {
-	linkNEW = xstrdup(args);
+	link = xstrdup(args);
 }
 
 static void
 lmx_lm_linkt(const char *args, const char **unused)
 {
-	linkNEW = xstrdup(args);
+	linkt = xstrdup(args);
 }
 
 static void
 lmx_lm_mlink_e(const char *args, const char **unused)
 {
-	waypt_add_url(wpt_tmp, linkNEW, linkt);
+	waypt_add_url(wpt_tmp, link, linkt);
 }
 
 
