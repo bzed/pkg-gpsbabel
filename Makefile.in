@@ -232,7 +232,7 @@ gpsbabel.html: FORCE
 readme.txt: gpsbabel.html
 	lynx -nolist -dump gpsbabel.html  > $@
 
-doc: gpsbabel $(WEB)/htmldoc-$(DOCVERSION)/readme.html gpsbabel.pdf # readme.txt
+doc: gpsbabel $(WEB)/htmldoc-$(DOCVERSION)/readme.html # readme.txt
 
 FORCE:
 

@@ -1,0 +1,98 @@
+gpsbabel (1.3.5-1.1) unstable; urgency=low
+
+  * Non-maintainer upload.
+  * Fixing FTBFS (Closes: #491364)
+  * debian/control:
+    - adding autoconf and autotools-dev as build dependencies as
+      Package falied to build from source (Closes: #491364)
+  * debian/rules:
+    - Copying config.sub/guess from autotools-dev
+    - Don't ignore errors on clean, fixing a lintian warning.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 20 Jul 2008 21:36:20 +0200
+
+gpsbabel (1.3.5-1) unstable; urgency=low
+
+  * New upstream release.  Closes: #480449.
+
+ -- John Goerzen <jgoerzen@complete.org>  Wed, 16 Jul 2008 13:04:50 -0500
+
+gpsbabel (1.3.4-2) unstable; urgency=low
+
+  * Add Homepage and Vcs-* lines to Debian/control.
+
+ -- John Goerzen <jgoerzen@complete.org>  Sun, 02 Mar 2008 08:52:21 -0600
+
+gpsbabel (1.3.4-1) unstable; urgency=low
+
+  * New upstream release.  Closes: #459234.  Upstream has dropped
+    Coldsync.  Closes: #421769.
+  * Update debian/copyright.
+  * Add garmin_usb info to README.Debian.  Closes: #344702.
+
+ -- John Goerzen <jgoerzen@complete.org>  Thu, 14 Feb 2008 05:50:31 -0600
+
+gpsbabel (1.3.3-2) unstable; urgency=low
+
+  * Added build-dep on texlive-base.  Closes: #427620.
+  * Fixed path of binary.  Closes: #427365.
+
+ -- John Goerzen <jgoerzen@complete.org>  Tue, 05 Jun 2007 01:48:37 -0500
+
+gpsbabel (1.3.3-1) unstable; urgency=low
+
+  * New upstream release.  Closes: #330416, #419884.
+  * Added manpage for Joaquim Ortega-Cerda.  Closes: #342324.
+  * Fixed typo in debian/copyright.  Closes: #421769.
+
+ -- John Goerzen <jgoerzen@complete.org>  Fri, 01 Jun 2007 02:28:54 -0500
+
+gpsbabel (1.3.2-2) unstable; urgency=high
+
+  * Fix doc generation.  Closes: #403092.
+
+ -- John Goerzen <jgoerzen@complete.org>  Mon, 18 Dec 2006 05:53:16 -0600
+
+gpsbabel (1.3.2-1) unstable; urgency=low
+
+  * New upstream version.  Closes: #383899, #380533, #304178.
+  * Style docs now included.  Closes: #348986.  (Note: README.style
+    no longer exists)
+
+ -- John Goerzen <jgoerzen@complete.org>  Fri, 17 Nov 2006 03:57:30 -0600
+
+gpsbabel (1.2.7-1) unstable; urgency=low
+
+  * New upstream version.  Closes: #317559.
+
+ -- John Goerzen <jgoerzen@complete.org>  Tue, 11 Oct 2005 05:31:39 -0500
+
+gpsbabel (1.2.5+1.2.6-beta20050608-1) unstable; urgency=low
+
+  * New usptream version.  Closes: #315227.
+  * New version includes support for USB.  Closes: #315134.
+  * New upstream version already has patch for my_rd_deinit.
+    Closes: #315164.
+
+ -- John Goerzen <jgoerzen@complete.org>  Tue, 21 Jun 2005 05:59:58 -0500
+
+gpsbabel (1.2.4-2) unstable; urgency=low
+
+  * make check failure no longer causes build failure.  There are apparently
+    a lot of minor differences in rounding on different archs that were
+    causing this.  Closes: #294717.
+
+ -- John Goerzen <jgoerzen@complete.org>  Mon, 14 Mar 2005 10:39:57 -0600
+
+gpsbabel (1.2.4-1) unstable; urgency=low
+
+  * New upstream release.  Closes: #291544.
+
+ -- John Goerzen <jgoerzen@complete.org>  Thu, 27 Jan 2005 11:08:20 -0600
+
+gpsbabel (1.2.3-1) unstable; urgency=low
+
+  * Initial Release.  Closes: #270812.
+
+ -- John Goerzen <jgoerzen@complete.org>  Thu,  9 Sep 2004 08:14:00 -0500
+
