@@ -68,6 +68,7 @@ extern ff_vecs_t HsaEndeavourNavigator_vecs;
 extern ff_vecs_t html_vecs;
 extern ff_vecs_t igc_vecs;
 extern ff_vecs_t ignr_vecs;
+extern ff_vecs_t igo8_vecs;
 extern ff_vecs_t kml_vecs;
 extern ff_vecs_t lowranceusr_vecs;
 extern ff_vecs_t mag_fvecs;
@@ -81,6 +82,8 @@ extern ff_vecs_t mps_vecs;
 extern ff_vecs_t msroute_vecs;
 extern ff_vecs_t mtk_vecs;
 extern ff_vecs_t mtk_fvecs;
+extern ff_vecs_t mtk_m241_vecs;
+extern ff_vecs_t mtk_m241_fvecs;
 extern ff_vecs_t navicache_vecs;
 extern ff_vecs_t netstumbler_vecs;
 extern ff_vecs_t nmea_vecs;
@@ -137,6 +140,19 @@ extern ff_vecs_t destinator_trl_vecs;
 extern ff_vecs_t destinator_itn_vecs;
 extern ff_vecs_t exif_vecs;
 extern ff_vecs_t vidaone_vecs;
+extern ff_vecs_t gopal_vecs;
+extern ff_vecs_t humminbird_vecs;
+extern ff_vecs_t humminbird_ht_vecs;
+extern ff_vecs_t mapasia_tr7_vecs;
+extern ff_vecs_t gnav_trl_vecs;
+extern ff_vecs_t navitel_trk_vecs;
+extern ff_vecs_t ggv_ovl_vecs;
+#if CSVFMTS_ENABLED
+extern ff_vecs_t jtr_vecs;
+#endif
+extern ff_vecs_t sbp_vecs;
+extern ff_vecs_t mmo_vecs;
+extern ff_vecs_t skyforce_vecs;
 
 static
 vecs_t vec_list[] = {
@@ -203,11 +219,11 @@ vecs_t vec_list[] = {
 		"NMEA 0183 sentences",
 		NULL
 	},
-        {
-                &kml_vecs,
-                "kml",
-                "Google Earth (Keyhole) Markup Language",
-                "kml"
+	{
+		&kml_vecs,
+		"kml",
+		"Google Earth (Keyhole) Markup Language",
+		"kml"
 	},
 #if MAXIMAL_ENABLED
 	{
@@ -308,7 +324,7 @@ vecs_t vec_list[] = {
 		&easygps_vecs,
 		"easygps",
 		"EasyGPS binary format",
-		".loc"
+		"loc"
 	},
 #if PDBFMTS_ENABLED
 	{
@@ -433,6 +449,18 @@ vecs_t vec_list[] = {
                 "bin"
         },
         {
+                &mtk_m241_vecs,
+                "m241",
+                "Holux M-241 (MTK based) download",
+                NULL
+        },
+        {
+                &mtk_m241_fvecs,
+                "m241-bin",
+                "Holux M-241 (MTK based) Binary File Format",
+                "bin"
+        },
+        {
                 &wbt_svecs,
                 "wbt",
                 "Wintec WBT-100/200 GPS Download",
@@ -472,7 +500,7 @@ vecs_t vec_list[] = {
 	{
 		&overlay_vecs,
 		"overlay",
-		"GeoGrid-Viewer",
+		"Geogrid-Viewer",
 		"ovl"
 	},
 #endif
@@ -649,7 +677,7 @@ vecs_t vec_list[] = {
 	{
 		&gtc_vecs,
 		"gtrnctr",
-		"Garmin Training Center"
+		"Garmin Training Center",
 		"xml"
 	},
 	{
@@ -685,7 +713,7 @@ vecs_t vec_list[] = {
         {
                 &ggv_log_vecs,
                 "ggv_log",
-                "Geogrid Viewer tracklogs (.log)",
+                "Geogrid-Viewer tracklogs (.log)",
                 "log"
         },
 #if CSVFMTS_ENABLED
@@ -717,7 +745,7 @@ vecs_t vec_list[] = {
         {
                 &xol_vecs,
                 "xol",
-                "Swiss Map # (.xol) format",
+                "Swiss Map 25/50/100 (.xol)",
                 "xol"
         },
         {
@@ -774,6 +802,82 @@ vecs_t vec_list[] = {
                 "VidaOne GPS for Pocket PC (.gpb)",
 		"gpb"
         },
+	{
+		&igo8_vecs,
+		"igo8",
+		"IGO8 .trk",
+		"trk"
+	},
+	{
+                &gopal_vecs,
+                "gopal",
+                "GoPal GPS track log (.trk)",
+		"trk"
+        },
+	{
+		&humminbird_vecs,
+		"humminbird",
+		"Humminbird waypoints and routes (.hwr)",
+		"hwr"
+        },
+	{
+		&humminbird_ht_vecs,
+		"humminbird_ht",
+		"Humminbird tracks (.ht)",
+		"ht"
+        },
+	{
+		&mapasia_tr7_vecs,
+		"mapasia_tr7",
+		"MapAsia track file (.tr7)",
+		"tr7"
+	},
+	{
+		&gnav_trl_vecs,
+		"gnav_trl",
+		"Google Navigator Tracklines (.trl)",
+		"trl"
+	},
+	{
+		&navitel_trk_vecs,
+		"navitel_trk",
+		"Navitel binary track (.bin)",
+		"bin"
+	},
+        {
+                &ggv_ovl_vecs,
+                "ggv_ovl",
+                "Geogrid-Viewer ascii overlay file (.ovl)",
+                "ovl"
+        },
+#if CSVFMTS_ENABLED
+        {
+                &jtr_vecs,
+                "jtr",
+                "Jelbert GeoTagger data file",
+                "jtr"
+        },
+#endif
+        {
+                &sbp_vecs,
+                "sbp",
+                "NaviGPS GT-31/BGT-31 datalogger (.sbp)",
+                "sbp"
+        },
+        {
+                &mmo_vecs,
+                "mmo",
+                "Memory-Map Navigator overlay files (.mmo)",
+                "mmo"
+        },
+        {
+        	&skyforce_vecs,
+        	"skyforce",
+        	"Skymap / KMD150 ascii files",
+        	NULL
+        },
+        
+
 #endif // MAXIMAL_ENABLED
 	{
 		NULL,
@@ -782,6 +886,22 @@ vecs_t vec_list[] = {
 		NULL
 	}
 };
+
+void
+init_vecs(void)
+{
+	vecs_t *vec = vec_list;
+	while ( vec->vec ) {
+		arglist_t *ap;
+		if ( vec->vec->args ) {
+			for ( ap = vec->vec->args; ap->argstring; ap++ ) {
+				ap->argvalptr = NULL;
+				if (ap->argval) *ap->argval = NULL;
+			}
+		}
+		vec++;
+	}
+}
 
 void 
 exit_vecs( void )
@@ -799,9 +919,9 @@ exit_vecs( void )
 					! isdigit(ap->defaultvalue[0])) {
 					warning("%s: not an integer\n", ap->argstring);
 				}
-				if ( ap->argval && *ap->argval ) {
-					xfree(*ap->argval);
-					*ap->argval = NULL;
+				if ( ap->argvalptr ) {
+					xfree(ap->argvalptr);
+					*ap->argval = ap->argvalptr = NULL;
 				}
 			}
 		}
@@ -814,10 +934,15 @@ assign_option(const char *module, arglist_t *ap, const char *val)
 {
 	char *c;
 	
-	if (*ap->argval != NULL) {
-		xfree(*ap->argval);
-		*ap->argval = NULL;
+	if (ap->argval == NULL)
+		fatal("%s: No local variable defined for option \"%s\"!", module, ap->argstring);
+
+	if (ap->argvalptr != NULL) {
+		xfree(ap->argvalptr);
+		ap->argvalptr = NULL;
 	}
+	if (ap->argval) *ap->argval = NULL;
+
 	if (val == NULL) return;
 
 	if (case_ignore_strcmp(val, ap->argstring) == 0) c = "";
@@ -869,7 +994,7 @@ assign_option(const char *module, arglist_t *ap, const char *val)
 	    (*c == '0') && (ap->defaultvalue == NULL)) {
 		return;
 	}
-	*ap->argval = xstrdup(c);
+	*ap->argval = ap->argvalptr = xstrdup(c);
 }
 
 void
@@ -917,14 +1042,14 @@ find_vec(char *const vecname, char **opts)
 		
 		if (vec->vec->args) {
 			for (ap = vec->vec->args; ap->argstring; ap++) {
-				char *opt;
+				const char *opt;
 				
 				if ( res ) {
 					opt = get_option(*opts, ap->argstring);
 					if ( opt ) {
 						found = 1;
 						assign_option(svecname, ap, opt);
-						xfree(opt);
+						xfree((char *)opt);
 						continue;
 					}
 				}
@@ -945,6 +1070,7 @@ find_vec(char *const vecname, char **opts)
 		xcsv_setup_internal_style( NULL );
 #endif // CSVFMTS_ENABLED		
 		xfree(v);
+		vec->vec->name = vec->name;	/* needed for session information */
 		return vec->vec;
 		
 	}
@@ -971,14 +1097,14 @@ find_vec(char *const vecname, char **opts)
 		
 		if (vec_list[0].vec->args) {
 			for (ap = vec_list[0].vec->args; ap->argstring; ap++) {
-				char *opt;
+				const char *opt;
 				
 				if ( res ) {
 					opt = get_option(*opts, ap->argstring);
 					if ( opt ) {
 						found = 1;
 						assign_option(svecname, ap, opt);
-						xfree(opt);
+						xfree((char *)opt);
 						continue;
 					}
 				}
@@ -1000,7 +1126,7 @@ find_vec(char *const vecname, char **opts)
 #endif // CSVFMTS_ENABLED		
 
 		xfree(v);
-
+		vec_list[0].vec->name = svec->name;	/* needed for session information */
 		return vec_list[0].vec;
 	}
 	

@@ -24,6 +24,7 @@
 
 #include "defs.h"
 #include "cet.h"
+#include "cet_util.h"
 #include "garmin_fs.h"
 #include "strptime.h"
 #include <ctype.h>
@@ -60,17 +61,17 @@ gmsd_init(waypoint *wpt)
 static char *
 read_wcstr(const int discard)
 {
-	short *buff = NULL, c;
+	gbint16 *buff = NULL, c;
 	int size = 0, pos = 0;
 	
-	while ((c = gbfgetint16(fin))) {
+	while (gbfread(&c, sizeof(c), 1, fin) && (c != 0)) {
 		if (size == 0) {
 			size = 16;
-			buff = xmalloc(size * 2);
+			buff = xmalloc(size * sizeof(*buff));
 		}
 		else if (pos == size) {
 			size += 16;
-			buff = xrealloc(buff, size * 2);
+			buff = xrealloc(buff, size * sizeof(*buff));
 		}
 		buff[pos] = c;
 		pos += 1;
@@ -97,17 +98,12 @@ read_wcstr(const int discard)
 static void
 write_wcstr(const char *str)
 {
-	if (str && *str) {
-		int bytes, value;
-		char *cin = (char *)str;
-		char *ce = cin + strlen(cin);
-		while (cin < ce) {
-			cet_utf8_to_ucs4(cin, &bytes, &value);
-			cin += bytes;
-			gbfputint16(value, fout);
-		}
-	}
-	gbfputint16(0, fout);
+	int len;
+	short *unicode;
+	
+	unicode = cet_str_utf8_to_uni(str, &len);
+	gbfwrite((void *)unicode, 2, len + 1, fout);
+	xfree(unicode);
 }
 
 static int
@@ -321,19 +317,13 @@ destinator_read_trk(void)
 		wpt->creation_time = mkgmtime(&tm);
 		wpt->microseconds = ((int)time % 1000) * 1000;
 			
-		if ((wpt->sat > 0) && (wpt->fix > 0)) {
-			
-			wpt->fix++;
-			
-			if (! trk) {
-				trk = route_head_alloc();
-				track_add_head(trk);
-			}
-			
-			track_add_wpt(trk, wpt);
+		if (wpt->fix > 0) wpt->fix++;
+
+		if (! trk) {
+			trk = route_head_alloc();
+			track_add_head(trk);
 		}
-		else
-			waypt_free(wpt);
+		track_add_wpt(trk, wpt);
 	}
 }
 
@@ -344,7 +334,9 @@ destinator_read(void)
 	double d0, d1;
 	char buff[16];
 	
-	gbfread(buff, sizeof(buff), 1, fin);
+	if (! gbfread(buff, 1, sizeof(buff), fin))
+		fatal(MYNAME ": Unexpected EOF (end of file)!\n");
+
 	i0 = le_read32(&buff[0]);
 	i1 = le_read32(&buff[4]);
 	
