@@ -29,10 +29,16 @@
 #include <stdarg.h>
 #include <time.h>
 
+// First test Apple's clever macro that's really a runtime test so
+// that our universal binaries work right.
+#if defined __BIG_ENDIAN__
+#define i_am_little_endian !__BIG_ENDIAN__
+#else
 #if defined WORDS_BIGENDIAN
 # define i_am_little_endian 0
 #else
 # define i_am_little_endian 1
+#endif
 #endif
 
 #ifdef DEBUG_MEM
@@ -204,8 +210,10 @@ xrealloc(void *p, size_t s)
 {
 	char *o = (char *) realloc(p,s);
 #ifdef DEBUG_MEM
-	debug_mem_output( "realloc, %x, %x, %x, %s, %d\n", 
-			o, p, s, file, line );
+	if (p != NULL)
+		debug_mem_output( "realloc, %x, %x, %x, %s, %d\n", o, p, s, file, line );
+	else
+		debug_mem_output( "malloc, %x, %d, %s, %d\n", o, s, file, line );
 #endif
 
 	if (!o) {
@@ -613,7 +621,8 @@ char *
 strenquote(const char *str, const char quot_char)
 {
 	int len;
-	char *cin, *cout;
+	const char *cin;
+	char *cout;
 	char *tmp;
 
 	if (str == NULL) cin = "";
@@ -911,7 +920,7 @@ get_cache_icon(const waypoint *waypointp)
 	 * For icons, type overwrites container.  So a multi-micro will 
 	 * get the icons for "multi".
  	 */
-	switch (waypointp->gc_data.type) {
+	switch (waypointp->gc_data->type) {
 		case gt_virtual:
 			return "Virtual cache";
 		case gt_multi:
@@ -926,7 +935,7 @@ get_cache_icon(const waypoint *waypointp)
 			break;
 	}
 
-	switch (waypointp->gc_data.container) {
+	switch (waypointp->gc_data->container) {
 		case gc_micro: 
 			return "Micro-Cache";
 			break;
@@ -934,7 +943,7 @@ get_cache_icon(const waypoint *waypointp)
 			break;
 	}
 
-	if (waypointp->gc_data.diff > 1) {
+	if (waypointp->gc_data->diff > 1) {
 		return "Geocache";
 	}
 
@@ -1363,7 +1372,7 @@ convert_human_time_format(const char *human_timef)
  * html = 1 for html output otherwise text
  */
 char *
-pretty_deg_format(double lat, double lon, char fmt, char *sep, int html) 
+pretty_deg_format(double lat, double lon, char fmt, const char *sep, int html) 
 {
 	double  latmin, lonmin, latsec, lonsec;
 	int     latint, lonint;
@@ -1687,7 +1696,7 @@ xml_tag *xml_next( xml_tag *root, xml_tag *cur )
 	return cur;
 }
 
-xml_tag *xml_findnext( xml_tag *root, xml_tag *cur, char *tagname ) 
+xml_tag *xml_findnext( xml_tag *root, xml_tag *cur, const char *tagname ) 
 {
 	xml_tag *result = cur;
 	do {
@@ -1696,12 +1705,12 @@ xml_tag *xml_findnext( xml_tag *root, xml_tag *cur, char *tagname )
 	return result;
 }
 
-xml_tag *xml_findfirst( xml_tag *root, char *tagname )
+xml_tag *xml_findfirst( xml_tag *root, const char *tagname )
 {
 	return xml_findnext( root, root, tagname );
 }
 
-char *xml_attribute( xml_tag *tag, char *attrname ) 
+char *xml_attribute( xml_tag *tag, const char *attrname ) 
 {
 	char *result = NULL;
 	if ( tag->attributes ) {
@@ -1729,4 +1738,52 @@ char *get_filename(const char *fname)
 	else res = (cs > cb) ? cs : cb;
 	
 	return (res == NULL) ? (char *) fname : ++res;
+}
+
+/* bit manipulation functions */
+
+/*
+ * setbit: Set bit number [nr] of buffer [buf]
+ */
+void gb_setbit(void *buf, const gbuint32 nr)
+{
+	unsigned char *bytes = buf;
+	bytes[nr / 8] |= (1 << (nr % 8));
+}
+
+/*
+ * setbit: Get state of bit number [nr] of buffer [buf]
+ */
+char gb_getbit(const void *buf, const gbuint32 nr)
+{
+	const unsigned char *bytes = buf;
+	return (bytes[nr / 8] & (1 << (nr % 8)));
+	
+}
+
+/*
+ * gb_int2ptr: Needed, when sizeof(*void) != sizeof(int) ! compiler warning !
+ */
+void *gb_int2ptr(const int i)
+{
+	union {
+		void *p;
+		int i;
+	} x = { NULL };
+
+	x.i = i;
+	return x.p;
+}
+
+/*
+ * gb_ptr2int: Needed, when sizeof(*void) != sizeof(int) ! compiler warning !
+ */
+int gb_ptr2int(const void *p)
+{
+	union {
+		const void *p;
+		int i;
+	} x = { p };
+
+	return x.i;
 }

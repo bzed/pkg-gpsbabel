@@ -98,6 +98,7 @@ data_read(void)
 	char tbuf[20];
 	char nbuf[20];
 	int points;
+	int line = 0;
 
 	read_as_degrees  = 0;
 	points = 0;
@@ -107,6 +108,8 @@ data_read(void)
 		char *ibuf = lrtrim(buff);
 		char *cp;
 		
+		if ((line++ == 0) && file_in->unicode) cet_convert_init(CET_CHARSET_UTF8, 1);
+
 		switch (ibuf[0]) {
 		case 'W': 
 			time[0] = 0;

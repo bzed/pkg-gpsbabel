@@ -178,10 +178,12 @@ static char *opt_gisteq;
 static long sleepus;
 static int getposn;
 static int append_output;
+static int amod_waypoint;
 
 static time_t last_time;
 static double last_read_time;   /* Last timestamp of GGA or PRMC */
 static int datum;
+static int had_checksum;
 
 static waypoint * nmea_rd_posn(posn_status *);
 static void nmea_rd_posn_init(const char *fname);
@@ -257,6 +259,7 @@ nmea_rd_init(const char *fname)
 	CHECK_BOOL(opt_gpgga);
 	CHECK_BOOL(opt_gpvtg);
 	CHECK_BOOL(opt_gpgsa);
+	CHECK_BOOL(opt_gisteq);
 
 	QUEUE_INIT(&pcmpt_head);
 
@@ -311,6 +314,7 @@ nmea_wr_init(const char *portname)
 	CHECK_BOOL(opt_gpgga);
 	CHECK_BOOL(opt_gpvtg);
 	CHECK_BOOL(opt_gpgsa);
+	CHECK_BOOL(opt_gisteq);
 
 	append_output = atoi(opt_append);
 
@@ -445,7 +449,7 @@ gpgga_parse(char *ibuf)
 	 * as serial units will often spit a remembered position up and
 	 * that is more comfortable than nothing at all...
 	 */
-	if ((fix == 0) && (read_mode != rm_serial)) {
+	if ((fix <= 0) && (read_mode != rm_serial)) {
 		return;
 	}
 
@@ -546,6 +550,11 @@ gprmc_parse(char *ibuf)
 			 * going from 235959 to 000000. */
 			 nmea_set_waypoint_time(curr_waypt, &tm, microseconds);
 		}
+                /* This point is both a waypoint and a trackpoint. */
+                if (amod_waypoint) {
+			waypt_add(waypt_dupe(curr_waypt));
+			amod_waypoint = 0;
+                }
 		return;
 	}
 		
@@ -565,6 +574,12 @@ gprmc_parse(char *ibuf)
 
 	nmea_release_wpt(curr_waypt);
 	curr_waypt = waypt;
+
+	/* This point is both a waypoint and a trackpoint. */
+	if (amod_waypoint) {
+		waypt_add(waypt_dupe(waypt));
+		amod_waypoint = 0;
+	}
 }
 
 static void
@@ -844,7 +859,6 @@ nmea_fix_timestamps(route_head *track)
 void
 nmea_parse_one_line(char *ibuf)
 {
-	int had_checksum = 0;
 	char *ck;
 	int ckval, ckcmp;
 	char *tbuf = lrtrim(ibuf);
@@ -924,7 +938,10 @@ nmea_parse_one_line(char *ibuf)
 	} else
 	if (opt_gpgsa && (0 == strncmp(tbuf, "$GPGSA,",7))) {
 		gpgsa_parse(tbuf); /* GPS fix */
-	}
+	} else
+        if (0 == strncmp(tbuf, "$ADPMB,5,0", 10)) {
+          	amod_waypoint = 1;
+        }
 
 	if (tbuf != ibuf) {
 	  /* clear up the dynamic buffer we used because substition was required */
@@ -969,6 +986,8 @@ nmea_read(void)
 		
 		line++;
 		
+		if ((line == 0) & file_in->unicode) cet_convert_init(CET_CHARSET_UTF8, 1);
+
 		if ((line == 0) && (case_ignore_strncmp(ibuf, "@SonyGPS/ver", 12) == 0)) {
 			/* special hack for Sony GPS-CS1 files:
 			   they are fully (?) nmea compatible, but come with a header line like
@@ -1230,7 +1249,10 @@ nmea_trackpt_pr(const waypoint *wpt)
 				WAYPT_HAS(wpt, course) ? (wpt->course):(0),
 				(int) ymd);
 		cksum = nmea_cksum(obuf);
-		/* GISTeq doesn't care about the checksum */
+
+		/* GISTeq doesn't care about the checksum, but wants this prefixed, so
+		 * we can write it with abandon.
+  		 */
 		if (opt_gisteq) {
 			gbfprintf(file_out, "---,");
 		}
@@ -1281,6 +1303,7 @@ nmea_trackpt_pr(const waypoint *wpt)
 		cksum = nmea_cksum(obuf);
 		gbfprintf(file_out, "$%s*%02X\n", obuf, cksum);
 	}
+        gbfflush(file_out);
 }
 
 static void

@@ -37,6 +37,7 @@
 #include "cet.h"
 #include "cet_util.h"
 #include "inifile.h"
+#include "session.h"
 
 // Turn on Unicode in expat?
 #ifdef _UNICODE
@@ -48,6 +49,14 @@
  */
 #ifndef M_PI
 #  define M_PI 3.14159265358979323846
+#endif
+
+#ifndef FALSE
+#  define FALSE 0
+#endif
+
+#ifndef TRUE
+#  define TRUE !FALSE
 #endif
 
 #define FEET_TO_METERS(feetsies) ((feetsies) * 0.3048)
@@ -288,6 +297,12 @@ typedef struct format_specific_data {
 	fs_convert convert;
 } format_specific_data;
 
+typedef struct {
+  int bbggrr;   // 32 bit color: Blue/Green/Red.  < 0 == unknown.
+  unsigned char opacity;  // 0 == transparent.  255 == opaque.
+} gb_color;
+
+
 format_specific_data *fs_chain_copy( format_specific_data *source );
 void fs_chain_destroy( format_specific_data *chain );
 format_specific_data *fs_chain_find( format_specific_data *chain, long type );
@@ -334,6 +349,8 @@ typedef struct {
 	unsigned int altitude:1;		/+ altitude field is set +/
 	... and others
 	*/
+	unsigned int is_split:1;		/* the waypoint represents a split */
+
 	
 } wp_flags;
 
@@ -433,8 +450,9 @@ typedef struct {
 	unsigned char heartrate; /* Beats/min. likely to get moved to fs. */
 	unsigned char cadence;	 /* revolutions per minute */
 	float temperature; /* Degrees celsius */
-	geocache_data gc_data;
+	const geocache_data *gc_data;
 	format_specific_data *fs;
+	session_t *session;	/* pointer to a session struct */
 	void *extra_data;	/* Extra data added by, say, a filter. */
 } waypoint;
 
@@ -448,6 +466,9 @@ typedef struct {
 	int rte_waypt_ct;		/* # waypoints in waypoint list */
 	format_specific_data *fs;
 	unsigned short cet_converted;	/* strings are converted to UTF8; interesting only for input */
+        gb_color line_color;         /* Optional line color for rendering */
+        int line_width;         /* in pixels (sigh).  < 0 is unknown. */
+	session_t *session;	/* pointer to a session struct */
 } route_head;
 
 /*
@@ -516,6 +537,7 @@ waypoint * waypt_new(void);
 void waypt_del (waypoint *);
 void waypt_free (waypoint *);
 void waypt_disp_all(waypt_cb);
+void waypt_disp_session(const session_t *se, waypt_cb cb);
 void waypt_init_bounds(bounds *bounds);
 int waypt_bounds_valid(bounds *bounds);
 void waypt_add_to_bounds(bounds *bounds, const waypoint *waypointp);
@@ -532,6 +554,11 @@ waypoint * find_waypt_by_name(const char *name);
 void waypt_backup(signed int *count, queue **head_bak);
 void waypt_restore(signed int count, queue *head_bak);
 
+geocache_data *waypt_alloc_gc_data(waypoint *wpt);
+int waypt_empty_gc_data(const waypoint *wpt);
+geocache_type gs_mktype(const char *t);
+geocache_container gs_mkcont(const char *t);
+
 route_head *route_head_alloc(void);
 void route_add (waypoint *);
 void route_add_wpt(route_head *rte, waypoint *wpt);
@@ -547,6 +574,8 @@ void track_del_head(route_head *rte);
 void route_disp(const route_head *rte, waypt_cb);
 void route_disp_all(route_hdr, route_trl, waypt_cb);
 void track_disp_all(route_hdr, route_trl, waypt_cb);
+void route_disp_session(const session_t *se, route_hdr rh, route_trl rt, waypt_cb wc);
+void track_disp_session(const session_t *se, route_hdr rh, route_trl rt, waypt_cb wc);
 void route_flush( queue *);
 void route_flush_all(void);
 void route_flush_all_routes(void);
@@ -591,6 +620,7 @@ void setshort_mustuniq(short_handle,  int n);
 void setshort_whitespace_ok(short_handle,  int n);
 void setshort_repeating_whitespace_ok(short_handle,  int n);
 void setshort_defname(short_handle, const char *s);
+void setshort_is_utf8(short_handle h, const int is_utf8);
 
 /*
  *  Vmem flags values.
@@ -643,13 +673,14 @@ void 	vmem_realloc(vmem_t*, size_t);
 #define ARG_TERMINATOR {0, 0, 0, 0, 0, ARG_NOMINMAX}
 
 typedef struct arglist {
-	char *argstring;
+	const char *argstring;
 	char **argval;
-	char *helpstring;
-	char *defaultvalue;
-	gbuint32 argtype;
-	char *minvalue;		/* minimum value for numeric options */
-	char *maxvalue;		/* maximum value for numeric options */
+	const char *helpstring;
+	const char *defaultvalue;
+	const gbuint32 argtype;
+	const char *minvalue;		/* minimum value for numeric options */
+	const char *maxvalue;		/* maximum value for numeric options */
+	char *argvalptr;	/* !!! internal helper. Not used in definitions !!! */
 } arglist_t;
 
 typedef enum {
@@ -703,9 +734,10 @@ typedef struct ff_vecs {
 	ff_write write;
 	ff_exit exit;
 	arglist_t *args;
-	char *encode;
+	const char *encode;
 	int fixed_encode;
 	position_ops_t position_ops;
+	const char *name;		/* dyn. initialized by find_vec */
 } ff_vecs_t;
 
 typedef struct style_vecs {
@@ -734,6 +766,7 @@ void assign_option(const char *vecname, arglist_t *ap, const char *val);
 void disp_vec_options(const char *vecname, arglist_t *ap);
 void disp_vecs(void);
 void disp_vec( const char *vecname );
+void init_vecs(void);
 void exit_vecs(void);
 void disp_formats(int version);
 const char * name_option(long type);
@@ -816,7 +849,7 @@ char * strip_html(const utf_string*);
 char * strip_nastyhtml(const char * in);
 char * convert_human_date_format(const char *human_datef);	/* "MM,YYYY,DD" -> "%m,%Y,%d" */
 char * convert_human_time_format(const char *human_timef);	/* "HH+mm+ss"   -> "%H+%M+%S" */
-char * pretty_deg_format(double lat, double lon, char fmt, char *sep, int html);   /* decimal ->  dd.dddd or dd mm.mmm or dd mm ss */
+char * pretty_deg_format(double lat, double lon, char fmt, const char *sep, int html);   /* decimal ->  dd.dddd or dd mm.mmm or dd mm ss */
 
 char * get_filename(const char *fname);				/* extract the filename portion */
 
@@ -839,9 +872,9 @@ char * get_filename(const char *fname);				/* extract the filename portion */
 /* this lives in gpx.c */
 time_t xml_parse_time( const char *cdatastr, int * microsecs );
 	
-xml_tag *xml_findfirst( xml_tag *root, char *tagname );
-xml_tag *xml_findnext( xml_tag *root, xml_tag *cur, char *tagname );
-char *xml_attribute( xml_tag *tag, char *attrname );
+xml_tag *xml_findfirst( xml_tag *root, const char *tagname );
+xml_tag *xml_findnext( xml_tag *root, xml_tag *cur, const char *tagname );
+char *xml_attribute( xml_tag *tag, const char *attrname );
 
 char * rot13( const char *str );
 
@@ -930,6 +963,14 @@ typedef enum {
 #define DATUM_OSGB36	86
 #define DATUM_WGS84	118
 
+/* bit manipulation functions (util.c) */
+
+char gb_getbit(const void *buf, const gbuint32 nr);
+void gb_setbit(void *buf, const gbuint32 nr);
+
+void *gb_int2ptr(const int i);
+int gb_ptr2int(const void *p);
+
 /*
  *  From parse.c
  */
@@ -937,6 +978,7 @@ int parse_coordinates(const char *str, int datum, const grid_type grid,
 	double *latitude, double *longitude, const char *module);
 int parse_distance(const char *str, double *val, double scale, const char *module);
 int parse_speed(const char *str, double *val, const double scale, const char *module);
+time_t parse_date(const char *str, const char *format, const char *module);
 
 /*
  *  From util_crc.c
@@ -977,5 +1019,6 @@ int color_to_bbggrr(char *cname);
  * but that's not very nice for the folks near sea level.
  */
 #define unknown_alt 	-99999999.0
+#define unknown_color	-1
 
 #endif /* gpsbabel_defs_h_included */

@@ -24,6 +24,7 @@
 #include "cet_util.h"
 #include "csv_util.h"
 #include "inifile.h"
+#include "session.h"
 #include <ctype.h>
 #include <signal.h>
 
@@ -259,7 +260,10 @@ main(int argc, char *argv[])
 		global_opts.inifile = inifile_init(NULL, MYNAME);
 	}
 	
+	init_vecs();
+	init_filter_vecs();
 	cet_register();
+	session_init();
 	waypt_init();
 	route_init();
 
@@ -349,6 +353,7 @@ main(int argc, char *argv[])
 			
 				cet_convert_init(ivecs->encode, ivecs->fixed_encode);	/* init by module vec */
 
+				start_session(ivecs->name, fname);
 				ivecs->rd_init(fname);
 				ivecs->read();
 				ivecs->rd_deinit();
@@ -568,6 +573,7 @@ main(int argc, char *argv[])
 					
 		cet_convert_init(ivecs->encode, 1);
 
+		start_session(ivecs->name, argv[0]);
 		ivecs->rd_init(argv[0]);
 		ivecs->read();
 		ivecs->rd_deinit();
@@ -614,12 +620,20 @@ main(int argc, char *argv[])
 	 */
 	if (global_opts.masked_objective & POSNDATAMASK) {
 
+                if (!ivecs) {
+                  fatal("Realtime tracking (-T) requires an input type (-t)i such as Garmin or NMEA.\n");
+                }
+
 		if (!ivecs->position_ops.rd_position) {
 			fatal("Realtime tracking (-T) is not suppored by this input type.\n");
 		}
 
 
 		if (ivecs->position_ops.rd_init) {
+			if (!fname) {
+			       fatal("An input file (-f) must be specified.\n");
+			}
+			start_session(ivecs->name, fname);
 			ivecs->position_ops.rd_init(fname);
 		}
 
@@ -668,7 +682,7 @@ main(int argc, char *argv[])
 		if (ivecs->position_ops.rd_deinit) {
 			ivecs->position_ops.rd_deinit();
 		}
-		if (ovecs->position_ops.wr_deinit) {
+		if (ovecs && ovecs->position_ops.wr_deinit) {
 			ovecs->position_ops.wr_deinit();
 		}
 		exit(0);
@@ -681,6 +695,7 @@ main(int argc, char *argv[])
 	cet_deregister();
 	waypt_flush_all();
 	route_flush_all();
+	session_exit();
 	exit_vecs();
 	exit_filter_vecs();
 	inifile_done(global_opts.inifile);
@@ -695,4 +710,3 @@ void signal_handler(int sig)
 {
 	tracking_status.request_terminate = 1;
 }
-

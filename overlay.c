@@ -227,6 +227,7 @@ static void ovl_read(void)
   route_head *route_head = NULL;
   waypoint   *wpt;
   int      sym_cnt;
+  int lineno = 0;
 
   groups = NULL;
   groups_cnt = 0;
@@ -239,6 +240,8 @@ static void ovl_read(void)
   isSection = SECTION_NONE;
   while ((line = gbfgetstr(fpin)))
   {
+    if ((lineno == 0) && fpin->unicode) cet_convert_init(CET_CHARSET_UTF8, 1);
+    lineno++;
     line = lrtrim(line);
     if( (pstr = strstr(line,"[Symbol "))!= NULL)
     {

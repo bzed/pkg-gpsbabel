@@ -24,12 +24,13 @@
 #include "avltree.h"
 #include "xmlgeneric.h"
 
-static char *opt_tag, *opt_tagnd;
+static char *opt_tag, *opt_tagnd, *created_by;
 
 static arglist_t osm_args[] = 
 {
 	{ "tag", &opt_tag, 	"Write additional way tag key/value pairs", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
 	{ "tagnd", &opt_tagnd,	"Write additional node tag key/value pairs", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
+	{ "created_by", &created_by, "Use this value as custom created_by value","GPSBabel", ARGTYPE_STRING, ARG_NOMINMAX },
 	ARG_TERMINATOR
 };
 
@@ -45,21 +46,6 @@ static gbfile *fout;
 static int node_id;
 static route_head *rte;
 static int skip_rte;
-
-#if ! HAVE_LIBEXPAT
-
-void
-osm_rd_init(const char *fname)
-{
-	fatal(MYNAME ": This build excluded \" MYNAME \" support because expat was not installed.\n");
-}
-
-void
-osm_read(void)
-{
-}
-
-#else
 
 static waypoint *wpt;
 static int wpt_loaded, rte_loaded;
@@ -79,7 +65,7 @@ xg_tag_mapping osm_map[] = {
 	{ NULL,		0,		NULL }
 };
 
-static char *osm_features[] = {
+static const char *osm_features[] = {
 	"- dummy -",	/*  0 */
 	"aeroway",	/*  1 */
 	"amenity",	/*  2 */
@@ -415,6 +401,22 @@ static osm_icon_mapping_t osm_icon_mappings[] = {
 	{ -1, NULL, NULL }
 };
 
+#if ! HAVE_LIBEXPAT
+
+void
+osm_rd_init(const char *fname)
+{
+	fatal(MYNAME ": This build excluded \" MYNAME \" support because expat was not installed.\n");
+}
+
+void
+osm_read(void)
+{
+}
+
+#else
+
+
 /*******************************************************************************/
 /*                                   READER                                    */
 /*-----------------------------------------------------------------------------*/
@@ -422,29 +424,21 @@ static osm_icon_mapping_t osm_icon_mappings[] = {
 static void
 osm_features_init(void)
 {
-	/* here we take a union because of warnings
-	   "cast to pointer from integer of different size" 
-	   on 64-bit systems */
-	union {
-		const void *p;
-		int i;
-	} x;
-
+	int i;
+	
 	keys = avltree_init(AVLTREE_STATIC_KEYS, MYNAME);
 	values = avltree_init(0, MYNAME);
 	
-	x.p = NULL;
-	
 	/* the first of osm_features is a place holder */
-	for (x.i = 1; osm_features[x.i]; x.i++)
-		avltree_insert(keys, osm_features[x.i], x.p);
+	for (i = 1; osm_features[i]; i++)
+		avltree_insert(keys, osm_features[i], gb_int2ptr(i));
 	
-	for (x.i = 0; osm_icon_mappings[x.i].value; x.i++) {
+	for (i = 0; osm_icon_mappings[i].value; i++) {
 		char buff[128];
 
-		buff[0] = osm_icon_mappings[x.i].key;
-		strncpy(&buff[1], osm_icon_mappings[x.i].value, sizeof(buff) - 1);
-		avltree_insert(values, buff, (const void *)&osm_icon_mappings[x.i]);
+		buff[0] = osm_icon_mappings[i].key;
+		strncpy(&buff[1], osm_icon_mappings[i].value, sizeof(buff) - 1);
+		avltree_insert(values, buff, (const void *)&osm_icon_mappings[i]);
 	}
 }
 
@@ -453,13 +447,10 @@ static char
 osm_feature_ikey(const char *key)
 {
 	int result;
-	union {
-		const void *p;
-		int i;
-	} x;
+	const void *p;
 	
-	if (avltree_find(keys, key, &x.p))
-		result = x.i;
+	if (avltree_find(keys, key, &p))
+		result = gb_ptr2int(p);
 	else
 		result = -1;
 
@@ -579,7 +570,36 @@ osm_node_tag(const char *args, const char **attrv)
 		else
 			wpt->notes = xstrdup(str);
 	}
-	
+	else if (strcmp(key, "gps:hdop") == 0) {
+		wpt->hdop = atof(str);
+	}
+	else if (strcmp(key, "gps:vdop") == 0) {
+		wpt->vdop = atof(str);
+	}
+	else if (strcmp(key, "gps:pdop") == 0) {
+		wpt->pdop = atof(str);
+	}
+	else if (strcmp(key, "gps:sat") == 0) {
+		wpt->sat = atoi(str);
+	}
+	else if (strcmp(key, "gps:fix") == 0) {
+		if (strcmp(str, "2d") == 0) {
+			wpt->fix = fix_2d;
+		}
+		else if (strcmp(str, "3d") == 0) {
+			wpt->fix = fix_3d;
+		}
+		else if (strcmp(str, "dgps") == 0) {
+			wpt->fix = fix_dgps;
+		}
+		else if (strcmp(str, "pps") == 0) {
+			wpt->fix = fix_pps;
+		}
+		else if (strcmp(str, "none") == 0) {
+			wpt->fix = fix_none;
+		}
+	}
+
 	xfree(str);
 }
 
@@ -694,18 +714,14 @@ osm_rd_deinit(void)
 static void
 osm_init_icons(void)
 {
-	union {
-		const void *p;
-		int i;
-	} x;
+	int i;
 
 	if (icons) return;
 
 	icons = avltree_init(AVLTREE_STATIC_KEYS, MYNAME);
 
-	x.p = NULL;
-	for (x.i = 0; osm_icon_mappings[x.i].value; x.i++)
-		avltree_insert(icons, osm_icon_mappings[x.i].icon, (const void *)&osm_icon_mappings[x.i]);
+	for (i = 0; osm_icon_mappings[i].value; i++)
+		avltree_insert(icons, osm_icon_mappings[i].icon, (const void *)&osm_icon_mappings[i]);
 }
 
 static void
@@ -785,11 +801,48 @@ osm_waypt_disp(const waypoint *wpt)
 		}
 		gbfprintf(fout, ">\n");
 
-		gbfprintf(fout, "    <tag k='created_by' v='GPSBabel");
-		if (gpsbabel_time != 0)
-			gbfprintf(fout, "-%s", gpsbabel_version);
-		gbfprintf(fout, "'/>\n");
+		if (wpt->hdop) {
+			gbfprintf(fout, "    <tag k='gps:hdop' v='%f' />\n", wpt->hdop);
+		}
+		if (wpt->vdop) {
+			gbfprintf(fout, "    <tag k='gps:vdop' v='%f' />\n", wpt->vdop);
+		}
+		if (wpt->pdop) {
+			gbfprintf(fout, "    <tag k='gps:pdop' v='%f' />\n", wpt->pdop);
+		}
+		if (wpt->sat > 0) {
+			gbfprintf(fout, "    <tag k='gps:sat' v='%d' />\n", wpt->sat);
+		}
 
+		switch (wpt->fix) {
+			case fix_2d:
+				gbfprintf(fout, "    <tag k='gps:fix' v='2d' />\n");
+				break;
+			case fix_3d:
+				gbfprintf(fout, "    <tag k='gps:fix' v='3d' />\n");
+				break;
+			case fix_dgps:
+				gbfprintf(fout, "    <tag k='gps:fix' v='dgps' />\n");
+				break;
+			case fix_pps:
+				gbfprintf(fout, "    <tag k='gps:fix' v='pps' />\n");
+				break;
+			case fix_none:
+				gbfprintf(fout, "    <tag k='gps:fix' v='none' />\n");
+				break;
+			case fix_unknown:
+			default:
+				break;
+		}
+		
+		if (strlen(created_by) !=0) {
+			gbfprintf(fout, "    <tag k='created_by' v='%s",created_by);
+			if (gpsbabel_time != 0)
+				if (strcmp("GPSBabel",created_by)==0)
+					gbfprintf(fout, "-%s", gpsbabel_version);
+			gbfprintf(fout, "'/>\n");
+		}
+		
 		osm_write_tag("name", wpt->shortname);
 		osm_write_tag("note", (wpt->notes) ? wpt->notes : wpt->description);
 		if (wpt->icon_descr)
@@ -837,10 +890,13 @@ osm_rte_disp_trail(const route_head *rte)
 {
 	if (skip_rte) return;
 
-	gbfprintf(fout, "    <tag k='created_by' v='GPSBabel");
-	if (gpsbabel_time != 0)
-		gbfprintf(fout, "-%s", gpsbabel_version);
-	gbfprintf(fout, "'/>\n");
+	if (strlen(created_by) !=0) {
+		gbfprintf(fout, "    <tag k='created_by' v='%s",created_by);
+		if (gpsbabel_time != 0)
+			if (strcmp("GPSBabel",created_by)==0)
+				gbfprintf(fout, "-%s", gpsbabel_version);
+		gbfprintf(fout, "'/>\n");
+	}
 
 	osm_write_tag("name", rte->rte_name);
 	osm_write_tag("note", rte->rte_desc);

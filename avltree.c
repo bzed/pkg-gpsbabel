@@ -87,17 +87,32 @@ avltree_init(const int options, const char *module)
 	return tree;
 }
 
+/* Delete all items of tree [tree] */
+
+int
+avltree_clear(avltree_t *tree)
+{
+	int res;
+	
+	AVLTREE_CHECK_HANDLE(tree);
+
+	res = tree->count;
+	avltree_save_key(tree, NULL);
+	if (res) {
+		avltree_node_free(tree, tree->root);
+		/* avltree_node_free doesn't touch 'count' */
+		tree->count = 0;
+		tree->root = NULL;
+	}
+	return res;
+}
 
 /* Destroy an AVL Tree */
 
 void
 avltree_done(avltree_t *tree)
 {
-	AVLTREE_CHECK_HANDLE(tree);
-
-	avltree_save_key(tree, NULL);
-	if (tree->count)
-		avltree_node_free(tree, tree->root);
+	avltree_clear(tree);
 	xfree(tree);
 }
 
@@ -180,7 +195,18 @@ avltree_find(const avltree_t *tree, const char *key, const void **data)
 const char *
 avltree_first(const avltree_t *tree, const void **data)
 {
-	return avltree_next(tree, NULL, data);
+	avlnode_t *node;
+
+	AVLTREE_CHECK_HANDLE(tree);
+
+	node = tree->root;
+	if (! node) return NULL;
+	
+	while (node->left) node = node->left;
+	avltree_save_key((avltree_t *)tree, node->key);
+	if (data) (*data) = node->data;
+
+	return tree->key;
 }
 
 
