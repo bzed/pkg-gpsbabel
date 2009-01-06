@@ -3,20 +3,20 @@
 gpsbabel \- Universal gps format translator
 .SH SYNOPSIS
 .br
-/usr/bin/gpsbabel [options] -i INTYPE -f INFILE -o OUTTYPE -F OUTFILE
+/usr/bin/gpsbabel [options] \-i INTYPE \-f INFILE \-o OUTTYPE \-F OUTFILE
 .br
-/usr/bin/gpsbabel [options] -i INTYPE -o OUTTYPE INFILE [OUTFILE]
+/usr/bin/gpsbabel [options] \-i INTYPE \-o OUTTYPE INFILE [OUTFILE]
 .br
 .SH DESCRIPTION
 
 .br
 Converts GPS route and waypoint data from one format type to another.
 .br
-The input type and filename are specified with the -i INTYPE
+The input type and filename are specified with the \-i INTYPE
 .br
-and -f INFILE options. The output type and filename are specified
+and \-f INFILE options. The output type and filename are specified
 .br
-with the -o OUTTYPE and -F OUTFILE options.
+with the \-o OUTTYPE and \-F OUTFILE options.
 .br
 If '-' is used for INFILE or OUTFILE, stdin or stdout will be used.
 .br
@@ -32,43 +32,43 @@ INTYPE and OUTTYPE must be one of the file types listed below, and
 .br
 may include options valid for that file type.  For example:
 .br
-'gpx', 'gpx,snlen=10' and 'ozi,snlen=10,snwhite=1'
+\'gpx', 'gpx,snlen=10' and 'ozi,snlen=10,snwhite=1'
 .br
 (without the quotes) are all valid file type specifications.
 .br
 
 .SH OPTIONS
 .br
--p               Preferences file (gpsbabel.ini)
+\-p               Preferences file (gpsbabel.ini)
 .br
--s               Synthesize shortnames
+\-s               Synthesize shortnames
 .br
--r               Process route information
+\-r               Process route information
 .br
--t               Process track information
+\-t               Process track information
 .br
--w               Process waypoint information [default]
+\-w               Process waypoint information [default]
 .br
--b               Process command file (batch mode)
+\-b               Process command file (batch mode)
 .br
--c               Character set for next operation
+\-c               Character set for next operation
 .br
--N               No smart icons on output
+\-N               No smart icons on output
 .br
--x filtername    Invoke filter (place between inputs and output) 
+\-x filtername    Invoke filter (place between inputs and output) 
 .br
--D level         Set debug level [0]
+\-D level         Set debug level [0]
 .br
--l               Print GPSBabel builtin character sets and exit
+\-l               Print GPSBabel builtin character sets and exit
 .br
--h, -?           Print detailed help and exit
+\-h, -?           Print detailed help and exit
 .br
--V               Print GPSBabel version and exit
+\-V               Print GPSBabel version and exit
 .br
 
 
 .br
-File Types (-i and -o options):
+File Types (\-i and \-o options):
 .br
 	baroiq                Brauniger IQ Series Barograph Download
 .br
@@ -258,7 +258,7 @@ File Types (-i and -o options):
 .br
 	glogbook              Garmin Logbook XML
 .br
-	gdb                   Garmin MapSource - gdb
+	gdb                   Garmin MapSource \- gdb
 .br
 	  cat                   Default category on output (1..16) 
 .br
@@ -266,7 +266,7 @@ File Types (-i and -o options):
 .br
 	  via                   (0/1) Drop route points that do not have an equivalent w 
 .br
-	mapsource             Garmin MapSource - mps
+	mapsource             Garmin MapSource \- mps
 .br
 	  snlen                 Length of generated shortnames 
 .br
@@ -280,7 +280,7 @@ File Types (-i and -o options):
 .br
 	  mpsuseprox            (0/1) Use proximity values on output (default is ignore) 
 .br
-	garmin_txt            Garmin MapSource - txt (tab delimited)
+	garmin_txt            Garmin MapSource \- txt (tab delimited)
 .br
 	  date                  Read/Write date format (i.e. yyyy/mm/dd) 
 .br
@@ -468,7 +468,7 @@ File Types (-i and -o options):
 .br
 	hiketech              HikeTech
 .br
-	holux                 Holux (gm-100) .wpo Format
+	holux                 Holux (gm\-100) .wpo Format
 .br
 	hsandv                HSA Endeavour Navigator export File
 .br
@@ -596,7 +596,7 @@ File Types (-i and -o options):
 .br
 	msroute               Microsoft Streets and Trips (pin/route reader)
 .br
-	s_and_t               Microsoft Streets and Trips 2002-2006
+	s_and_t               Microsoft Streets and Trips 2002\-2006
 .br
 	  snlen                 Max synthesized shortname length 
 .br
@@ -652,13 +652,13 @@ File Types (-i and -o options):
 .br
 	netstumbler           NetStumbler Summary File (text)
 .br
-	  nseicon               Non-stealth encrypted icon name 
+	  nseicon               Non\-stealth encrypted icon name 
 .br
-	  nsneicon              Non-stealth non-encrypted icon name 
+	  nsneicon              Non\-stealth non\-encrypted icon name 
 .br
 	  seicon                Stealth encrypted icon name 
 .br
-	  sneicon               Stealth non-encrypted icon name 
+	  sneicon               Stealth non\-encrypted icon name 
 .br
 	  snmac                 (0/1) Shortname is MAC address 
 .br
@@ -688,7 +688,7 @@ File Types (-i and -o options):
 .br
 	  gpgsa                 (0/1) Read/write GPGSA sentences 
 .br
-	  date                  Complete date-free tracks with given date (YYYYMMDD) 
+	  date                  Complete date\-free tracks with given date (YYYYMMDD) 
 .br
 	  get_posn              (0/1) Return current position as a waypoint 
 .br
@@ -814,7 +814,7 @@ File Types (-i and -o options):
 .br
 	  margin                Margin for map.  Degrees or percentage 
 .br
-	  snlen                 Max shortname length when used with -s 
+	  snlen                 Max shortname length when used with \-s 
 .br
 	  oldthresh             Days after which points are considered old 
 .br
@@ -846,15 +846,15 @@ File Types (-i and -o options):
 .br
 	  aioicon               Infrastructure open icon name 
 .br
-	  ahcicon               Ad-hoc closed icon name 
+	  ahcicon               Ad\-hoc closed icon name 
 .br
-	  ahoicon               Ad-hoc open icon name 
+	  ahoicon               Ad\-hoc open icon name 
 .br
 	  snmac                 (0/1) Shortname is MAC address 
 .br
-	wbt-bin               Wintec WBT-100/200 Binary file format
+	wbt\-bin               Wintec WBT\-100/200 Binary file format
 .br
-	wbt                   Wintec WBT-100/200 GPS Download
+	wbt                   Wintec WBT\-100/200 GPS Download
 .br
 	  erase                 (0/1) Erase device data after download 
 .br
@@ -944,7 +944,7 @@ Supported data filters:
 .br
 	  error                 Maximum error 
 .br
-	  crosstrack            Use cross-track error (default) 
+	  crosstrack            Use cross\-track error (default) 
 .br
 	  length                Use arclength error 
 .br
@@ -1020,11 +1020,11 @@ Full user documentation is available at /usr/share/doc/gpsbabel/gpsbabel.html
 .SH AUTHORS
 Major contributors:
 .br
-Robert Lipe Chief Babel-Head.
+Robert Lipe Chief Babel\-Head.
 .br
 Ron Parker Long term contributor. Implemented route simplification, arc filter, polygon filter, TomTom, most of the Delorme formats, Palmdoc, GPSPilot, Magellan Navigator Companion, Google Maps, and the stack filter. Numerous contributions to infrastructure and many fixes.
 .br
-Alex Mottram Implemented the CSV subsystem, radius filter, and co-designed the original route and track infrastructure, Topo support ##other stuff.
+Alex Mottram Implemented the CSV subsystem, radius filter, and co\-designed the original route and track infrastructure, Topo support ##other stuff.
 .br
 Olaf Klein contributed support for "Motorrad Routenplaner", MapSource GDB format, Pathaway, IGN Rando, Suunto Trek Manager, Navigon Mobile Navigator, TrackFilter and character encoding transformation.
 .nf
