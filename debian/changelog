@@ -14,7 +14,12 @@ gpsbabel (1.3.6-1) unstable; urgency=low
      - Bumping Standards-Version to 3.8.0 - no changes needed.
      - Adding libpaper-dev as Build-Dependency as an appropriate
        dependency is missing in docbook-xsl.
+     - Adding quilt Build-Dep to handle patches.
   * debian/dirs: dropping file, not needed anymore.
+  * debian/patches:
+    - Adding patch to stop building gpsbabel.pdf as fop is not in main.
+  * debian/README.source:
+    - Adding file to describe the use of quilt.
 
  -- Bernd Zeimetz <bzed@debian.org>  Tue, 06 Jan 2009 16:12:28 +0100
 
