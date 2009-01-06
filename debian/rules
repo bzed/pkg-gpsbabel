@@ -40,7 +40,6 @@ build: build-stamp
 build-stamp: configure-stamp 
 	dh_testdir
 
-	mkdir debian/doctmp
 	# Add here commands to compile the package.
 	$(MAKE)
 	#$(MAKE) doc
