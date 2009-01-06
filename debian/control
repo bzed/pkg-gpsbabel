@@ -2,7 +2,7 @@ Source: gpsbabel
 Section: utils
 Priority: optional
 Maintainer: Bernd Zeimetz <bzed@debian.org>
-Build-Depends: debhelper (>= 4.0.0), libexpat1-dev, texlive-base-bin, texlive-base, libusb-dev, expat, libxml2-utils, xsltproc, libexpat1-dev, zlib1g-dev, docbook-xml, docbook-xsl, autoconf, autotools-dev, libpaper-dev
+Build-Depends: debhelper (>= 4.0.0), libexpat1-dev, texlive-base-bin, texlive-base, libusb-dev, expat, libxml2-utils, xsltproc, libexpat1-dev, zlib1g-dev, docbook-xml, docbook-xsl, autoconf, autotools-dev, libpaper-dev, quilt
 Standards-Version: 3.8.0
 Homepage: http://www.gpsbabel.org/
 Vcs-Browser: http://git.recluse.de/debian/pkg-gpsbabel.git/
