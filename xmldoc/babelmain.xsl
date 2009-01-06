@@ -4,7 +4,7 @@
                 exclude-result-prefixes="exsl">
 
 
-<xsl:import href="file:///usr/share/xml/docbook/stylesheet/nwalsh/xhtml/chunk.xsl"/>
+<xsl:import href="http://docbook.sourceforge.net/release/xsl/current/xhtml/chunk.xsl"/>
 
 <xsl:param name="use.id.as.filename">1</xsl:param>
 <xsl:param name="chunk.first.sections">1</xsl:param>
