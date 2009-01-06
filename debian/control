@@ -1,12 +1,12 @@
 Source: gpsbabel
 Section: utils
 Priority: optional
-Maintainer: John Goerzen <jgoerzen@complete.org>
+Maintainer: Bernd Zeimetz <bzed@debian.org>
 Build-Depends: debhelper (>= 4.0.0), libexpat1-dev, texlive-base-bin, texlive-base, libusb-dev, expat, libxml2-utils, xsltproc, libexpat1-dev, zlib1g-dev, docbook-xml, docbook-xsl, autoconf, autotools-dev
-Standards-Version: 3.6.0
+Standards-Version: 3.8.0
 Homepage: http://www.gpsbabel.org/
-Vcs-Browser: http://git.debian.org/?p=users/jgoerzen/gpsbabel
-Vcs-Git: git://git.debian.org/git/users/jgoerzen/gpsbabel
+Vcs-Browser: http://git.recluse.de/debian/pkg-gpsbabel.git/
+Vcs-Git: git://git.recluse.de/debian/pkg-gpsbabel.git
 
 Package: gpsbabel
 Architecture: any
@@ -23,7 +23,7 @@ Description: GPS file conversion plus transfer to/from GPS units
  a serial link, various PDA-based mapping programs, and various
  Geocaching data formats.
  .
- GPSBabel supports the following formats:
+ Among others GPSBabel supports the following formats:
  .
  Cetus, CoPilot Flight Planner, CSV, Custom CSV, Delorme Street Atlas,
  Delorme Street Atlas 2004 Plus, Delorms GPS Log, Delorme routes,
