@@ -1,3 +1,10 @@
+gpsbabel (1.3.6-2) unstable; urgency=low
+
+  * debian/rules:
+    - Enable 'make doc' again, it was accidentally left disabled. 
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 07 Jan 2009 00:05:46 +0100
+
 gpsbabel (1.3.6-1) unstable; urgency=low
 
   * Imported Upstream version 1.3.6
