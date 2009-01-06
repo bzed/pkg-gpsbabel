@@ -1,3 +1,5 @@
+Don't build gpsbabel.pdf as fop is not in main.
+
 --- a/Makefile.in
 +++ b/Makefile.in
 @@ -241,7 +241,7 @@ changes.html: FORCE
