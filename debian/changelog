@@ -1,3 +1,12 @@
+gpsbabel (1.3.6-3) unstable; urgency=low
+
+  * debian/patches:
+    - Adding 'osm-char-int-cast-bug-fix' patch to remove an unneeded
+      cast from int to char and back to int which resulted in a broken
+      osm module on some architectures. 
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 07 Jan 2009 16:12:17 +0100
+
 gpsbabel (1.3.6-2) unstable; urgency=low
 
   * debian/rules:
