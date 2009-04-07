@@ -1532,8 +1532,12 @@ compare ${REFERENCE}/itracku.unicsv ${TMPDIR}/itracku.unicsv
 rm -f ${TMPDIR}/history~tcx.csv ${TMPDIR}/course~tcx.csv
 gpsbabel -i gtrnctr -f ${REFERENCE}/track/history.tcx -t -o unicsv,utc=0 -F ${TMPDIR}/history~tcx.csv
 compare ${REFERENCE}/track/history~tcx.csv ${TMPDIR}/history~tcx.csv
+gpsbabel -i gtrnctr -f ${REFERENCE}/track/history.tcx -t -o gpx -F ${TMPDIR}/history~tcx.gpx
+compare ${REFERENCE}/track/history~tcx.gpx ${TMPDIR}/history~tcx.gpx
 gpsbabel -i gtrnctr -f ${REFERENCE}/track/course.tcx -t -o unicsv,utc=0 -F ${TMPDIR}/course~tcx.csv
 compare ${REFERENCE}/track/course~tcx.csv ${TMPDIR}/course~tcx.csv
+gpsbabel -i gtrnctr -f ${REFERENCE}/track/course.tcx -t -o gpx -F ${TMPDIR}/course~tcx.gpx
+compare ${REFERENCE}/track/course~tcx.gpx ${TMPDIR}/course~tcx.gpx
 # writing
 rm -f ${TMPDIR}tcxtest~gpx-course.tcx ${TMPDIR}tcxtest~gpx-history.tcx
 gpsbabel -i gpx -f ${REFERENCE}/track/tcxtest.gpx -o gtrnctr,course=1 -F ${TMPDIR}/tcxtest~gpx-course.tcx
@@ -1566,6 +1570,20 @@ gpsbabel -i skyforce \
 	-f ${REFERENCE}/route/skyforce_rte.txt \
 	-f ${REFERENCE}/track/skyforce_trk.txt -o gpx -F ${TMPDIR}/skyforce.gpx
 compare ${REFERENCE}/skyforce.gpx ${TMPDIR}/skyforce.gpx
+
+#
+# PocketFMS breadcrumb files
+#${TMPDIR}
+gpsbabel -i pocketfms_bc -f ${REFERENCE}/pocketfms_bc -o gpx -F ${TMPDIR}/pocketfms_bc.gpx
+compare ${REFERENCE}/pocketfms_bc.gpx ${TMPDIR}/pocketfms_bc.gpx
+gpsbabel -i gpx -f ${REFERENCE}/pocketfms_bc.gpx -o pocketfms_bc -F ${TMPDIR}/pocketfms_bc
+bincompare ${REFERENCE}/pocketfms_bc.babel ${TMPDIR}/pocketfms_bc
+
+#
+# PocketFMS flightplan files (.xml)
+#
+gpsbabel -i pocketfms_fp -f ${REFERENCE}/pocketfms_fp.xml -o gpx -F ${TMPDIR}/pocketfms_fp.gpx
+compare ${REFERENCE}/pocketfms_fp.gpx ${TMPDIR}/pocketfms_fp.gpx
 
 
 exit 0
