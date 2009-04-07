@@ -269,6 +269,16 @@ garmin_usb_start(struct usb_device *dev, libusb_unit_data *lud)
 	/*
 	 * Hrmph.  No iManufacturer or iProduct headers....
 	 */
+
+	
+#if __APPLE__
+	// On Leopard, if we don't do an explicit set_configuration, some
+	// devices will work only the first time after a reset.
+	if (usb_set_configuration(udev, 1) < 0) {
+		fatal("usb_set_configuration failed: %s\n", usb_strerror());
+	};
+#endif
+
 #if 0
 	if (usb_set_configuration(udev, 1) < 0) {
 #if __linux__
@@ -338,7 +348,9 @@ garmin_usb_start(struct usb_device *dev, libusb_unit_data *lud)
 			// It's a case instead of an 'if' becuase I have a 
 			// feeling there are more affected models either
 			// on the market or on the way.
-			case 695: break;
+			case 695: break;   // Venture HC
+			case 285: break;   // GPSMap 276C/4.80
+			case 402: break;   // GPSMap 396C/4.50
 			default: gusb_syncup();
 		}
 		return;
@@ -359,20 +371,17 @@ int garmin_usb_scan(libusb_unit_data *lud, int req_unit_number)
 		struct usb_device *dev;
 
 		for (dev = bus->devices; dev; dev = dev->next) {
-			/* Probably too promiscious of a match, but since
-			 * Garmin doesn't document the _proper_ matching,
-			 * we just take the easy way out for now.
-			 * Unfortunatey, blowing on DeviceClass == Mass storage
-			 * doesn't work on CO, at least.
+			/* 
+			 * Exclude Mass Storage devices (CO, OR, Nuvi, etc.) 
+			 * from this scan.
+			 * At least on Mac, bDeviceClass isn't 
+			 * USB_MASS_STORAGE as it should be (perhaps because
+			 * the storage driver has already bound to it?) so
+			 * we fondle only the proprietary class devices.
 			 */
 			if (dev->descriptor.idVendor == GARMIN_VID && 
-								dev->config) {
-				switch (dev->descriptor.idProduct) {
-					case 0x19:  // Nuvi;
-					case 0x2244:  // Zumo;
-					case 0x2295:  // CO;
-						continue;
-				}
+			    dev->config &&
+				dev->descriptor.bDeviceClass == USB_CLASS_VENDOR_SPEC ) {
 				if (req_unit_number < 0) {
 					garmin_usb_start(dev, lud);	
 					/* 

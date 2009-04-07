@@ -150,9 +150,14 @@ extern ff_vecs_t ggv_ovl_vecs;
 #if CSVFMTS_ENABLED
 extern ff_vecs_t jtr_vecs;
 #endif
+extern ff_vecs_t itracku_vecs;
+extern ff_vecs_t itracku_fvecs;
 extern ff_vecs_t sbp_vecs;
+extern ff_vecs_t sbn_vecs;
 extern ff_vecs_t mmo_vecs;
 extern ff_vecs_t skyforce_vecs;
+extern ff_vecs_t pocketfms_bc_vecs;
+extern ff_vecs_t pocketfms_fp_vecs;
 
 static
 vecs_t vec_list[] = {
@@ -859,10 +864,29 @@ vecs_t vec_list[] = {
         },
 #endif
         {
+                &itracku_vecs,
+                "itracku",
+                "XAiOX iTrackU Logger",
+                NULL
+        },
+
+        {
+                &itracku_fvecs,
+                "itracku-bin",
+                "XAiOX iTrackU Logger Binary File Format",
+                "bin"
+        },
+        {
                 &sbp_vecs,
                 "sbp",
                 "NaviGPS GT-31/BGT-31 datalogger (.sbp)",
                 "sbp"
+        },
+        {
+                &sbn_vecs,
+                "sbn",
+                "NaviGPS GT-31/BGT-31 SiRF binary logfile (.sbn)",
+                "sbn"
         },
         {
                 &mmo_vecs,
@@ -874,6 +898,18 @@ vecs_t vec_list[] = {
         	&skyforce_vecs,
         	"skyforce",
         	"Skymap / KMD150 ascii files",
+        	NULL
+        },
+        {
+        	&pocketfms_bc_vecs,
+        	"pocketfms_bc",
+        	"PocketFMS breadcrumbs",
+        	NULL
+        },
+        {
+        	&pocketfms_fp_vecs,
+        	"pocketfms_fp",
+        	"PocketFMS flightplan",
         	NULL
         },
         

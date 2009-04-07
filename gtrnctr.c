@@ -23,6 +23,8 @@
 #include "xmlgeneric.h"
 
 static gbfile *ofd;
+static int lap_ct = 0;
+static int lap_s = 0;
 static waypoint *wpt_tmp;
 static route_head *trk_head;
 static computed_trkdata *tdata;
@@ -65,11 +67,18 @@ static void
 gtc_read(void)
 {
 }
+
+static void
+gtc_rd_deinit(void)
+{
+
+}
 #else
 
 /* Tracks */
 static xg_callback	gtc_trk_s;
 static xg_callback	gtc_trk_ident;
+static xg_callback	gtc_trk_lap_s, gtc_trk_lap_e;
 static xg_callback	gtc_trk_pnt_s, gtc_trk_pnt_e;
 static xg_callback	gtc_trk_utc;
 static xg_callback	gtc_trk_lat;
@@ -77,6 +86,9 @@ static xg_callback	gtc_trk_long;
 static xg_callback	gtc_trk_alt;
 static xg_callback	gtc_trk_hr;
 static xg_callback	gtc_trk_cad;
+static xg_callback	gtc_wpt_pnt_s, gtc_wpt_pnt_e;
+static xg_callback	gtc_wpt_lat;
+static xg_callback	gtc_wpt_long;
 
 static xg_tag_mapping gtc_map[] = {
 	/* courses tcx v1 & v2 */
@@ -95,26 +107,35 @@ static xg_tag_mapping gtc_map[] = {
 	/* history tcx v2 (activities) */
 	{ gtc_trk_s,    cb_start, "/Activities/Activity" },
 	{ gtc_trk_ident,cb_cdata, "/Activities/Activity/Id" },
-	{ gtc_trk_pnt_s,cb_start, "/Activities/Activity/Track/Trackpoint" },
-	{ gtc_trk_pnt_e,cb_end,   "/Activities/Activity/Track/Trackpoint" },
-	{ gtc_trk_utc,  cb_cdata, "/Activities/Activity/Track/Trackpoint/Time" },
-	{ gtc_trk_lat,  cb_cdata, "/Activities/Activity/Track/Trackpoint/Position/LatitudeDegrees" },
-	{ gtc_trk_long, cb_cdata, "/Activities/Activity/Track/Trackpoint/Position/LongitudeDegrees" },
-	{ gtc_trk_alt,  cb_cdata, "/Activities/Activity/Track/Trackpoint/AltitudeMeters" },
-	{ gtc_trk_hr,   cb_cdata, "/Activities/Activity/Track/Trackpoint/HeartRateBpm" },
-	{ gtc_trk_cad,  cb_cdata, "/Activities/Activity/Track/Trackpoint/Cadence" },
+	{ gtc_trk_lap_s,cb_start, "/Activities/Activity/Lap" },
+	{ gtc_trk_lap_e,cb_end,   "/Activities/Activity/Lap" },
+	{ gtc_trk_pnt_s,cb_start, "/Activities/Activity/Lap/Track/Trackpoint" },
+	{ gtc_trk_pnt_e,cb_end,   "/Activities/Activity/Lap/Track/Trackpoint" },
+	{ gtc_trk_utc,  cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/Time" },
+	{ gtc_trk_lat,  cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/Position/LatitudeDegrees" },
+	{ gtc_trk_long, cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/Position/LongitudeDegrees" },
+	{ gtc_trk_alt,  cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/AltitudeMeters" },
+	{ gtc_trk_hr,   cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/HeartRateBpm" },
+	{ gtc_trk_cad,  cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/Cadence" },
 
 	/* history tcx v1 */
 	{ gtc_trk_s,    cb_start, "/History/Run" },
 	{ gtc_trk_ident,cb_cdata, "/History/Run/Id" },
-	{ gtc_trk_pnt_s,cb_start, "/History/Run/Track/Trackpoint" },
-	{ gtc_trk_pnt_e,cb_end,   "/History/Run/Track/Trackpoint" },
-	{ gtc_trk_utc,  cb_cdata, "/History/Run/Track/Trackpoint/Time" },
-	{ gtc_trk_lat,  cb_cdata, "/History/Run/Track/Trackpoint/Position/LatitudeDegrees" },
-	{ gtc_trk_long, cb_cdata, "/History/Run/Track/Trackpoint/Position/LongitudeDegrees" },
-	{ gtc_trk_alt,  cb_cdata, "/History/Run/Track/Trackpoint/AltitudeMeters" },
-	{ gtc_trk_hr,   cb_cdata, "/History/Run/Track/Trackpoint/HeartRateBpm" },
-	{ gtc_trk_cad,  cb_cdata, "/History/Run/Track/Trackpoint/Cadence" },
+	{ gtc_trk_lap_s,cb_start, "/History/Run/Lap" },
+	{ gtc_trk_lap_e,cb_end,   "/History/Run/Lap" },
+	{ gtc_trk_pnt_s,cb_start, "/History/Run/Lap/Track/Trackpoint" },
+	{ gtc_trk_pnt_e,cb_end,   "/History/Run/Lap/Track/Trackpoint" },
+	{ gtc_trk_utc,  cb_cdata, "/History/Run/Lap/Track/Trackpoint/Time" },
+	{ gtc_trk_lat,  cb_cdata, "/History/Run/Lap/Track/Trackpoint/Position/LatitudeDegrees" },
+	{ gtc_trk_long, cb_cdata, "/History/Run/Lap/Track/Trackpoint/Position/LongitudeDegrees" },
+	{ gtc_trk_alt,  cb_cdata, "/History/Run/Lap/Track/Trackpoint/AltitudeMeters" },
+	{ gtc_trk_hr,   cb_cdata, "/History/Run/Lap/Track/Trackpoint/HeartRateBpm" },
+	{ gtc_trk_cad,  cb_cdata, "/History/Run/Lap/Track/Trackpoint/Cadence" },
+
+	{ gtc_wpt_pnt_s,cb_start, "/Courses/Course/Lap/BeginPosition" },
+	{ gtc_wpt_pnt_e,cb_end, "/Courses/Course/Lap/BeginPosition" },
+	{ gtc_wpt_lat,  cb_cdata, "/Courses/Course/Lap/BeginPosition/LatitudeDegrees" },
+	{ gtc_wpt_long, cb_cdata, "/Courses/Course/Lap/BeginPosition/LongitudeDegrees" },
 
 	{ NULL, 	0,         NULL}
 };
@@ -122,7 +143,6 @@ static xg_tag_mapping gtc_map[] = {
 static const char *
 gtc_tags_to_ignore[] = {
         "TrainingCenterDatabase",
-	"Lap",
 	"CourseFolder",
 	"Running",
 	"Biking",
@@ -405,6 +425,19 @@ gtc_trk_ident(const char *args, const char **unused)
 }
 
 void
+gtc_trk_lap_s(const char *unused, const char **attrv)
+{
+	lap_ct++;
+	lap_s = 1;
+}
+
+void
+gtc_trk_lap_e(const char *unused, const char **attrv)
+{
+	lap_s = 0;
+}
+
+void
 gtc_trk_pnt_s(const char *unused, const char **attrv)
 {
 	wpt_tmp = waypt_new();
@@ -413,10 +446,23 @@ gtc_trk_pnt_s(const char *unused, const char **attrv)
 void
 gtc_trk_pnt_e(const char *args, const char **unused)
 {
-        if(wpt_tmp->longitude != 0. && wpt_tmp->latitude != 0.) track_add_wpt(trk_head, wpt_tmp);
+        if(wpt_tmp->longitude != 0. && wpt_tmp->latitude != 0.) {
+		if (lap_s) {
+			/* Add the first point of an ActivityLap as
+			a waypoint as well as a trackpoint. */
+			char cbuf[10];
+			waypoint* wpt_lap_s = waypt_dupe(wpt_tmp);
+			snprintf(cbuf, sizeof(cbuf), "LAP%03d", lap_ct);
+			wpt_lap_s->shortname = xstrdup(cbuf);
+			waypt_add(wpt_lap_s);
+		}
+
+		track_add_wpt(trk_head, wpt_tmp);
+	}
 	else waypt_free(wpt_tmp);
 
 	wpt_tmp = NULL;
+	lap_s = 0;
 }
 
 void
@@ -455,10 +501,37 @@ gtc_trk_cad(const char *args, const char **unused)
 	wpt_tmp->cadence = atoi(args);
 }
 
+void
+gtc_wpt_pnt_s(const char *unused, const char **attrv)
+{
+	wpt_tmp = waypt_new();
+}
+
+void
+gtc_wpt_pnt_e(const char *args, const char **unused)
+{
+        if(wpt_tmp->longitude != 0. && wpt_tmp->latitude != 0.) waypt_add(wpt_tmp);
+	else waypt_free(wpt_tmp);
+
+	wpt_tmp = NULL;
+}
+
+void
+gtc_wpt_lat(const char *args, const char **unused)
+{
+	wpt_tmp->latitude = atof(args);
+}
+
+void
+gtc_wpt_long(const char *args, const char **unused)
+{
+	wpt_tmp->longitude = atof(args);
+}
+
 ff_vecs_t gtc_vecs = {
         ff_type_file,
 	{
-	  	ff_cap_none 			/* waypoints */,
+	  	ff_cap_read 			/* waypoints */,
 		ff_cap_read | ff_cap_write 	/* tracks */,
 	  	ff_cap_none 			/* routes */
 	},
