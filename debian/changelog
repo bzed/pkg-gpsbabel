@@ -1,12 +1,9 @@
-gpsbabel (1.3.6+cvs-1) experimental; urgency=low
+gpsbabel (1.3.6+cvs1-1) experimental; urgency=low
 
   * Updating to latest CVS head
-    (69e8ce860c469af0aef28425f216d83f0f063515).
-  * debian/patches:
-    - Adding 'arm_double_read_write' to fix reading and writing doubles
-      from/to files on arm (!eabi).
+    (c0af31ca669e2ea66ad33a27f23f0efffef2c948).
 
- -- Bernd Zeimetz <bzed@debian.org>  Tue, 20 Jan 2009 15:00:05 +0100
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 07 Apr 2009 18:06:49 +0200
 
 gpsbabel (1.3.6-3) unstable; urgency=low
 
