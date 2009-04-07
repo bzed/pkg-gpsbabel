@@ -207,6 +207,11 @@ rw_init(const char *fname)
                                         receiver_must_upper = 0;
                                         receiver_short_length = 14;
                                         break;
+				case 429: // Streetpilot i3
+					receiver_must_upper = 0;
+					receiver_charset = CET_CHARSET_MS_ANSI;
+					receiver_short_length = 30;
+					break;
 				case 260: /* GPSMap 296 */
 				default:
 					break;
@@ -848,7 +853,9 @@ waypoint_write(void)
 		way[i]->ident[sizeof(way[i]->ident)-1] = 0;
 
 		// If we were explictly given a comment from GPX, use that. 
-		if (wpt->description) {
+		//  This logic really is horrible and needs to be untangled.
+		if (wpt->description && 
+		    global_opts.smart_names && !wpt->gc_data->diff) {
 			memcpy(way[i]->cmnt, wpt->description, strlen(wpt->description));
 		} else {
 			if (global_opts.smart_names && 
