@@ -1,0 +1,13 @@
+Strip the extra -bin from the GUI name.
+
+--- a/gui/app.pro
++++ b/gui/app.pro
+@@ -21,7 +21,7 @@ RESOURCES = app.qrc 
+ RC_FILE = app.rc
+ 
+ win32:TARGET=gpsbabelfe
+-unix:TARGET=gpsbabelfe-bin
++unix:TARGET=gpsbabelfe
+ 
+ extras.commands = (make -f makeextras.mak)
+ extras.target = extras
