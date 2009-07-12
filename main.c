@@ -319,6 +319,9 @@ main(int argc, char *argv[])
 				optarg = argv[argn][2]
 					? argv[argn]+2 : argv[++argn];
 				ivecs = find_vec(optarg, &ivec_opts);
+				if (ivecs == NULL) {
+					fatal ("Input type '%s' not recognized\n", optarg);
+				}
 				break;
 			case 'o':
 				if (ivecs == NULL) {
@@ -574,6 +577,9 @@ main(int argc, char *argv[])
 		cet_convert_init(ivecs->encode, 1);
 
 		start_session(ivecs->name, argv[0]);
+		if (ivecs->rd_init == NULL) {
+			fatal ("Format does not support reading.\n");
+		}
 		ivecs->rd_init(argv[0]);
 		ivecs->read();
 		ivecs->rd_deinit();
@@ -585,6 +591,10 @@ main(int argc, char *argv[])
 		{
 			cet_convert_init(ovecs->encode, 1);
 			cet_convert_strings(NULL, global_opts.charset, NULL);
+
+			if (ovecs->wr_init == NULL) {
+				fatal ("Format does not support writing.\n");
+			}
 			
 			ovecs->wr_init(argv[1]);
 			ovecs->write();

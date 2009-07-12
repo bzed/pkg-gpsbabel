@@ -186,6 +186,7 @@ rw_init(const char *fname)
 				case 694: /* Legend HCx */
 				case 695: /* Vista HC */
 				case 786: /* HC model */
+				case 957: /* Legend HC */
 					receiver_short_length = 14;
 					snwhiteopt = xstrdup("1");
 					receiver_must_upper = 0;
@@ -467,7 +468,11 @@ track_read(void)
 		wpt->creation_time = array[i]->Time;
                 wpt->wpt_flags.is_split = checkWayPointIsAtSplit(wpt, laps,
                                                                  nlaps);
-		
+		if (array[i]->dpth < 1.0e25f)
+			WAYPT_SET(wpt, depth, array[i]->dpth);
+		if (array[i]->temperature_populated)
+			WAYPT_SET(wpt, temperature, array[i]->temperature);
+
 		track_add_wpt(trk_head, wpt);
 	}
 
