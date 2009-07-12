@@ -862,6 +862,7 @@ char * get_filename(const char *fname);				/* extract the filename portion */
 #define CET_NOT_CONVERTABLE_DEFAULT '$'
 #define CET_CHARSET_ASCII	"US-ASCII"
 #define CET_CHARSET_UTF8	"UTF-8"
+#define CET_CHARSET_HEBREW  "CP1255"
 #define CET_CHARSET_MS_ANSI	"MS-ANSI"
 #define CET_CHARSET_LATIN1	"ISO-8859-1"
 
@@ -923,8 +924,8 @@ void be_write32(void *pp, const unsigned i);
 void le_write16(void *pp, const unsigned i);
 void le_write32(void *pp, const unsigned i);
 
-double endian_read_double(void* ptr, int read_le);
-float  endian_read_float(void* ptr, int read_le);
+double endian_read_double(const void* ptr, int read_le);
+float  endian_read_float(const void* ptr, int read_le);
 void   endian_write_double(void* ptr, double d, int write_le);
 void   endian_write_float(void* ptr, float f, int write_le);
 
@@ -933,8 +934,8 @@ double be_read_double(void *p);
 void   be_write_float(void *pp, float d);
 void   be_write_double(void *pp, double d);
 
-float  le_read_float(void *p);
-double le_read_double(void *p);
+float  le_read_float(const void *p);
+double le_read_double(const void *p);
 void   le_write_float(void *ptr, float f);
 void   le_write_double(void *p, double d);
 
@@ -1015,7 +1016,7 @@ int nmea_cksum(const char *const buf);
 /*
  * Color helpers.
  */
-int color_to_bbggrr(char *cname);
+int color_to_bbggrr(const char *cname);
 
 /*
  * A constant for unknown altitude.   It's tempting to just use zero
