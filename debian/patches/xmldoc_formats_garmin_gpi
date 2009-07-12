@@ -5,7 +5,7 @@
  <important>
  <para>
 -   Creation timestamp issue: See option <link linkend="fmt_garmin_gpi.html#fmt_garmin_gpi_o_sleep">sleep</link> !!!
-+   Creation timestamp issue: See option <link linkend="fmt_garmin_gpi_o_sleep">sleep</link> !!!
++   Creation timestamp issue: See option <link linkend="fmt_garmin_gpi_o_sleep" endterm="fmt_garmin_gpi_o_sleep">sleep</link> !!!
  </para>
  <para>
  	This module does not support direct transfer of .GPI files to
