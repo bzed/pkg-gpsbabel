@@ -3,6 +3,10 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
+PKG_GPSBABEL=gpsbabel
+PKG_GPSBABEL_GUI=gpsbabel-gui
+
+
 #we use quilt to handle our patches
 include /usr/share/quilt/quilt.make
 
@@ -14,11 +18,8 @@ ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 else
 	CFLAGS += -O2
 endif
-ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
-	INSTALL_PROGRAM += -s
-endif
 
-configure: configure-stamp
+configure: configure-stamp gui/Makefile
 configure-stamp: patch
 	dh_testdir
 ifneq "$(wildcard /usr/share/misc/config.sub)" ""
@@ -34,8 +35,10 @@ endif
 
 	touch configure-stamp
 
+gui/Makefile: patch
+	cd gui && qmake-qt4
 
-build: build-stamp
+build: build-stamp build-gui-stamp
 
 build-stamp: configure-stamp 
 	dh_testdir
@@ -48,32 +51,40 @@ build-stamp: configure-stamp
 
 	touch build-stamp
 
+build-gui: build-gui-stamp
+build-gui-stamp: gui/Makefile
+	$(MAKE) -C gui
+	$(MAKE) -C gui -f makeextras.mak XLATE
+	touch $@
+
 clean: clean-patched unpatch
 clean-patched:
 	dh_testdir
 	dh_testroot
-	rm -f build-stamp configure-stamp dep doc/*.ps
+	rm -f *-stamp dep doc/*.ps
 
 	# Add here commands to clean up after the build process.
 	[ ! -f Makefile ] || $(MAKE) clean
-	-cd doc && $(MAKE) clean
-	-rm -rf debian/doctmp xmldoc/autogen/*
-	-rm -rf Makefile config.h config.log config.status debian/*.inc \
+	-$(MAKE) -C doc clean
+	[ ! -f gui/Makefile ] || $(MAKE) -C gui clean
+	rm -rf debian/doctmp xmldoc/autogen/*
+	rm -rf Makefile config.h config.log config.status debian/*.inc \
 		gpsbabel.fo tools/mkcapabilities win32/gpsbabel.rc \
 		xmldoc/makedoc \
 		zlib/empty jeeps/Makefile shapelib/Makefile
 	rm -f config.guess config.sub
-
+	rm -rf gui/Makefile gui/objects
 	dh_clean 
 
-install: build
+install: build-stamp build-gui-stamp
 	dh_testdir
 	dh_testroot
 	dh_clean -k 
-	dh_installdirs
+	dh_installdirs 
 
 	# Add here commands to install the package into debian/gpsbabel.
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel
+	dh_install
 
 
 # Build architecture-independent files here.
@@ -99,4 +110,4 @@ binary-arch: build install
 	dh_builddeb
 
 binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install configure
+.PHONY: build clean binary-indep binary-arch binary install configure 
