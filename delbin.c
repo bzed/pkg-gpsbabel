@@ -73,11 +73,15 @@ static unsigned delbin_os_packet_size;
 
 // number of times to attempt a transfer before giving up
 #define ATTEMPT_MAX 2
+// seconds to wait for expected message (actual time will be somewhat
+// indeterminate, but at least READ_TIMEOUT - 1)
+#define READ_TIMEOUT 6
 
-// debug output: low, medium, high
+// debug output: low, medium, high, higher
 #define DBGLVL_L 1
 #define DBGLVL_M 2
 #define DBGLVL_H 3
+#define DBGLVL_H2 4
 
 // Multiple unit support.
 #define DELBIN_MAX_UNITS 32
@@ -373,6 +377,34 @@ typedef struct {
 
 //-----------------------------------------------------------------------------
 
+#if __APPLE__ || __linux
+	#include <sys/time.h>
+#endif
+
+static void
+debug_out(const char* fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	fputs(MYNAME ": ", stderr);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+}
+
+static void
+debug_out_time(const char* s)
+{
+#if __APPLE__ || __linux
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	debug_out("%u.%03u %s", (unsigned)tv.tv_sec & 0xf, (unsigned)tv.tv_usec / 1000, s);
+#else
+	debug_out("%u %s", (unsigned)time(NULL) & 0xf, s);
+#endif
+}
+
+//-----------------------------------------------------------------------------
+
 static gbuint16
 checksum(const gbuint8* p, unsigned n)
 {
@@ -400,14 +432,18 @@ packet_read(void* buf)
 	}
 	if (global_opts.debug_level >= DBGLVL_H) {
 		unsigned j;
-		warning(MYNAME ": pcktrd ");
+		const gbuint8* p = buf;
+
+		debug_out_time("pcktrd");
 		for (j = 0; j < n; j++) {
-			warning("%02x ", ((gbuint8*)buf)[j]);
+			warning(" %02x", p[j]);
 		}
-		warning("  ");
-		for (j = 0; j < n; j++) {
-			gbuint8 c = ((gbuint8*)buf)[j];
-			warning("%c", isprint(c) ? c : '.');
+		if (global_opts.debug_level >= DBGLVL_H2) {
+			warning("  ");
+			for (j = 0; j < n; j++) {
+				int c = p[j];
+				warning("%c", isprint(c) ? c : '.');
+			}
 		}
 		warning("\n");
 	}
@@ -415,23 +451,27 @@ packet_read(void* buf)
 }
 
 static void
-packet_write(const void* p, unsigned size)
+packet_write(const void* buf, unsigned size)
 {
 	unsigned n;
 	if (global_opts.debug_level >= DBGLVL_H) {
 		unsigned j;
-		warning(MYNAME ": pcktwr ");
+		const gbuint8* p = buf;
+
+		debug_out_time("pcktwr");
 		for (j = 0; j < size; j++) {
-			warning("%02x ", ((gbuint8*)p)[j]);
+			warning(" %02x", p[j]);
 		}
-		warning("  ");
-		for (j = 0; j < size; j++) {
-			gbuint8 c = ((gbuint8*)p)[j];
-			warning("%c", isprint(c) ? c : '.');
+		if (global_opts.debug_level >= DBGLVL_H2) {
+			warning("  ");
+			for (j = 0; j < size; j++) {
+				int c = p[j];
+				warning("%c", isprint(c) ? c : '.');
+			}
 		}
 		warning("\n");
 	}
-	n = delbin_os_ops.packet_write(p, size);
+	n = delbin_os_ops.packet_write(buf, size);
 	if (n != size) {
 		fatal(MYNAME ": short write %u %u\n", size, n);
 	}
@@ -547,9 +587,11 @@ read_depacketize_1(gbuint8** p, unsigned n, int new_packet)
 {
 	static gbuint8 buf[256];
 	static unsigned buf_i, buf_n;
-	while (buf_n == 0 || new_packet) {
+	if (new_packet) {
+		buf_n = 0;
+	}
+	while (buf_n == 0) {
 		packet_read(buf);
-		new_packet = FALSE;
 		if (buf[1] <= delbin_os_packet_size - 2) {
 			buf_n = buf[1];
 			buf_i = 2;
@@ -647,13 +689,12 @@ message_ack(unsigned id, const message_t* m)
 }
 
 // Get specific message, ignoring others. Sends ACK for non-interval messages.
-// Gives up if 6 navigation messages are received, which means we waited at least
-// 5 seconds.
+// Gives up after at least READ_TIMEOUT-1 seconds have passed.
 static int
 message_read(unsigned msg_id, message_t* m)
 {
 	unsigned id;
-	int interval_message_count = 0;
+	time_t time_start = time(NULL);
 
 	if (global_opts.debug_level >= DBGLVL_M)
 		warning(MYNAME ": looking for %x\n", msg_id);
@@ -663,14 +704,8 @@ message_read(unsigned msg_id, message_t* m)
 			break;
 		}
 		message_ack(id, m);
-		if (id == msg_id) {
+		if (id == msg_id || time(NULL) - time_start >= READ_TIMEOUT) {
 			break;
-		}
-		if (id == MSG_NAVIGATION) {
-			interval_message_count++;
-			if (interval_message_count == 6) {
-				break;
-			}
 		}
 	}
 	return id == msg_id;
@@ -688,7 +723,7 @@ get_batch(message_t** array, unsigned* n)
 	if (global_opts.debug_level >= DBGLVL_M)
 		warning(MYNAME ": begin get_batch\n");
 	do {
-		unsigned timeout_count = 0;
+		time_t time_start = time(NULL);
 		if (i == array_max) {
 			message_t* old_a = a;
 			array_max += array_max;
@@ -701,13 +736,11 @@ get_batch(message_t** array, unsigned* n)
 			id = message_read_1(0, &a[i]);
 			switch (id) {
 			case MSG_NAVIGATION:
-				timeout_count++;
-				if (timeout_count == 6) {
+				if (time(NULL) - time_start >= READ_TIMEOUT) {
 					success = 0;
 					break;
 				}
 				// fall through
-			case 0:
 			case MSG_ACK:
 			case MSG_NACK:
 			case MSG_SATELLITE_INFO:
@@ -779,6 +812,8 @@ send_batch(int expect_transfer_complete)
 		warning(MYNAME ": begin send_batch, %u messages\n", n);
 	for (i = 0; i < n; i++) {
 		unsigned timeout_count = 0;
+		time_t time_start = time(NULL);
+
 		message_write(batch_array[i].msg_id, &batch_array[i].msg);
 		for (;;) {
 			unsigned id = message_read_1(0, &m);
@@ -786,17 +821,17 @@ send_batch(int expect_transfer_complete)
 			case MSG_ACK:
 				break;
 			case MSG_NAVIGATION:
-				timeout_count++;
-				if (timeout_count > 2) {
-					fatal(MYNAME ": send_batch timed out\n");
-				}
-				if (timeout_count == 2) {
+				if (time(NULL) - time_start >= 2) {
+					if (timeout_count) {
+						fatal(MYNAME ": send_batch timed out\n");
+					}
+					timeout_count++;
 					if (global_opts.debug_level >= DBGLVL_M)
 						warning(MYNAME ": re-sending %x\n", batch_array[i].msg_id);
 					message_write(batch_array[i].msg_id, &batch_array[i].msg);
+					time_start = time(NULL);
 				}
 				// fall through
-			case 0:
 			case MSG_NACK:
 			case MSG_SATELLITE_INFO:
 				continue;
@@ -1010,6 +1045,7 @@ get_gc_notes(const waypoint* wp, int* symbol, char** notes, unsigned* notes_size
 	case gt_benchmark: gc_sym = 172; break;
 	case gt_cito: gc_sym = 167; break;
 	case gt_mega: gc_sym = 166; break;
+	case gt_wherigo: gc_sym = 164; break;
 	case gt_unknown:
 	case gt_locationless:
 	case gt_ape:
@@ -1988,7 +2024,7 @@ delbin_list_units()
 {
 	int i;
 	for (i = 0; i < n_delbin_units; i++) {
-		printf("%d %s %s\n", 
+		printf("%u %s %s\n", 
 			delbin_unit_info[i].unit_number,
 			delbin_unit_info[i].unit_serial_number,
 			delbin_unit_info[i].unit_name );
@@ -2021,7 +2057,7 @@ delbin_rw_init(const char *fname)
 		} else if (strstr(p->product, "PN-20")) {
 			use_extended_notes = p->firmware[0] > '1' ||
 				(p->firmware[0] == '1' && p->firmware[2] >= '6');
-		} else if (strstr(p->product, "PN-40")) {
+		} else if (strstr(p->product, "PN-30") || strstr(p->product, "PN-40")) {
 			use_extended_notes = p->firmware[0] > '2' ||
 				(p->firmware[0] == '2' && p->firmware[2] >= '5');
 		}
