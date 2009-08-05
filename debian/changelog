@@ -2,8 +2,6 @@ gpsbabel (1.3.6+cvs1-1) experimental; urgency=low
 
   * Updating to latest CVS head
     (c0af31ca669e2ea66ad33a27f23f0efffef2c948).
-  * debian/patches/xmldoc_formats_garmin_gpi:
-    Adding patch to fix the documentation build process.
 
  -- Bernd Zeimetz <bzed@debian.org>  Tue, 07 Apr 2009 18:06:49 +0200
 
