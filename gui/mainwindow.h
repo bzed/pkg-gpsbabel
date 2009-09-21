@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: mainwindow.h,v 1.2 2009/07/31 18:32:32 robertl Exp $
+// $Id: mainwindow.h,v 1.5 2009/08/28 17:21:37 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -31,7 +31,7 @@
 class MainWindow: public QMainWindow {
   Q_OBJECT
 
-  
+
   public:
   MainWindow(QWidget* parent);
   ~MainWindow();
@@ -68,6 +68,10 @@ private:
   void setComboToDevice(QComboBox *comboBox, const QString &);
 
   void loadDeviceNameCombos();
+  void loadInputDeviceNameCombo(QString format);
+  void loadOutputDeviceNameCombo(QString format);
+  bool MainWindow::formatSupportsUSB(QString format);
+  bool MainWindow::formatSupportsSerial(QString format);
   void loadCharSetCombos();
   void checkCharSetCombos();
   QString charSetFromCombo(QComboBox *);
@@ -76,6 +80,7 @@ private:
   void setWidgetValues();
   void getWidgetValues();
   UpgradeCheck *upgrade;
+  void osLoadDeviceNameCombos(QComboBox*);
 
 protected:
   void closeEvent(QCloseEvent*);

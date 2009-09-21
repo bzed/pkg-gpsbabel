@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: upgrade.cpp,v 1.3 2009/08/03 05:16:23 robertl Exp $
+// $Id: upgrade.cpp,v 1.10 2009/08/28 17:08:55 robertl Exp $
 /*
     Copyright (C) 2009  Robert Lipe, robertlipe@gpsbabel.org
 
@@ -23,18 +23,15 @@
 #include "upgrade.h"
 
 #include <QHttp>
-//#include <QHttpRequestHeader>
 #include <QMessageBox>
+#include <QDesktopServices>
 #include <QDomDocument>
+#include <QLocale>
+#include <QSysInfo>
+#include <QUrl>
 
-static const bool testing = true;
-// static const bool testing = false;
-
-static int versionAsNumber(const QString &s) 
-{
-  QStringList list = s.split(".");
-  return (list[0].toInt()<<16 | list[1].toInt() << 8 | list[2].toInt() );
-}
+// static const bool testing = true;
+static const bool testing = false;
 
 UpgradeCheck::UpgradeCheck(QWidget *parent) :
   QObject(parent),
@@ -52,16 +49,60 @@ UpgradeCheck::~UpgradeCheck()
   }
 }
 
-void UpgradeCheck::changeEvent(QEvent *)
+QString UpgradeCheck::UpgradeCheck::getOsName(void)
 {
+  // Do not translate these strings.
+#if defined (Q_OS_LINUX)
+    return "Linux";
+#elif defined (Q_OS_MAC)
+  return "Mac";
+#elif defined (Q_OS_WIN)
+  return "Windows";
+#elif
+  return "Unknown"'
+#endif
+
 }
 
-UpgradeCheck::updateStatus UpgradeCheck::checkForUpgrade(const QString &currentVersion,
-							 int checkMethod,
-							 const QDateTime &lastCheckTime,
-							 const QString &installationUuid)
+// See http://doc.trolltech.com/4.5/qsysinfo.html to interpret results
+QString UpgradeCheck::UpgradeCheck::getOsVersion(void)
 {
-  this->currentVersion = currentVersion;
+  #if defined (Q_OS_MAC)
+  switch (QSysInfo::MacintoshVersion) {
+  case QSysInfo::MV_10_3: return "10.3"; break;
+  case QSysInfo::MV_10_4: return "10.4"; break;
+  case QSysInfo::MV_10_5: return "10.5"; break;
+  case QSysInfo::MV_10_6: return "10.6"; break;
+  default: return QString("Unknown Mac %1").arg(QSysInfo::MacintoshVersion);
+  };
+  #elif defined (Q_OS_WIN)
+  switch (QSysInfo::WinVersion) {
+  // Wildly improbable...
+  case QSysInfo::WV_95: return "95"; break;
+  case QSysInfo::WV_98: return "98"; break;
+  case QSysInfo::WV_Me: return "Me"; break;
+
+  case QSysInfo::WV_4_0: return "NT 4"; break;
+  case QSysInfo::WV_5_0: return "2000"; break;
+  case QSysInfo::WV_5_1: return "XP"; break;
+  case QSysInfo::WV_5_2: return "2003"; break;
+  case QSysInfo::WV_6_0: return "Vista"; break;
+  case QSysInfo::WV_6_1: return "7"; break;
+
+  }
+  #endif
+  // FIXME: find something appropriately clever to do for Linux, etc. here.
+  return "Unknown";
+}
+
+
+UpgradeCheck::updateStatus UpgradeCheck::checkForUpgrade(const QString &currentVersionIn,
+               int checkMethod,
+               const QDateTime &lastCheckTime,
+               const QString &installationUuid)
+{
+  this->currentVersion = currentVersionIn;
+  this->currentVersion.remove("GPSBabel Version");
   this->upgradeCheckMethod = checkMethod;
 
   QDateTime soonestCheckTime = lastCheckTime.addDays(1);
@@ -69,23 +110,29 @@ UpgradeCheck::updateStatus UpgradeCheck::checkForUpgrade(const QString &currentV
     // Not time to check yet.
     return UpgradeCheck::updateUnknown;
   }
+
   http = new QHttp;
-  
+
   connect(http, SIGNAL(requestFinished(int, bool)),
           this, SLOT(httpRequestFinished(int, bool)));
   connect(http, SIGNAL(responseHeaderReceived(const QHttpResponseHeader &)),
           this, SLOT(readResponseHeader(const QHttpResponseHeader &)));
-  
+
   QHttpRequestHeader header("POST", "/upgrade_check.html");
-	header.setValue("Host",  "www.gpsbabel.org");
-	        header.setContentType("application/x-www-form-urlencoded");
- QString args = "current_version=" + currentVersion;
-   args += "&installation=" + installationUuid;	header.setValue("Host", "www.gpsbabel.org");
-	
+  header.setValue("Host",  "www.gpsbabel.org");
+  header.setContentType("application/x-www-form-urlencoded");
+  header.setValue("Host", "www.gpsbabel.org");
+  QLocale locale;
+
+  QString args = "current_version=" + currentVersion;
+  args += "&installation=" + installationUuid;
+  args += "&os=" + getOsName();
+  args += "&os_ver=" + getOsVersion();
+  args += "&beta_ok=1";   // Eventually to come from prefs.
+  args += "&lang=" + QLocale::languageToString(locale.language());
+
   http->setHost("www.gpsbabel.org");
-//	http->request(header);
-	http->request(header, args.toUtf8());
-//  httpRequestId = http->get("/upgrade_check.html");
+  httpRequestId = http->request(header, args.toUtf8());
 
   return UpgradeCheck::updateUnknown;
 }
@@ -100,11 +147,11 @@ void UpgradeCheck::readResponseHeader(const QHttpResponseHeader &responseHeader)
   case 307:                   // Temporary Redirect
     // these are not error conditions
     break;
-    
+
   default:
     QMessageBox::information(0, tr("HTTP"),
-			     tr("Download failed: %1.")
-			     .arg(responseHeader.reasonPhrase()));
+           tr("Download failed: %1.")
+           .arg(responseHeader.reasonPhrase()));
     httpRequestAborted = true;
     http->abort();
   }
@@ -115,50 +162,63 @@ void UpgradeCheck::httpRequestFinished(int requestId, bool error)
   if (http == 0 || error)
     return;
 
-  if (requestId != httpRequestId) 
+  if (requestId != httpRequestId)
     return;
 
   QString oresponse(http->readAll());
 
   QDomDocument document;
-  if (!document.setContent(oresponse)) 
+  if (!document.setContent(oresponse))
     return;
-  
+
   QString response;
-  
+  QString upgradeText;
+
   if (testing)
     currentVersion =  "1.3.1"; // for testing
 
   bool allowBeta = false;  // TODO: come from prefs or current version...
 
-  int currentVersionNum = versionAsNumber(currentVersion);
-  
   QDomNodeList upgrades = document.elementsByTagName("update");
-  
+
   for (unsigned int i = 0; i < upgrades.length(); i++) {
     QDomNode upgradeNode = upgrades.item(i);
     QDomElement upgrade = upgradeNode.toElement();
-    
+
     QString updateVersion = upgrade.attribute("version");
     bool updateIsBeta  = upgrade.attribute("type") == "beta";
     bool updateIsMajor = upgrade.attribute("type") == "major";
     bool updateCandidate = updateIsMajor || (updateIsBeta && allowBeta);
-    int updateVersionNum = versionAsNumber(updateVersion);
-    
-    if(updateVersionNum > currentVersionNum && updateCandidate) {
-      response = tr("<center><b>A new version of GPSBabel is available</b><br>"
-		    "Your version is %1 <br>"
-		    "The latest version is %2</center>")
-	.arg(currentVersion)
-	.arg(updateVersion);
+    upgradeText = upgrade.firstChildElement("overview").text();
 
-      break;  
+    // String compare, not a numeric one.  Server will return "best first".
+    if((updateVersion > currentVersion) && updateCandidate) {
+      response = tr("A new version of GPSBabel is available.<br />"
+        "Your version is %1 <br />"
+        "The latest version is %2")
+          .arg(currentVersion)
+          .arg(updateVersion);
+      break;
     }
   }
+
   if (response.length()) {
-    QMessageBox::information(0, tr("Upgrade"), response);
+    QMessageBox information;
+    information.setWindowTitle(tr("Upgrade"));
+
+    information.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    information.setDefaultButton(QMessageBox::Yes);
+
+    information.setText(response);
+    information.setInformativeText(tr("Do you wish to download an upgrade?"));
+    information.setDetailedText(upgradeText);
+
+    switch (information.exec()) {
+      case QMessageBox::Yes:
+          QDesktopServices::openUrl(QUrl("http://www.gpsbabel.org/download.html", QUrl::TolerantMode));
+      default: ;
+    }
+
     upgradeWarningTime = QDateTime(QDateTime::currentDateTime());
   }
-  delete http;
-  http = 0;
 }

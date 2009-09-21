@@ -438,7 +438,12 @@ read_poi_group(const int sz, const int tag)
 #endif
 }
 
-
+// TODO: 'tag' is probably not a 32 bit value.
+// most likely it's a pair of 16's: the first pair is the tag number.
+// if the second 16 is "eight", then it's an
+// extended thingy and it has a 4-byte extended record length (total number 
+// of bytes for all record fields and all nested records, starting after the 
+// length field)
 /* gpi tag handler */
 static int
 read_tag(const char *caller, const int tag, waypoint *wpt)
@@ -528,6 +533,7 @@ read_tag(const char *caller, const int tag, waypoint *wpt)
 			
 		case 0x8000b:	/* address (street/city...) */
 			(void) gbfgetint32(fin);
+		case 0xb:	/* as seen in German POI files. */
 			PP;
 			mask = gbfgetint16(fin); /* address fields mask */
 #ifdef GPI_DBG
@@ -555,6 +561,29 @@ read_tag(const char *caller, const int tag, waypoint *wpt)
 			}
 			break;
 
+		case 0xc:
+			mask = gbfgetint16(fin); 
+			if ((mask & 1) && (str = gpi_read_string("Phone"))) {
+				gmsd = gpi_gmsd_init(wpt);
+				GMSD_SET(phone_nr, str);
+			}
+			if ((mask & 2) && (str = gpi_read_string("Phone2"))) {
+				gmsd = gpi_gmsd_init(wpt);
+				GMSD_SET(phone_nr2, str);
+			}
+			if ((mask & 4) && (str = gpi_read_string("Fax"))) {
+				gmsd = gpi_gmsd_init(wpt);
+				GMSD_SET(fax_nr, str);
+			}
+			if ((mask & 8) && (str = gpi_read_string("Email"))) {
+				gmsd = gpi_gmsd_init(wpt);
+				GMSD_SET(email, str);
+			}
+			if ((mask & 0x10) && (str = gpi_read_string("Link"))) {
+				waypt_add_url(wpt, xstrdup(str), xstrdup(str));
+			}
+			break;
+
 		case 0x8000c:	/* phone-number */
 			(void) gbfgetint32(fin);
 			PP;
@@ -573,20 +602,12 @@ read_tag(const char *caller, const int tag, waypoint *wpt)
 			break;
 
 		case 0x11:
-		case 0xb:
-		case 0xc:   
-		  /* appears to be web links.  If the first 16 bit 
-		     value  is 0x10, the remainder is a length/URL pair.
-         	     if it's 0x19, there is a length/phone # (?) pair followed
-		     by a length/URL pair.
-   		   */
 		case 0x80007: 
 		/* Looks like some kind of calendar information. */
-
 #ifdef GPI_DBG
 			{
 			int x;
-			char *b = xmalloc(sz);
+			unsigned char *b = xmalloc(sz);
 			fprintf(stderr, "Tag: %x\n", tag);
 			gbfread(b, 1, sz, fin);
 			fprintf(stderr, "\n");
@@ -595,6 +616,7 @@ read_tag(const char *caller, const int tag, waypoint *wpt)
 			fprintf(stderr, "\n");
 			for (x = 0; x < sz; x++)
 			  fprintf(stderr, "%c", isalnum(b[x]) ? b[x] : '.');
+		        fprintf(stderr, "\n");
 			}
 #endif // GPI_DBG
 			break;

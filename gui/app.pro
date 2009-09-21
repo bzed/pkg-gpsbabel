@@ -1,4 +1,4 @@
-# $Id: app.pro,v 1.5 2009/07/27 15:36:30 robertl Exp $
+# $Id: app.pro,v 1.7 2009/08/07 00:03:53 robertl Exp $
 #
 
 #CONFIG += qt debug console
@@ -6,6 +6,8 @@ CONFIG += qt release
 
 # For Mac, build Universal binary.   Ignored on other OSes.
 CONFIG += x86 ppc
+
+ICON = images/appicon.icns
 
 QT += network \
     xml \
@@ -17,6 +19,7 @@ unix:OBJECTS_DIR = objects
 unix:RCC_DIR = objects
 
 win32:LIBS += SHELL32.LIB
+mac:LIBS += -framework IOKit
 
 UI_DIR = tmp
 
@@ -60,6 +63,7 @@ SOURCES += processwait.cpp
 SOURCES += filterwidgets.cpp
 SOURCES += filterdlg.cpp
 SOURCES += upgrade.cpp
+mac:SOURCES += serial_mac.cpp
 
 HEADERS += mainwindow.h
 HEADERS += map.h
