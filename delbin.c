@@ -105,6 +105,7 @@ static char *opt_nuke_trk = NULL;
 static char *opt_nuke_rte = NULL;
 /* If true, Order hint to match Cache Register and Topo 7 */
 static char *opt_hint_at_end = NULL;
+static char *opt_gcsym = NULL;
 
 
 static arglist_t delbin_args[] = {
@@ -121,11 +122,15 @@ static arglist_t delbin_args[] = {
 	{"nukerte", &opt_nuke_rte, "Delete all waypoints before sending", NULL, ARGTYPE_BOOL,
 		ARG_NOMINMAX },
 	{"hint_at_end", &opt_hint_at_end, "If true, geocache hint at end of text", NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"gcsym", &opt_gcsym, "If set to 0, prefer user-provided symbols over Groundspeaks ones for geocaches", NULL, ARGTYPE_BOOL, ARG_NOMINMAX, "1" },
 	ARG_TERMINATOR
 };
 
 // Whether device understands message 0xb016
 static int use_extended_notes;
+
+// Device capabilities
+static unsigned device_max_waypoint;
 
 static const char* waypoint_symbol(unsigned index);
 static unsigned waypoint_symbol_index(const char* name);
@@ -143,8 +148,10 @@ static waypoint** wp_array;
 #define MSG_ACK 0xaa00
 #define MSG_BREAK 0xaa02
 #define MSG_BREAK_SIZE 33
+#define MSG_CAPABILITIES 0xb001
 #define MSG_DELETE 0xb005
 #define MSG_DELETE_SIZE 67
+#define MSG_ERROR 0xa003
 #define MSG_NAVIGATION 0xa010
 #define MSG_REQUEST_ROUTES 0xb051
 #define MSG_REQUEST_ROUTES_SIZE 65
@@ -181,7 +188,6 @@ static waypoint** wp_array;
 
 //-----------------------------------------------------------------------------
 // Message structures
-
 
 // Input Delete Message
 // Message ID: 0xB005
@@ -417,6 +423,24 @@ typedef struct {
 	char serial[16];
 	char extra[16];
 } msg_version_t;
+
+// Output Device Capabilities Message
+// Message ID: 0xB001
+typedef struct {
+	gbuint8 max_waypoints[4]; // U32
+	gbuint8 max_tracks[2]; // U16
+	gbuint8 max_track_points[4]; // U32
+	gbuint8 max_routes[2]; // U16
+	gbuint8 max_route_points[4]; // U32
+	gbuint8 max_route_shape_points[4]; // U32
+	gbuint8 max_maps[2]; // U16
+	gbuint8 min_map_version[2]; // U16
+	gbuint8 max_map_version[2]; // U16
+	gbuint8 total_internal_file_memory[4]; // U32
+	gbuint8 avail_internal_file_memory[4]; // U32
+	gbuint8 total_external_file_memory[4]; // U32
+	gbuint8 avail_external_file_memory[4]; // U32
+} msg_capabilities_t;
 
 //-----------------------------------------------------------------------------
 
@@ -748,6 +772,10 @@ message_read(unsigned msg_id, message_t* m)
 		id = message_read_1(msg_id, m);
 		if (id == 0) {
 			break;
+		}
+		if (id == MSG_ERROR) {
+			const gbuint8* p = m->data;
+			fatal(MYNAME ": device error %u: \"%s\"\n", *p, p + 1);
 		}
 		message_ack(id, m);
 		if (id == msg_id || time(NULL) - time_start >= READ_TIMEOUT) {
@@ -1114,7 +1142,7 @@ get_gc_notes(const waypoint* wp, int* symbol, char** notes, unsigned* notes_size
 	}
 
 	gbfprintf(fd, "Cache ID: %s\n", wp->shortname);
-	if (gc_sym) {
+	if (gc_sym && atoi(opt_gcsym)) {
 		gbfprintf(fd, "%s\n", waypoint_symbol(gc_sym));
 		*symbol = gc_sym;
 	} else if (wp->icon_descr) {
@@ -1125,9 +1153,11 @@ get_gc_notes(const waypoint* wp, int* symbol, char** notes, unsigned* notes_size
 	case gc_small: size = "Small"; break;
 	case gc_regular: size = "Regular"; break;
 	case gc_large: size = "Large"; break;
-	case gc_unknown:
-	case gc_other:
-	case gc_virtual:
+	case gc_unknown: size = "Not Chosen" ; break;
+	case gc_other: size = "Other"; break;
+        // Device has no symbol for this, but this is what Topo sends.
+	case gc_virtual: size = "Virtual"; break; 
+	default:
 		break;
 	}
 	if (size) {
@@ -1181,7 +1211,7 @@ get_gc_notes(const waypoint* wp, int* symbol, char** notes, unsigned* notes_size
 			if (logpart) {
 				time_t logtime = xml_parse_time(logpart->cdata, NULL);
 				const struct tm* logtm = gmtime(&logtime);
-				gbfprintf(fd, "%d-%d-%d ", logtm->tm_year + 1900, logtm->tm_mon + 1, logtm->tm_mday);
+				gbfprintf(fd, "%d-%02d-%02d ", logtm->tm_year + 1900, logtm->tm_mon + 1, logtm->tm_mday);
 			}
 			logpart = xml_findfirst(curlog, "groundspeak:finder");
 			if (logpart) {
@@ -1359,10 +1389,37 @@ write_waypoint(const waypoint* wp)
 static void
 write_waypoints(void)
 {
+	message_t m;
+	unsigned device_n = 0;
+
 	waypoint_i = 0;
 	waypoint_n = waypt_count();
+	if (waypoint_n > device_max_waypoint) {
+		fatal(MYNAME ": waypoint count (%u) exceeds device limit (%u)\n",
+			waypoint_n, device_max_waypoint);
+	}
+
+	message_init_size(&m, 0);
+	message_write(MSG_WAYPOINT_COUNT, &m);
+	if (message_read(MSG_WAYPOINT_COUNT, &m)) {
+		device_n = le_readu32(m.data);
+	}
+
 	waypt_disp_all(write_waypoint);
 	send_batch(TRUE);
+
+	if (device_n + waypoint_n > device_max_waypoint) {
+		m.size = 0;
+		message_write(MSG_WAYPOINT_COUNT, &m);
+		if (message_read(MSG_WAYPOINT_COUNT, &m) &&
+		    le_readu32(m.data) == device_max_waypoint)
+		{
+			warning(MYNAME ": waypoint count (%u already on device + %u added = %u)"
+				" exceeds device limit (%u), some may have been discarded\n",
+				device_n, waypoint_n, device_n + waypoint_n, device_max_waypoint);
+		}
+	}
+	message_free(&m);
 }
 
 //-----------------------------------------------------------------------------
@@ -2132,8 +2189,7 @@ delbin_rw_init(const char *fname)
 	// confuse the first message read if we don't get rid of it
 	packet_read(buf);
 	// Send a break to clear any state from a previous failure
-	message_init(&m);
-	m.size = MSG_BREAK_SIZE;
+	message_init_size(&m, MSG_BREAK_SIZE);
 	memset(m.data, 0, m.size);
 	message_write(MSG_BREAK, &m);
 	// get version info
@@ -2198,6 +2254,16 @@ static void
 delbin_write(void)
 {
 	if (doing_wpts) {
+		message_t m;
+		device_max_waypoint = 1000;
+		message_init_size(&m, 0);
+		message_write(MSG_CAPABILITIES, &m);
+		if (message_read(MSG_CAPABILITIES, &m)) {
+			const msg_capabilities_t* p = m.data;
+			device_max_waypoint = le_readu32(p->max_waypoints);
+		}
+		message_free(&m);
+
  		if (opt_nuke_wpt) add_nuke(nuke_type_wpt);
 		write_waypoints();
 	}
@@ -2931,7 +2997,7 @@ static const char* const waypoint_symbol_name[] = {
 	"Arrow Up Left",
 	"Arrow Up Right",
 	"Arrow Down Left",
-	"Arrow Dow Right",
+	"Arrow Down Right",
 	"Green Star",
 	"Yellow Square",
 	"Red X",
@@ -2995,7 +3061,7 @@ static const char* const waypoint_symbol_name[] = {
 	"Telephone",
 	"Traffic Light",
 	"Fire Hydrant",
-	"Tombstone",
+	"Cemetery",
 	"Picnic Table",
 	"Tent",
 	"Shelter",

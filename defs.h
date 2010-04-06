@@ -25,7 +25,9 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stddef.h>
+#if HAVE_CONFIG_H
 #include "config.h"
+#endif
 #include "queue.h"
 #include "gbtypes.h"
 #if HAVE_LIBZ
@@ -844,6 +846,7 @@ signed int get_tz_offset(void);
 time_t mklocaltime(struct tm *t);
 time_t mkgmtime(struct tm *t);
 time_t current_time(void);
+void dotnet_time_to_time_t(double dotnet, time_t *t, int *ms);
 signed int month_lookup(const char *m);
 const char *get_cache_icon(const waypoint *waypointp);
 const char *gs_get_cachetype(geocache_type t);

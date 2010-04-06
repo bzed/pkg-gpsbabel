@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: help.cpp,v 1.4 2009/08/28 17:08:55 robertl Exp $
+// $Id: help.cpp,v 1.8 2009/11/02 20:38:02 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -20,19 +20,22 @@
 //  USA
 //
 //------------------------------------------------------------------------
-#include "help.h"
-#include <QApplication>
 #include <QUrl>
-#include <QWebView>
+#include <QDesktopServices>
+
+#include "help.h"
+#include "format.h"
 
 //------------------------------------------------------------------------
-void ShowHelp(const char *name)
+void ShowHelp(const QString &urlIn)
+
 {
-  QUrl urlname("file://" + QApplication::applicationDirPath() +
-                "/help/" + name);
-  // FIXME(robertl): This shoud probably parent from QApplication::mainWidget();
-  QWebView *view = new QWebView();
-  view->setWindowTitle("GPSBabel Help");
-  view->load(urlname);
-  view->show();
+  QString url = urlIn;
+  if (!url.contains(QRegExp("^http://"))) {
+    url = Format::getHtmlBase() + url;
+  }
+  QDesktopServices::openUrl(QUrl(url));
 }
+
+
+

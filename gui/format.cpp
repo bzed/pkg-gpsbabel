@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: format.cpp,v 1.1 2009/07/05 21:14:56 robertl Exp $
+// $Id: format.cpp,v 1.4 2010/02/14 05:33:37 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -21,6 +21,9 @@
 //
 //------------------------------------------------------------------------
 #include "format.h"
+#include "mainwindow.h"
+
+QString Format::htmlBase = QString();
 
 static void saveOptions(QSettings &settings, const QString &prefix, const QList<FormatOption> &options) {
   for (int i=0; i<options.size(); i++) {
@@ -48,12 +51,18 @@ void Format::saveSettings(QSettings &settings)
 {
   saveOptions(settings, name+".input", inputOptions);
   saveOptions(settings, name+".output", outputOptions);
+  settings.setValue(name + ".readcount", getReadUseCount());
+  settings.setValue(name + ".writecount", getWriteUseCount());
+  settings.setValue(name+".hidden", isHidden());
 }
 
 void Format::restoreSettings(QSettings &settings)
 {
-  restoreOptions(settings, name+".input", inputOptions);
-  restoreOptions(settings, name+".output", outputOptions);
+  restoreOptions(settings, name + ".input", inputOptions);
+  restoreOptions(settings, name + ".output", outputOptions);
+  bumpReadUseCount(settings.value(name + ".readcount").toInt());
+  bumpWriteUseCount(settings.value(name + ".writecount").toInt());
+  hidden_ = settings.value(name + ".hidden", false).toBool();
 }
 
 void Format::setToDefault()
