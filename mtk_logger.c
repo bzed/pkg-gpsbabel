@@ -113,6 +113,7 @@ static const char *MTK_ACK[] = { /* Flags returned from PMTK001 ack packet */
 #define MTK_EVT_DISTANCE (1<<0x04)
 #define MTK_EVT_SPEED    (1<<0x05)
 #define MTK_EVT_START    (1<<0x07)
+#define MTK_EVT_WAYPT    (1<<0x10)  /* Holux waypoint follows... */
 
 /* *************************************** */
 
@@ -761,8 +762,12 @@ static int add_trackpoint(int idx, unsigned long bmask, struct data_item *itm){
        trk->sat = itm->sat_used;
 
     // RCR is a bitmask of possibly several log reasons..
+    // Holux devics use a Event prefix for each waypt. 
     if ( global_opts.masked_objective & WPTDATAMASK
-       && bmask & (1<<RCR) && itm->rcr & 0x0008  )
+       && (   (bmask & (1<<RCR) && itm->rcr & 0x0008) 
+            || (mtk_info.track_event & MTK_EVT_WAYPT)
+          )
+       )
     {
        /* Button press -- create waypoint, start count at 1 */
        waypoint *w = waypt_dupe(trk);
@@ -1230,7 +1235,7 @@ static int mtk_log_len(unsigned int bitmask){
    }
    for (i=0;i<32;i++){
       if ( (1<<i) & bitmask ){
-         if ( i > DISTANCE )
+         if ( i > DISTANCE && global_opts.debug_level > 0 )
             warning(MYNAME ": Unknown size/meaning of bit %d\n", i);
          if ( (i == SID || i == ELEVATION || i == AZIMUTH || i == SNR) && (1<<SID) & bitmask )
             len += log_type[i].size*32; // worst case, max sat. count..
@@ -1389,14 +1394,19 @@ static void file_read(void) {
             mtk_parse_info(&buf[i], (bLen-i));
             k = 16;
          } else if  ( is_holux_string(&buf[i], (bLen - i)) ) {
+            if ( memcmp(&buf[i+10], "WAYPNT", 6) == 0 )
+               mtk_info.track_event |= MTK_EVT_WAYPT;
+
             k = 16;
-            // m241  - HOLUXGR241LOGGER or HOLUXGR241WAYPNT
+            // m241  - HOLUXGR241LOGGER or HOLUXGR241WAYPNT or HOLUXGR241LOGGER<SP><SP><SP><SP>
             // gr245 - HOLUXGR245LOGGER<SP><SP><SP><SP> or HOLUXGR245WAYPNT<SP><SP><SP><SP>
+            if ((mtk_device != HOLUX_GR245) && (memcmp(&buf[i], "HOLUXGR245", 10) == 0)) {
+               dbg(2, "Detected Holux GR245 !\n");
+               holux245_init();
+            }
+
+            // skip the 4 spaces that may occur on every device
             if ( memcmp(&buf[i+16], "    ", 4) == 0 ){ // Assume loglen >= 20...
-               if ( mtk_device != HOLUX_GR245 ){
-                 dbg(2, "Detected Holux GR245 !\n");
-                 holux245_init();
-               }
                k += 4;
             }   
          } else if  ( buf[i] == 0xff && buf[i+1] == 0xff  && buf[i+2] == 0xff && buf[i+3] == 0xff

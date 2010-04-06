@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: help.h,v 1.2 2009/07/20 01:38:40 robertl Exp $
+// $Id: help.h,v 1.4 2009/11/02 20:38:02 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -23,6 +23,8 @@
 #ifndef HELP_H
 #define HELP_H
 #include <QString>
-extern void ShowHelp(const char *name);
+
+extern void ShowHelp(const QString & name);
+
 
 #endif

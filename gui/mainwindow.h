@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: mainwindow.h,v 1.5 2009/08/28 17:21:37 robertl Exp $
+// $Id: mainwindow.h,v 1.8 2010/02/14 21:29:06 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -49,6 +49,7 @@ private:
 private:
   void loadFormats();
   QString filterForFormat(int idx);
+  QString ensureExtensionPresent(const QString &nanme, int idx);
   bool    filterForFormatIncludes(int idx, const QString &s);
   int  formatIndexFromName(bool isFile, const QString &);
   QList<int>inputFileFormatIndices();
@@ -59,7 +60,7 @@ private:
   bool isOkToGo();
   bool runGpsbabel(const QStringList &args, QString &errorString, QString &outputString);
   void crossCheckInOutFormats();
-  void setIndicatorLights(QLabel *label, const QString type, int code) ;
+  void setIndicatorLights(QLabel *label, const QString &type, int code) ;
   void displayOptionsText(QLineEdit *, QComboBox *, bool);
 
   void saveSettings();
@@ -68,10 +69,10 @@ private:
   void setComboToDevice(QComboBox *comboBox, const QString &);
 
   void loadDeviceNameCombos();
-  void loadInputDeviceNameCombo(QString format);
-  void loadOutputDeviceNameCombo(QString format);
-  bool MainWindow::formatSupportsUSB(QString format);
-  bool MainWindow::formatSupportsSerial(QString format);
+  void loadInputDeviceNameCombo(const QString &format);
+  void loadOutputDeviceNameCombo(const QString &format);
+  bool formatSupportsUSB(const QString &format);
+  bool formatSupportsSerial(const QString &format);
   void loadCharSetCombos();
   void checkCharSetCombos();
   QString charSetFromCombo(QComboBox *);
@@ -86,22 +87,23 @@ protected:
   void closeEvent(QCloseEvent*);
 
  private slots:
-  void inputFileOptBtnClicked();
-  void inputDeviceOptBtnClicked();
-  void inputOptionButtonClicked();
-  void inputFormatChanged(int);
-  void browseInputFile();
-  void outputFileOptBtnClicked();
-  void outputDeviceOptBtnClicked();
-  void outputOptionButtonClicked();
-  void outputFormatChanged(int);
-  void browseOutputFile();
-  void moreOptionButtonClicked();
-  void applyActionX();
   void aboutActionX();
-  void helpActionX();
+  void applyActionX();
+  void browseInputFile();
+  void browseOutputFile();
   void closeActionX();
   void filtersClicked();
+  void helpActionX();
+  void inputDeviceOptBtnClicked();
+  void inputFileOptBtnClicked();
+  void inputFormatChanged(int);
+  void inputOptionButtonClicked();
+  void moreOptionButtonClicked();
+  void outputDeviceOptBtnClicked();
+  void outputFileOptBtnClicked();
+  void outputFormatChanged(int);
+  void outputOptionButtonClicked();
+  void preferencesActionX();
   void resetFormatDefaults();
 
 };

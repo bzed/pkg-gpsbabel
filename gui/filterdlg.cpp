@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: filterdlg.cpp,v 1.2 2009/08/28 17:08:55 robertl Exp $
+// $Id: filterdlg.cpp,v 1.4 2009/09/08 16:06:32 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -118,7 +118,7 @@ void FilterDialog::resetX()
 //------------------------------------------------------------------------
 void FilterDialog::helpX()
 {
-  ShowHelp("gpsbabel.html#Data_Filters");
+  ShowHelp("Data_Filters.html");
 }
 
 //------------------------------------------------------------------------

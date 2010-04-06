@@ -100,6 +100,7 @@ extern ff_vecs_t quovadis_vecs;
 extern ff_vecs_t saroute_vecs;
 extern ff_vecs_t shape_vecs;
 extern ff_vecs_t skytraq_vecs;
+extern ff_vecs_t skytraq_fvecs;
 #if CSVFMTS_ENABLED
 extern ff_vecs_t stmsdf_vecs;
 #endif
@@ -158,6 +159,8 @@ extern ff_vecs_t sbp_vecs;
 extern ff_vecs_t ng_vecs;
 extern ff_vecs_t sbn_vecs;
 extern ff_vecs_t mmo_vecs;
+extern ff_vecs_t bushnell_vecs;
+extern ff_vecs_t bushnell_trl_vecs;
 extern ff_vecs_t skyforce_vecs;
 extern ff_vecs_t v900_vecs;
 extern ff_vecs_t pocketfms_bc_vecs;
@@ -165,6 +168,9 @@ extern ff_vecs_t pocketfms_fp_vecs;
 extern ff_vecs_t pocketfms_wp_vecs;
 extern ff_vecs_t enigma_vecs;
 extern ff_vecs_t vpl_vecs;
+extern ff_vecs_t teletype_vecs;
+extern ff_vecs_t jogmap_vecs;
+extern ff_vecs_t wintec_tes_vecs;
 
 static
 vecs_t vec_list[] = {
@@ -697,7 +703,7 @@ vecs_t vec_list[] = {
 	{
 		&gtc_vecs,
 		"gtrnctr",
-		"Garmin Training Center",
+		"Garmin Training Center (.tcx)",
 		"xml"
 	},
 	{
@@ -910,6 +916,18 @@ vecs_t vec_list[] = {
                 "mmo"
         },
         {
+                &bushnell_vecs,
+                "bushnell",
+                "Bushnell GPS Waypoint file",
+                "wpt"
+        },
+        {
+                &bushnell_trl_vecs,
+                "bushnell_trl",
+                "Bushnell GPS Trail file",
+                "trl"
+        },
+        {
         	&skyforce_vecs,
         	"skyforce",
         	"Skymap / KMD150 ascii files",
@@ -957,12 +975,35 @@ vecs_t vec_list[] = {
 		"DeLorme PN-20/PN-30/PN-40 USB protocol",
 		NULL
 	}, 
-
         {
                 &skytraq_vecs,
                 "skytraq",
-                "SkyTraq Venus 5/6 GPS Data Logger Download",
+                "SkyTraq Venus based loggers (download)",
                 NULL
+        },
+        {
+                &teletype_vecs,
+                "teletype",
+                "Teletype [ Get Jonathon Johnson to describe",
+                NULL
+        },
+        {
+                &skytraq_fvecs,
+                "skytraq-bin",
+                "SkyTraq Venus based loggers Binary File Format",
+                "bin"
+        },
+        {
+                &jogmap_vecs,
+                "jogmap",
+                "Jogmap.de XML format",
+                "xml"
+        },
+        {
+                &wintec_tes_vecs,
+                "wintec_tes",
+                "Wintec TES file",
+                "tes"
         },
 #endif // MAXIMAL_ENABLED
 	{
@@ -989,6 +1030,12 @@ init_vecs(void)
 	}
 }
 
+int
+is_integer(const char *c)
+{
+	return isdigit(c[0]) || ((c[0] == '+' || c[0] == '-') && isdigit(c[1]));
+}
+
 void 
 exit_vecs( void )
 {
@@ -1002,7 +1049,7 @@ exit_vecs( void )
 			for ( ap = vec->vec->args; ap->argstring; ap++ ) {
 				if ( ap->defaultvalue && 
 					( ap->argtype == ARGTYPE_INT ) &&
-					! isdigit(ap->defaultvalue[0])) {
+					! is_integer(ap->defaultvalue)) {
 					warning("%s: not an integer\n", ap->argstring);
 				}
 				if ( ap->argvalptr ) {
