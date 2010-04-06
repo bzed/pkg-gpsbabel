@@ -2,7 +2,7 @@ Don't build gpsbabel.pdf as fop is not in main.
 
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -241,7 +241,7 @@ changes.html: FORCE
+@@ -245,7 +245,7 @@ changes.html: FORCE
  	wget -O $(WEB)/changes.html http://www.gpsbabel.org/changes.html || exit 1
  	rm -f $(WEB)/changes.html.1 > /dev/null
  
