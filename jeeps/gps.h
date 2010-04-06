@@ -38,6 +38,13 @@ extern char gps_categories[16][17];
 
 typedef struct GPS_SPacket
 {
+    US type;
+    uint32 n;
+    UC *data;
+} GPS_OPacket, *GPS_PPacket;
+
+typedef struct GPS_Serial_SPacket
+{
     UC dle;
     UC type;
     UC n;
@@ -45,10 +52,7 @@ typedef struct GPS_SPacket
     UC chk;
     UC edle;
     UC etx;
-    UC bytes;		/* Actual number of bytes (for sending) */    
-} GPS_OPacket, *GPS_PPacket;
-
-
+} GPS_Serial_OPacket, *GPS_Serial_PPacket;
 
 typedef struct GPS_SProduct_Data_Type
 {
@@ -91,12 +95,14 @@ typedef struct GPS_STrack
     int      temperature_populated; /* True if above is valid. */
     unsigned char  heartrate;		/* Heartrate as in Garmin 301 */
     unsigned char  cadence;		/* Crank cadence as in Edge 305 */
+    unsigned int   wsensor_pres:1; /* Wheel sensor present */
     unsigned int   tnew:1;	/* New track? */
     unsigned int   ishdr:1;	/* Track header? */
     unsigned int   no_latlon:1;	/* True if no valid lat/lon found. */
     int32    dspl;		/* Display on map? */
     int32    colour;		/* Colour */
     float    distance; /* distance traveled in meters.*/
+    int      distance_populated; /* True if above is valid. */
     char     trk_ident[256];	/* Track identifier */
 }
 GPS_OTrack, *GPS_PTrack;
@@ -192,6 +198,57 @@ typedef struct GPS_SLap {
 	int16 unk1015_3;
 	*/
 } GPS_OLap, *GPS_PLap;
+
+
+typedef struct GPS_SCourse
+{
+    uint32    index;                    /* Unique among courses on device */
+    char      course_name[16];          /* Null-terminated unique course name */
+    uint32    track_index;              /* Index of the associated track
+                                         * Must be 0xFFFFFFFF if there is none*/
+} GPS_OCourse, *GPS_PCourse;
+
+
+typedef struct GPS_SCourse_Lap
+{
+    uint32        course_index;         /* Index of associated course */
+    uint32        lap_index;            /* This lap's index in the course */
+    uint32        total_time;           /* In hundredths of a second */
+    float         total_dist;           /* [m] */
+    double        begin_lat;            /* Starting position of the lap */
+    double        begin_lon;            /* Invalid if lat,lon are 0x7FFFFFFF.*/
+    double        end_lat;              /* Final position of the lap */
+    double        end_lon;              /* Invalid if lat,lon are 0x7FFFFFFF.*/
+    UC            avg_heart_rate;       /* In beats-per-minute, >0 */
+    UC            max_heart_rate;       /* In beats-per-minute, >0 */
+    UC            intensity;            /* 0=standard, active lap.
+                                           1=rest lap in a workout */
+    UC            avg_cadence;          /* In revolutions-per-minute */
+} GPS_OCourse_Lap, *GPS_PCourse_Lap;
+
+typedef struct GPS_SCourse_Point
+{
+    char        name[11];               /* Null-terminated name */
+    uint32      course_index;           /* Index of associated course */
+    time_t      track_point_time;       /* Time */
+    UC          point_type;             /* generic = 0,
+                                         * summit = 1,
+                                         * valley = 2,
+                                         * water = 3,
+                                         * food = 4,
+                                         * danger = 5,
+                                         * left = 6,
+                                         * right = 7,
+                                         * straight = 8,
+                                         * first_aid = 9,
+                                         * fourth_category = 10,
+                                         * third_category = 11,
+                                         * second_category = 12,
+                                         * first_category = 13,
+                                         * hors_category = 14,
+                                         * sprint = 15 */
+} GPS_OCourse_Point, *GPS_PCourse_Point;
+
 
 typedef int (*pcb_fn) (int, struct GPS_SWay **);
 
