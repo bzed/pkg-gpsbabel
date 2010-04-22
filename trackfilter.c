@@ -40,6 +40,7 @@
 #include "filterdefs.h"
 #include "strptime.h"
 #include "grtcirc.h"
+#include "xmlgeneric.h"
 
 #if FILTERS_ENABLED
 #define MYNAME "trackfilter"
@@ -182,8 +183,8 @@ trackfilter_parse_time_opt(const char *arg)
 static int
 trackfilter_init_qsort_cb(const void *a, const void *b)
 {
-	const trkflt_t *ra = a;
-	const trkflt_t *rb = b;
+	const trkflt_t *ra = (const trkflt_t*) a;
+	const trkflt_t *rb = (const trkflt_t*) b;
 
 	return ra->first_time - rb->first_time;
 }
@@ -266,8 +267,10 @@ trackfilter_fill_track_list_cb(const route_head *track) 	/* callback for track_d
 	    track_pts++;
 	    
 	    wpt = (waypoint *)elem;
-	    is_fatal((need_time != 0) && (wpt->creation_time == 0),
-		MYNAME "-init: Found track point without time!");
+	    if((need_time != 0) && (wpt->creation_time == 0)) {
+	      fatal(MYNAME "-init: Found track point at %f,%f without time!\n",
+                    wpt->latitude, wpt->longitude);
+            }
 
 	    i++;
 	    if (i == 1) 
@@ -278,8 +281,12 @@ trackfilter_fill_track_list_cb(const route_head *track) 	/* callback for track_d
 		
 	    if ((need_time != 0) && (prev != NULL) && (prev->creation_time > wpt->creation_time))
 	    {
-		if (opt_merge == NULL)
-		    fatal(MYNAME "-init: Track points badly ordered (timestamp)!\n");
+		if (opt_merge == NULL) {
+                    char t1[64], t2[64];
+                    xml_fill_in_time(t1, prev->creation_time, 0, XML_LONG_TIME);
+                    xml_fill_in_time(t2, wpt->creation_time, 0, XML_LONG_TIME);
+		    fatal(MYNAME "-init: Track points badly ordered (timestamp %s > %s)!\n", t1, t2);
+                    }
 	    }
 	    prev = wpt;
 	}
@@ -430,7 +437,7 @@ trackfilter_merge(void)
 	
 	if (track_pts < 1) return;
 	
-	buff = xcalloc(track_pts, sizeof(*buff));
+	buff = (waypoint **)xcalloc(track_pts, sizeof(*buff));
 
 	j = 0;
 	for (i = 0; i < track_ct; i++)		/* put all points into temp buffer */
