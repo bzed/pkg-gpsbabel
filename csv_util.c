@@ -126,6 +126,12 @@ typedef enum {
 	XT_TRACK_NAME,
 	XT_TRACK_NEW,
 	XT_URL,
+        XT_UTM,
+        XT_UTM_ZONE,
+        XT_UTM_ZONEC,
+        XT_UTM_ZONEF,
+        XT_UTM_EASTING,
+        XT_UTM_NORTHING,
 	XT_URL_LINK_TEXT,
 	XT_YYYYMMDD_TIME
 } xcsv_token;
@@ -148,6 +154,9 @@ static double oldlat = 999;
 static int waypt_out_count;
 static route_head *csv_track, *csv_route;
 #endif // CSVFMTS_ENABLED
+
+static double utm_northing, utm_easting, utm_zone = 0;
+static char utm_zonec;
 
 /*********************************************************************/
 /* csv_stringclean() - remove any unwanted characters from string.   */
@@ -346,7 +355,7 @@ csv_lineparse(const char *stringstart, const char *delimited_by,
     }
     
     /* allocate enough space for this data field */
-    tmp = xcalloc((p - sp) + 1, sizeof(char));
+    tmp = (char *) xcalloc((p - sp) + 1, sizeof(char));
 
     strncpy(tmp, sp, (p - sp));
     tmp[p - sp] = '\0'; 
@@ -621,7 +630,7 @@ dec_to_human( char *buff, const char *format, const char *dirs, double val )
     dblvals[2] = 60*(dblvals[1]-intvals[1]);
     intvals[2] = (int)dblvals[2];
     
-    subformat = xmalloc( strlen(format)+2);
+    subformat = (char*) xmalloc( strlen(format)+2);
     formatptr = format;
     
     buff[0] = '\0';
@@ -688,14 +697,14 @@ xcsv_file_init(void)
     /* ofield is alloced to allow pointing back at ifields
      * where applicable.
      */
-    xcsv_file.ofield = xcalloc(sizeof(queue), 1);
+    xcsv_file.ofield = (queue*) xcalloc(sizeof(queue), 1);
     QUEUE_INIT(xcsv_file.ofield);
     /*
      * Provide a sane default for CSV _files_.
      */
     xcsv_file.type = ff_type_file;
 
-    xcsv_file.mkshort_handle = mkshort_new_handle();
+    xcsv_file.mkshort_handle = (struct short_handle_*) mkshort_new_handle();
     xcsv_file.gps_datum = GPS_DATUM_WGS84;
 }
 
@@ -706,7 +715,7 @@ xcsv_file_init(void)
 void
 xcsv_ifield_add(char *key, char *val, char *pfc)
 {
-    field_map_t *fmp = xcalloc(sizeof(*fmp), 1);
+    field_map_t *fmp = (field_map_t *) xcalloc(sizeof(*fmp), 1);
     struct xt_mapping *xm = in_word_set(key, strlen(key));
     
     fmp->key = key;
@@ -725,7 +734,7 @@ xcsv_ifield_add(char *key, char *val, char *pfc)
 void
 xcsv_ofield_add(char *key, char *val, char *pfc, int options)
 {
-    field_map_t *fmp = xcalloc(sizeof(*fmp), 1);
+    field_map_t *fmp = (field_map_t *) xcalloc(sizeof(*fmp), 1);
     struct xt_mapping *xm = in_word_set(key, strlen(key));
     
     fmp->key = key;
@@ -745,7 +754,7 @@ xcsv_ofield_add(char *key, char *val, char *pfc, int options)
 void
 xcsv_prologue_add(char *prologue)
 {
-    ogue_t* ogp = xcalloc(sizeof(*ogp), 1);
+    ogue_t* ogp = (ogue_t*) xcalloc(sizeof(*ogp), 1);
 
     ogp->val = prologue;
     ENQUEUE_TAIL(&xcsv_file.prologue, &ogp->Q);
@@ -759,7 +768,7 @@ xcsv_prologue_add(char *prologue)
 void
 xcsv_epilogue_add(char *epilogue)
 {
-    ogue_t * ogp = xcalloc(sizeof(*ogp), 1);
+    ogue_t * ogp = (ogue_t*) xcalloc(sizeof(*ogp), 1);
 
     ogp->val = epilogue;
     ENQUEUE_TAIL(&xcsv_file.epilogue, &ogp->Q);
@@ -831,7 +840,7 @@ addhms( const char *s, const char *format )
 	char * ampm = NULL;
 	int ac;
 	
-	ampm = xmalloc( strlen(s) );
+	ampm = (char*) xmalloc( strlen(s) );
 	ac = sscanf(s, format, &hour, &min, &sec, &ampm);
 	/* If no time format in arg string, assume AM */
 	if (ac < 4) {
@@ -1038,6 +1047,34 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp,
 	parse_coordinates(s, DATUM_OSGB36, grid_bng,
 		&wpt->latitude, &wpt->longitude, MYNAME);
     	break;
+    case XT_UTM_ZONE:
+        utm_zone = atoi(s);
+        break;
+    case XT_UTM_ZONEC:
+        utm_zonec = atoi(s);
+        break;
+    case XT_UTM_ZONEF:
+        utm_zone = atoi(s);
+        utm_zonec = s[strlen(s) - 1];
+        break;
+    case XT_UTM_EASTING:
+        utm_easting = atof(s);
+        break;
+    case XT_UTM_NORTHING:
+        utm_northing = atof(s);
+        break;
+    case XT_UTM: {
+        char *ss;
+        int i = 0;;
+
+        utm_zone = strtod(s, &ss);
+        utm_zonec = ss[i];
+        ss++;
+        utm_easting = strtof(ss, &ss);
+        while(*ss && !isdigit(*ss)) ss++;
+        utm_northing = strtof(ss, NULL);
+        }
+        break;
     /* ALTITUDE CONVERSIONS ************************************************/
     case XT_ALT_FEET:
 	/* altitude in feet as a decimal value */
@@ -1159,7 +1196,7 @@ xcsv_parse_val(const char *s, waypoint *wpt, const field_map_t *fmp,
 	wpt->sat = atoi(s);
     	break;
     case XT_GPS_FIX:
-	wpt->fix = atoi(s)-1;
+	wpt->fix = (fix_type)(atoi(s)-(fix_type)1);
 	if ( wpt->fix < fix_2d) {
 	if (!case_ignore_strcmp(s, "none"))
 		wpt->fix = fix_none;
@@ -1272,6 +1309,10 @@ xcsv_data_read(void)
     ogue_t *ogp;
     route_head *rte = NULL;
     route_head *trk = NULL;
+    utm_northing = 0;
+    utm_easting = 0;
+    utm_zone = 0;
+    utm_zonec = 'N';
     
     csv_route = csv_track = NULL;
     if (xcsv_file.datatype == trkdata) {
@@ -1342,11 +1383,21 @@ xcsv_data_read(void)
                 s = csv_lineparse(NULL, xcsv_file.field_delimiter, "",
                   linecount);
             }
+
             if ((xcsv_file.gps_datum > -1) && (xcsv_file.gps_datum != GPS_DATUM_WGS84)) {
         	double alt;
 		GPS_Math_Known_Datum_To_WGS84_M(wpt_tmp->latitude, wpt_tmp->longitude, 0.0,
 		    &wpt_tmp->latitude, &wpt_tmp->longitude, &alt, xcsv_file.gps_datum);
 	    }
+
+            if (utm_easting || utm_northing) {
+                GPS_Math_UTM_EN_To_Known_Datum(&wpt_tmp->latitude,
+                                               &wpt_tmp->longitude,
+                                               utm_easting, utm_northing,
+                                               utm_zone, utm_zonec,
+                                               DATUM_WGS84);
+            }
+
 	    switch(xcsv_file.datatype) {
 		case 0:
 		case wptdata:
@@ -1410,6 +1461,9 @@ xcsv_waypt_pr(const waypoint *wpt)
     field_map_t *fmp;
     queue *elem, *tmp;
     double latitude, longitude;
+    int32 utmz;
+    double utme, utmn;
+    char utmzc;
 
     buff[0] = '\0';
     
@@ -1653,6 +1707,44 @@ xcsv_waypt_pr(const waypoint *wpt)
 		snprintf(buff, sizeof(buff), fmp->printfc, map, (int)(east + 0.5), (int)(north + 0.5));
 		}
 	    break;
+        case XT_UTM: {
+                char tbuf[100];
+                GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude,
+                                         &utme, &utmn, &utmz, &utmzc);
+                snprintf(tbuf, sizeof(tbuf), "%d%c %6.0f %7.0f", 
+                         utmz, utmzc, utme, utmn);
+                writebuff(buff, fmp->printfc, tbuf);
+                }
+                break;
+        case XT_UTM_ZONE:
+                GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude,
+                                         &utme, &utmn, &utmz, &utmzc);
+                writebuff(buff, fmp->printfc, utmz);
+                break;
+        case XT_UTM_ZONEC:
+                GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude,
+                                         &utme, &utmn, &utmz, &utmzc);
+                writebuff(buff, fmp->printfc, utmzc);
+                break;
+        case XT_UTM_ZONEF: {
+                GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude,
+                                         &utme, &utmn, &utmz, &utmzc);
+                char tbuf[10];
+                tbuf[0] = 0;
+                snprintf(tbuf, sizeof(tbuf), "%d%c", utmz, utmzc);
+                writebuff(buff, fmp->printfc, tbuf);
+                }
+                break;
+        case XT_UTM_NORTHING:
+                GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude,
+                                         &utme, &utmn, &utmz, &utmzc);
+                writebuff(buff, fmp->printfc, utmn);
+                break;
+        case XT_UTM_EASTING:
+                GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude,
+                                         &utme, &utmn, &utmz, &utmzc);
+                writebuff(buff, fmp->printfc, utme);
+                break;
 
         /* ALTITUDE CONVERSIONS**********************************************/
         case XT_ALT_FEET:
