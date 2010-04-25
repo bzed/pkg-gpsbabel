@@ -1,0 +1,11 @@
+--- a/gui/app.pro
++++ b/gui/app.pro
+@@ -27,7 +27,7 @@ RC_FILE = app.rc
+ 
+ mac:TARGET=GPSBabelFE
+ win32:TARGET=GPSBabelFE
+-unix:TARGET=gpsbabelfe-bin
++unix:TARGET=gpsbabelfe
+ 
+ FORMS += aboutui.ui
+ FORMS += advui.ui
