@@ -54,7 +54,6 @@ build-stamp: configure-stamp
 build-gui: build-gui-stamp
 build-gui-stamp: gui/Makefile
 	$(MAKE) -C gui
-	$(MAKE) -C gui -f makeextras.mak XLATE
 	touch $@
 
 clean: clean-patched unpatch
