@@ -1,12 +1,16 @@
 gpsbabel (1.3.7~cvs1-1) unstable; urgency=low
 
+  * Updating to CVS HEAD of today.
   * [4d21a068] Drop Debian's gpsbabel manapge.
   * [a350b9f6] Update patches for current gpsbabel beta.
   * [0516a23a] Bump debhelper compat level to 7.
-  * [73e7115e] Merge branch 'upstream'
   * [f964f0e2] Do no require make check to pass for a successful build.
+  * [f2f46177] Add install file for gpsbabel gui.
+  * [1ce3dba8] Don't call makeextras.mak, the file is gone.
+  * [f590f252] Add patch to rename the gpsbabelfe binary.
+  * [e686c93a] Add fop as build-dependency to build the documentation.
 
- -- Bernd Zeimetz <bzed@debian.org>  Sun, 25 Apr 2010 02:35:49 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 26 Apr 2010 14:24:21 +0200
 
 gpsbabel (1.3.6+cvs1-1) experimental; urgency=low
 
