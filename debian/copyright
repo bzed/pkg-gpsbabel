@@ -5,9 +5,10 @@ It was downloaded from http://gpsbabel.sourceforge.net/
 
 Upstream Author: Robert Lipe <robertlipe@usa.net>
 
-Copyright:
+Copyright and License:
 
-Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
+
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 2 of the License, or
@@ -23,36 +24,189 @@ Copyright (C) 2002-2005 Robert Lipe, robertlipe@usa.net
     Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
     MA 02110-1301, USA.
 
-Debian users can find the GNU General Public License at
-/usr/share/common-licenses/GPL.
+A list of authors and contributors can be found in the file AUTHORS.
 
-Some files also have copyright notices for other authors.
-
-----------------------------------------------------------------------
-This program links with or includes some code from other projects.
-Their copyright statements follow:
-
-------------------------------
-JEEPS application and data functions
-Copyright (C) 1999 Alan Bleasby
-
-** This library is free software; you can redistribute it and/or
-** modify it under the terms of the GNU Library General Public
-** License as published by the Free Software Foundation; either
-** version 2 of the License, or (at your option) any later version.
-**
-** This library is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-** Library General Public License for more details.
-**
-** You should have received a copy of the GNU Library General Public
-** License along with this library; if not, write to the
-** Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-** MA 02110-1301, USA.
+Debian users can find the GNU General Public License, version 2, at
+/usr/share/common-licenses/GPL-2 and the current version of the
+GPL at /usr/share/common-licenses/GPL.
+A copy of the LGPL is available at /usr/share/common-licenses/LGPL.
 
 
-Debian users can find the GNU Library General Public License at
-/usr/share/common-licenses/LGPL-2.
+Additional copyright information:
+
+  alan.c:	Copyright (C) 2007  Gunar Megger, 0xff@quantentunnel.de
+  avltree.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  axim_gpb.c:	Copyright (C) 2006 Olaf Klein, o.b.klein@gpsbabel.org
+  bcr.c:	Copyright (C) 2005-2007 Olaf Klein, o.b.klein@gpsbabel.org
+  brauniger_iq.c:	* Copyright (C) 2004 Chris Jones
+  cet.c:	Copyright (C) 2005-2008 Olaf Klein, o.b.klein@gpsbabel.org
+  cet_util.c:	Copyright (C) 2005-2008 Olaf Klein, o.b.klein@gpsbabel.org
+  coastexp.c:	Copyright (C) 2004 Justin Broughton, justinbr@earthlink.net
+  compegps.c:	Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
+  copilot.c:	Copyright (C) 2002 Paul Tomblin, ptomblin@xcski.com
+  coto.c:	Copyright (C) 2005 Tobias Minich,
+  cst.c:	Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
+  csv_util.c:	Copyright (C) 2002 Alex Mottram (geo_alexm at cox-internet.com)
+  delbin.c:	Copyright (C) 2009 Paul Cornett, pc-gpsb at bullseye.com
+  destinator.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  dg-100.c:	Copyright (C) 2007  Mirko Parthey, mirko.parthey@informatik.tu-chemnitz.de
+  dmtlog.c:	Copyright (C) 2006,2007 Olaf Klein, o.b.klein@gpsbabel.org
+  enigma.c:	Copyright (C) 2009 Tobias Kretschmar, tobias.kretschmar@gmx.de
+  exif.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  g7towin.c:	Copyright (C) 2007 Olaf Klein, o.b.klein@gpsbabel.org
+  garmin_fs.c:	Copyright (C) 2006, 2007, 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  garmin_gpi.c:	Copyright (C) 2007 Olaf Klein, o.b.klein@gpsbabel.org
+  garmin_txt.c:	Copyright (C) 2006 Olaf Klein, o.b.klein@gpsbabel.org
+  gbfile.c:	Copyright (C) 2006,2007,2008 Olaf Klein, o.b.klein@gpsbabel.org
+  gdb.c:	Copyright (C) 2005-2008 Olaf Klein, o.b.klein@gpsbabel.org
+  geoniche.c:	Copyright (C) 2003 Rick Richardson <rickr@mn.rr.com>
+  ggv_log.c:	Copyright (C) 2007 Olaf Klein, o.b.klein@gpsbabel.org
+  ggv_ovl.c:	Copyright (C) 2008 Olaf Klein (o.b.klein@gpsbabel.org).
+  gnav_trl.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  gopal.c:	Copyright (C) 2008  Dr. J�rgen Neumann, Juergen.Neumann@online.de
+  gtm.c:	Copyright (C) 2005  Gustavo Niemeyer <gustavo@niemeyer.net>.
+  height.c:	Copyright (C) 2008 Alexander Stapff, a.stapff@gmx.de
+  holux.c:	Copyright (C) 2002 Jochen Becker, jb@bepo.com
+  hsa_ndv.c:	Copyright (C) 2004 HSA Systems, Sven Dowideit <sven@hsa.com.au>
+  html.c:	Copyright (C) 2004 Scott Brynen, scott (at) brynen.com
+  humminbird.c:	Copyright (C) 2008  Björn Augustsson, oggust@gmail.com
+  humminbird.c:	Copyright (C) 2008  Olaf Klein, o.b.klein@gpsbabel.org
+  igc.c:	Copyright (C) 2004 Chris Jones
+  ignrando.c:	Copyright (C) 2005,2006 Olaf Klein, o.b.klein@gpsbabel.org
+  igo8.c:	Copyright (C) 2008 Dustin Johnson, Dustin@Dustinj.us
+  ik3d.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  inifile.c:	Copyright (C) 2006 Olaf Klein, o.b.klein@gpsbabel.org
+  itracku.c:	Copyright (C) 2008 Andreas Grimme, andreas.grimme(at)gmx.net
+  jtr.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  maggeo.c:	Copyright (C) 2005, 2006, 2008 robertlipe@usa.net
+  mag_pdb.c:	Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
+  mapasia.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  mmo.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  msroute.c:	Copyright (C) 2005,2007,2008 Olaf Klein, o.b.klein@gpsbabel.org
+  mtk_logger.c:	Copyright (C) 2007 Per Borgentun, e4borgen(at)yahoo.com
+  mtk_logger.c:	Copyright (C) 2006 Andy Armstrong
+  naviguide.c:	Copyright (C) 2009 Erez Zuler
+  navilink.c:	Copyright (C) 2007 Tom Hughes, tom@compton.nu
+  navilink.c:	Copyright (C) 2008 Rodney Lorrimar, rodney@rodney.id.au
+  navitel.c:	copyright (C) 2008 Olaf.Klein@gpsbabel.org.
+  nmn4.c:	Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
+  osm.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  overlay.c:	Copyright (C) 2005 Fredie Kern, f.kern@xdesy.de
+  palmdoc.c:	Copyright (C) 2004 Scott Brynen, scott (at) brynen.com
+  palmdoc.c:	Copyright (C) 2004 Ronald L. Parker, ron@parkrrrr.com
+  palmdoc.c:	Portions from txt2pdbdoc, Copyright (C) 1998  Paul J. Lucas
+  parse.c:	Copyright (C) 2007 Olaf Klein, o.b.klein@gpsbabel.org
+  pathaway.c:	Copyright (C) 2005-2006 Olaf Klein, o.b.klein@gpsbabel.org
+  pdbfile.c:	Copyright (C) 2007 Olaf Klein, o.b.klein@gpsbabel.org
+  pocketfms_bc.c:	Copyright (C) 2009 Tobias Kretschmar, tobias.kretschmar@gmx.de
+  pocketfms_fp.c:	Copyright (C) 2009 Tobias Kretschmar, tobias.kretschmar@gmx.de
+  pocketfms_wp.c:	Copyright (C) 2009 Tobias Kretschmar, tobias.kretschmar@gmx.de
+  psitrex.c:	Copyright (C) 2003 Mark Bradley, mrcb.gpsb@osps.net
+  queue.c:	Parts of the code Copyright 2001 Simon Tatham.
+  random.c:	Copyright (C) 2007 Olaf Klein, o.b.klein@gpsbabel.org
+  raymarine.c:	Copyright (C) 2006,2007 Olaf Klein, o.b.klein@gpsbabel.org
+  sbn.c:	Copyright (C) 2008  Rodney Lorrimar <rodney@rodney.id.au>
+  sbp.c:	Copyright (C) 2008  Rodney Lorrimar <rodney@rodney.id.au>
+  session.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  skyforce.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  skytraq.c:	Copyright (C) 2008-2009  Mathias Adam, m.adam (at) adamis.de
+  stmsdf.c:	Copyright (C) 2005,2007 Olaf Klein, o.b.klein@gpsbabel.org
+  stmwpp.c:	Copyright (C) 2005,2007 Olaf Klein, o.b.klein@gpsbabel.org
+  strptime.c:	Copyright (C) 1996, 1997, 1998, 1999, 2000 Free Software Foundation, Inc.
+  swapdata.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  tef_xml.c:	Copyright (C) 2005 Olaf Klein, o.b.klein@gpsbabel.org
+  text.c:	Copyright (C) 2004 Scott Brynen, scott (at) brynen.com
+  tomtom.c:	Copyright (C) 2005  Ronald Parker (babeltomtom@parkrrrr.com) and
+  tpg.c:	Copyright (C) 2002 Alex Mottram, geo_alexm at cox-internet.com
+  tpo.c:	Copyright (C) 2005 Steve Chamberlin, slc at alum.mit.edu
+  tpo.c:	Portions Copyright (C) 2006 Curtis E. Mills, archer at eskimo dot com
+  trackfilter.c:	Copyright (C) 2005-2006 Olaf Klein, o.b.klein@gpsbabel.org
+  transform.c:	Copyright (C) 2006 Olaf Klein, o.b.klein@gpsbabel.org
+  unicsv.c:	copyright (C) 2007,2008 Olaf Klein, o.b.klein@gpsbabel.org
+  uuid.c:	Copyright (C) 2004 Justin Broughton, justinbr@earthlink.net
+  v900.c:	Copyright (C) 2009 Tal Benavidor
+  vidaone.c:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  vitosmt.c:	Copyright (C) 2005 Etienne TASSE
+  vitovtt.c:	Copyright (C) 2007 Jeremy Ehrhardt, jeremye@caltech.edu
+  vitovtt.c:	Copyright (C) 2005 Etienne TASSE
+  vpl.c:	Copyright (C) 2009	Chris Tracy, gpsbabel@adiemus.org
+  wbt-200.c:	Copyright (C) 2006 Andy Armstrong
+  wfff_xml.c:	Copyright (C) 2006	Etienne Tasse	etasse@yahoo.com
+  xcsv.c:	Copyright (C) 2002 Alex Mottram (geo_alexm at cox-internet.com)
+  xol.c:	Copyright (C) 2007 Olaf Klein, o.b.klein@gpsbabel.org
+  avltree.h:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  cet.h:	Copyright (C) 2005-2008 Olaf Klein, o.b.klein@gpsbabel.org
+  cet_util.h:	Copyright (C) 2005-2008 Olaf Klein, o.b.klein@gpsbabel.org
+  csv_util.h:	Copyright (C) 2002 Alex Mottram (geo_alexm at cox-internet.com)
+  garmin_fs.h:	Copyright (C) 2006 Olaf Klein, o.b.klein@gpsbabel.org
+  gbfile.h:	Copyright (C) 2006,2007,2008 Olaf Klein, o.b.klein@gpsbabel.org
+  holux.h:	Copyright (C) 2002 Jochen Becker, jb@bepo.com
+  inifile.h:	Copyright (C) 2006 Olaf Klein, o.b.klein@gpsbabel.org
+  navilink.h:	Copyright (C) 2008  Rodney Lorrimar <rodney@rodney.id.au>
+  pdbfile.h:	Copyright (C) 2007 Olaf Klein, o.b.klein@gpsbabel.org
+  session.h:	Copyright (C) 2008 Olaf Klein, o.b.klein@gpsbabel.org
+  strptime.h:	Copyright 1998 Gerald Combs
+  uuid.h:	Copyright (C) 2004 Justin Broughton, justinbr@earthlink.net
+
+
+Files with different copyrights and/or licenses:
+
+* gui/*.{cpp,h,ui}, except {preferences,upgrade}.{h,cpp}:
+  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>
+
+* jeeps/*:
+  Copyright (C) 1999 Alan Bleasby. First version
+  Copyright (C) 2005, 2006 Robert Lipe
+  Copyright (C) 2007 Achim Schumacher
+  Copyright (C) 2010 Martin Buck
+
+* shapelib:
+  Copyright (c) 1999, 2001, Frank Warmerdam
+
+  This software is available under the following "MIT Style" license,
+  or at the option of the licensee under the LGPL (see LICENSE.LGPL).  This
+  option is discussed in more detail in shapelib.html.
+  
+  --
+  
+  Permission is hereby granted, free of charge, to any person obtaining a
+  copy of this software and associated documentation files (the "Software"),
+  to deal in the Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  and/or sell copies of the Software, and to permit persons to whom the
+  Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included
+  in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+  THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+  DEALINGS IN THE SOFTWARE.
+
+* zlib (convenience copy, not used at build time):
+  Copyright (C) 1995-1998 Jean-loup Gailly and Mark Adler
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  Jean-loup Gailly        Mark Adler
+  jloup@gzip.org          madler@alumni.caltech.edu
 
 
