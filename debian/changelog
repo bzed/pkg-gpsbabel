@@ -9,6 +9,7 @@ gpsbabel (1.3.7~cvs1-1) unstable; urgency=low
   * [1ce3dba8] Don't call makeextras.mak, the file is gone.
   * [f590f252] Add patch to rename the gpsbabelfe binary.
   * [e686c93a] Add fop as build-dependency to build the documentation.
+  * [1bcda881] Update debian/copyright file.
 
  -- Bernd Zeimetz <bzed@debian.org>  Mon, 26 Apr 2010 14:24:21 +0200
 
