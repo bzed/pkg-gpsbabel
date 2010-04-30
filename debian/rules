@@ -18,6 +18,9 @@ ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 else
 	CFLAGS += -O2
 endif
+LDFLAGS +=  -Wl,-z,defs
+CONFENV = LDFLAGS="$(LDFLAGS)" CFLAGS="$(CFLAGS)"
+
 
 configure: configure-stamp gui/Makefile
 configure-stamp: patch
@@ -28,12 +31,10 @@ endif
 ifneq "$(wildcard /usr/share/misc/config.guess)" ""
 	cp -f /usr/share/misc/config.guess config.guess
 endif
-	$(SHELL) ./configure --with-zlib=system --with-doc=debian/doctmp \
+	$(CONFENV) ./configure --with-zlib=system --with-doc=debian/doctmp \
 		--prefix=/usr
-	# Add here commands to configure the package.
-	mkdir -p xmldoc/autogen
 
-	touch configure-stamp
+	touch $@
 
 gui/Makefile: patch
 	cd gui && qmake-qt4
@@ -78,7 +79,7 @@ clean-patched:
 install: build-stamp build-gui-stamp
 	dh_testdir
 	dh_testroot
-	dh_clean -k 
+	dh_prep
 	dh_installdirs 
 
 	# Add here commands to install the package into debian/gpsbabel.
