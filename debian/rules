@@ -73,7 +73,7 @@ clean-patched:
 		xmldoc/makedoc \
 		zlib/empty jeeps/Makefile shapelib/Makefile
 	rm -f config.guess config.sub
-	rm -rf gui/Makefile gui/objects
+	rm -rf gui/Makefile gui/objects gui/setup.iss
 	dh_clean 
 
 install: build-stamp build-gui-stamp
