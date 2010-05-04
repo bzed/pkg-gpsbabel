@@ -52,18 +52,21 @@ debian/gpsbabel.1: build-stamp
 gui/Makefile: patch
 	cd gui && qmake-qt4
 
-build: build-stamp build-gui-stamp debian/gpsbabel.1
+build: build-stamp build-gui-stamp build-doc-stamp debian/gpsbabel.1
 
 build-stamp: configure-stamp 
 	dh_testdir
 
 	# Add here commands to compile the package.
 	$(MAKE)
-	$(MAKE) doc
 	chmod u+x testo
 	$(MAKE) check || true
 
-	touch build-stamp
+	touch $@
+
+build-doc-stamp: configure-stamp
+	$(MAKE) doc
+	touch $@
 
 build-gui: build-gui-stamp
 build-gui-stamp: gui/Makefile
