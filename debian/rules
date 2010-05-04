@@ -36,7 +36,7 @@ endif
 
 	touch $@
 
-debian/gpsbabel.1:
+debian/gpsbabel.1: build-stamp
 	export PATH="$(CURDIR):$$PATH" ;\
 	help2man 	--manual='gpsbabel documentation' \
 			--section=1 \
