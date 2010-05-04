@@ -60,7 +60,7 @@ build-stamp: configure-stamp
 	# Add here commands to compile the package.
 	$(MAKE)
 	chmod u+x testo
-	$(MAKE) check || true
+	$(MAKE) check 
 
 	touch $@
 
