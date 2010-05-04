@@ -23,7 +23,7 @@ CONFENV = LDFLAGS="$(LDFLAGS)" CFLAGS="$(CFLAGS)"
 
 
 configure: configure-stamp gui/Makefile
-configure-stamp: patch
+configure-stamp: $(QUILT_STAMPFN)
 	dh_testdir
 ifneq "$(wildcard /usr/share/misc/config.sub)" ""
 	cp -f /usr/share/misc/config.sub config.sub
@@ -49,7 +49,7 @@ debian/gpsbabel.1: build-stamp
 			-o $@ \
 			gpsbabel
 
-gui/Makefile: patch
+gui/Makefile: $(QUILT_STAMPFN)
 	cd gui && qmake-qt4
 
 build: build-stamp build-gui-stamp build-doc-stamp debian/gpsbabel.1
