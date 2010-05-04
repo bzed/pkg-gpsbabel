@@ -78,7 +78,6 @@ clean-patched:
 
 	# Add here commands to clean up after the build process.
 	[ ! -f Makefile ] || $(MAKE) clean
-	-$(MAKE) -C doc clean
 	[ ! -f gui/Makefile ] || $(MAKE) -C gui clean
 	rm -rf debian/doctmp xmldoc/autogen/*
 	rm -rf Makefile config.h config.log config.status debian/*.inc \
