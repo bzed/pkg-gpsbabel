@@ -52,7 +52,8 @@ debian/gpsbabel.1: build-stamp
 gui/Makefile: $(QUILT_STAMPFN)
 	cd gui && qmake-qt4
 
-build: build-stamp build-gui-stamp build-doc-stamp debian/gpsbabel.1
+BUILD_TARGETS = build-stamp build-gui-stamp build-doc-stamp debian/gpsbabel.1
+build: $(BUILD_TARGETS)
 
 build-stamp: configure-stamp 
 	dh_testdir
@@ -100,7 +101,7 @@ clean-patched:
 	rm -f gbversion.h
 	dh_clean 
 
-install: build-stamp build-gui-stamp
+install: $(BUILD_TARGETS)
 	dh_testdir
 	dh_testroot
 	dh_prep
