@@ -8,7 +8,7 @@ Build-Depends: debhelper (>= 7.0.0), quilt,
  texlive-base-bin, texlive-base, fop,
  xsltproc, docbook-xml, docbook-xsl, libxml2-utils,
  libusb-dev, zlib1g-dev, libpaper-dev, libqt4-dev
-Standards-Version: 3.8.0
+Standards-Version: 3.8.4
 Homepage: http://www.gpsbabel.org/
 Vcs-Browser: http://git.recluse.de/debian/pkg-gpsbabel.git/
 Vcs-Git: git://git.recluse.de/debian/pkg-gpsbabel.git
