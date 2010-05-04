@@ -1,3 +1,28 @@
+gpsbabel (1.3.7~cvs2-1) unstable; urgency=low
+
+  * Updating to CVS HEAD of today.
+  * [09ce2bac] Build pdf file again, for works fine now.
+  * [3542f981] Require dh 7 for compat level 7.
+  * [5f340180] Do some housekeeping in debian/rules.
+  * [fd477016] Merge branch 'upstream'
+  * [5f1d5231] Clean gui/setup.iss after build.
+  * [56dd1e9b] Rename htmldoc directory and change the references to it.
+  * [05194507] Install docs only into the gpsbabel package.
+  * [e932db97] Build a manpage for gpsbabel using help2man.
+  * [dd121ff7] Merge remote branch 'origin/upstream-cvs'
+  * [475d34c2] gpsbabel is reuired to build the manpage. Add a proper
+    dependency to the target.
+  * [74b24bde] Don't call clean in doc, not built anymore.
+  * [90bb4cc5] Add AUTHORS file to docs.
+  * [a807b146] Install gpsbabel.pdf to /usr/share/doc/gpsbabel.
+  * [d65fa27d] Move doc production into its own target.
+  * [8e6e25a7] Delete all automatically generated and left over files.
+  * [851f5a32] Use source format 1.0 for easy backporting.
+  * [788292c2] Bump Standards-Version to 3.8.4 - no changes needed.
+  * [db9f500a] Add doc-base information for gpsbabel.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 05 May 2010 00:25:48 +0200
+
 gpsbabel (1.3.7~cvs1-1) unstable; urgency=low
 
   * Updating to CVS HEAD of today.
