@@ -5,7 +5,7 @@
 
 PKG_GPSBABEL=gpsbabel
 PKG_GPSBABEL_GUI=gpsbabel-gui
-
+VERSION := $(shell dpkg-parsechangelog | awk '/^Version/ {print $$2}')
 
 #we use quilt to handle our patches
 include /usr/share/quilt/quilt.make
@@ -36,10 +36,23 @@ endif
 
 	touch $@
 
+debian/gpsbabel.1:
+	export PATH="$(CURDIR):$$PATH" ;\
+	help2man 	--manual='gpsbabel documentation' \
+			--section=1 \
+			--name='GPS route and waypoint data converter' \
+			--source='http://www.gpsbabel.org' \
+			--locale=C \
+			-N \
+			--version-string=$(VERSION) \
+			--opt-include=$(CURDIR)/debian/gpsbabel.help2man \
+			-o $@ \
+			gpsbabel
+
 gui/Makefile: patch
 	cd gui && qmake-qt4
 
-build: build-stamp build-gui-stamp
+build: build-stamp build-gui-stamp debian/gpsbabel.1
 
 build-stamp: configure-stamp 
 	dh_testdir
@@ -74,6 +87,7 @@ clean-patched:
 		zlib/empty jeeps/Makefile shapelib/Makefile
 	rm -f config.guess config.sub
 	rm -rf gui/Makefile gui/objects gui/setup.iss
+	rm -f debian/gpsbabel.1
 	dh_clean 
 
 install: build-stamp build-gui-stamp
