@@ -90,6 +90,14 @@ clean-patched:
 	rm -f config.guess config.sub
 	rm -rf gui/Makefile gui/objects gui/setup.iss
 	rm -f debian/gpsbabel.1
+	rm -f gpsbabel.pdf
+	rm -f gui/makelinuxdist.sh
+	rm -f   xmldoc/formats/tomtom_itn_places.xml \
+		xmldoc/formats/options/naviguide-reorder.xml \
+		xmldoc/formats/options/naviguide-output.xml \
+		xmldoc/filters/options/track-trk2seg.xml \
+		xmldoc/filters/options/track-seg2trk.xml
+	rm -f gbversion.h
 	dh_clean 
 
 install: build-stamp build-gui-stamp
