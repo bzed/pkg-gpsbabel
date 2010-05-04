@@ -98,8 +98,9 @@ install: build-stamp build-gui-stamp
 	# Add here commands to install the package into debian/gpsbabel.
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel
 
-	# Rename htmldoc dir
+	# Rename htmldoc dir and remove pdf file
 	mv `ls -d $(CURDIR)/debian/doctmp/htmldoc-*` $(CURDIR)/debian/doctmp/htmldoc
+	rm -f $(CURDIR)/debian/doctmp/htmldoc/*.pdf
 
 	dh_install
 
