@@ -1,3 +1,18 @@
+gpsbabel (1.3.7~cvs2-2) unstable; urgency=low
+
+  * [014dfaaa] Use $(QUILT_STAMPFN) instead of patch as dependency. This
+    avoids running configure twice.
+  * [75bd04e0] Require make check to succeed for a successful build.
+  * [fe9c247b] Better dependencies for the install target.
+  * [9a028647] Remove build-dependencies on texlive. The tex based
+    documentation is not being built anymore.
+  * [182c909d] Fix various comparison errors due to limited pointer
+    types.
+  * [f6d8e680] Use -ffloat-store on i386.
+  * [760285e1] Do not build gpsbabel.pdf on mips as fop is broken there.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 06 May 2010 00:31:46 +0200
+
 gpsbabel (1.3.7~cvs2-1) unstable; urgency=low
 
   * Updating to CVS HEAD of today.
