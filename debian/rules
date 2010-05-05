@@ -18,6 +18,13 @@ ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 else
 	CFLAGS += -O2
 endif
+
+# Extended precision on i386 results in weird bugs, so we build
+# with -ffloat-store.
+ifeq (i386,$(strip $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)))
+CFLAGS += -ffloat-store
+endif
+
 LDFLAGS +=  -Wl,-z,defs
 CONFENV = LDFLAGS="$(LDFLAGS)" CFLAGS="$(CFLAGS)"
 
