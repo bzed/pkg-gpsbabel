@@ -2,9 +2,7 @@ Document: gpsbabel
 Title: gpsbabel filter and format documentation
 Section: Science/Geoscience
 
-Format: PDF
-Files: /usr/share/doc/gpsbabel/gpsbabel.pdf.gz
-
 Format: HTML
 Index: /usr/share/doc/gpsbabel/htmldoc/index.html
 Files: /usr/share/doc/gpsbabel/htmldoc/*.html
+
