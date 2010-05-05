@@ -5,7 +5,7 @@ Maintainer: Bernd Zeimetz <bzed@debian.org>
 Build-Depends: debhelper (>= 7.0.0), quilt,
  autotools-dev, autoconf,
  libexpat1-dev, expat, help2man,
- texlive-base-bin, texlive-base, fop,
+ fop,
  xsltproc, docbook-xml, docbook-xsl, libxml2-utils,
  libusb-dev, zlib1g-dev, libpaper-dev, libqt4-dev
 Standards-Version: 3.8.4
