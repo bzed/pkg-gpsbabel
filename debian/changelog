@@ -1,3 +1,12 @@
+gpsbabel (1.3.7~cvs2-3) unstable; urgency=low
+
+  * [b76106eb] Rename gpsbabel.doc-base parts to stop confusing
+    dh_installdocs.
+  * [0c9397ce] Split documentation into gpsbabel-doc.
+  * [08e7b6ec] Fix build target dependency for build-doc.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Thu, 06 May 2010 12:12:41 +0200
+
 gpsbabel (1.3.7~cvs2-2) unstable; urgency=low
 
   * [014dfaaa] Use $(QUILT_STAMPFN) instead of patch as dependency. This
