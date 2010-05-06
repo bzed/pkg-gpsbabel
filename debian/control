@@ -5,9 +5,10 @@ Maintainer: Bernd Zeimetz <bzed@debian.org>
 Build-Depends: debhelper (>= 7.0.0), quilt,
  autotools-dev, autoconf,
  libexpat1-dev, expat, help2man,
- fop [!mips],
- xsltproc, docbook-xml, docbook-xsl, libxml2-utils,
- libusb-dev, zlib1g-dev, libpaper-dev, libqt4-dev
+ libxml2-utils,
+ libusb-dev, zlib1g-dev, libqt4-dev
+Build-Depends-Indep: fop [!mips], xsltproc, docbook-xml,
+ docbook-xsl, libpaper-dev 
 Standards-Version: 3.8.4
 Homepage: http://www.gpsbabel.org/
 Vcs-Browser: http://git.recluse.de/debian/pkg-gpsbabel.git/
@@ -15,6 +16,7 @@ Vcs-Git: git://git.recluse.de/debian/pkg-gpsbabel.git
 
 Package: gpsbabel
 Architecture: any
+Recommends: gpsbabel-doc
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: GPS file conversion plus transfer to/from GPS units
  GPSBabel converts waypoints, tracks, and routes from one format to
@@ -41,6 +43,25 @@ Description: GPS file conversion plus transfer to/from GPS units
  PalmDoc, PCX5, PocketStreets 2002 Pushpin, PSITrex, Quovadis,
  Tab-separated data, Tiger, TopoMapPro, Topo by National Geographic,
  xcsv, xmap, xmapwpt.
+
+Package: gpsbabel-doc
+Architecture: all
+Section: doc
+Depends: ${misc:Depends}
+Suggests: gpsbabel, pdf-viewer | www-browser
+Description: GPS file conversion plus transfer to/from GPS units
+ GPSBabel converts waypoints, tracks, and routes from one format to
+ another, whether that format is a common mapping format like Delorme,
+ Streets and Trips, or even a serial upload or download to a GPS unit
+ such as those from Garmin and Magellan.
+ .
+ GPSBabel supports dozens of data formats and will be useful for tasks
+ such as geocaching, mapping, and converting from one GPS unit to another.
+ Among the interesting formats it supports are several GPS devices via
+ a serial link, various PDA-based mapping programs, and various
+ Geocaching data formats.
+ .
+ This package contains the detailed documentation of gpsbabel.
 
 Package: gpsbabel-gui
 Architecture: any
