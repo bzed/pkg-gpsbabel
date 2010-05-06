@@ -76,7 +76,8 @@ build-stamp: configure-stamp
 
 	touch $@
 
-build-doc-stamp: configure-stamp
+# We need a gpsbabel binary to build the documentation.
+build-doc-stamp: build-stamp
 	$(MAKE) $(DOCTEMP)/htmldoc-devel/index.html WEB=$(DOCTEMP) DOCVERSION=devel
 	cp $(CURDIR)/debian/gpsbabel-doc.doc-base-common $(CURDIR)/debian/gpsbabel-doc.doc-base
 ifneq (mips,$(HOSTARCH))
