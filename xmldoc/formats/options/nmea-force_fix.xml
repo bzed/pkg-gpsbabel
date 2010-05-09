@@ -1,0 +1,18 @@
+<para>
+This option tells GPSBabel to assume that there was a valid GPS fix while
+writing NMEA output. The default is to use the fix information from the
+data which is being read. To force GPSBabel to set the fix status fields
+in the NMEA to valid, specify <option>force_fix=1</option>
+</para>
+<para>
+Unfortunately not all formats are able to save the GPS fix status,
+so GPSBabel defaults to set the fix status field to V
+(Navigation receiver warning) as the input file does not provide
+any fix information. While this is the proper way to handle these
+cases, the written NMEA sentences are sometimes ignored by programs
+which read NMEA and accept location information only when the fix
+was valid. So if you know that the converted information is
+correct, using <option>force_fix=1</option> allows you to create
+NMEA output which is usable for these programs.
+</para>
+
