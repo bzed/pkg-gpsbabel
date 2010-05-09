@@ -174,6 +174,7 @@ static char *opt_sleep;
 static char *opt_baud;
 static char *opt_append;
 static char *opt_gisteq;
+static char *opt_force_fix;
 
 static long sleepus;
 static int getposn;
@@ -201,6 +202,7 @@ arglist_t nmea_args[] = {
 	{"append_positioning", &opt_append, "Append realtime positioning data to the output file instead of truncating", "0", ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"baud", &opt_baud, "Speed in bits per second of serial port (baud=4800)", NULL, ARGTYPE_INT, ARG_NOMINMAX },
 	{"gisteq", &opt_gisteq, "Write tracks for Gisteq Phototracker", "0", ARGTYPE_BOOL, ARG_NOMINMAX },
+	{"force_fix", &opt_force_fix, "Force valid fix status while writing sentences", "0", ARGTYPE_BOOL, ARG_NOMINMAX },
 	ARG_TERMINATOR
 };
 
@@ -1262,7 +1264,14 @@ nmea_trackpt_pr(const waypoint *wpt)
 		fix='3';
 		break;
 	default:
-		fix='0';
+		/* Allow to force a valid fix status while converting from
+		 * other formats. This allows to use the output to be used
+		 * in programs which require a fix to accept the nmea data. */
+		if(opt_force_fix) {
+			fix='1';
+		} else {
+			fix='0';
+		}
 	}
 
 	if (opt_gprmc) {
