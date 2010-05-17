@@ -46,6 +46,7 @@ endif
 	touch $@
 
 debian/gpsbabel.1: build-stamp
+ifeq (,$(findstring bpo,$(VERSION)))
 	export PATH="$(CURDIR):$$PATH" ;\
 	help2man 	--manual='gpsbabel documentation' \
 			--section=1 \
@@ -57,6 +58,7 @@ debian/gpsbabel.1: build-stamp
 			--opt-include=$(CURDIR)/debian/gpsbabel.help2man \
 			-o $@ \
 			gpsbabel
+endif
 
 gui/Makefile: $(QUILT_STAMPFN)
 	cd gui && qmake-qt4
@@ -81,10 +83,12 @@ build-doc-stamp: build-stamp
 	$(MAKE) $(DOCTEMP)/htmldoc-devel/index.html WEB=$(DOCTEMP) DOCVERSION=devel
 	cp $(CURDIR)/debian/gpsbabel-doc.doc-base-common $(CURDIR)/debian/gpsbabel-doc.doc-base
 ifneq (mips,$(HOSTARCH))
+ifeq (,$(findstring bpo,$(VERSION)))
 	$(MAKE) gpsbabel.pdf WEB=$(DOCTEMP) DOCVERSION=devel
 	rm -f $(CURDIR)/$(DOCTEMP)/htmldoc-devel/gpsbabel-$(DOCVERSION).pdf DOCVERSION=devel
 	cp gpsbabel.pdf $(CURDIR)/$(DOCTEMP)
 	cat $(CURDIR)/debian/gpsbabel-doc.doc-base-pdf >> $(CURDIR)/debian/gpsbabel-doc.doc-base
+endif
 endif
 	touch $@
 
@@ -109,7 +113,9 @@ clean-patched:
 		zlib/empty jeeps/Makefile shapelib/Makefile
 	rm -f config.guess config.sub
 	rm -rf gui/Makefile gui/objects gui/setup.iss
+ifeq (,$(findstring bpo,$(VERSION)))
 	rm -f debian/gpsbabel.1
+endif
 	rm -f gpsbabel.pdf
 	rm -f gui/makelinuxdist.sh
 	rm -f   xmldoc/formats/tomtom_itn_places.xml \
