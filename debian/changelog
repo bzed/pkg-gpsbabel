@@ -2,8 +2,11 @@ gpsbabel (1.3.7~cvs2-3~bpo50+1) lenny-backports; urgency=low
 
   * Rebuild for lenny-backports.
   * Add debian/gbp.conf. 
+  * Don't build manpage / pdf doc for backports.
+    We don't have the necessary build-dependencies.
+  * Add pre-built gpsbabel.1. 
 
- -- Bernd Zeimetz <bzed@debian.org>  Mon, 17 May 2010 17:47:29 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 17 May 2010 20:00:02 +0200
 
 gpsbabel (1.3.7~cvs2-3) unstable; urgency=low
 
