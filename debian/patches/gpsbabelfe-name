@@ -1,3 +1,4 @@
+Rename gpsbabelfe binary.
 --- a/gui/app.pro
 +++ b/gui/app.pro
 @@ -26,7 +26,7 @@ RESOURCES = app.qrc

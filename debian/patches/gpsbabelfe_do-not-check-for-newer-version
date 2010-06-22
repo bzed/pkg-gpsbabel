@@ -1,0 +1,79 @@
+Disable check for newer versions on start.
+
+--- a/gui/preferences.ui
++++ b/gui/preferences.ui
+@@ -40,13 +40,6 @@
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <item>
+-         <widget class="QCheckBox" name="startupCheck">
+-          <property name="text">
+-           <string>Check for newer version on start.</string>
+-          </property>
+-         </widget>
+-        </item>
+-        <item>
+          <widget class="QCheckBox" name="reportStatisticsCheck">
+           <property name="text">
+            <string>Anonymously report usage data.</string>
+--- a/gui/preferences.cpp
++++ b/gui/preferences.cpp
+@@ -38,7 +38,6 @@ Preferences::Preferences(QWidget* parent
+ {
+   ui_.setupUi(this);
+ 
+-  ui_.startupCheck->setChecked(bd_.startupVersionCheck);
+   ui_.reportStatisticsCheck->setChecked(bd_.reportStatistics);
+ 
+   connect (ui_.buttonBox, SIGNAL(accepted()), this, SLOT(acceptClicked()));
+@@ -77,7 +76,6 @@ void Preferences::acceptClicked()
+     formatList_[i].setHidden(item->checkState() == Qt::Unchecked);
+   }
+ 
+-  bd_.startupVersionCheck = ui_.startupCheck->isChecked();
+   bd_.reportStatistics = ui_.reportStatisticsCheck->isChecked();
+   accept();
+ }
+--- a/gui/babeldata.h
++++ b/gui/babeldata.h
+@@ -63,7 +63,7 @@ public:
+     upgradeErrors(0),
+     upgradeOffers(0),
+     runCount(0),
+-    startupVersionCheck(true),
++    startupVersionCheck(false),
+     reportStatistics(false),
+     allowBetaUpgrades(false),
+     ignoreVersionMismatch(true),
+--- a/gui/mainwinui.ui
++++ b/gui/mainwinui.ui
+@@ -641,7 +641,6 @@
+     <addaction name="actionHelp"/>
+     <addaction name="separator"/>
+     <addaction name="actionAbout"/>
+-    <addaction name="actionUpgradeCheck"/>
+    </widget>
+    <addaction name="menuFile"/>
+    <addaction name="menuHelp"/>
+@@ -667,11 +666,6 @@
+     <string>Preferences...</string>
+    </property>
+   </action>
+-  <action name="actionUpgradeCheck">
+-   <property name="text">
+-    <string>Check for Upgrade</string>
+-   </property>
+-  </action>
+  </widget>
+  <resources>
+   <include location="app.qrc"/>
+--- a/gui/mainwindow.cpp
++++ b/gui/mainwindow.cpp
+@@ -147,7 +147,6 @@ MainWindow::MainWindow(QWidget* parent):
+   connect(ui.actionQuit, SIGNAL(triggered()), this, SLOT(closeActionX()));
+   connect(ui.actionHelp, SIGNAL(triggered()), this, SLOT(helpActionX()));
+   connect(ui.actionAbout, SIGNAL(triggered()), this, SLOT(aboutActionX()));
+-  connect(ui.actionUpgradeCheck, SIGNAL(triggered()), this, SLOT(upgradeCheckActionX()));
+   connect(ui.actionPreferences, SIGNAL(triggered()), this, SLOT(preferencesActionX()));
+ 
+   connect(ui.inputFormatCombo,  SIGNAL(currentIndexChanged(int)),
