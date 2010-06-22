@@ -1,3 +1,21 @@
+gpsbabel (1.4.0-1) unstable; urgency=low
+
+  * New upstream version.
+  * [37a299e3] Merge branch 'upstream'
+  * [01923dca] Removing limited_pointer_type_comparison_fixes patch,
+    applied upstream.
+  * [4d4ea8f8] Refreshing patches.
+  * [f4ef9d52] Add various patches to integrate gpsbabelfe better into
+    Debian.
+    - Submitting statistics data should be opt-in instead of
+      activated by default
+    - Disable check for newer versions. apt-get/aptitude takes care of that.
+    - Disable check for version differences between gpsbabelfe and gpsbabel.
+      The check did not work as expected and dpkg ensures there is
+      no difference.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 23 Jun 2010 01:44:11 +0200
+
 gpsbabel (1.3.7~cvs2-3) unstable; urgency=low
 
   * [b76106eb] Rename gpsbabel.doc-base parts to stop confusing
