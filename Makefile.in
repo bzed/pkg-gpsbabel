@@ -65,6 +65,7 @@ ALL_FMTS=$(MINIMAL_FMTS) gtm.o gpsutil.o pcx.o cetus.o copilot.o \
 	jtr.o sbp.o sbn.o mmo.o skyforce.o itracku.o v900.o delbin.o \
 	pocketfms_bc.o pocketfms_fp.o pocketfms_wp.o naviguide.o enigma.o \
 	vpl.o teletype.o jogmap.o bushnell.o bushnell_trl.o wintec_tes.o \
+	subrip.o garmin_xt.o \
 
 FMTS=@FMTS@
 
@@ -347,18 +348,23 @@ mac-release:
 
 mac-gui: gpsbabel
 	file gpsbabel | grep '2 architectures' || exit 1
-	file gui/objects/gpsbabelfe-bin.app/Contents/MacOS/gpsbabelfe-bin | grep '2 architectures' || exit 1
+	file gui/objects/GPSBabelFE.app/Contents/MacOS/GPSBabelFE | grep '2 architectures' || exit 1
 	cd gui ; qmake && xcodebuild
-	cp gpsbabel gui/objects/gpsbabelfe-bin.app/Contents/MacOS
-	cp -r gui/help  gui/objects/gpsbabelfe-bin.app/Contents/MacOS
-	cp gui/gmapbase.html gui/objects/gpsbabelfe-bin.app/Contents/MacOS
+	cd gui ; lupdate  app.pro
+	cd gui ; lrelease  app.pro
+	mkdir gui/objects/GPSBabelFE.app/Contents/MacOS/lang
+	cp gui/*.qm  gui/objects/gpsbabelFE.app/Contents/MacOS/lang
+	cp gpsbabel gui/objects/GPSBabelFE.app/Contents/MacOS
+	cp -r gui/help  gui/objects/GPSBabelFE.app/Contents/MacOS
+	cp gui/gmapbase.html gui/objects/GPSBabelFE.app/Contents/MacOS
+	tools/mac-localize
 
 # Build the Qt front end, place GPSBabel in the right place, deploy all 
 # the libs.
 mac-gui-dmg: mac-gui
-	rm -f gui/objects/gpsbabelfe-bin.dmg
-	cd gui/objects ; macdeployqt gpsbabelfe-bin.app -dmg
-	mv gui/objects/gpsbabelfe-bin.dmg  gui/objects/GPSBabel-$(VERSIOND).dmg
+	rm -f gui/objects/GPSBabelFE.dmg
+	cd gui/objects ; macdeployqt GPSBabelFE.app -dmg
+	mv gui/objects/GPSBabelFE.dmg  gui/objects/GPSBabel-$(VERSIOND).dmg
 
 msvc-build:
 	make CC=@CL.EXE DEBUGGING="" EXTRA_CFLAGS="-nologo -W3 -WL -D__WIN32__ -I msvc/expat " OUTPUT_SWITCH="-Fo" $(OBJS)
@@ -524,6 +530,7 @@ garmin_txt.o: garmin_txt.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   jeeps/gpsfmt.h jeeps/gpsmath.h jeeps/gpsmem.h jeeps/gpsrqst.h \
   jeeps/gpsinput.h jeeps/gpsproj.h garmin_tables.h grtcirc.h \
   jeeps/gpsmath.h strptime.h
+garmin_xt.o: garmin_xt.c defs.h
 gbfile.o: gbfile.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h session.h
 gbser.o: gbser.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
