@@ -65,7 +65,7 @@ Description: GPS file conversion plus transfer to/from GPS units
 
 Package: gpsbabel-gui
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, gpsbabel (= ${binary:Version})
 Description: GPS file conversion plus transfer to/from GPS units - GUI
  GPSBabel converts waypoints, tracks, and routes from one format to
  another, whether that format is a common mapping format like Delorme,
@@ -73,4 +73,3 @@ Description: GPS file conversion plus transfer to/from GPS units - GUI
  such as those from Garmin and Magellan.
  .
  This package contains gpsbabelfe, a QT based frontend for gpsbabel.
-
