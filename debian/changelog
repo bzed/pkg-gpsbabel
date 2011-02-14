@@ -1,3 +1,13 @@
+gpsbabel (1.4.2-1) unstable; urgency=low
+
+  * [15f28bac] gpsbabel-gui needs to depend on gpsbabel.
+    Add the missing dependency.
+  * [e5c3f560] Build-depend on libqtwebkit-dev for recent QT versions.
+  * [709bd4d9] Merge branch 'upstream'
+  * [f0e46422] Refreshing patches for new upstream version.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 14 Feb 2011 14:14:26 +0100
+
 gpsbabel (1.4.0-1) unstable; urgency=low
 
   * New upstream version.
