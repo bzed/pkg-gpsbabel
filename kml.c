@@ -63,6 +63,9 @@ static char *posnfilenametmp;
 
 static gbfile *ofd;
 
+#define COORD_FORMAT "%.6f"
+#define ALT_FORMAT   "%.2f"  // Beyond a centimeter is fantasy.
+
 typedef enum  {
   kmlpt_unknown,
   kmlpt_waypoint,
@@ -127,7 +130,7 @@ arglist_t kml_args[] = {
 	 "Indicate direction of travel in track icons (default = 0)",
 	 "0", ARGTYPE_BOOL, ARG_NOMINMAX },
 	{"units", &opt_units,
-	 "Units used when writing comments ('s'tatute or 'm'etric)",
+	 "Units used when writing comments ('s'tatute, 'm'etric,' 'n'autical)",
 	 "s", ARGTYPE_STRING, ARG_NOMINMAX },
 	{"labels", &opt_labels,
 	 "Display labels on track and routepoints  (default = 1)",
@@ -239,7 +242,17 @@ void wpt_time(const char *args, const char **unused)
 
 void wpt_coord(const char *args, const char **attrv)
 {
-	sscanf(args, "%lf,%lf,%lf", &wpt_tmp->longitude, &wpt_tmp->latitude, &wpt_tmp->altitude);
+	int n = 0;
+	double lat, lon, alt;
+	// Alt is actually optional. 
+	n = sscanf(args, "%lf,%lf,%lf", &lon, &lat, &alt);
+	if (n >= 2) {
+		wpt_tmp->latitude = lat;
+		wpt_tmp->longitude = lon;
+	}
+	if (n == 3) {
+		wpt_tmp->altitude = alt;
+	}
 	wpt_tmp_queued = 1;
 }
 
@@ -256,6 +269,7 @@ void trk_coord(const char *args, const char **attrv)
 	int consumed = 0;
 	double lat, lon, alt;
 	waypoint *trkpt;
+        int n = 0;
 
 	route_head *trk_head = route_head_alloc();
 	if (wpt_tmp->shortname) {
@@ -263,11 +277,20 @@ void trk_coord(const char *args, const char **attrv)
 	}
 	track_add_head(trk_head);
 
-	while (3 == sscanf(args, "%lf,%lf,%lf %n", &lon, &lat, &alt, &consumed)){
+	while ((n = sscanf(args, "%lf,%lf,%lf %n", &lon, &lat, &alt, &consumed)) > 0) {
+
 		trkpt = waypt_new();
 		trkpt->latitude = lat;
 		trkpt->longitude = lon;
-		trkpt->altitude = alt;
+
+		// Line malformed or two-arg format without alt .  Rescan.
+		if (2 == n) {
+		  sscanf(args, "%lf,%lf %n", &lon, &lat, &consumed);
+		}
+
+		if (3 == n) {
+		  trkpt->altitude = alt;
+		}
 
 		track_add_wpt(trk_head, trkpt);
 
@@ -312,6 +335,7 @@ kml_wr_init(const char *fname)
 	switch(u) {
 		case 's': fmt_setunits(units_statute); break;
 		case 'm': fmt_setunits(units_metric); break;
+		case 'n': fmt_setunits(units_nautical); break;
 		default: fatal("Units argument '%s' should be 's' for statute units or 'm' for metric.", opt_units); break;
 	}
 	/*
@@ -347,7 +371,7 @@ kml_wr_deinit(void)
 
 	if (posnfilenametmp) {
 #if __WIN32__
-		MoveFileEx(posnfilenametmp, posnfilename,
+		MoveFileExA(posnfilenametmp, posnfilename,
 		MOVEFILE_REPLACE_EXISTING);
 #endif
 		rename(posnfilenametmp, posnfilename);
@@ -413,9 +437,9 @@ kml_write_xmle(const char *tag, const char *fmt, ...)
 		if (strspn(tmp_ent, "&'<>\""))
 			needs_escaping = 1;
 		gbfprintf(ofd, "<%s>", tag);
-                if (needs_escaping) gbfprintf(ofd, "<![CDATA]");
-		gbvfprintf(ofd, fmt, args);
-                if (needs_escaping) gbfprintf(ofd, "]]");
+                if (needs_escaping) gbfprintf(ofd, "<![CDATA[");
+		gbvfprintf(ofd, tmp_ent, args);
+                if (needs_escaping) gbfprintf(ofd, "]]>");
 		gbfprintf(ofd, "</%s>\n", tag);
 		xfree(tmp_ent);
 	}
@@ -628,6 +652,39 @@ void kml_output_header(const route_head *header, computed_trkdata*td)
 	}
 }
 
+static
+int kml_altitude_known(const waypoint *waypoint)
+{
+	if (waypoint->altitude == unknown_alt) {
+		return 0;
+	}
+	// We see way more data that's sourceed at 'zero' than is actually
+	// precisely at 0 MSL.
+	if (fabs(waypoint->altitude) < .01) {
+		return 0;
+	}
+	return 1;
+}
+
+static
+void kml_write_coordinates(const waypoint *waypointp)
+{
+	if (kml_altitude_known(waypointp)) {
+		kml_write_xml(0, "<coordinates>"
+				COORD_FORMAT "," COORD_FORMAT "," ALT_FORMAT
+				"</coordinates>\n",
+		  waypointp->longitude,
+		  waypointp->latitude,
+		  waypointp->altitude);
+	} else {
+		kml_write_xml(0, "<coordinates>"
+					COORD_FORMAT "," COORD_FORMAT
+				  "</coordinates>\n",
+		  waypointp->longitude,
+		  waypointp->latitude);
+	}
+}
+
 /* Rather than a default "top down" view, view from the side to highlight
  * topo features.
  */
@@ -668,7 +725,7 @@ static void kml_output_description(const waypoint *pt)
 
 	TD("Longitude: %f", pt->longitude);
 	TD("Latitude: %f", pt->latitude);
-	if (pt->altitude != unknown_alt) TD2("Altitude: %.3f %s", alt, alt_units);
+	if (kml_altitude_known(pt)) TD2("Altitude: %.3f %s", alt, alt_units);
 	if (pt->heartrate) TD("Heart rate: %d", pt->heartrate);
 	if (pt->cadence) TD("Cadence: %d", pt->cadence);
 	/* Which unit is this temp in? C? F? K? */
@@ -770,12 +827,8 @@ static void kml_output_point(const waypoint *waypointp, kml_point_type pt_type) 
 	if (extrude) {
 		kml_write_xml(0, "<extrude>1</extrude>\n");
 	}
-	kml_write_xml(0, "<coordinates>%f,%f,%f</coordinates>\n",
-              waypointp->longitude,
-              waypointp->latitude,
-              waypointp->altitude == unknown_alt ? 0.0 : waypointp->altitude);
+	kml_write_coordinates(waypointp);
 	kml_write_xml(-1, "</Point>\n");
-
 
 	kml_write_xml(-1, "</Placemark>\n");
   }
@@ -830,8 +883,20 @@ static void kml_output_tailer(const route_head *header)
         kml_write_xml(0, "<tessellate>1</tessellate>\n");
         kml_write_xml(1, "<coordinates>\n");
       }
+      if (kml_altitude_known(tpt)) {
+        kml_write_xml(0, COORD_FORMAT "," COORD_FORMAT "," ALT_FORMAT "\n",
+                         tpt->longitude, tpt->latitude, tpt->altitude);
+       } else {
+         kml_write_xml(0, COORD_FORMAT "," COORD_FORMAT "\n",
+                          tpt->longitude,
+                          tpt->latitude);
+       }
+     if (kml_altitude_known(tpt))  {
       kml_write_xml(0, "%f,%f,%f\n", tpt->longitude, tpt->latitude,
-              tpt->altitude == unknown_alt ? 0.0 : tpt->altitude);
+                                     tpt->altitude);
+     } else {
+      kml_write_xml(0, "%f,%f\n", tpt->longitude, tpt->latitude);
+     }
     }
     kml_write_xml(-1, "</coordinates>\n");
     kml_write_xml(-1, "</LineString>\n");
@@ -936,8 +1001,6 @@ char * kml_gc_mkstar(int rating)
 static void kml_geocache_pr(const waypoint *waypointp)
 {
 	char *p, *is;
-	double lat = waypointp->latitude;
-	double lng = waypointp->longitude;
 
 	kml_write_xml(1, "<Placemark>\n");
 
@@ -1003,9 +1066,7 @@ static void kml_geocache_pr(const waypoint *waypointp)
 
 	// Location
 	kml_write_xml(1, "<Point>\n");
-	kml_write_xml(0, "<coordinates>%f,%f,%f</coordinates>\n",
-		lng, lat,
-		waypointp->altitude == unknown_alt ? 0.0 : waypointp->altitude);
+	kml_write_coordinates(waypointp);
 
 	kml_write_xml(-1, "</Point>\n");
 	kml_write_xml(-1, "</Placemark>\n");
@@ -1081,12 +1142,8 @@ static void kml_waypt_pr(const waypoint *waypointp)
 
 	// Location
 	kml_write_xml(1, "<Point>\n");
-
-        kml_output_positioning();
-
-	kml_write_xml(0, "<coordinates>%f,%f,%f</coordinates>\n",
-		waypointp->longitude, waypointp->latitude,
-		waypointp->altitude == unknown_alt ? 0.0 : waypointp->altitude);
+	kml_output_positioning();
+	kml_write_coordinates(waypointp);
 	kml_write_xml(-1, "</Point>\n");
 
 	kml_write_xml(-1, "</Placemark>\n");
@@ -1252,12 +1309,12 @@ static void kml_mt_hdr(const route_head *header)
   QUEUE_FOR_EACH(&header->waypoint_list, elem, tmp) {
     waypoint *tpt = (waypoint *)elem;
 
-    if (tpt->altitude == unknown_alt) {
-      kml_write_xmle("gx:coord", "%f %f",
-                    tpt->longitude, tpt->latitude);
-    } else {
-      kml_write_xmle("gx:coord", "%f %f %f",
+    if (kml_altitude_known(tpt)) {
+      kml_write_xmle("gx:coord", COORD_FORMAT " " COORD_FORMAT " " ALT_FORMAT,
                     tpt->longitude, tpt->latitude,tpt->altitude);
+    } else {
+      kml_write_xmle("gx:coord", COORD_FORMAT " " COORD_FORMAT,
+                    tpt->longitude, tpt->latitude);
     }
 
     // Capture interesting traits to see if we need to do an ExtendedData
