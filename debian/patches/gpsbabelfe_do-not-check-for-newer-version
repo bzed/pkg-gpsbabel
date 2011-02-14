@@ -18,15 +18,15 @@ Disable check for newer versions on start.
             <string>Anonymously report usage data.</string>
 --- a/gui/preferences.cpp
 +++ b/gui/preferences.cpp
-@@ -38,7 +38,6 @@ Preferences::Preferences(QWidget* parent
+@@ -39,7 +39,6 @@ Preferences::Preferences(QWidget* parent
  {
    ui_.setupUi(this);
  
 -  ui_.startupCheck->setChecked(bd_.startupVersionCheck);
    ui_.reportStatisticsCheck->setChecked(bd_.reportStatistics);
- 
-   connect (ui_.buttonBox, SIGNAL(accepted()), this, SLOT(acceptClicked()));
-@@ -77,7 +76,6 @@ void Preferences::acceptClicked()
+   // Because of an unfortunate bug in 1.4.0, we turn this off in 1.4.1.
+   if (VERSION == "1.4.1") 
+@@ -81,7 +80,6 @@ void Preferences::acceptClicked()
      formatList_[i].setHidden(item->checkState() == Qt::Unchecked);
    }
  
@@ -52,10 +52,10 @@ Disable check for newer versions on start.
      <addaction name="separator"/>
      <addaction name="actionAbout"/>
 -    <addaction name="actionUpgradeCheck"/>
-    </widget>
-    <addaction name="menuFile"/>
-    <addaction name="menuHelp"/>
-@@ -667,11 +666,6 @@
+     <addaction name="separator"/>
+     <addaction name="actionVisit_Website"/>
+     <addaction name="actionMake_a_Donation"/>
+@@ -670,11 +669,6 @@
      <string>Preferences...</string>
     </property>
    </action>
@@ -64,16 +64,47 @@ Disable check for newer versions on start.
 -    <string>Check for Upgrade</string>
 -   </property>
 -  </action>
-  </widget>
-  <resources>
-   <include location="app.qrc"/>
+   <action name="actionVisit_Website">
+    <property name="text">
+     <string>Visit Website...</string>
 --- a/gui/mainwindow.cpp
 +++ b/gui/mainwindow.cpp
-@@ -147,7 +147,6 @@ MainWindow::MainWindow(QWidget* parent):
-   connect(ui.actionQuit, SIGNAL(triggered()), this, SLOT(closeActionX()));
-   connect(ui.actionHelp, SIGNAL(triggered()), this, SLOT(helpActionX()));
+@@ -153,7 +153,6 @@ MainWindow::MainWindow(QWidget* parent):
    connect(ui.actionAbout, SIGNAL(triggered()), this, SLOT(aboutActionX()));
+   connect(ui.actionVisit_Website, SIGNAL(triggered()), this, SLOT(visitWebsiteActionX()));
+   connect(ui.actionMake_a_Donation, SIGNAL(triggered()), this, SLOT(donateActionX()));
 -  connect(ui.actionUpgradeCheck, SIGNAL(triggered()), this, SLOT(upgradeCheckActionX()));
    connect(ui.actionPreferences, SIGNAL(triggered()), this, SLOT(preferencesActionX()));
  
    connect(ui.inputFormatCombo,  SIGNAL(currentIndexChanged(int)),
+@@ -197,19 +196,8 @@ MainWindow::MainWindow(QWidget* parent):
+ 
+   //--- Restore from registry
+   restoreSettings();
+-
+   upgrade = new UpgradeCheck(parent, formatList, bd);
+-  if (bd.startupVersionCheck) {
+-    upgrade->checkForUpgrade(babelVersion, bd.upgradeCheckTime, 
+-                             allowBetaUpgrades());
+-  }
+-
+-  if (!bd.ignoreVersionMismatch && babelVersion != VERSION) {
+-    VersionMismatch vm(0, babelVersion, QString(VERSION));
+ 
+-    vm.exec();
+-    bd.ignoreVersionMismatch = vm.neverAgain();
+-  }
+ }
+ 
+ //------------------------------------------------------------------------
+@@ -926,10 +914,6 @@ void MainWindow::applyActionX()
+ //------------------------------------------------------------------------
+ void MainWindow::closeActionX()
+ {
+-  QDateTime wt= upgrade->getUpgradeWarningTime();
+-  if (wt.isValid()) {
+-    bd.upgradeCheckTime = wt;
+-  }
+   bd.runCount++;
+ 
+   QDateTime now = QDateTime::currentDateTime();
