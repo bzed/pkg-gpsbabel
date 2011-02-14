@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: mainwindow.cpp,v 1.22 2010/06/20 04:16:21 robertl Exp $
+// $Id: mainwindow.cpp,v 1.25 2010/09/02 03:10:46 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -19,6 +19,7 @@
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111
 //  USA
 //
+#include <QDesktopServices>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QMimeData>
@@ -60,8 +61,11 @@ QString MainWindow::findBabelVersion()
 
   QString str = babel.readAll();
   is_beta = str.contains("-beta");
+  str.replace("Version",  "");
+  str.replace("GPSBabel",  "");
   str.replace(QRegExp("^[\\s]*"),  "");
   str.replace(QRegExp("[\\s]+$"),  "");
+  str = str.simplified();
   return str;
 }
 
@@ -147,6 +151,8 @@ MainWindow::MainWindow(QWidget* parent): QMainWindow(parent)
   connect(ui.actionQuit, SIGNAL(triggered()), this, SLOT(closeActionX()));
   connect(ui.actionHelp, SIGNAL(triggered()), this, SLOT(helpActionX()));
   connect(ui.actionAbout, SIGNAL(triggered()), this, SLOT(aboutActionX()));
+  connect(ui.actionVisit_Website, SIGNAL(triggered()), this, SLOT(visitWebsiteActionX()));
+  connect(ui.actionMake_a_Donation, SIGNAL(triggered()), this, SLOT(donateActionX()));
   connect(ui.actionUpgradeCheck, SIGNAL(triggered()), this, SLOT(upgradeCheckActionX()));
   connect(ui.actionPreferences, SIGNAL(triggered()), this, SLOT(preferencesActionX()));
 
@@ -199,7 +205,7 @@ MainWindow::MainWindow(QWidget* parent): QMainWindow(parent)
   }
 
   if (!bd.ignoreVersionMismatch && babelVersion != VERSION) {
-    VersionMismatch vm(0, babelVersion, QString(appName) + QString(" Version " VERSION));
+    VersionMismatch vm(0, babelVersion, QString(VERSION));
 
     vm.exec();
     bd.ignoreVersionMismatch = vm.neverAgain();
@@ -946,6 +952,17 @@ void MainWindow::closeEvent(QCloseEvent*)
   closeActionX();
 }
 
+//------------------------------------------------------------------------
+void MainWindow::donateActionX()
+{
+  QDesktopServices::openUrl(QString("http://www.gpsbabel.org/contribute.html?gbversion=" VERSION));
+}
+
+//------------------------------------------------------------------------
+void MainWindow::visitWebsiteActionX()
+{
+  QDesktopServices::openUrl(QString("http://www.gpsbabel.org"));
+}
 
 //------------------------------------------------------------------------
 void MainWindow::dragEnterEvent(QDragEnterEvent *event)
@@ -958,10 +975,17 @@ void MainWindow::dropEvent(QDropEvent *event)
   foreach (QString format, event->mimeData()->formats()) {
     if (format == "text/uri-list") {
       QList<QUrl> urlList = event->mimeData()->urls();
+      bd.inputFileNames.clear();
       for (int i = 0; i < urlList.size(); ++i) {
-        QString url = urlList.at(i).path();
-        QString fmt = getFormatNameForExtension("gpx");
+        QFileInfo file_info(urlList.at(i).path());
+        QString name = file_info.filePath();
+        QString ext = file_info.suffix();
+
+        QString fmt = getFormatNameForExtension(ext);
         setComboToFormat(ui.inputFormatCombo, fmt, true);
+        ui.inputFileNameText->setText(name);
+        bd.inputFileNames << ui.inputFileNameText->text();
+        event->acceptProposedAction();
       }
     }
   }
