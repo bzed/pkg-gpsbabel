@@ -1,3 +1,9 @@
+gpsbabel (1.4.2-2) unstable; urgency=low
+
+  * [8251cb18] Work around the issues of the sbuild internal resolver.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 15 Feb 2011 11:12:09 +0100
+
 gpsbabel (1.4.2-1) unstable; urgency=low
 
   * [15f28bac] gpsbabel-gui needs to depend on gpsbabel.
