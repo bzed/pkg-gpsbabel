@@ -1,3 +1,9 @@
+gpsbabel (1.4.2-3) unstable; urgency=low
+
+  * [64bae20c] Use libqtwebkit-dev as build-dependency. (Closes: #629742)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 04 Jul 2011 16:17:13 +0200
+
 gpsbabel (1.4.2-2) unstable; urgency=low
 
   * [8251cb18] Work around the issues of the sbuild internal resolver.
