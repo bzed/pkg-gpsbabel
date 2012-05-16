@@ -1,4 +1,4 @@
-// $Id: serial_unix.cpp,v 1.2 2010/02/13 23:25:23 robertl Exp $
+// $Id: serial_unix.cpp,v 1.2 2010-02-13 23:25:23 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

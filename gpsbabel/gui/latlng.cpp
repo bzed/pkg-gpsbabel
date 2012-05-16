@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: latlng.cpp,v 1.2 2009/08/28 17:08:55 robertl Exp $
+// $Id: latlng.cpp,v 1.2 2009-08-28 17:08:55 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

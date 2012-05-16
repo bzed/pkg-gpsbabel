@@ -1,4 +1,4 @@
-// $Id: serial_win.cpp,v 1.3 2010/06/21 02:35:06 robertl Exp $
+// $Id: serial_win.cpp,v 1.3 2010-06-21 02:35:06 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

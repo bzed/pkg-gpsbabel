@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: dpencode.cpp,v 1.3 2009/09/08 16:06:32 robertl Exp $
+// $Id: dpencode.cpp,v 1.3 2009-09-08 16:06:32 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Original in JavaScript: 

@@ -2,7 +2,7 @@
 #define _SHAPEFILE_H_INCLUDED
 
 /******************************************************************************
- * $Id: shapefil.h,v 1.2 2004/09/27 01:13:58 robertl Exp $
+ * $Id: shapefil.h,v 1.2 2004-09-27 01:13:58 robertl Exp $
  *
  * Project:  Shapelib
  * Purpose:  Primary include file for Shapelib.
@@ -36,10 +36,7 @@
  * DEALINGS IN THE SOFTWARE.
  ******************************************************************************
  *
- * $Log: shapefil.h,v $
- * Revision 1.2  2004/09/27 01:13:58  robertl
- * warning fixes in shapelib.  From Alexander Stohr.
- *
+ * $Log: not supported by cvs2svn $
  * Revision 1.1  2004/09/20 17:22:55  robertl
  * Bring in shapefil.h.
  *

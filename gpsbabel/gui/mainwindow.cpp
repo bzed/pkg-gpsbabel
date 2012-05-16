@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: mainwindow.cpp,v 1.25 2010/09/02 03:10:46 robertl Exp $
+// $Id: mainwindow.cpp,v 1.27 2010-11-01 03:30:42 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -48,6 +48,9 @@
 const int BabelData::noType = -1;
 const int BabelData::fileType = 0;
 const int BabelData::deviceType = 1;
+
+#define FAKE_LANGUAGE_MENU 0
+
 //------------------------------------------------------------------------
 QString MainWindow::findBabelVersion()
 {
@@ -111,8 +114,14 @@ static QString MakeOptions(const QList<FormatOption>& options)
     if (options[i].getSelected()) {
       str += ",";
       str += options[i].getName();
-      if (options[i].getType() != FormatOption::OPTbool) {
-	str += "=" + options[i].getValue().toString();
+      if (options[i].getType() == FormatOption::OPTbool) {
+        str += "=1";
+      } else {
+        str += "=" + options[i].getValue().toString();
+      }
+    } else {
+      if (options[i].getType() == FormatOption::OPTbool) {
+        str += "," + options[i].getName() + "=0";
       }
     }
   }
@@ -171,6 +180,10 @@ MainWindow::MainWindow(QWidget* parent): QMainWindow(parent)
   connect(ui.buttonBox, SIGNAL(rejected()), this, SLOT(closeActionX()));
   connect(ui.xlateFiltersBtn, SIGNAL(clicked()), this, SLOT(filtersClicked()));
 
+  connect(ui.inputFileNameText, SIGNAL(textEdited(QString)), this, SLOT(inputFileNameEdited()));
+  connect(ui.outputFileNameText, SIGNAL(textEdited(QString)), this, SLOT(outputFileNameEdited()));
+
+
   ui.buttonBox->button(QDialogButtonBox::Apply)->setIcon(QIcon(":images/runit.png"));
   ui.buttonBox->button(QDialogButtonBox::Close)->setIcon(QIcon(":images/exit.png"));
 
@@ -194,6 +207,14 @@ MainWindow::MainWindow(QWidget* parent): QMainWindow(parent)
 
   ui.outputWindow->setReadOnly(true);
 
+  langPath = QApplication::applicationDirPath();
+  langPath.append("/translations/");
+
+  // Start up in the current system language.
+  loadLanguage(QLocale::system().name());
+#if FAKE_LANGUAGE_MENU
+  createLanguageMenu();
+#endif
 
   //--- Restore from registry
   restoreSettings();
@@ -217,6 +238,108 @@ MainWindow::~MainWindow()
 {
   if (upgrade)
     delete upgrade;
+}
+//------------------------------------------------------------------------
+// Dynamic language switching courtesy of 
+// http://developer.qt.nokia.com/wiki/How_to_create_a_multi_language_application
+// We create the menu entries dynamically, dependant on the existing 
+// translations.
+#if FAKE_LANGUAGE_MENU
+void MainWindow::createLanguageMenu(void)
+{
+    QActionGroup* langGroup = new QActionGroup(ui.menuHelp);
+    langGroup->setExclusive(true);
+    connect(langGroup, SIGNAL(triggered(QAction *)), this, SLOT(slotLanguageChanged(QAction *)));
+
+    // format systems language
+    QString defaultLocale = QLocale::system().name();       // e.g. "de_DE"
+    defaultLocale.truncate(defaultLocale.lastIndexOf('_')); // e.g. "de"
+
+    QDir dir(langPath);
+    QStringList fileNames = dir.entryList(QStringList("GPSBabelFE*.qm"));
+
+    for (int i = 0; i < fileNames.size(); ++i) {
+        // get locale extracted by filename
+        QString locale;
+        locale = fileNames[i];                  // "TranslationExample_de.qm"
+        locale.truncate(locale.lastIndexOf('.'));   // "TranslationExample_de"
+        locale.remove(0, locale.indexOf('_') + 1);   // "de"
+
+        QString lang = QLocale::languageToString(QLocale(locale).language());
+
+        QAction *action = new QAction(lang, this);
+        action->setCheckable(true);
+        action->setData(locale);
+
+        ui.menuHelp->addAction(action);
+        langGroup->addAction(action);
+
+        // set default translators and language checked
+        if (defaultLocale == locale) {
+            action->setChecked(true);
+        }
+    }
+}
+#endif //  FAKE_LANGUAGE_MENU
+
+//------------------------------------------------------------------------
+// Called every time, when a menu entry of the language menu is called
+void MainWindow::slotLanguageChanged(QAction* action)
+{
+  if (0 != action) {
+    // load the language dependant on the action content.
+    loadLanguage(action->data().toString());
+  }
+}
+
+void MainWindow::switchTranslator(QTranslator& translator, const QString& filename)
+{
+  // remove the old translator
+  qApp->removeTranslator(&translator);
+
+  QString full_filename(langPath + "/" + filename);
+
+  // load the new translator
+  if (translator.load(full_filename))
+    qApp->installTranslator(&translator);
+}
+
+void MainWindow::loadLanguage(const QString& rLanguage)
+{
+  if (currLang != rLanguage) {
+    currLang = rLanguage;
+    QLocale locale = QLocale(currLang);
+    QLocale::setDefault(locale);
+    QString languageName = QLocale::languageToString(locale.language());
+
+    switchTranslator(translator, QString("gpsbabelfe_%1.qm").arg(rLanguage));
+    switchTranslator(translatorCore, QString("gpsbabel__%1.qm").arg(rLanguage));
+    switchTranslator(translatorQt, QString(" qt_%1.qm").arg(rLanguage));
+  }
+}
+
+void MainWindow::changeEvent(QEvent* event)
+{
+    if (0 != event) {
+        switch(event->type()) {
+        // This event is sent if a translator is loaded.
+        case QEvent::LanguageChange:
+            ui.retranslateUi(this);
+            break;
+        // This event is sent if the system language changes.
+        case QEvent::LocaleChange:
+            {
+                QString locale = QLocale::system().name();
+                locale.truncate(locale.lastIndexOf('_'));
+                loadLanguage(locale);
+            }
+           break;
+        default:
+           break;
+        }
+    }
+ 
+    QMainWindow::changeEvent(event);
 }
 
 //------------------------------------------------------------------------
@@ -355,6 +478,17 @@ void MainWindow:: outputDeviceOptBtnClicked()
     ui.outputDevicePage->setEnabled(false);
   }
   fmtChgInterlock = false;
+}
+void MainWindow::inputFileNameEdited()
+{
+  bd.inputFileNames.clear();
+  bd.inputFileNames << ui.inputFileNameText->text();
+}
+
+void MainWindow::outputFileNameEdited()
+{
+  bd.outputFileName = ui.outputFileNameText->text();
+
 }
 
 //------------------------------------------------------------------------
@@ -514,7 +648,7 @@ void MainWindow::loadFormats()
 				"Check that the backend program \"gpsbabel\" is properly installed "
 				"and is in the current PATH\n\n"
 				"This program cannot continue."));
-    exit(1);
+   exit(1);
   }
   if (inputFileFormatIndices().size() == 0 ||
       inputDeviceFormatIndices().size() == 0 ||
@@ -933,7 +1067,7 @@ void MainWindow::closeActionX()
   bd.runCount++;
 
   QDateTime now = QDateTime::currentDateTime();
-  if((bd.runCount > 5) && (bd.donateSplashed.daysTo(now) > 30)) {
+  if ((bd.runCount > 5) && (bd.donateSplashed.daysTo(now) > 30)) {
     Donate donate(0);
     if (bd.donateSplashed.date() == QDate(2010,1,1))
       donate.showNever(false);

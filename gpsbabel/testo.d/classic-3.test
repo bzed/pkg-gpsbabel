@@ -219,6 +219,12 @@ gpsbabel -i gpx -f ${REFERENCE}/expertgps.gpx -x nuketypes,waypoints,tracks -x t
 compare ${TMPDIR}/transform-wpt.gpx ${REFERENCE}/transform-wpt.gpx
 
 #
+# GPX version detection
+#
+gpsbabel -i gpx -f ${REFERENCE}/expertgps.gpx -x nuketypes,routes,tracks -x transform,rte=wpt,del=y -o gpx -F ${TMPDIR}/transform-ver.gpx
+compare ${TMPDIR}/transform-ver.gpx ${REFERENCE}/transform-rte.gpx
+
+#
 # "Raymarine Waypoint File" tests
 #
 gpsbabel -i raymarine -f ${REFERENCE}/raymarine-sample.rwf -o gpx -F ${TMPDIR}/raymarine-sample.gpx
@@ -255,7 +261,7 @@ compare ${REFERENCE}/track/vitovtt-sample.gpx ${TMPDIR}/vitovtt-sample.gpx
 #
 rm -f ${TMPDIR}/mlink*
 gpsbabel -i gpx -f ${REFERENCE}/multiple-links.gpx -o gpx,gpxver=1.1 -F ${TMPDIR}/mlink-1.gpx
-compare ${TMPDIR}/mlink-1.gpx ${REFERENCE}/multiple-links.gpx
+compare ${REFERENCE}/multiple-links.gpx ${TMPDIR}/mlink-1.gpx 
 
 #
 # Geogrid Viewer tracklogs

@@ -423,9 +423,13 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="mainwinui.ui" line="14"/>
         <source>MainWindow</source>
-        <translation>FinestraPrincipale</translation>
+        <translation type="obsolete">FinestraPrincipale</translation>
+    </message>
+    <message>
+        <location filename="mainwinui.ui" line="14"/>
+        <source>GPSBabel</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="mainwinui.ui" line="21"/>
@@ -656,23 +660,23 @@ p, li { white-space: pre-wrap; }
         <translation></translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="263"/>
-        <location filename="mainwindow.cpp" line="264"/>
+        <location filename="mainwindow.cpp" line="386"/>
+        <location filename="mainwindow.cpp" line="387"/>
         <source>default</source>
         <translation>predefinite</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="426"/>
+        <location filename="mainwindow.cpp" line="560"/>
         <source>Select one or more input files</source>
         <translation>Selezionare uno o più file in ingresso</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="453"/>
+        <location filename="mainwindow.cpp" line="587"/>
         <source>Output File Name</source>
         <translation>Nome del file in uscita</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="513"/>
+        <location filename="mainwindow.cpp" line="647"/>
         <source>Error reading format configuration.  Check that the backend program &quot;gpsbabel&quot; is properly installed and is in the current PATH
 
 This program cannot continue.</source>
@@ -681,7 +685,7 @@ This program cannot continue.</source>
 Questo programma non può proseguire.</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="524"/>
+        <location filename="mainwindow.cpp" line="658"/>
         <source>Some file/device formats were not found during initialization.  Check that the backend program &quot;gpsbabel&quot; is properly installed and is in the current PATH
 
 This program cannot continue.</source>
@@ -690,115 +694,115 @@ This program cannot continue.</source>
 Questo programma non può proseguire.</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="546"/>
+        <location filename="mainwindow.cpp" line="680"/>
         <source>Input and output formats do not support %1</source>
         <translation>I formati di ingresso e di uscita non supportano %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="549"/>
+        <location filename="mainwindow.cpp" line="683"/>
         <source>Input does not support %1; output format supports %2</source>
         <translation>L&apos;ingresso non supporta %1, il formato di destinazione supporta %2</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="552"/>
+        <location filename="mainwindow.cpp" line="686"/>
         <source>Input format supports %1; output format does not support %2</source>
         <translation>Il formato in ingresso supporta %1, il formato di destinazione non supporta %2</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="555"/>
+        <location filename="mainwindow.cpp" line="689"/>
         <source>Both input and output formats support %1</source>
         <translation>I formati di origine e di destinazione supportano %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="576"/>
+        <location filename="mainwindow.cpp" line="710"/>
         <source>waypoints</source>
         <translation>punti di interesse</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="577"/>
+        <location filename="mainwindow.cpp" line="711"/>
         <source>tracks</source>
         <translation>tracce</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="578"/>
+        <location filename="mainwindow.cpp" line="712"/>
         <source>routes</source>
         <translation>rotte</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="668"/>
+        <location filename="mainwindow.cpp" line="802"/>
         <source>There are no input options for format &quot;%1&quot;</source>
         <translation>Non ci sono opzioni in ingresso per il formato &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="675"/>
-        <location filename="mainwindow.cpp" line="695"/>
+        <location filename="mainwindow.cpp" line="809"/>
+        <location filename="mainwindow.cpp" line="829"/>
         <source>Options for %1</source>
         <translation>Opzioni per %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="688"/>
+        <location filename="mainwindow.cpp" line="822"/>
         <source>There are no output options for format &quot;%1&quot;</source>
         <translation>Non ci sono opzioni in uscita per il formato &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="709"/>
+        <location filename="mainwindow.cpp" line="843"/>
         <source>No valid waypoints/routes/tracks translation specified</source>
         <translation>Non è stato specificato alcun punto di interesse/rotta/traccia</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="728"/>
+        <location filename="mainwindow.cpp" line="862"/>
         <source>No input file specified</source>
         <translation>Il file di origine non è stato specificato</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="735"/>
+        <location filename="mainwindow.cpp" line="869"/>
         <source>No valid output specified</source>
         <translation>Non è stata specificata una destinazione valida</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="740"/>
+        <location filename="mainwindow.cpp" line="874"/>
         <source>No output file specified</source>
         <translation>Il file di destinazione non è stato specificato</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="756"/>
+        <location filename="mainwindow.cpp" line="890"/>
         <source>Process &quot;%1&quot; did not start</source>
         <translation>Il processo &quot;%1&quot; non è stato avviato</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="770"/>
+        <location filename="mainwindow.cpp" line="904"/>
         <source>Process exited unsucessfully with code %1</source>
         <translation>Il processo è terminato con il codice di errorre %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="913"/>
+        <location filename="mainwindow.cpp" line="1047"/>
         <source>Translation successful</source>
         <translation>Traduzione terminata con successo</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="923"/>
+        <location filename="mainwindow.cpp" line="1057"/>
         <source>Error running gpsbabel: %1
 </source>
         <translation>Errore durante l&apos;esecuzione di gpsbabel: %1
 </translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="1036"/>
+        <location filename="mainwindow.cpp" line="1170"/>
         <source>Are you sure you want to reset all format options to default values?</source>
         <translation>Si è certi di voler reimpostare tutte le opzioni dei formati ai valori predefiniti?</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="1060"/>
+        <location filename="mainwindow.cpp" line="1194"/>
         <source>About %1</source>
         <translation>Informazioni su %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="1103"/>
+        <location filename="mainwindow.cpp" line="1237"/>
         <source>One or more data filters are active</source>
         <translation>È attivo uno o più filtri di dati</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="1105"/>
+        <location filename="mainwindow.cpp" line="1239"/>
         <source>No data filters are active</source>
         <translation>Nessun filtro di dati è attivo</translation>
     </message>
@@ -1426,37 +1430,37 @@ Questa opzione calcola (o ricalcola) un valore per la direzione del GPS in ogni 
 <context>
     <name>UpgradeCheck</name>
     <message>
-        <location filename="upgrade.cpp" line="207"/>
+        <location filename="upgrade.cpp" line="211"/>
         <source>HTTP</source>
         <translation>HTTP</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="208"/>
+        <location filename="upgrade.cpp" line="212"/>
         <source>Download failed: %1.</source>
         <translation>Scaricamento non riuscito: %1.</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="237"/>
+        <location filename="upgrade.cpp" line="241"/>
         <source>Error</source>
         <translation>Errore</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="238"/>
+        <location filename="upgrade.cpp" line="242"/>
         <source>Invalid return data at line %1: %2.</source>
         <translation>Dati ricevuti non validi alla linea %1: %2.</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="277"/>
+        <location filename="upgrade.cpp" line="281"/>
         <source>A new version of GPSBabel is available.&lt;br /&gt;Your version is %1 &lt;br /&gt;The latest version is %2</source>
         <translation>È disponibile una nuova versione di GPSBabel.&lt;br /&gt;Versione corrente: %1 &lt;br /&gt;Nuova versione: %2</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="288"/>
+        <location filename="upgrade.cpp" line="292"/>
         <source>Upgrade</source>
         <translation>Aggiorna</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="294"/>
+        <location filename="upgrade.cpp" line="298"/>
         <source>Do you wish to download an upgrade?</source>
         <translation>Si desidera scaricare un aggiornamento?</translation>
     </message>

@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: format.cpp,v 1.4 2010/02/14 05:33:37 robertl Exp $
+// $Id: format.cpp,v 1.4 2010-02-14 05:33:37 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

@@ -421,9 +421,13 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="mainwinui.ui" line="14"/>
         <source>MainWindow</source>
-        <translation>Главное Окно</translation>
+        <translation type="obsolete">Главное Окно</translation>
+    </message>
+    <message>
+        <location filename="mainwinui.ui" line="14"/>
+        <source>GPSBabel</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="mainwinui.ui" line="21"/>
@@ -654,23 +658,23 @@ p, li { white-space: pre-wrap; }
         <translation>Сделать пожертвование...</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="263"/>
-        <location filename="mainwindow.cpp" line="264"/>
+        <location filename="mainwindow.cpp" line="386"/>
+        <location filename="mainwindow.cpp" line="387"/>
         <source>default</source>
         <translation>по умолчанию</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="426"/>
+        <location filename="mainwindow.cpp" line="560"/>
         <source>Select one or more input files</source>
         <translation>Выберите один или несколько файлов</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="453"/>
+        <location filename="mainwindow.cpp" line="587"/>
         <source>Output File Name</source>
         <translation>Имя выходного файла</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="513"/>
+        <location filename="mainwindow.cpp" line="647"/>
         <source>Error reading format configuration.  Check that the backend program &quot;gpsbabel&quot; is properly installed and is in the current PATH
 
 This program cannot continue.</source>
@@ -679,7 +683,7 @@ This program cannot continue.</source>
 Выполнение программы не может быть продолжено.</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="524"/>
+        <location filename="mainwindow.cpp" line="658"/>
         <source>Some file/device formats were not found during initialization.  Check that the backend program &quot;gpsbabel&quot; is properly installed and is in the current PATH
 
 This program cannot continue.</source>
@@ -688,114 +692,114 @@ This program cannot continue.</source>
 Выполнение программы не может быть продолжено.</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="546"/>
+        <location filename="mainwindow.cpp" line="680"/>
         <source>Input and output formats do not support %1</source>
         <translation>Входной и выходной форматы не поддерживают %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="549"/>
+        <location filename="mainwindow.cpp" line="683"/>
         <source>Input does not support %1; output format supports %2</source>
         <translation>Входной формат не поддерживает %1; выходной формат поддерживает %2</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="552"/>
+        <location filename="mainwindow.cpp" line="686"/>
         <source>Input format supports %1; output format does not support %2</source>
         <translation>Входной формат поддерживает %1; выходной формат не поддерживаетt %2</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="555"/>
+        <location filename="mainwindow.cpp" line="689"/>
         <source>Both input and output formats support %1</source>
         <translation>Входной и выходной формат поддерживают %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="576"/>
+        <location filename="mainwindow.cpp" line="710"/>
         <source>waypoints</source>
         <translation>маршрутные точки</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="577"/>
+        <location filename="mainwindow.cpp" line="711"/>
         <source>tracks</source>
         <translation>треки</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="578"/>
+        <location filename="mainwindow.cpp" line="712"/>
         <source>routes</source>
         <translation>маршруты</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="668"/>
+        <location filename="mainwindow.cpp" line="802"/>
         <source>There are no input options for format &quot;%1&quot;</source>
         <translation>Нет входных параметров для формата &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="675"/>
-        <location filename="mainwindow.cpp" line="695"/>
+        <location filename="mainwindow.cpp" line="809"/>
+        <location filename="mainwindow.cpp" line="829"/>
         <source>Options for %1</source>
         <translation>Параметры %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="688"/>
+        <location filename="mainwindow.cpp" line="822"/>
         <source>There are no output options for format &quot;%1&quot;</source>
         <translation>Нет выходных параметров для формата &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="709"/>
+        <location filename="mainwindow.cpp" line="843"/>
         <source>No valid waypoints/routes/tracks translation specified</source>
         <translation>Не выбрано преобразование маршрутных точек/маршрутов/треков</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="728"/>
+        <location filename="mainwindow.cpp" line="862"/>
         <source>No input file specified</source>
         <translation>Не выбран входной файл</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="735"/>
+        <location filename="mainwindow.cpp" line="869"/>
         <source>No valid output specified</source>
         <translation>Не выбран выходной файл</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="740"/>
+        <location filename="mainwindow.cpp" line="874"/>
         <source>No output file specified</source>
         <translation>Не выбран выходной файл</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="756"/>
+        <location filename="mainwindow.cpp" line="890"/>
         <source>Process &quot;%1&quot; did not start</source>
         <translation>Процесс &quot;%1&quot; не запустился</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="770"/>
+        <location filename="mainwindow.cpp" line="904"/>
         <source>Process exited unsucessfully with code %1</source>
         <translation>Процесс завершился неудачей с кодом %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="913"/>
+        <location filename="mainwindow.cpp" line="1047"/>
         <source>Translation successful</source>
         <translation>Конвертация выполнена</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="923"/>
+        <location filename="mainwindow.cpp" line="1057"/>
         <source>Error running gpsbabel: %1
 </source>
         <translation>Ошибка запуска gpsbabel: %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="1036"/>
+        <location filename="mainwindow.cpp" line="1170"/>
         <source>Are you sure you want to reset all format options to default values?</source>
         <translation>Вы действительно желаете сбросить все параметры формата в значения по умолчанию?</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="1060"/>
+        <location filename="mainwindow.cpp" line="1194"/>
         <source>About %1</source>
         <translation>О %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="1103"/>
+        <location filename="mainwindow.cpp" line="1237"/>
         <source>One or more data filters are active</source>
         <translation>Один или более фильтров данных активны</translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="1105"/>
+        <location filename="mainwindow.cpp" line="1239"/>
         <source>No data filters are active</source>
         <translation>Фильтры данных не активны</translation>
     </message>
@@ -1423,37 +1427,37 @@ This option computes (or recomputes) a value for the GPS heading at each trackpo
 <context>
     <name>UpgradeCheck</name>
     <message>
-        <location filename="upgrade.cpp" line="207"/>
+        <location filename="upgrade.cpp" line="211"/>
         <source>HTTP</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="208"/>
+        <location filename="upgrade.cpp" line="212"/>
         <source>Download failed: %1.</source>
         <translation>Загрузка завершилась неудачей: %1.</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="237"/>
+        <location filename="upgrade.cpp" line="241"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="238"/>
+        <location filename="upgrade.cpp" line="242"/>
         <source>Invalid return data at line %1: %2.</source>
         <translation>Некорректные данные возвращены в строке %1: %2.</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="277"/>
+        <location filename="upgrade.cpp" line="281"/>
         <source>A new version of GPSBabel is available.&lt;br /&gt;Your version is %1 &lt;br /&gt;The latest version is %2</source>
         <translation>Доступна новая версия GPSBabel.&lt;br /&gt;Используемая версия %1 &lt;br /&gt;Последняя доступная версия %2</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="288"/>
+        <location filename="upgrade.cpp" line="292"/>
         <source>Upgrade</source>
         <translation>Обновить</translation>
     </message>
     <message>
-        <location filename="upgrade.cpp" line="294"/>
+        <location filename="upgrade.cpp" line="298"/>
         <source>Do you wish to download an upgrade?</source>
         <translation>Загрузить обновление?</translation>
     </message>

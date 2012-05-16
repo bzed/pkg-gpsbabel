@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: babeldata.h,v 1.8 2010/06/19 23:59:06 robertl Exp $
+// $Id: babeldata.h,v 1.8 2010-06-19 23:59:06 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

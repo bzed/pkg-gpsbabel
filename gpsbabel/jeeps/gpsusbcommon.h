@@ -23,21 +23,21 @@
  * The 'low level ops' are registered by the OS layer (win32, libusb, etc.)
  * to provide gruntwork features for the common USB layer.
  */
-typedef int (*gusb_llop_get)(garmin_usb_packet *ibuf, size_t sz);
-typedef int (*gusb_llop_send)(const garmin_usb_packet *opkt, size_t sz);
-typedef int (*gusb_llop_close) (gpsdevh *dh);
+typedef int (*gusb_llop_get)(garmin_usb_packet* ibuf, size_t sz);
+typedef int (*gusb_llop_send)(const garmin_usb_packet* opkt, size_t sz);
+typedef int (*gusb_llop_close)(gpsdevh* dh);
 
 typedef struct gusb_llops {
-	gusb_llop_get  llop_get_intr;
-	gusb_llop_get  llop_get_bulk;
-	gusb_llop_send llop_send;
-	gusb_llop_close llop_close;
-	int max_tx_size;
+  gusb_llop_get  llop_get_intr;
+  gusb_llop_get  llop_get_bulk;
+  gusb_llop_send llop_send;
+  gusb_llop_close llop_close;
+  int max_tx_size;
 } gusb_llops_t;
 
 /* Provided by the common code. */
 void gusb_syncup(void);
-void gusb_register_ll(struct gusb_llops *);
+void gusb_register_ll(struct gusb_llops*);
 void gusb_list_units(void);
 
 /* Provided by the OS layers */

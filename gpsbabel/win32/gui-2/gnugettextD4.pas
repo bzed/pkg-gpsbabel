@@ -1,5 +1,5 @@
 unit gnugettextD4;
-(*  File version: $Date: 2005/12/06 00:25:47 $ *)
+(*  File version: $Date: 2005-12-06 00:25:47 $ *)
 (*  Revision: $Revision: 1.3 $ *)
 // Delphi 5 optimized interface for gnugettext.pas
 // This unit must only be used on Delphi 5. When you upgrade to Delphi 6 or
