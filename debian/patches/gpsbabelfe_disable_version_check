@@ -1,7 +1,7 @@
 Disable version mismatch check.
 
---- a/gui/preferences.ui
-+++ b/gui/preferences.ui
+--- a/gpsbabel/gui/preferences.ui
++++ b/gpsbabel/gui/preferences.ui
 @@ -53,13 +53,6 @@
            </property>
           </widget>
@@ -16,15 +16,15 @@ Disable version mismatch check.
         </layout>
        </widget>
       </widget>
---- a/gui/preferences.cpp
-+++ b/gui/preferences.cpp
+--- a/gpsbabel/gui/preferences.cpp
++++ b/gpsbabel/gui/preferences.cpp
 @@ -41,7 +41,6 @@ Preferences::Preferences(QWidget* parent
  
    ui_.startupCheck->setChecked(bd_.startupVersionCheck);
    ui_.reportStatisticsCheck->setChecked(bd_.reportStatistics);
 -  ui_.ignoreVersionMismatchCheck->setChecked(bd_.ignoreVersionMismatch);
    // Because of an unfortunate bug in 1.4.0, we turn this off in 1.4.1.
-   if (VERSION == "1.4.1") 
+   if (VERSION == QString("1.4.1"))
      bd_.ignoreVersionMismatch = false;
 @@ -84,7 +83,6 @@ void Preferences::acceptClicked()
  
@@ -34,8 +34,8 @@ Disable version mismatch check.
    accept();
  }
  
---- a/gui/babeldata.h
-+++ b/gui/babeldata.h
+--- a/gpsbabel/gui/babeldata.h
++++ b/gpsbabel/gui/babeldata.h
 @@ -66,7 +66,7 @@ public:
      startupVersionCheck(true),
      reportStatistics(true),

@@ -1,6 +1,6 @@
 Make statistics reporting an opt-in option.
---- a/gui/babeldata.h
-+++ b/gui/babeldata.h
+--- a/gpsbabel/gui/babeldata.h
++++ b/gpsbabel/gui/babeldata.h
 @@ -64,7 +64,7 @@ public:
      upgradeOffers(0),
      runCount(0),

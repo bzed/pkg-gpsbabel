@@ -1,7 +1,7 @@
 Disable check for newer versions on start.
 
---- a/gui/preferences.ui
-+++ b/gui/preferences.ui
+--- a/gpsbabel/gui/preferences.ui
++++ b/gpsbabel/gui/preferences.ui
 @@ -40,13 +40,6 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -16,8 +16,8 @@ Disable check for newer versions on start.
           <widget class="QCheckBox" name="reportStatisticsCheck">
            <property name="text">
             <string>Anonymously report usage data.</string>
---- a/gui/preferences.cpp
-+++ b/gui/preferences.cpp
+--- a/gpsbabel/gui/preferences.cpp
++++ b/gpsbabel/gui/preferences.cpp
 @@ -39,7 +39,6 @@ Preferences::Preferences(QWidget* parent
  {
    ui_.setupUi(this);
@@ -25,7 +25,7 @@ Disable check for newer versions on start.
 -  ui_.startupCheck->setChecked(bd_.startupVersionCheck);
    ui_.reportStatisticsCheck->setChecked(bd_.reportStatistics);
    // Because of an unfortunate bug in 1.4.0, we turn this off in 1.4.1.
-   if (VERSION == "1.4.1") 
+   if (VERSION == QString("1.4.1"))
 @@ -81,7 +80,6 @@ void Preferences::acceptClicked()
      formatList_[i].setHidden(item->checkState() == Qt::Unchecked);
    }
@@ -34,8 +34,8 @@ Disable check for newer versions on start.
    bd_.reportStatistics = ui_.reportStatisticsCheck->isChecked();
    accept();
  }
---- a/gui/babeldata.h
-+++ b/gui/babeldata.h
+--- a/gpsbabel/gui/babeldata.h
++++ b/gpsbabel/gui/babeldata.h
 @@ -63,7 +63,7 @@ public:
      upgradeErrors(0),
      upgradeOffers(0),
@@ -45,8 +45,8 @@ Disable check for newer versions on start.
      reportStatistics(false),
      allowBetaUpgrades(false),
      ignoreVersionMismatch(true),
---- a/gui/mainwinui.ui
-+++ b/gui/mainwinui.ui
+--- a/gpsbabel/gui/mainwinui.ui
++++ b/gpsbabel/gui/mainwinui.ui
 @@ -641,7 +641,6 @@
      <addaction name="actionHelp"/>
      <addaction name="separator"/>
@@ -67,9 +67,9 @@ Disable check for newer versions on start.
    <action name="actionVisit_Website">
     <property name="text">
      <string>Visit Website...</string>
---- a/gui/mainwindow.cpp
-+++ b/gui/mainwindow.cpp
-@@ -153,7 +153,6 @@ MainWindow::MainWindow(QWidget* parent):
+--- a/gpsbabel/gui/mainwindow.cpp
++++ b/gpsbabel/gui/mainwindow.cpp
+@@ -162,7 +162,6 @@ MainWindow::MainWindow(QWidget* parent):
    connect(ui.actionAbout, SIGNAL(triggered()), this, SLOT(aboutActionX()));
    connect(ui.actionVisit_Website, SIGNAL(triggered()), this, SLOT(visitWebsiteActionX()));
    connect(ui.actionMake_a_Donation, SIGNAL(triggered()), this, SLOT(donateActionX()));
@@ -77,7 +77,7 @@ Disable check for newer versions on start.
    connect(ui.actionPreferences, SIGNAL(triggered()), this, SLOT(preferencesActionX()));
  
    connect(ui.inputFormatCombo,  SIGNAL(currentIndexChanged(int)),
-@@ -197,19 +196,8 @@ MainWindow::MainWindow(QWidget* parent):
+@@ -218,19 +217,8 @@ MainWindow::MainWindow(QWidget* parent):
  
    //--- Restore from registry
    restoreSettings();
@@ -97,7 +97,7 @@ Disable check for newer versions on start.
  }
  
  //------------------------------------------------------------------------
-@@ -926,10 +914,6 @@ void MainWindow::applyActionX()
+@@ -1060,10 +1048,6 @@ void MainWindow::applyActionX()
  //------------------------------------------------------------------------
  void MainWindow::closeActionX()
  {
