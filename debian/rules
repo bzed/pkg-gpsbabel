@@ -5,7 +5,7 @@
 
 PKG_GPSBABEL=gpsbabel
 PKG_GPSBABEL_GUI=gpsbabel-gui
-DOCTEMP = debian/doctmp
+DOCTEMP = $(CURDIR)/debian/doctmp
 VERSION := $(shell dpkg-parsechangelog | awk '/^Version/ {print $$2}')
 HOSTARCH := $(strip $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU))
 
@@ -34,19 +34,16 @@ CONFENV = LDFLAGS="$(LDFLAGS)" CFLAGS="$(CFLAGS)"
 configure: configure-stamp gui/Makefile
 configure-stamp: $(QUILT_STAMPFN)
 	dh_testdir
-ifneq (,$(wildcard /usr/share/misc/config.sub))
-	cp -f /usr/share/misc/config.sub config.sub
-endif
-ifneq (,$(wildcard /usr/share/misc/config.guess))
-	cp -f /usr/share/misc/config.guess config.guess
-endif
-	$(CONFENV) ./configure --with-zlib=system --with-doc=$(DOCTEMP) \
-		--prefix=/usr
+	dh_autotools-dev_updateconfig -Dgpsbabel
+	cd gpsbabel && $(CONFENV) ./configure \
+	    				--with-zlib=system \
+					--with-doc=$(DOCTEMP) \
+					--prefix=/usr
 
 	touch $@
 
 debian/gpsbabel.1: build-stamp
-	export PATH="$(CURDIR):$$PATH" ;\
+	export PATH="$(CURDIR)/gpsbabel:$$PATH" ;\
 	help2man 	--manual='gpsbabel documentation' \
 			--section=1 \
 			--name='GPS route and waypoint data converter' \
@@ -58,8 +55,8 @@ debian/gpsbabel.1: build-stamp
 			-o $@ \
 			gpsbabel
 
-gui/Makefile: $(QUILT_STAMPFN)
-	cd gui && qmake-qt4
+gpsbabel/gui/Makefile: $(QUILT_STAMPFN)
+	cd gpsbabel/gui && qmake-qt4
 
 BUILD_TARGETS_ARCH = build-stamp build-gui-stamp debian/gpsbabel.1
 BUILD_TARGETS_INDEP = build-doc-stamp
@@ -70,56 +67,57 @@ build-stamp: configure-stamp
 	dh_testdir
 
 	# Add here commands to compile the package.
-	$(MAKE)
-	chmod u+x testo
-	$(MAKE) check 
+	$(MAKE) -C gpsbabel
+	chmod u+x gpsbabel/testo
+	$(MAKE) -C gpsbabel check 
 
 	touch $@
 
 # We need a gpsbabel binary to build the documentation.
 build-doc-stamp: build-stamp
-	$(MAKE) $(DOCTEMP)/htmldoc-devel/index.html WEB=$(DOCTEMP) DOCVERSION=devel
+	$(MAKE) -C gpsbabel $(DOCTEMP)/htmldoc-devel/index.html WEB=$(DOCTEMP) DOCVERSION=devel
 	cp $(CURDIR)/debian/gpsbabel-doc.doc-base-common $(CURDIR)/debian/gpsbabel-doc.doc-base
 ifneq (mips,$(HOSTARCH))
-	$(MAKE) gpsbabel.pdf WEB=$(DOCTEMP) DOCVERSION=devel
+	$(MAKE) -C gpsbabel gpsbabel.pdf WEB=$(DOCTEMP) DOCVERSION=devel
 	rm -f $(CURDIR)/$(DOCTEMP)/htmldoc-devel/gpsbabel-$(DOCVERSION).pdf DOCVERSION=devel
-	cp gpsbabel.pdf $(CURDIR)/$(DOCTEMP)
+	cp gpsbabel/gpsbabel.pdf $(DOCTEMP)
 	cat $(CURDIR)/debian/gpsbabel-doc.doc-base-pdf >> $(CURDIR)/debian/gpsbabel-doc.doc-base
 endif
 	touch $@
 
 build-gui: build-gui-stamp
-build-gui-stamp: gui/Makefile
-	$(MAKE) -C gui
+build-gui-stamp: gpsbabel/gui/Makefile
+	$(MAKE) -C gpsbabel/gui
 	touch $@
 
 clean: clean-patched unpatch
 clean-patched:
 	dh_testdir
-	dh_testroot
-	rm -f *-stamp dep doc/*.ps
+	dh_testroot 
+	rm -f *-stamp gpsbabel/dep gpsbabel/doc/*.ps
 
 	# Add here commands to clean up after the build process.
-	[ ! -f Makefile ] || $(MAKE) clean
-	[ ! -f gui/Makefile ] || $(MAKE) -C gui clean
+	[ ! -f gpsbabel/Makefile ] || $(MAKE) -C gpsbabel clean
+	[ ! -f gpsbabel/gui/Makefile ] || $(MAKE) -C gpsbabel/gui clean
 	rm -rf debian/doctmp xmldoc/autogen/*
-	rm -rf Makefile config.h config.log config.status debian/*.inc \
+	cd gpsbabel && rm -rf Makefile config.h config.log config.status \
 		gpsbabel.fo tools/mkcapabilities win32/gpsbabel.rc \
 		xmldoc/makedoc \
 		zlib/empty jeeps/Makefile shapelib/Makefile
-	rm -f config.guess config.sub
-	rm -rf gui/Makefile gui/objects gui/setup.iss
+	rm -f debian/*.inc
+	cd gpsbabel && rm -rf gui/Makefile gui/objects gui/setup.iss
 	rm -f debian/gpsbabel.1
-	rm -f gpsbabel.pdf
-	rm -f gui/makelinuxdist.sh
-	rm -f   xmldoc/formats/tomtom_itn_places.xml \
+	cd gpsbabel && rm -f gpsbabel/gpsbabel.pdf
+	cd gpsbabel && rm -f gui/makelinuxdist.sh
+	cd gpsbabel && rm -f   xmldoc/formats/tomtom_itn_places.xml \
 		xmldoc/formats/options/naviguide-reorder.xml \
 		xmldoc/formats/options/naviguide-output.xml \
 		xmldoc/filters/options/track-trk2seg.xml \
 		xmldoc/filters/options/track-seg2trk.xml
-	rm -f gbversion.h
+	cd gpsbabel && rm -f gbversion.h
 	rm -f $(CURDIR)/debian/gpsbabel-doc.doc-base
-	dh_clean 
+	dh_autotools-dev_restoreconfig -Dgpsbabel
+	dh_clean
 
 install-prep:
 	dh_testdir
@@ -130,9 +128,9 @@ install-prep:
 install-arch: $(BUILD_TARGETS_ARCH) install-prep
 
 	# Add here commands to install the package into debian/gpsbabel.
-	$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel
+	$(MAKE) -C gpsbabel install DESTDIR=$(CURDIR)/debian/gpsbabel
 
-	dh_install -a
+	dh_install -a 
 
 install-indep: $(BUILD_TARGETS_INDEP) install-prep
 	# Rename htmldoc dir
@@ -145,11 +143,11 @@ install: install-arch install-indep
 
 # Build architecture-independent files here.
 binary-indep: build-indep install-indep
-	dh_testdir
+	dh_testdir 
 	dh_testroot
-	dh_installchangelogs -i
+	dh_installchangelogs -i 
 	dh_installdocs -i
-	dh_link -i
+	dh_link -i 
 	dh_compress -i
 	dh_fixperms -i
 	dh_installdeb -i
