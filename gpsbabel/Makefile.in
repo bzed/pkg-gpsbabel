@@ -65,11 +65,11 @@ ALL_FMTS=$(MINIMAL_FMTS) gtm.o gpsutil.o pcx.o cetus.o copilot.o \
 	jtr.o sbp.o sbn.o mmo.o skyforce.o itracku.o v900.o delbin.o \
 	pocketfms_bc.o pocketfms_fp.o pocketfms_wp.o naviguide.o enigma.o \
 	vpl.o teletype.o jogmap.o bushnell.o bushnell_trl.o wintec_tes.o \
-	subrip.o garmin_xt.o \
+	subrip.o garmin_xt.o explorist_ini.o garmin_fit.o \
 
 FMTS=@FMTS@
 
-FILTERS=position.o radius.o duplicate.o arcdist.o polygon.o smplrout.o \
+FILTERS=bend.o position.o radius.o duplicate.o arcdist.o polygon.o smplrout.o \
 	reverse_route.o sort.o stackfilter.o trackfilter.o discard.o \
 	nukedata.o interpolate.o transform.o height.o swapdata.o
 
@@ -141,8 +141,8 @@ configure: configure.in
 	autoconf
 
 tag:
-	cvs commit
-	cvs tag gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@
+	svn commit
+	svn copy https://gpsbabel.googlecode.com/svn/trunk/ https://gpsbabel.googlecode.com/svn/tags/gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@
 
 more-clean: clean
 	tools/mkmoreclean
@@ -259,14 +259,16 @@ WINFILES = gpsbabel.exe mingw/libexpat.dll win32/GPSBabelGUI.exe win32/gui-2/REA
 # in and tagged.
 #
 release-sourcecheck: changes.html
-	cvs commit
-	./chkdoc
+	svn commit
+	# ./chkdoc
 	# make clean
 	rm -fr gpsbabel-$(VERSIOND)
 	# make gpsbabel doc gpsbabel.html
-	@(. tools/functions && ask "Enter 'y' to tag the tree as gpsbabel_$(VERSIONU)." "y") && cvs tag -F gpsbabel_$(VERSIONU) ; exit 0
-	cvs export -r gpsbabel_$(VERSIONU) -d gpsbabel-$(VERSIOND) gpsbabel
+	@(. tools/functions && ask "Enter 'y' to tag the tree as gpsbabel_$(VERSIONU)." "y") && svn copy https://gpsbabel.googlecode.com/svn/trunk/ https://gpsbabel.googlecode.com/svn/tags/gpsbabel_$(VERSIONU) ; exit 0
+	svn export https://gpsbabel.googlecode.com/svn/tags/gpsbabel_$(VERSIONU)/gpsbabel gpsbabel-$(VERSIOND) 
 	touch gpsbabel-$(VERSIOND)/internal_styles.c
+	touch gpsbabel-$(VERSIOND)/configure
+	touch gpsbabel-$(VERSIOND)/xcsv_tokens.gperf
 
 #
 # Build the release tarball from the exported CVS tree, tweaking 
@@ -276,6 +278,7 @@ release-tarball: release-sourcecheck
 #	rm -fr gpsbabel-$(VERSIOND)
 	cp -ap internal_styles.c gpsbabel-$(VERSIOND)/
 	tar czf /tmp/gpsbabel-$(VERSIOND).tar.gz gpsbabel-$(VERSIOND)
+	gb_upload /tmp/gpsbabel-$(VERSIOND).tar.gz
 #	cd /tmp ; tar xzf gpsbabel-$(VERSIOND).tar.gz
 
 release-rpm:
@@ -347,15 +350,16 @@ mac-release:
 
 
 mac-gui: gpsbabel
-	file gpsbabel | grep '2 architectures' || exit 1
-	file gui/objects/GPSBabelFE.app/Contents/MacOS/GPSBabelFE | grep '2 architectures' || exit 1
-	cd gui ; qmake && xcodebuild
+	# file gpsbabel | grep '2 architectures' || exit 1
+	# file gui/objects/GPSBabelFE.app/Contents/MacOS/GPSBabelFE | grep '2 architectures' || exit 1
+	cd gui ; qmake && make
 	cd gui ; lupdate  app.pro
 	cd gui ; lrelease  app.pro
-	mkdir gui/objects/GPSBabelFE.app/Contents/MacOS/lang
-	cp gui/*.qm  gui/objects/gpsbabelFE.app/Contents/MacOS/lang
+	@ [ ! -d gui/objects/GPSBabelFE.app/Contents/MacOS/translations ] && \
+	  mkdir -p gui/objects/GPSBabelFE.app/Contents/MacOS/translations
+	cp gui/*.qm  gui/objects/gpsbabelFE.app/Contents/MacOS/translations
 	cp gpsbabel gui/objects/GPSBabelFE.app/Contents/MacOS
-	cp -r gui/help  gui/objects/GPSBabelFE.app/Contents/MacOS
+	cp -r gui/help/*.html  gui/objects/GPSBabelFE.app/Contents/MacOS
 	cp gui/gmapbase.html gui/objects/GPSBabelFE.app/Contents/MacOS
 	tools/mac-localize
 
@@ -389,6 +393,9 @@ avltree.o: avltree.c avltree.h defs.h config.h queue.h gbtypes.h \
   zlib/zlib.h zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h session.h
 axim_gpb.o: axim_gpb.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h session.h
+bend.o: bend.c defs.h config.h queue.h gbtypes.h zlib/zlib.h \
+  zlib/zconf.h gbfile.h cet.h cet_util.h inifile.h session.h filterdefs.h \
+  grtcirc.h
 bcr.o: bcr.c defs.h config.h queue.h gbtypes.h zlib/zlib.h zlib/zconf.h \
   gbfile.h cet.h cet_util.h inifile.h session.h csv_util.h \
   garmin_tables.h

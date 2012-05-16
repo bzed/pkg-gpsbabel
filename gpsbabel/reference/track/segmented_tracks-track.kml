@@ -3,17 +3,26 @@
 	xmlns:gx="http://www.google.com/kml/ext/2.2">
   <Document>
     <name>GPS device</name>
+    <LookAt>
+      <gx:TimeSpan>
+        <begin>2007-07-27T05:24:05Z</begin>
+        <end>2007-07-27T05:35:00Z</end>
+      </gx:TimeSpan>
+      <longitude>-86.841461</longitude>
+      <latitude>35.831217</latitude>
+      <range>1944.793167</range>
+    </LookAt>
 <!-- Normal track style -->
     <Style id="track_n">
-      <LabelStyle>
-        <scale>0</scale>
-      </LabelStyle>
       <IconStyle>
         <scale>.5</scale>
         <Icon>
           <href>http://earth.google.com/images/kml-icons/track-directional/track-none.png</href>
         </Icon>
       </IconStyle>
+      <LabelStyle>
+        <scale>0</scale>
+      </LabelStyle>
     </Style>
 <!-- Highlighted track style -->
     <Style id="track_h">
@@ -36,28 +45,28 @@
     </StyleMap>
 <!-- Normal multiTrack style -->
     <Style id="multiTrack_n">
-      <LineStyle>
-        <color>99ffac59</color>
-        <width>6</width>
-      </LineStyle>
       <IconStyle>
         <Icon>
           <href>http://earth.google.com/images/kml-icons/track-directional/track-0.png</href>
         </Icon>
       </IconStyle>
+      <LineStyle>
+        <color>99ffac59</color>
+        <width>6</width>
+      </LineStyle>
     </Style>
 <!-- Highlighted multiTrack style -->
     <Style id="multiTrack_h">
-      <LineStyle>
-        <color>99ffac59</color>
-        <width>8</width>
-      </LineStyle>
       <IconStyle>
         <scale>1.2</scale>
         <Icon>
           <href>http://earth.google.com/images/kml-icons/track-directional/track-0.png</href>
         </Icon>
       </IconStyle>
+      <LineStyle>
+        <color>99ffac59</color>
+        <width>8</width>
+      </LineStyle>
     </Style>
     <StyleMap id="multiTrack">
       <Pair>
@@ -106,11 +115,11 @@
       <name>Tracks</name>
       <Folder>
         <name>No Times</name>
-        <Snippet/>
+        <snippet/>
         <description>
 <![CDATA[<table>
             <tr><td><b>Distance</b> 1.1 mi </td></tr>
-            <tr><td><b>Min Alt</b> 621371.192 mi </td></tr>
+            <tr><td><b>Min Alt</b> 0.000 ft </td></tr>
             <tr><td><b>Max Alt</b> 0.000 ft </td></tr>
           </table>]]>
         </description>
@@ -118,7 +127,7 @@
           <name>Points</name>
           <Placemark>
             <name>No Times-0</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.844140 </td></tr>
@@ -138,7 +147,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-1</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843587 </td></tr>
@@ -158,7 +167,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-2</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843869 </td></tr>
@@ -178,7 +187,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-3</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843399 </td></tr>
@@ -198,7 +207,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-4</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843647 </td></tr>
@@ -218,7 +227,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-5</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843137 </td></tr>
@@ -238,7 +247,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-6</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842846 </td></tr>
@@ -258,7 +267,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-7</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842592 </td></tr>
@@ -278,7 +287,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-8</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842084 </td></tr>
@@ -298,7 +307,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-9</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842528 </td></tr>
@@ -318,7 +327,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-10</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841917 </td></tr>
@@ -338,7 +347,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-11</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841882 </td></tr>
@@ -358,7 +367,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-12</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841275 </td></tr>
@@ -378,7 +387,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-13</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840954 </td></tr>
@@ -398,7 +407,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-14</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840765 </td></tr>
@@ -418,7 +427,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-15</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840254 </td></tr>
@@ -438,7 +447,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-16</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840499 </td></tr>
@@ -458,7 +467,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-17</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840954 </td></tr>
@@ -478,7 +487,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-18</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839683 </td></tr>
@@ -498,7 +507,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-19</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840327 </td></tr>
@@ -518,7 +527,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-20</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839510 </td></tr>
@@ -538,7 +547,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-21</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839451 </td></tr>
@@ -558,7 +567,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-22</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.838782 </td></tr>
@@ -585,16 +594,10 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.844140,35.826146
-                -86.844140,35.826146
-                -86.843587,35.824859
                 -86.843587,35.824859
                 -86.843869,35.825508
-                -86.843869,35.825508
-                -86.843399,35.825659
                 -86.843399,35.825659
                 -86.843647,35.826201
-                -86.843647,35.826201
-                -86.843137,35.825023
                 -86.843137,35.825023
               </coordinates>
             </LineString>
@@ -602,8 +605,6 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.842846,35.825765
-                -86.842846,35.825765
-                -86.842592,35.825213
                 -86.842592,35.825213
               </coordinates>
             </LineString>
@@ -611,14 +612,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.842084,35.825410
-                -86.842084,35.825410
-                -86.842528,35.826530
                 -86.842528,35.826530
                 -86.841917,35.826228
-                -86.841917,35.826228
                 -86.841882,35.826753
-                -86.841882,35.826753
-                -86.841275,35.825879
                 -86.841275,35.825879
               </coordinates>
             </LineString>
@@ -626,14 +622,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.840954,35.826506
-                -86.840954,35.826506
-                -86.840765,35.826053
                 -86.840765,35.826053
                 -86.840254,35.826187
-                -86.840254,35.826187
                 -86.840499,35.826665
-                -86.840499,35.826665
-                -86.840954,35.826506
                 -86.840954,35.826506
               </coordinates>
             </LineString>
@@ -641,14 +632,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.839683,35.826441
-                -86.839683,35.826441
-                -86.840327,35.827349
                 -86.840327,35.827349
                 -86.839510,35.827134
-                -86.839510,35.827134
                 -86.839451,35.827576
-                -86.839451,35.827576
-                -86.838782,35.826744
                 -86.838782,35.826744
               </coordinates>
             </LineString>
@@ -709,11 +695,11 @@
       </Placemark>
       <Folder>
         <name>No Times</name>
-        <Snippet/>
+        <snippet/>
         <description>
 <![CDATA[<table>
             <tr><td><b>Distance</b> 1.1 mi </td></tr>
-            <tr><td><b>Min Alt</b> 621371.192 mi </td></tr>
+            <tr><td><b>Min Alt</b> 0.000 ft </td></tr>
             <tr><td><b>Max Alt</b> 0.000 ft </td></tr>
           </table>]]>
         </description>
@@ -721,7 +707,7 @@
           <name>Points</name>
           <Placemark>
             <name>No Times-0</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.844140 </td></tr>
@@ -741,7 +727,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-1</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843587 </td></tr>
@@ -761,7 +747,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-2</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843869 </td></tr>
@@ -781,7 +767,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-3</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843399 </td></tr>
@@ -801,7 +787,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-4</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843647 </td></tr>
@@ -821,7 +807,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-5</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843137 </td></tr>
@@ -841,7 +827,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-6</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842846 </td></tr>
@@ -861,7 +847,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-7</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842592 </td></tr>
@@ -881,7 +867,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-8</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842084 </td></tr>
@@ -901,7 +887,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-9</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842528 </td></tr>
@@ -921,7 +907,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-10</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841917 </td></tr>
@@ -941,7 +927,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-11</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841882 </td></tr>
@@ -961,7 +947,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-12</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841275 </td></tr>
@@ -981,7 +967,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-13</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840954 </td></tr>
@@ -1001,7 +987,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-14</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840765 </td></tr>
@@ -1021,7 +1007,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-15</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840254 </td></tr>
@@ -1041,7 +1027,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-16</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840499 </td></tr>
@@ -1061,7 +1047,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-17</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840954 </td></tr>
@@ -1081,7 +1067,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-18</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839683 </td></tr>
@@ -1101,7 +1087,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-19</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840327 </td></tr>
@@ -1121,7 +1107,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-20</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839510 </td></tr>
@@ -1141,7 +1127,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-21</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839451 </td></tr>
@@ -1161,7 +1147,7 @@
           </Placemark>
           <Placemark>
             <name>No Times-22</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.838782 </td></tr>
@@ -1188,16 +1174,10 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.844140,35.826146
-                -86.844140,35.826146
-                -86.843587,35.824859
                 -86.843587,35.824859
                 -86.843869,35.825508
-                -86.843869,35.825508
-                -86.843399,35.825659
                 -86.843399,35.825659
                 -86.843647,35.826201
-                -86.843647,35.826201
-                -86.843137,35.825023
                 -86.843137,35.825023
               </coordinates>
             </LineString>
@@ -1205,8 +1185,6 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.842846,35.825765
-                -86.842846,35.825765
-                -86.842592,35.825213
                 -86.842592,35.825213
               </coordinates>
             </LineString>
@@ -1214,14 +1192,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.842084,35.825410
-                -86.842084,35.825410
-                -86.842528,35.826530
                 -86.842528,35.826530
                 -86.841917,35.826228
-                -86.841917,35.826228
                 -86.841882,35.826753
-                -86.841882,35.826753
-                -86.841275,35.825879
                 -86.841275,35.825879
               </coordinates>
             </LineString>
@@ -1229,14 +1202,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.840954,35.826506
-                -86.840954,35.826506
-                -86.840765,35.826053
                 -86.840765,35.826053
                 -86.840254,35.826187
-                -86.840254,35.826187
                 -86.840499,35.826665
-                -86.840499,35.826665
-                -86.840954,35.826506
                 -86.840954,35.826506
               </coordinates>
             </LineString>
@@ -1244,14 +1212,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.839683,35.826441
-                -86.839683,35.826441
-                -86.840327,35.827349
                 -86.840327,35.827349
                 -86.839510,35.827134
-                -86.839510,35.827134
                 -86.839451,35.827576
-                -86.839451,35.827576
-                -86.838782,35.826744
                 -86.838782,35.826744
               </coordinates>
             </LineString>
@@ -1260,11 +1223,11 @@
       </Folder>
       <Folder>
         <name>With Times</name>
-        <Snippet/>
+        <snippet/>
         <description>
 <![CDATA[<table>
             <tr><td><b>Distance</b> 1.1 mi </td></tr>
-            <tr><td><b>Min Alt</b> 621371.192 mi </td></tr>
+            <tr><td><b>Min Alt</b> 0.000 ft </td></tr>
             <tr><td><b>Max Alt</b> 0.000 ft </td></tr>
             <tr><td><b>Max Speed</b> 0.0 mph </td></tr>
             <tr><td><b>Avg Speed</b> 6.1 mph </td></tr>
@@ -1280,7 +1243,7 @@
           <name>Points</name>
           <Placemark>
             <name>With Times-0</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.844140 </td></tr>
@@ -1303,7 +1266,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-1</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843587 </td></tr>
@@ -1324,7 +1287,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-2</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843869 </td></tr>
@@ -1344,7 +1307,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-3</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843399 </td></tr>
@@ -1364,7 +1327,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-4</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843647 </td></tr>
@@ -1384,7 +1347,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-5</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.843137 </td></tr>
@@ -1407,7 +1370,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-6</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842846 </td></tr>
@@ -1428,7 +1391,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-7</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842592 </td></tr>
@@ -1448,7 +1411,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-8</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842084 </td></tr>
@@ -1471,7 +1434,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-9</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.842528 </td></tr>
@@ -1492,7 +1455,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-10</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841917 </td></tr>
@@ -1512,7 +1475,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-11</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841882 </td></tr>
@@ -1532,7 +1495,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-12</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.841275 </td></tr>
@@ -1552,7 +1515,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-13</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840954 </td></tr>
@@ -1572,7 +1535,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-14</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840765 </td></tr>
@@ -1592,7 +1555,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-15</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840254 </td></tr>
@@ -1612,7 +1575,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-16</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840499 </td></tr>
@@ -1632,7 +1595,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-17</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840954 </td></tr>
@@ -1652,7 +1615,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-18</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839683 </td></tr>
@@ -1672,7 +1635,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-19</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.840327 </td></tr>
@@ -1692,7 +1655,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-20</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839510 </td></tr>
@@ -1712,7 +1675,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-21</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.839451 </td></tr>
@@ -1732,7 +1695,7 @@
           </Placemark>
           <Placemark>
             <name>With Times-22</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -86.838782 </td></tr>
@@ -1762,16 +1725,10 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.844140,35.836146
-                -86.844140,35.836146
-                -86.843587,35.834859
                 -86.843587,35.834859
                 -86.843869,35.835508
-                -86.843869,35.835508
-                -86.843399,35.835659
                 -86.843399,35.835659
                 -86.843647,35.836201
-                -86.843647,35.836201
-                -86.843137,35.835023
                 -86.843137,35.835023
               </coordinates>
             </LineString>
@@ -1779,8 +1736,6 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.842846,35.835765
-                -86.842846,35.835765
-                -86.842592,35.835213
                 -86.842592,35.835213
               </coordinates>
             </LineString>
@@ -1788,14 +1743,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.842084,35.835410
-                -86.842084,35.835410
-                -86.842528,35.836530
                 -86.842528,35.836530
                 -86.841917,35.836228
-                -86.841917,35.836228
                 -86.841882,35.836753
-                -86.841882,35.836753
-                -86.841275,35.835879
                 -86.841275,35.835879
               </coordinates>
             </LineString>
@@ -1803,14 +1753,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.840954,35.836506
-                -86.840954,35.836506
-                -86.840765,35.836053
                 -86.840765,35.836053
                 -86.840254,35.836187
-                -86.840254,35.836187
                 -86.840499,35.836665
-                -86.840499,35.836665
-                -86.840954,35.836506
                 -86.840954,35.836506
               </coordinates>
             </LineString>
@@ -1818,14 +1763,9 @@
               <tessellate>1</tessellate>
               <coordinates>
                 -86.839683,35.836441
-                -86.839683,35.836441
-                -86.840327,35.837349
                 -86.840327,35.837349
                 -86.839510,35.837134
-                -86.839510,35.837134
                 -86.839451,35.837576
-                -86.839451,35.837576
-                -86.838782,35.836744
                 -86.838782,35.836744
               </coordinates>
             </LineString>
@@ -1833,14 +1773,5 @@
         </Placemark>
       </Folder>
     </Folder>
-    <LookAt>
-      <gx:TimeSpan>
-        <begin>2007-07-27T05:24:05Z</begin>
-        <end>2007-07-27T05:35:00Z</end>
-      </gx:TimeSpan>
-      <longitude>-86.841461</longitude>
-      <latitude>35.831217</latitude>
-      <range>1944.793167</range>
-    </LookAt>
   </Document>
 </kml>

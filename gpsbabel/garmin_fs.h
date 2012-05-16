@@ -1,7 +1,7 @@
 /*
-  
+
     Implementation of special data used by Garmin products.
-    
+
     Copyright (C) 2006 Olaf Klein, o.b.klein@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
@@ -59,83 +59,82 @@
 #define GMSD_GETNSTR(a,b,c) if (gmsd && gmsd->flags.a) strncpy((b),gmsd->a,(c))
 
 typedef struct garmin_ilink_s {
-	int ref_count;
-	double lat, lon, alt;
-	struct garmin_ilink_s *next;
+  int ref_count;
+  double lat, lon, alt;
+  struct garmin_ilink_s* next;
 } garmin_ilink_t;
 
 typedef struct {
-	unsigned int icon:1; 
-	unsigned int wpt_class:1;
-	unsigned int display:1; 
-	unsigned int category:1; 
-	unsigned int city:1;
-	unsigned int state:1;
-	unsigned int facility:1;
-	unsigned int cc:1;
-	unsigned int cross_road:1;
-	unsigned int addr:1;
-	unsigned int country:1;
-	unsigned int phone_nr:1;
-	unsigned int phone_nr2:1;
-	unsigned int fax_nr:1;
-	unsigned int postal_code:1;
-	unsigned int email:1;
+  unsigned int icon:1;
+  unsigned int wpt_class:1;
+  unsigned int display:1;
+  unsigned int category:1;
+  unsigned int city:1;
+  unsigned int state:1;
+  unsigned int facility:1;
+  unsigned int cc:1;
+  unsigned int cross_road:1;
+  unsigned int addr:1;
+  unsigned int country:1;
+  unsigned int phone_nr:1;
+  unsigned int phone_nr2:1;
+  unsigned int fax_nr:1;
+  unsigned int postal_code:1;
+  unsigned int email:1;
 #ifdef GMSD_EXPERIMENTAL
-	unsigned int subclass:1;
+  unsigned int subclass:1;
 #endif
 } garmin_fs_flags_t;
 
-typedef struct garmin_fs_s
-{
-	format_specific_data fs;
-	garmin_fs_flags_t flags;
+typedef struct garmin_fs_s {
+  format_specific_data fs;
+  garmin_fs_flags_t flags;
 
-	int protocol;		/* ... used by device (-1 is MapSource) */
-	
-	gbint32 icon;
-	int wpt_class;
-	gbint32 display;
-	gbint16 category;
-	char *city;			/* city name */
-	char *facility;			/* facility name */
-	char *state;			/* state */
-	char *cc;			/* country code */
-	char *cross_road;		/* Intersection road label */
-	char *addr;			/* address + number */
-	char *country;			/* country */
-	char *phone_nr;			/* phone number */
-	char *phone_nr2;		/* phone number (2) */
-	char *fax_nr;			/* fax number */
-	char *postal_code;		/* postal code */
-	char *email;			/* email address */
-	garmin_ilink_t *ilinks;
+  int protocol;		/* ... used by device (-1 is MapSource) */
+
+  gbint32 icon;
+  int wpt_class;
+  gbint32 display;
+  gbint16 category;
+  char* city;			/* city name */
+  char* facility;			/* facility name */
+  char* state;			/* state */
+  char* cc;			/* country code */
+  char* cross_road;		/* Intersection road label */
+  char* addr;			/* address + number */
+  char* country;			/* country */
+  char* phone_nr;			/* phone number */
+  char* phone_nr2;		/* phone number (2) */
+  char* fax_nr;			/* fax number */
+  char* postal_code;		/* postal code */
+  char* email;			/* email address */
+  garmin_ilink_t* ilinks;
 #ifdef GMSD_EXPERIMENTAL
-	char subclass[22];
+  char subclass[22];
 #endif
 } garmin_fs_t, *garmin_fs_p;
 
-garmin_fs_t *garmin_fs_alloc(const int protocol);
-void garmin_fs_destroy(void *fs);
-void garmin_fs_copy(garmin_fs_t **dest, garmin_fs_t *src);
-void garmin_fs_convert(void *fs);
-char *garmin_fs_xstrdup(const char *src, size_t size);
+garmin_fs_t* garmin_fs_alloc(const int protocol);
+void garmin_fs_destroy(void* fs);
+void garmin_fs_copy(garmin_fs_t** dest, garmin_fs_t* src);
+void garmin_fs_convert(void* fs);
+char* garmin_fs_xstrdup(const char* src, size_t size);
 
 /* for GPX */
-void garmin_fs_xml_convert(const int base_tag, int tag, const char *cdatastr, waypoint *waypt);
-void garmin_fs_xml_fprint(gbfile *ofd, const waypoint *waypt);
+void garmin_fs_xml_convert(const int base_tag, int tag, const char* cdatastr, waypoint* waypt);
+void garmin_fs_xml_fprint(gbfile* ofd, const waypoint* waypt);
 
 /* common garmin_fs utilities */
 
 /* ..convert_category: returns 1=OK; 0=Unable to convert category */
-unsigned char garmin_fs_convert_category(const char *category_name, gbuint16 *category);
+unsigned char garmin_fs_convert_category(const char* category_name, gbuint16* category);
 
 /* ..merge_category: returns 1=OK; 0=Unable to convert category */
-unsigned char garmin_fs_merge_category(const char *category_name, waypoint *waypt);
+unsigned char garmin_fs_merge_category(const char* category_name, waypoint* waypt);
 
 #define GMSD_SECTION_CATEGORIES "Garmin Categories"
 
-void garmin_fs_garmin_after_read(const GPS_PWay way, waypoint *wpt, const int protoid);
-void garmin_fs_garmin_before_write(const waypoint *wpt, GPS_PWay way, const int protoid);
+void garmin_fs_garmin_after_read(const GPS_PWay way, waypoint* wpt, const int protoid);
+void garmin_fs_garmin_before_write(const waypoint* wpt, GPS_PWay way, const int protoid);
 
 #endif

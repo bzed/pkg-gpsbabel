@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: optionsdlg.cpp,v 1.5 2010/03/01 04:22:28 robertl Exp $
+// $Id: optionsdlg.cpp,v 1.5 2010-03-01 04:22:28 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

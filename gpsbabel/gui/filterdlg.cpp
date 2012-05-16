@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: filterdlg.cpp,v 1.4 2009/09/08 16:06:32 robertl Exp $
+// $Id: filterdlg.cpp,v 1.4 2009-09-08 16:06:32 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

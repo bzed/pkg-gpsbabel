@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: setting.h,v 1.3 2010/02/15 02:57:00 robertl Exp $
+// $Id: setting.h,v 1.3 2010-02-15 02:57:00 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

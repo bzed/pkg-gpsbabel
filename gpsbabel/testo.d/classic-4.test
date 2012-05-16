@@ -1,21 +1,4 @@
 #!/bin/sh
-#
-# Garmin Points of Interest "garmin_gpi" (.gpi)
-#
-gpsbabel -i garmin_gpi -f ${REFERENCE}/garmin_gpi.gpi -o gpx -F ${TMPDIR}/garmin_gpi.gpx
-compare ${REFERENCE}/garmin_gpi.gpx ${TMPDIR}/garmin_gpi.gpx
-gpsbabel -i gpx -f ${REFERENCE}/garmin_gpi.gpx -o garmin_gpi -F ${TMPDIR}/garmin_gpi.gpi
-gpsbabel -i garmin_gpi -f ${TMPDIR}/garmin_gpi.gpi -o gpx -F ${TMPDIR}/garmin_gpi2.gpx
-compare ${REFERENCE}/garmin_gpi2.gpx ${TMPDIR}/garmin_gpi2.gpx
-gpsbabel -i gpx -f ${REFERENCE}/track/vitovtt-sample.gpx -x transform,wpt=trk -o garmin_gpi -F ${TMPDIR}/garmin_gpi3a.gpi
-gpsbabel -i garmin_gpi -f ${TMPDIR}/garmin_gpi3a.gpi -o garmin_gpi -F ${TMPDIR}/garmin_gpi3b.gpi
-bincompare ${TMPDIR}/garmin_gpi3a.gpi ${TMPDIR}/garmin_gpi3b.gpi
-gpsbabel -i garmin_gpi -f ${REFERENCE}/gpi_ext-sample.gpi -o unicsv -F ${TMPDIR}/gpi_ext-sample.csv
-compare ${REFERENCE}/gpi_ext-sample.csv ${TMPDIR}/gpi_ext-sample.csv
-# Don't test writing this sample file from garminonline.de/extras/poi, but 
-# prove we can read it
-gpsbabel -i garmin_gpi -f ${REFERENCE}/umsonstdraussen.gpi -o gpx,gpxver=1.1 -F ${TMPDIR}/umsonstdraussen.gpx
-compare ${REFERENCE}/umsonstdraussen.gpx ${TMPDIR}/umsonstdraussen.gpx
 
 #
 # Nokia  LMX
@@ -246,26 +229,6 @@ bincompare ${TMPDIR}/navitel_trk.bin ${TMPDIR}/navitel_trk2.bin
 rm -f ${TMPDIR}/itracku.unicsv
 gpsbabel -w -i itracku-bin -f ${REFERENCE}/itracku.dat -o unicsv,utc=0 -F ${TMPDIR}/itracku.unicsv
 compare ${REFERENCE}/itracku.unicsv ${TMPDIR}/itracku.unicsv
-
-#
-# Garmin Tranining Center .tcx (gtrnctr)
-#
-# reading
-rm -f ${TMPDIR}/history~tcx.csv ${TMPDIR}/course~tcx.csv
-gpsbabel -i gtrnctr -f ${REFERENCE}/track/history.tcx -t -o unicsv,utc=0 -F ${TMPDIR}/history~tcx.csv
-compare ${REFERENCE}/track/history~tcx.csv ${TMPDIR}/history~tcx.csv
-gpsbabel -i gtrnctr -f ${REFERENCE}/track/history.tcx -t -o gpx -F ${TMPDIR}/history~tcx.gpx
-compare ${REFERENCE}/track/history~tcx.gpx ${TMPDIR}/history~tcx.gpx
-gpsbabel -i gtrnctr -f ${REFERENCE}/track/course.tcx -t -o unicsv,utc=0 -F ${TMPDIR}/course~tcx.csv
-compare ${REFERENCE}/track/course~tcx.csv ${TMPDIR}/course~tcx.csv
-gpsbabel -i gtrnctr -f ${REFERENCE}/track/course.tcx -t -o gpx -F ${TMPDIR}/course~tcx.gpx
-compare ${REFERENCE}/track/course~tcx.gpx ${TMPDIR}/course~tcx.gpx
-# writing
-rm -f ${TMPDIR}tcxtest~gpx-course.tcx ${TMPDIR}tcxtest~gpx-history.tcx
-gpsbabel -i gpx -f ${REFERENCE}/track/tcxtest.gpx -o gtrnctr,course=1 -F ${TMPDIR}/tcxtest~gpx-course.tcx
-compare ${REFERENCE}/track/tcxtest~gpx-course.tcx ${TMPDIR}/tcxtest~gpx-course.tcx
-gpsbabel -i gpx -f ${REFERENCE}/track/tcxtest.gpx -o gtrnctr,course=0 -F ${TMPDIR}/tcxtest~gpx-history.tcx
-compare ${REFERENCE}/track/tcxtest~gpx-history.tcx ${TMPDIR}/tcxtest~gpx-history.tcx
 
 #
 # Memory-Map Navigator overlay files (.mmo)

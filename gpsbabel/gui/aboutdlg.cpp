@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: aboutdlg.cpp,v 1.2 2010/01/17 21:57:00 robertl Exp $
+// $Id: aboutdlg.cpp,v 1.2 2010-01-17 21:57:00 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

@@ -23,8 +23,8 @@
 #include "defs.h"
 #define MYNAME "Bushnell Trail"
 
-static gbfile *file_in;
-static gbfile *file_out;
+static gbfile* file_in;
+static gbfile* file_out;
 static int trkpt_count;
 static route_head* trk_head;
 
@@ -34,7 +34,8 @@ arglist_t bushnell_args[] = {
 };
 
 static void
-rd_init(const char *fname) {
+rd_init(const char* fname)
+{
   char h[0x14]; // Believed to be zero terminated.
   file_in = gbfopen_le(fname, "rb", MYNAME);
   gbfread(h, 1, sizeof(h), file_in);
@@ -46,29 +47,34 @@ rd_init(const char *fname) {
 }
 
 static void
-rd_deinit(void) {
-  gbfclose(file_out);
+rd_deinit(void)
+{
+  gbfclose(file_in);
 }
 
 static void
-wr_init(const char *fname) {
+wr_init(const char* fname)
+{
   int i,l = strlen(fname);
-  char obuf[20] = { 0 } ; 
-  char *p = obuf;
+  char obuf[20] = { 0 } ;
+  char* p = obuf;
   file_out = gbfopen_le(fname, "w", MYNAME);
   trkpt_count = 0;
   for (i = 0; (i < l) && (i < 20); i++) {
     char c = toupper(fname[i]);
-    if (isalnum(c))
+    if (isalnum(c)) {
       *p++ = c;
-    if (c == '.')
+    }
+    if (c == '.') {
       break;
+    }
   }
   gbfwrite(&obuf, 1, 20, file_out);
 }
 
 static void
-wr_deinit(void) {
+wr_deinit(void)
+{
   int i = trkpt_count;
   while (i < 4502) {
     gbfputint32(0, file_out);
@@ -86,17 +92,19 @@ wr_deinit(void) {
  * Each file contains a single waypoint.
  */
 static void
-bushnell_read(void) {
+bushnell_read(void)
+{
   int lat_tmp,lon_tmp;
 
   while (1) {
-    waypoint *wpt_tmp;
+    waypoint* wpt_tmp;
 
     lat_tmp = gbfgetint32(file_in);
     lon_tmp = gbfgetint32(file_in);
 
-    if (!lat_tmp && !lon_tmp)
+    if (!lat_tmp && !lon_tmp) {
       break;
+    }
 
     wpt_tmp = waypt_new();
     wpt_tmp->latitude  = lat_tmp / 10000000.0;
@@ -107,25 +115,28 @@ bushnell_read(void) {
 }
 
 static void
-bushnell_write_one(const waypoint *wpt) {
+bushnell_write_one(const waypoint* wpt)
+{
   gbint32 lat = wpt->latitude  * 10000000.0;
   gbint32 lon = wpt->longitude * 10000000.0;
   trkpt_count++;
-  if (trkpt_count > 4502)
+  if (trkpt_count > 4502) {
     fatal(MYNAME " too many trackpoints.  Max is 4502.");
+  }
 
   gbfputint32(lat, file_out);
   gbfputint32(lon, file_out);
 }
 
 static void
-bushnell_write(void) {
+bushnell_write(void)
+{
   track_disp_all(NULL, NULL, bushnell_write_one);
 }
 
 ff_vecs_t bushnell_trl_vecs = {
   ff_type_file,
-  { ff_cap_none, ff_cap_read | ff_cap_write, ff_cap_none },
+  { ff_cap_none, (ff_cap)(ff_cap_read | ff_cap_write), ff_cap_none },
   rd_init,
   wr_init,
   rd_deinit,

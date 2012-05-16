@@ -1,5 +1,5 @@
 // -*- c++ -*-
-// $Id: formatload.h,v 1.1 2009/07/05 21:14:56 robertl Exp $
+// $Id: formatload.h,v 1.1 2009-07-05 21:14:56 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

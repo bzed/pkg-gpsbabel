@@ -1,5 +1,5 @@
 // -*- c++ -*-
-// $Id: processwait.cpp,v 1.3 2009/08/28 17:08:55 robertl Exp $
+// $Id: processwait.cpp,v 1.3 2009-08-28 17:08:55 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

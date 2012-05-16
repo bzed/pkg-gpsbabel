@@ -208,6 +208,36 @@ static char dna[] =
 "IFIELD	DESCRIPTION, \"\", \"%s\"\n"
 
 ;
+static char flysight[] = 
+"# Format:	FlySight\n"
+"# Author:	LukeH\n"
+"# Date:		10/10/10\n"
+
+"DESCRIPTION		FlySight GPS File\n"
+"EXTENSION		csv\n"
+
+"# FILE LAYOUT DEFINITIIONS:\n"
+"FIELD_DELIMITER COMMA\n"
+"RECORD_DELIMITER NEWLINE\n"
+"BADCHARS ,\"\n"
+
+"PROLOGUE time lat lon hMSL velN velE velD hAcc vAcc sAcc gpsFix numSV\n"
+"PROLOGUE\n"
+
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+"IFIELD ISO_TIME,	\"\",	\"%s\"	# Date & time\n"
+"IFIELD LAT_DECIMAL,	\"\",	\"%f\"	# Latitude\n"
+"IFIELD LON_DECIMAL,	\"\",	\"%f\"	# Longitude\n"
+"IFIELD ALT_METERS,	\"\",	\"%.0f\"	# Altitude above MSL (m)\n"
+"IFIELD IGNORE,		\"\",	\"%s\"	# Velocity north (m/s)\n"
+"IFIELD IGNORE,		\"\",	\"%s\"	# Velocity east (m/s)\n"
+"IFIELD IGNORE,		\"\",	\"%s\"	# Velocity down (m/s)\n"
+"IFIELD IGNORE,		\"\",	\"%s\"	# Horizontal accuracy (m)\n"
+"IFIELD IGNORE,		\"\",	\"%s\"	# Vertical accuracy (m)\n"
+"IFIELD IGNORE,		\"\",	\"%s\"	# Speed accuracy (m/s)\n"
+"IFIELD GPS_FIX,		\"\",	\"%s\"	# GPS fix type\n"
+"IFIELD GPS_SAT,		\"\",	\"%d\"	# Number of satellites used in fix\n"
+;
 static char fugawi[] = 
 "# fugawi XCSV style file\n"
 "#\n"
@@ -520,6 +550,51 @@ static char iblue747[] =
 "IFIELD IGNORE,\"\",\"%s\"        # SAT INFO\n"
 "IFIELD PATH_DISTANCE_KM,\"\",\"%f\"        # DISTANCE\n"
 ;
+static char iblue757[] = 
+"# GPSBabel XCSV Style File http://www.gpsbabel.org/htmldoc-development/Styles.html\n"
+"# Author: iBlue747csv by Christian Barmala http://www.barmala.de/\n"
+"#		  edited by Anthony Vella to suit the iBlue757 csv format (date format changed)\n"
+"# License GNU Public License http://opensource.org/licenses/gpl-license.php\n"
+
+"DESCRIPTION  Data Logger iBlue757 csv\n"
+"EXTENSION csv\n"
+"# full length csv with all options\n"
+
+"# FILE LAYOUT DEFINITIIONS:\n"
+
+"FIELD_DELIMITER COMMA\n"
+"RECORD_DELIMITER NEWLINE\n"
+"# BADCHARS COMMA\n"
+"# SHORTLEN 16\n"
+"# SHORTWHITE 0\n"
+"# ENCODING UTF-8\n"
+"DATATYPE TRACK\n"
+"PROLOGUE INDEX,RCR,DATE,TIME,VALID,LATITUDE,N/S,LONGITUDE,E/W,HEIGHT,SPEED,PDOP,HDOP,VDOP,NSAT,DISTANCE,\n"
+
+
+"# INDIVIDUAL DATA FIELDS, IN ORDER OF APPEARANCE:\n"
+
+"IFIELD INDEX,\"1\",\"%d\"            # INDEX\n"
+"IFIELD CONSTANT,\"T\",\"%s\"        # RCR\n"
+"IFIELD GMT_TIME,\"\",\"%d/%m/%Y\"        # DATE\n"
+"IFIELD HMSG_TIME,\"\",\"%02d:%02d:%02d\"    # TIME\n"
+"IFIELD GPS_FIX,\"\",\"%s\"        # VALID #  No fix, SPS, DGPS, PPS\n"
+"IFIELD LAT_DECIMAL,\"\",\"%f\"        # LATITUDE\n"
+"IFIELD LAT_DIR,\"\",\"%c\"            # N/S\n"
+"IFIELD LON_DECIMAL,\"\",\"%f\"        # LONGITUDE\n"
+"IFIELD LON_DIR,\"\",\"%c\"            # E/W\n"
+"IFIELD ALT_METERS,\"\",\"%.0f\"        # HEIGHT\n"
+"IFIELD PATH_SPEED_KPH,\"\",\"%.1f\"        # SPEED\n"
+"IFIELD IGNORE,\"\",\"%f\"        # HEADING\n"
+"IFIELD IGNORE,\"\",\"%d\"        # DSTA\n"
+"IFIELD IGNORE,\"\",\"%f\"        # DAGE\n"
+"IFIELD GPS_PDOP,\"\",\"%f\"            # PDOP\n"
+"IFIELD GPS_HDOP,\"\",\"%f\"            # HDOP\n"
+"IFIELD GPS_VDOP,\"\",\"%f\"            # VDOP\n"
+"IFIELD GPS_SAT,\"\",\"%d(\"            # NSAT USED/VIEW\n"
+"IFIELD IGNORE,\"\",\"%s\"        # SAT INFO\n"
+"IFIELD PATH_DISTANCE_KM,\"\",\"%f\"        # DISTANCE\n"
+;
 static char igo2008_poi[] = 
 "# gpsbabel XCSV style file\n"
 "#\n"
@@ -680,6 +755,32 @@ static char kwf2[] =
 "IFIELD	CONSTANT, \"0\",\"%s\" #Waypoint symbol code\n"
 "IFIELD	DESCRIPTION, \"\", \"%s\"\n"
 "IFIELD	CONSTANT, \"$\", \"%s\"\n"
+;
+static char land_air_sea[] = 
+"# Format: GPS Tracking Key Pro text file\n"
+"# Author: Tyler Ritchie\n"
+"#   Date: 2011.02.04\n"
+
+"DESCRIPTION GPS Tracking Key Pro text\n"
+"EXTENSION txt\n"
+"ENCODING LATIN1\n"
+
+"DATUM WGS 84\n"
+"DATATYPE TRACK\n"
+"#File layout definitions\n"
+
+"FIELD_DELIMITER COMMA\n"
+"RECORD_DELIMITER NEWLINE\n"
+
+"# Individual data fields in order of appearance\n"
+
+"IFIELD LOCAL_TIME,\"\",\"%m-%d-%Y\"\n"
+"IFIELD HMSG_TIME,\"\",\"%d:%d:%d\"\n"
+"IFIELD LAT_HUMAN_READABLE,\"\",\"%c %d°%d'%f\\\"\"\n"
+"IFIELD LON_HUMAN_READABLE,\"\",\"%c %d°%d'%f\\\"\"\n"
+"IFIELD PATH_SPEED_MPH,\"\",\"%.1fmph\"\n"
+"IFIELD IGNORE,\"\",\"%s\" #This is the bearing data\n"
+"IFIELD ALT_FEET,\"\",\"%dft\"\n"
 ;
 static char mapconverter[] = 
 "# Format: Mapopolis.com Mapconverter\n"
@@ -1263,8 +1364,8 @@ static char xmapwpt[] =
 "IFIELD	IGNORE, \"\", \"%-.31s\"\n"
 "IFIELD	DESCRIPTION, \"\", \"%-.78s\"\n"
 ;
-style_vecs_t style_list[] = {{ "xmapwpt", xmapwpt } , { "xmap2006", xmap2006 } , { "xmap", xmap } , { "tomtom_itn_places", tomtom_itn_places } , { "tomtom_itn", tomtom_itn } , { "tomtom_asc", tomtom_asc } , { "tabsep", tabsep } , { "sportsim", sportsim } , { "saplus", saplus } , { "s_and_t", s_and_t } , { "ricoh", ricoh } , { "openoffice", openoffice } , { "nima", nima } , { "navigonwpt", navigonwpt } , { "mxf", mxf } , { "mapconverter", mapconverter } , { "kwf2", kwf2 } , { "ktf2", ktf2 } , { "kompass_wp", kompass_wp } , { "kompass_tk", kompass_tk } , { "igo2008_poi", igo2008_poi } , { "iblue747", iblue747 } , { "gpsman", gpsman } , { "gpsdrivetrack", gpsdrivetrack } , { "gpsdrive", gpsdrive } , { "geonet", geonet } , { "garmin_poi", garmin_poi } , { "garmin301", garmin301 } , { "fugawi", fugawi } , { "dna", dna } , { "custom", custom } , { "cup", cup } , { "csv", csv } , { "cambridge", cambridge } , { "arc", arc } ,  {0,0}};
-size_t nstyles = 35;
+style_vecs_t style_list[] = {{ "xmapwpt", xmapwpt } , { "xmap2006", xmap2006 } , { "xmap", xmap } , { "tomtom_itn_places", tomtom_itn_places } , { "tomtom_itn", tomtom_itn } , { "tomtom_asc", tomtom_asc } , { "tabsep", tabsep } , { "sportsim", sportsim } , { "saplus", saplus } , { "s_and_t", s_and_t } , { "ricoh", ricoh } , { "openoffice", openoffice } , { "nima", nima } , { "navigonwpt", navigonwpt } , { "mxf", mxf } , { "mapconverter", mapconverter } , { "land_air_sea", land_air_sea } , { "kwf2", kwf2 } , { "ktf2", ktf2 } , { "kompass_wp", kompass_wp } , { "kompass_tk", kompass_tk } , { "igo2008_poi", igo2008_poi } , { "iblue757", iblue757 } , { "iblue747", iblue747 } , { "gpsman", gpsman } , { "gpsdrivetrack", gpsdrivetrack } , { "gpsdrive", gpsdrive } , { "geonet", geonet } , { "garmin_poi", garmin_poi } , { "garmin301", garmin301 } , { "fugawi", fugawi } , { "flysight", flysight } , { "dna", dna } , { "custom", custom } , { "cup", cup } , { "csv", csv } , { "cambridge", cambridge } , { "arc", arc } ,  {0,0}};
+size_t nstyles = 38;
 #else /* CSVFMTS_ENABLED */
 style_vecs_t style_list[] = {{0,0}};
 size_t nstyles = 0;

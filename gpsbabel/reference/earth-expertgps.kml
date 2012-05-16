@@ -3,6 +3,15 @@
 	xmlns:gx="http://www.google.com/kml/ext/2.2">
   <Document>
     <name>GPS device</name>
+    <LookAt>
+      <gx:TimeSpan>
+        <begin>2001-06-02T00:18:13Z</begin>
+        <end>2002-05-25T19:05:57Z</end>
+      </gx:TimeSpan>
+      <longitude>-81.356770</longitude>
+      <latitude>36.257086</latitude>
+      <range>2979727.763965</range>
+    </LookAt>
 <!-- Normal route style -->
     <Style id="route_n">
       <IconStyle>
@@ -32,15 +41,15 @@
     </StyleMap>
 <!-- Normal track style -->
     <Style id="track_n">
-      <LabelStyle>
-        <scale>0</scale>
-      </LabelStyle>
       <IconStyle>
         <scale>.5</scale>
         <Icon>
           <href>http://earth.google.com/images/kml-icons/track-directional/track-none.png</href>
         </Icon>
       </IconStyle>
+      <LabelStyle>
+        <scale>0</scale>
+      </LabelStyle>
     </Style>
 <!-- Highlighted track style -->
     <Style id="track_h">
@@ -823,7 +832,7 @@
     <Folder>
       <name>Tracks</name>
       <Folder>
-        <Snippet/>
+        <snippet/>
         <description>
 <![CDATA[<table>
             <tr><td><b>Distance</b> 4.8 mi </td></tr>
@@ -843,7 +852,7 @@
           <name>Points</name>
           <Placemark>
             <name>-0</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.610350 </td></tr>
@@ -867,7 +876,7 @@
           </Placemark>
           <Placemark>
             <name>-1</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.610567 </td></tr>
@@ -890,7 +899,7 @@
           </Placemark>
           <Placemark>
             <name>-2</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.608267 </td></tr>
@@ -913,7 +922,7 @@
           </Placemark>
           <Placemark>
             <name>-3</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.607383 </td></tr>
@@ -936,7 +945,7 @@
           </Placemark>
           <Placemark>
             <name>-4</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.605283 </td></tr>
@@ -959,7 +968,7 @@
           </Placemark>
           <Placemark>
             <name>-5</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.599400 </td></tr>
@@ -982,7 +991,7 @@
           </Placemark>
           <Placemark>
             <name>-6</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.596683 </td></tr>
@@ -1005,7 +1014,7 @@
           </Placemark>
           <Placemark>
             <name>-7</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594900 </td></tr>
@@ -1028,7 +1037,7 @@
           </Placemark>
           <Placemark>
             <name>-8</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.592617 </td></tr>
@@ -1051,7 +1060,7 @@
           </Placemark>
           <Placemark>
             <name>-9</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.589750 </td></tr>
@@ -1074,7 +1083,7 @@
           </Placemark>
           <Placemark>
             <name>-10</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.589883 </td></tr>
@@ -1097,7 +1106,7 @@
           </Placemark>
           <Placemark>
             <name>-11</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.592933 </td></tr>
@@ -1120,7 +1129,7 @@
           </Placemark>
           <Placemark>
             <name>-12</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.596450 </td></tr>
@@ -1143,7 +1152,7 @@
           </Placemark>
           <Placemark>
             <name>-13</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.598717 </td></tr>
@@ -1166,7 +1175,7 @@
           </Placemark>
           <Placemark>
             <name>-14</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.600267 </td></tr>
@@ -1189,7 +1198,7 @@
           </Placemark>
           <Placemark>
             <name>-15</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.599633 </td></tr>
@@ -1213,7 +1222,7 @@
           </Placemark>
           <Placemark>
             <name>-16</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.599467 </td></tr>
@@ -1236,7 +1245,7 @@
           </Placemark>
           <Placemark>
             <name>-17</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.598950 </td></tr>
@@ -1260,7 +1269,7 @@
           </Placemark>
           <Placemark>
             <name>-18</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.597733 </td></tr>
@@ -1283,7 +1292,7 @@
           </Placemark>
           <Placemark>
             <name>-19</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.597167 </td></tr>
@@ -1306,7 +1315,7 @@
           </Placemark>
           <Placemark>
             <name>-20</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.596333 </td></tr>
@@ -1329,7 +1338,7 @@
           </Placemark>
           <Placemark>
             <name>-21</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.595200 </td></tr>
@@ -1352,7 +1361,7 @@
           </Placemark>
           <Placemark>
             <name>-22</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594767 </td></tr>
@@ -1376,7 +1385,7 @@
           </Placemark>
           <Placemark>
             <name>-23</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594083 </td></tr>
@@ -1400,7 +1409,7 @@
           </Placemark>
           <Placemark>
             <name>-24</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.593800 </td></tr>
@@ -1424,7 +1433,7 @@
           </Placemark>
           <Placemark>
             <name>-25</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.593850 </td></tr>
@@ -1447,7 +1456,7 @@
           </Placemark>
           <Placemark>
             <name>-26</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.593983 </td></tr>
@@ -1471,7 +1480,7 @@
           </Placemark>
           <Placemark>
             <name>-27</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594117 </td></tr>
@@ -1494,7 +1503,7 @@
           </Placemark>
           <Placemark>
             <name>-28</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594367 </td></tr>
@@ -1517,7 +1526,7 @@
           </Placemark>
           <Placemark>
             <name>-29</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594367 </td></tr>
@@ -1540,7 +1549,7 @@
           </Placemark>
           <Placemark>
             <name>-30</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594667 </td></tr>
@@ -1563,7 +1572,7 @@
           </Placemark>
           <Placemark>
             <name>-31</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594683 </td></tr>
@@ -1586,7 +1595,7 @@
           </Placemark>
           <Placemark>
             <name>-32</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.595200 </td></tr>
@@ -1610,7 +1619,7 @@
           </Placemark>
           <Placemark>
             <name>-33</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594933 </td></tr>
@@ -1634,7 +1643,7 @@
           </Placemark>
           <Placemark>
             <name>-34</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594783 </td></tr>
@@ -1657,7 +1666,7 @@
           </Placemark>
           <Placemark>
             <name>-35</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594833 </td></tr>
@@ -1680,7 +1689,7 @@
           </Placemark>
           <Placemark>
             <name>-36</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.595433 </td></tr>
@@ -1703,7 +1712,7 @@
           </Placemark>
           <Placemark>
             <name>-37</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.595967 </td></tr>
@@ -1726,7 +1735,7 @@
           </Placemark>
           <Placemark>
             <name>-38</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.596783 </td></tr>
@@ -1750,7 +1759,7 @@
           </Placemark>
           <Placemark>
             <name>-39</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.597850 </td></tr>
@@ -1773,7 +1782,7 @@
           </Placemark>
           <Placemark>
             <name>-40</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.597967 </td></tr>
@@ -1796,7 +1805,7 @@
           </Placemark>
           <Placemark>
             <name>-41</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.597767 </td></tr>
@@ -1820,7 +1829,7 @@
           </Placemark>
           <Placemark>
             <name>-42</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.598083 </td></tr>
@@ -1843,7 +1852,7 @@
           </Placemark>
           <Placemark>
             <name>-43</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.597917 </td></tr>
@@ -1866,7 +1875,7 @@
           </Placemark>
           <Placemark>
             <name>-44</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.597517 </td></tr>
@@ -1889,7 +1898,7 @@
           </Placemark>
           <Placemark>
             <name>-45</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.596933 </td></tr>
@@ -1912,7 +1921,7 @@
           </Placemark>
           <Placemark>
             <name>-46</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.596433 </td></tr>
@@ -1935,7 +1944,7 @@
           </Placemark>
           <Placemark>
             <name>-47</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.595683 </td></tr>
@@ -1958,7 +1967,7 @@
           </Placemark>
           <Placemark>
             <name>-48</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.595017 </td></tr>
@@ -1981,7 +1990,7 @@
           </Placemark>
           <Placemark>
             <name>-49</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594700 </td></tr>
@@ -2004,7 +2013,7 @@
           </Placemark>
           <Placemark>
             <name>-50</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594400 </td></tr>
@@ -2027,7 +2036,7 @@
           </Placemark>
           <Placemark>
             <name>-51</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594233 </td></tr>
@@ -2050,7 +2059,7 @@
           </Placemark>
           <Placemark>
             <name>-52</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594100 </td></tr>
@@ -2073,7 +2082,7 @@
           </Placemark>
           <Placemark>
             <name>-53</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.593717 </td></tr>
@@ -2096,7 +2105,7 @@
           </Placemark>
           <Placemark>
             <name>-54</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594250 </td></tr>
@@ -2119,7 +2128,7 @@
           </Placemark>
           <Placemark>
             <name>-55</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.594750 </td></tr>
@@ -2142,7 +2151,7 @@
           </Placemark>
           <Placemark>
             <name>-56</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.595450 </td></tr>
@@ -2166,7 +2175,7 @@
           </Placemark>
           <Placemark>
             <name>-57</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.596000 </td></tr>
@@ -2189,7 +2198,7 @@
           </Placemark>
           <Placemark>
             <name>-58</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.596600 </td></tr>
@@ -2212,7 +2221,7 @@
           </Placemark>
           <Placemark>
             <name>-59</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.597650 </td></tr>
@@ -2235,7 +2244,7 @@
           </Placemark>
           <Placemark>
             <name>-60</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.598467 </td></tr>
@@ -2258,7 +2267,7 @@
           </Placemark>
           <Placemark>
             <name>-61</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.598967 </td></tr>
@@ -2281,7 +2290,7 @@
           </Placemark>
           <Placemark>
             <name>-62</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.599283 </td></tr>
@@ -2304,7 +2313,7 @@
           </Placemark>
           <Placemark>
             <name>-63</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -91.599667 </td></tr>
@@ -2333,132 +2342,68 @@
             <tessellate>1</tessellate>
             <coordinates>
               -91.610350,30.062183,1.00
-              -91.610350,30.062183,1.000000
-              -91.610567,30.062783
               -91.610567,30.062783
               -91.608267,30.062700
-              -91.608267,30.062700
-              -91.607383,30.062333
               -91.607383,30.062333
               -91.605283,30.061533
-              -91.605283,30.061533
-              -91.599400,30.059783
               -91.599400,30.059783
               -91.596683,30.057800
-              -91.596683,30.057800
-              -91.594900,30.055383
               -91.594900,30.055383
               -91.592617,30.053883
-              -91.592617,30.053883
-              -91.589750,30.049733
               -91.589750,30.049733
               -91.589883,30.049017
-              -91.589883,30.049017
-              -91.592933,30.048800
               -91.592933,30.048800
               -91.596450,30.046233
-              -91.596450,30.046233
               -91.598717,30.045517
-              -91.598717,30.045517
-              -91.600267,30.047300
               -91.600267,30.047300
               -91.599633,30.047000,2.00
-              -91.599633,30.047000,2.000000
-              -91.599467,30.046433
               -91.599467,30.046433
               -91.598950,30.046200,1.00
-              -91.598950,30.046200,1.000000
-              -91.597733,30.046367
               -91.597733,30.046367
               -91.597167,30.046350
-              -91.597167,30.046350
               -91.596333,30.046783
-              -91.596333,30.046783
-              -91.595200,30.047450
               -91.595200,30.047450
               -91.594767,30.047800,2.00
-              -91.594767,30.047800,2.000000
               -91.594083,30.048250,1.00
-              -91.594083,30.048250,1.000000
               -91.593800,30.048683,1.00
-              -91.593800,30.048683,1.000000
-              -91.593850,30.049350
               -91.593850,30.049350
               -91.593983,30.050317,2.00
-              -91.593983,30.050317,2.000000
-              -91.594117,30.050783
               -91.594117,30.050783
               -91.594367,30.051233
-              -91.594367,30.051233
-              -91.594367,30.051800
               -91.594367,30.051800
               -91.594667,30.052217
-              -91.594667,30.052217
-              -91.594683,30.053017
               -91.594683,30.053017
               -91.595200,30.054867,6.00
-              -91.595200,30.054867,6.000000
               -91.594933,30.053733,2.00
-              -91.594933,30.053733,2.000000
-              -91.594783,30.053183
               -91.594783,30.053183
               -91.594833,30.052633
-              -91.594833,30.052633
               -91.595433,30.052450
-              -91.595433,30.052450
-              -91.595967,30.052483
               -91.595967,30.052483
               -91.596783,30.052650,1.00
-              -91.596783,30.052650,1.000000
               -91.597850,30.053133
-              -91.597850,30.053133
-              -91.597967,30.053617
               -91.597967,30.053617
               -91.597767,30.053967,6.00
-              -91.597767,30.053967,6.000000
-              -91.598083,30.053617
               -91.598083,30.053617
               -91.597917,30.053200
-              -91.597917,30.053200
-              -91.597517,30.052817
               -91.597517,30.052817
               -91.596933,30.052567
-              -91.596933,30.052567
-              -91.596433,30.052333
               -91.596433,30.052333
               -91.595683,30.052250
-              -91.595683,30.052250
-              -91.595017,30.052217
               -91.595017,30.052217
               -91.594700,30.051883
-              -91.594700,30.051883
-              -91.594400,30.051050
               -91.594400,30.051050
               -91.594233,30.050567
-              -91.594233,30.050567
-              -91.594100,30.050183
               -91.594100,30.050183
               -91.593717,30.049100
-              -91.593717,30.049100
               -91.594250,30.048450
-              -91.594250,30.048450
-              -91.594750,30.048083
               -91.594750,30.048083
               -91.595450,30.047500,7.00
-              -91.595450,30.047500,7.000000
-              -91.596000,30.047067
               -91.596000,30.047067
               -91.596600,30.046633
-              -91.596600,30.046633
-              -91.597650,30.046400
               -91.597650,30.046400
               -91.598467,30.046233
-              -91.598467,30.046233
-              -91.598967,30.046317
               -91.598967,30.046317
               -91.599283,30.046783
-              -91.599283,30.046783
-              -91.599667,30.047133
               -91.599667,30.047133
             </coordinates>
           </LineString>
@@ -2473,7 +2418,7 @@
           <name>Points</name>
           <Placemark>
             <name>BELLEVUE</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.107628 </td></tr>
@@ -2495,7 +2440,7 @@
           </Placemark>
           <Placemark>
             <name>GATE6</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.109236 </td></tr>
@@ -2517,7 +2462,7 @@
           </Placemark>
           <Placemark>
             <name>PANTHRCAVE</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.109942 </td></tr>
@@ -2539,7 +2484,7 @@
           </Placemark>
           <Placemark>
             <name>6014MEADOW</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.113223 </td></tr>
@@ -2561,7 +2506,7 @@
           </Placemark>
           <Placemark>
             <name>6006</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.114456 </td></tr>
@@ -2583,7 +2528,7 @@
           </Placemark>
           <Placemark>
             <name>6006BLUE</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.114803 </td></tr>
@@ -2605,7 +2550,7 @@
           </Placemark>
           <Placemark>
             <name>5096</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.116146 </td></tr>
@@ -2627,7 +2572,7 @@
           </Placemark>
           <Placemark>
             <name>5066</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119277 </td></tr>
@@ -2649,7 +2594,7 @@
           </Placemark>
           <Placemark>
             <name>5067</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119689 </td></tr>
@@ -2671,7 +2616,7 @@
           </Placemark>
           <Placemark>
             <name>5058ROAD</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.120925 </td></tr>
@@ -2693,7 +2638,7 @@
           </Placemark>
           <Placemark>
             <name>5150TANK</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.121676 </td></tr>
@@ -2715,7 +2660,7 @@
           </Placemark>
           <Placemark>
             <name>5142</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.122044 </td></tr>
@@ -2737,7 +2682,7 @@
           </Placemark>
           <Placemark>
             <name>5144SUMMIT</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.122845 </td></tr>
@@ -2759,7 +2704,7 @@
           </Placemark>
           <Placemark>
             <name>5156</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.121447 </td></tr>
@@ -2781,7 +2726,7 @@
           </Placemark>
           <Placemark>
             <name>5148NANEPA</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.122320 </td></tr>
@@ -2803,7 +2748,7 @@
           </Placemark>
           <Placemark>
             <name>5258</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.121746 </td></tr>
@@ -2825,7 +2770,7 @@
           </Placemark>
           <Placemark>
             <name>5252PURPLE</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.121211 </td></tr>
@@ -2847,7 +2792,7 @@
           </Placemark>
           <Placemark>
             <name>527631</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119356 </td></tr>
@@ -2869,7 +2814,7 @@
           </Placemark>
           <Placemark>
             <name>527614</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119676 </td></tr>
@@ -2891,7 +2836,7 @@
           </Placemark>
           <Placemark>
             <name>5267OBSTAC</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119845 </td></tr>
@@ -2913,7 +2858,7 @@
           </Placemark>
           <Placemark>
             <name>5278</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119135 </td></tr>
@@ -2935,7 +2880,7 @@
           </Placemark>
           <Placemark>
             <name>5289</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.117693 </td></tr>
@@ -2957,7 +2902,7 @@
           </Placemark>
           <Placemark>
             <name>5374FIRE</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119828 </td></tr>
@@ -2979,7 +2924,7 @@
           </Placemark>
           <Placemark>
             <name>5376</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119399 </td></tr>
@@ -3001,7 +2946,7 @@
           </Placemark>
           <Placemark>
             <name>5376STREAM</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.119328 </td></tr>
@@ -3023,7 +2968,7 @@
           </Placemark>
           <Placemark>
             <name>6328</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.113574 </td></tr>
@@ -3045,7 +2990,7 @@
           </Placemark>
           <Placemark>
             <name>635722</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.110067 </td></tr>
@@ -3067,7 +3012,7 @@
           </Placemark>
           <Placemark>
             <name>635783</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.109410 </td></tr>
@@ -3089,7 +3034,7 @@
           </Placemark>
           <Placemark>
             <name>6373</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.107117 </td></tr>
@@ -3111,7 +3056,7 @@
           </Placemark>
           <Placemark>
             <name>BEAR HILL</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.107360 </td></tr>
@@ -3133,7 +3078,7 @@
           </Placemark>
           <Placemark>
             <name>6289</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.106170 </td></tr>
@@ -3155,7 +3100,7 @@
           </Placemark>
           <Placemark>
             <name>6297</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.105116 </td></tr>
@@ -3177,7 +3122,7 @@
           </Placemark>
           <Placemark>
             <name>6283</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.105206 </td></tr>
@@ -3199,7 +3144,7 @@
           </Placemark>
           <Placemark>
             <name>6280</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.105413 </td></tr>
@@ -3221,7 +3166,7 @@
           </Placemark>
           <Placemark>
             <name>6177</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.106158 </td></tr>
@@ -3243,7 +3188,7 @@
           </Placemark>
           <Placemark>
             <name>6176</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.106624 </td></tr>
@@ -3265,7 +3210,7 @@
           </Placemark>
           <Placemark>
             <name>6153</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.108882 </td></tr>
@@ -3287,7 +3232,7 @@
           </Placemark>
           <Placemark>
             <name>6171</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.106301 </td></tr>
@@ -3309,7 +3254,7 @@
           </Placemark>
           <Placemark>
             <name>6131</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.111441 </td></tr>
@@ -3331,7 +3276,7 @@
           </Placemark>
           <Placemark>
             <name>6130</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.110975 </td></tr>
@@ -3353,7 +3298,7 @@
           </Placemark>
           <Placemark>
             <name>6029</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.113220 </td></tr>
@@ -3375,7 +3320,7 @@
           </Placemark>
           <Placemark>
             <name>6006</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.114456 </td></tr>
@@ -3397,7 +3342,7 @@
           </Placemark>
           <Placemark>
             <name>6014MEADOW</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.113223 </td></tr>
@@ -3419,7 +3364,7 @@
           </Placemark>
           <Placemark>
             <name>PANTHRCAVE</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.109942 </td></tr>
@@ -3441,7 +3386,7 @@
           </Placemark>
           <Placemark>
             <name>GATE6</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.109236 </td></tr>
@@ -3463,7 +3408,7 @@
           </Placemark>
           <Placemark>
             <name>BELLEVUE</name>
-            <Snippet/>
+            <snippet/>
             <description><![CDATA[
               <table>
                 <tr><td>Longitude: -71.107628 </td></tr>
@@ -3491,110 +3436,55 @@
             <tessellate>1</tessellate>
             <coordinates>
               -71.107628,42.430950,23.47
-              -71.107628,42.430950,23.469600
               -71.109236,42.431240,26.56
-              -71.109236,42.431240,26.561890
               -71.109942,42.434980,45.31
-              -71.109942,42.434980,45.307495
               -71.113223,42.436757,37.62
-              -71.113223,42.436757,37.616943
               -71.114456,42.439018,56.39
-              -71.114456,42.439018,56.388000
               -71.114803,42.438594,46.03
-              -71.114803,42.438594,46.028564
               -71.116146,42.438917,44.83
-              -71.116146,42.438917,44.826904
               -71.119277,42.438878,44.59
-              -71.119277,42.438878,44.586548
               -71.119689,42.439227,57.61
-              -71.119689,42.439227,57.607200
               -71.120925,42.439993,53.95
-              -71.120925,42.439993,53.949600
               -71.121676,42.441727,67.36
-              -71.121676,42.441727,67.360800
               -71.122044,42.443904,50.59
-              -71.122044,42.443904,50.594727
               -71.122845,42.445359,61.65
-              -71.122845,42.445359,61.649902
               -71.121447,42.447298,127.71
-              -71.121447,42.447298,127.711200
               -71.122320,42.449765,119.81
-              -71.122320,42.449765,119.809082
               -71.121746,42.451442,74.63
-              -71.121746,42.451442,74.627442
               -71.121211,42.453256,77.99
-              -71.121211,42.453256,77.992066
               -71.119356,42.456252,78.71
-              -71.119356,42.456252,78.713135
               -71.119676,42.456592,78.71
-              -71.119676,42.456592,78.713135
               -71.119845,42.457388,73.76
-              -71.119845,42.457388,73.761600
               -71.119135,42.458148,68.28
-              -71.119135,42.458148,68.275200
               -71.117693,42.459377,64.01
-              -71.117693,42.459377,64.008000
               -71.119828,42.464183,53.00
-              -71.119828,42.464183,52.997925
               -71.119399,42.465650,56.39
-              -71.119399,42.465650,56.388000
               -71.119328,42.465913,64.53
-              -71.119328,42.465913,64.533692
               -71.113574,42.467110,53.64
-              -71.113574,42.467110,53.644800
               -71.110067,42.466459,48.77
-              -71.110067,42.466459,48.768000
               -71.109410,42.466557,49.07
-              -71.109410,42.466557,49.072800
               -71.107117,42.463495,62.48
-              -71.107117,42.463495,62.484000
               -71.107360,42.465687,87.78
-              -71.107360,42.465687,87.782400
               -71.106170,42.459986,72.95
-              -71.106170,42.459986,72.945191
               -71.105116,42.457616,72.85
-              -71.105116,42.457616,72.847200
               -71.105206,42.453845,66.70
-              -71.105206,42.453845,66.696655
               -71.105413,42.451430,57.56
-              -71.105413,42.451430,57.564209
               -71.106158,42.448448,62.18
-              -71.106158,42.448448,62.179200
               -71.106624,42.447804,62.48
-              -71.106624,42.447804,62.484000
               -71.108882,42.444773,62.79
-              -71.108882,42.444773,62.788800
               -71.106301,42.443592,55.47
-              -71.106301,42.443592,55.473600
               -71.111441,42.442981,64.01
-              -71.111441,42.442981,64.008000
               -71.110975,42.442196,64.01
-              -71.110975,42.442196,64.008000
               -71.113220,42.441754,56.39
-              -71.113220,42.441754,56.388000
               -71.114456,42.439018,56.39
-              -71.114456,42.439018,56.388000
               -71.113223,42.436757,37.62
-              -71.113223,42.436757,37.616943
               -71.109942,42.434980,45.31
-              -71.109942,42.434980,45.307495
               -71.109236,42.431240,26.56
-              -71.109236,42.431240,26.561890
               -71.107628,42.430950,23.47
-              -71.107628,42.430950,23.469600
             </coordinates>
           </LineString>
         </Placemark>
       </Folder>
     </Folder>
-    <LookAt>
-      <gx:TimeSpan>
-        <begin>2001-06-02T00:18:13Z</begin>
-        <end>2002-05-25T19:05:57Z</end>
-      </gx:TimeSpan>
-      <longitude>-81.356770</longitude>
-      <latitude>36.257086</latitude>
-      <range>2979727.763965</range>
-    </LookAt>
   </Document>
 </kml>

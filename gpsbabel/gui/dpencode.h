@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: dpencode.h,v 1.2 2009/09/08 16:06:32 robertl Exp $
+// $Id: dpencode.h,v 1.2 2009-09-08 16:06:32 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: mainwindow.h,v 1.12 2010/06/27 21:12:37 robertl Exp $
+// $Id: mainwindow.h,v 1.13 2010-11-01 03:30:42 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.
@@ -28,6 +28,8 @@
 #include "babeldata.h"
 #include "upgrade.h"
 
+#include <QTranslator>
+
 class MainWindow: public QMainWindow {
   Q_OBJECT
 
@@ -35,6 +37,7 @@ class MainWindow: public QMainWindow {
   public:
   MainWindow(QWidget* parent);
   ~MainWindow();
+
 
 private:
   Ui_MainWindow     ui;
@@ -46,9 +49,17 @@ private:
   AllFiltersData filterData;
   BabelData      bd;
   bool           fmtChgInterlock;
+  QTranslator     translator;     // translation for the GUI.
+  QTranslator     translatorCore; // translation for the core application.
+  QTranslator     translatorQt;   // translations for Qt.
+  QString         currLang;       // currently loaded language.
+  QString         langPath;       // Absolute path of language files. 
 
 private:
   void loadFormats();
+  void loadLanguage(const QString& rLanguage);
+  void switchTranslator(QTranslator&, const QString&);
+  void createLanguageMenu();
   QString filterForFormat(int idx);
   QString ensureExtensionPresent(const QString &nanme, int idx);
   QString findBabelVersion();
@@ -89,6 +100,7 @@ private:
 
 protected:
   void closeEvent(QCloseEvent*);
+  void changeEvent(QEvent*);
 
  private slots:
   void aboutActionX();
@@ -105,15 +117,19 @@ protected:
   void inputFileOptBtnClicked();
   void inputFormatChanged(int);
   void inputOptionButtonClicked();
+  void inputFileNameEdited();
   void moreOptionButtonClicked();
   void outputDeviceOptBtnClicked();
   void outputFileOptBtnClicked();
+  void outputFileNameEdited();
   void outputFormatChanged(int);
   void outputOptionButtonClicked();
   void preferencesActionX();
   void visitWebsiteActionX();
   void resetFormatDefaults();
   void upgradeCheckActionX();
+  void slotLanguageChanged(QAction* action);
+
 
 };
 

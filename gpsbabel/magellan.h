@@ -24,31 +24,31 @@
  * (Donations welcome. :-)
  */
 typedef enum {
-	mm_unknown = 0 ,
-	mm_gps315320,
-	mm_map410,
-	mm_map330,
-	mm_gps310,
-	mm_meridian,
-	mm_sportrak
+  mm_unknown = 0 ,
+  mm_gps315320,
+  mm_map410,
+  mm_map330,
+  mm_gps310,
+  mm_meridian,
+  mm_sportrak
 } meridian_model;
 
 typedef struct pid_to_model {
-	meridian_model model;
-	int pid;
-	const char *model_n;
+  meridian_model model;
+  int pid;
+  const char* model_n;
 } pid_to_model_t;
 
 typedef struct icon_mapping {
-	const char *token;
-	const char *icon;
+  const char* token;
+  const char* icon;
 } icon_mapping_t;
 
-const char * mag_find_descr_from_token(const char *token);
-const char * mag_find_token_from_descr(const char *icon);
+const char* mag_find_descr_from_token(const char* token);
+const char* mag_find_token_from_descr(const char* icon);
 
-unsigned int mag_checksum(const char *const buf);
-char * m330_cleanse(char *istring);
+unsigned int mag_checksum(const char* const buf);
+char* m330_cleanse(char* istring);
 
-waypoint * mag_trkparse(char *trkmsg);
-void mag_rteparse(char *rtemsg);
+waypoint* mag_trkparse(char* trkmsg);
+void mag_rteparse(char* rtemsg);

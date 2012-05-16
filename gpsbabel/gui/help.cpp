@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: help.cpp,v 1.8 2009/11/02 20:38:02 robertl Exp $
+// $Id: help.cpp,v 1.8 2009-11-02 20:38:02 robertl Exp $
 //------------------------------------------------------------------------
 //
 //  Copyright (C) 2009  S. Khai Mong <khai@mangrai.com>.

@@ -1,5 +1,5 @@
 // -*- C++ -*-
-// $Id: upgrade.cpp,v 1.26 2010/06/19 23:59:06 robertl Exp $
+// $Id: upgrade.cpp,v 1.26 2010-06-19 23:59:06 robertl Exp $
 /*
     Copyright (C) 2009, 2010  Robert Lipe, robertlipe@gpsbabel.org
 
@@ -23,8 +23,10 @@
 #include "babeldata.h"
 #include "format.h"
 #include "upgrade.h"
-#include "../config.h"
 #include "../gbversion.h"
+#if HAVE_CONFIG_H
+#include "../config.h"
+#endif
 
 #if HAVE_UNAME
 #include <sys/utsname.h>
@@ -93,6 +95,8 @@ QString UpgradeCheck::getOsVersion()
   case QSysInfo::MV_10_4: return "10.4"; break;
   case QSysInfo::MV_10_5: return "10.5"; break;
   case QSysInfo::MV_10_6: return "10.6"; break;
+  // Disabled while we roll back to 4.7.4 :-(
+  // case QSysInfo::MV_10_7: return "10.7"; break;
   default: return QString("Unknown Mac %1").arg(QSysInfo::MacintoshVersion);
   };
 #elif defined (Q_OS_WIN)

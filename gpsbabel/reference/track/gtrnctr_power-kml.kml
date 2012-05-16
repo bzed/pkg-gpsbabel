@@ -3,28 +3,26 @@
 	xmlns:gx="http://www.google.com/kml/ext/2.2">
   <Document>
     <name>GPS device</name>
-    <Schema id="schema">
-      <gx:SimpleArrayField name="heartrate" type="int">
-          <displayName>Heart Rate</displayName>
-      </gx:SimpleArrayField>
-      <gx:SimpleArrayField name="cadence" type="int">
-          <displayName>Cadence</displayName>
-      </gx:SimpleArrayField>
-      <gx:SimpleArrayField name="power" type="float">
-          <displayName>Power</displayName>
-      </gx:SimpleArrayField>
-    </Schema>
+    <LookAt>
+      <gx:TimeSpan>
+        <begin>2010-05-28T01:16:36Z</begin>
+        <end>2010-05-28T02:41:44Z</end>
+      </gx:TimeSpan>
+      <longitude>-122.139608</longitude>
+      <latitude>37.382794</latitude>
+      <range>19819.321245</range>
+    </LookAt>
 <!-- Normal track style -->
     <Style id="track_n">
-      <LabelStyle>
-        <scale>0</scale>
-      </LabelStyle>
       <IconStyle>
         <scale>.5</scale>
         <Icon>
           <href>http://earth.google.com/images/kml-icons/track-directional/track-none.png</href>
         </Icon>
       </IconStyle>
+      <LabelStyle>
+        <scale>0</scale>
+      </LabelStyle>
     </Style>
 <!-- Highlighted track style -->
     <Style id="track_h">
@@ -47,28 +45,28 @@
     </StyleMap>
 <!-- Normal multiTrack style -->
     <Style id="multiTrack_n">
-      <LineStyle>
-        <color>99ffac59</color>
-        <width>6</width>
-      </LineStyle>
       <IconStyle>
         <Icon>
           <href>http://earth.google.com/images/kml-icons/track-directional/track-0.png</href>
         </Icon>
       </IconStyle>
+      <LineStyle>
+        <color>99ffac59</color>
+        <width>6</width>
+      </LineStyle>
     </Style>
 <!-- Highlighted multiTrack style -->
     <Style id="multiTrack_h">
-      <LineStyle>
-        <color>99ffac59</color>
-        <width>8</width>
-      </LineStyle>
       <IconStyle>
         <scale>1.2</scale>
         <Icon>
           <href>http://earth.google.com/images/kml-icons/track-directional/track-0.png</href>
         </Icon>
       </IconStyle>
+      <LineStyle>
+        <color>99ffac59</color>
+        <width>8</width>
+      </LineStyle>
     </Style>
     <StyleMap id="multiTrack">
       <Pair>
@@ -113,6 +111,17 @@
         <width>6</width>
       </LineStyle>
     </Style>
+    <Schema id="schema">
+      <gx:SimpleArrayField name="heartrate" type="int">
+          <displayName>Heart Rate</displayName>
+      </gx:SimpleArrayField>
+      <gx:SimpleArrayField name="cadence" type="int">
+          <displayName>Cadence</displayName>
+      </gx:SimpleArrayField>
+      <gx:SimpleArrayField name="power" type="float">
+          <displayName>Power</displayName>
+      </gx:SimpleArrayField>
+    </Schema>
     <Folder>
       <name>Waypoints</name>
       <Placemark>
@@ -25688,14 +25697,5 @@
         </gx:Track>
       </Placemark>
     </Folder>
-    <LookAt>
-      <gx:TimeSpan>
-        <begin>2010-05-28T01:16:36Z</begin>
-        <end>2010-05-28T02:41:44Z</end>
-      </gx:TimeSpan>
-      <longitude>-122.139608</longitude>
-      <latitude>37.382794</latitude>
-      <range>19819.321245</range>
-    </LookAt>
   </Document>
 </kml>
