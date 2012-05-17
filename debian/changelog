@@ -1,3 +1,13 @@
+gpsbabel (1.4.3-1) unstable; urgency=low
+
+  * New upstream release (Closes: #660476)
+  * [0754cb61] Merge branch 'upstream'
+  * [0dc59f07] Merge branch 'upstream'
+  * [337703bb] Refreshing patches.
+  * [6e23bc91] Migrate debian/rules and .install files to gpsbabel subdirectory.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 16 May 2012 23:28:46 +0200
+
 gpsbabel (1.4.2-3) unstable; urgency=low
 
   * [64bae20c] Use libqtwebkit-dev as build-dependency. (Closes: #629742)
