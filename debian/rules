@@ -68,8 +68,10 @@ build-stamp: configure-stamp
 
 	# Add here commands to compile the package.
 	$(MAKE) -C gpsbabel
+ifeq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
 	chmod u+x gpsbabel/testo
-	$(MAKE) -C gpsbabel check 
+	$(MAKE) -C gpsbabel check
+endif
 
 	touch $@
 
