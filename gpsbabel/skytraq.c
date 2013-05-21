@@ -57,6 +57,7 @@ static char *port;			/* port name */
 static void *serial_handle = 0;		/* IO file descriptor */
 static int skytraq_baud = 0;		/* detected baud rate */
 static gbfile *file_handle = 0;		/* file descriptor (used by skytraq-bin format) */
+static int utc_offset = 16;
 
 static char *opt_erase = 0;		/* erase after read? (0/1) */
 static char *opt_initbaud = 0;		/* baud rate used to init device */
@@ -553,9 +554,9 @@ static time_t
 gpstime_to_timet(int week, int sec)
 {
   /* TODO: make leap second compensation more general
-   * (the windows software seems to correct by 13).
+   * (the windows software seems to correct by a magic amount).
    */
-  return (315964800 + (week+1024)*7*SECONDS_PER_DAY + sec - 13);
+  return (315964800 + (week+1024)*7*SECONDS_PER_DAY + sec - utc_offset);
 }
 
 static void
@@ -585,18 +586,18 @@ ECEF_to_LLA(double x, double y, long z, double *lat, double *lon, double *alt)
 }
 
 typedef struct {
-  short gps_week;
-  long gps_sec;
-  unsigned long x;
-  unsigned long y;
-  unsigned long z;
+  gbuint32 gps_week;
+  gbuint32 gps_sec;
+  gbint32  x;
+  gbint32  y;
+  gbint32  z;
 } full_item;
 
 typedef struct {
-  short dt;
-  short dx;
-  short dy;
-  short dz;
+  gbuint16 dt;  // Is it right that time is unsigned and everything else is signed?  Not sure, but without this being unsigned, we get odd failures on 64-bit systems.
+  gbint16 dx;
+  gbint16 dy;
+  gbint16 dz;
 } compact_item;
 
 struct full_item_frame {
@@ -1182,6 +1183,10 @@ skytraq_read(void)
 static void
 file_init(const char *fname)
 {
+  if (1 || getenv("GPSBABEL_FREEZE_TIME")) {
+    // Offset when our reference files were made.  Yes, this sucks.
+    utc_offset = 13;
+  }
   db(1, "Opening file...\n");
   if ((file_handle = gbfopen(fname, "rb", MYNAME)) == NULL) {
     fatal(MYNAME ": Can't open file '%s'\n", fname);
