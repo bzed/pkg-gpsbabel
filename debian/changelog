@@ -1,3 +1,11 @@
+gpsbabel (1.4.4-1) unstable; urgency=low
+
+  * [72ac73df] Support nocheck in DEB_BUILD_OPTIONS.
+  * [3eb772af] Importing upstream version 1.4.4 (Closes: #690256)
+  * [91e94593] Refreshing patches.
+
+ -- Bernd Zeimetz <bernd@bzed.de>  Wed, 22 May 2013 00:36:51 +0200
+
 gpsbabel (1.4.3-1) unstable; urgency=low
 
   * New upstream release (Closes: #660476)
