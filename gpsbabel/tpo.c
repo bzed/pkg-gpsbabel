@@ -77,8 +77,8 @@
 
 #define MYNAME	"TPO"
 
-static char *dumpheader = NULL;
-static char *output_state = NULL;
+static char* dumpheader = NULL;
+static char* output_state = NULL;
 
 /*
 static
@@ -108,8 +108,8 @@ arglist_t tpo3_args[] = {
 };
 
 
-static gbfile *tpo_file_in;
-static gbfile *tpo_file_out;
+static gbfile* tpo_file_in;
+static gbfile* tpo_file_out;
 //static short_handle mkshort_handle;
 
 static double output_track_lon_scale;
@@ -142,7 +142,7 @@ tpo_check_version_string()
 
   /* read the id string */
   gbfread(&string_size, 1, 1, tpo_file_in);
-  string_buffer = (char *) xmalloc(string_size+1);
+  string_buffer = (char*) xmalloc(string_size+1);
   gbfread(string_buffer, 1, string_size, tpo_file_in);
 
   /* terminate the string */
@@ -175,7 +175,7 @@ static void
 tpo_dump_header_bytes(int header_size)
 {
   int i;
-  unsigned char* buffer = (unsigned char*)(char *) xmalloc(header_size);
+  unsigned char* buffer = (unsigned char*) xmalloc(header_size);
 
   gbfread(buffer, 1, header_size, tpo_file_in);
 
@@ -237,7 +237,7 @@ tpo_read_until_section(const char* section_name, int seek_bytes)
 }
 
 static void
-tpo_rd_init(const char *fname)
+tpo_rd_init(const char* fname)
 {
 
   tpo_file_in = gbfopen_le(fname, "rb", MYNAME);
@@ -287,7 +287,7 @@ void tpo_read_2_x(void)
   char buff[16];
   short track_count, waypoint_count;
   double first_lat, first_lon, lat_scale, lon_scale, amt;
-  short *lon_delta, *lat_delta;
+  short* lon_delta, *lat_delta;
   int i, j;
   route_head* track_temp;
   waypoint* waypoint_temp;
@@ -341,8 +341,8 @@ void tpo_read_2_x(void)
     waypoint_count = gbfgetint16(tpo_file_in);
 
     /* allocate temporary memory for the waypoint deltas */
-    lon_delta = (short*)(char *) xmalloc(waypoint_count * sizeof(short));
-    lat_delta = (short*)(char *) xmalloc(waypoint_count * sizeof(short));
+    lon_delta = (short*) xmalloc(waypoint_count * sizeof(short));
+    lat_delta = (short*) xmalloc(waypoint_count * sizeof(short));
 
     for (j=0; j<waypoint_count; j++) {
 
@@ -463,7 +463,7 @@ int tpo_find_block(unsigned int block_desired)
 
     // Read record type
     block_type = gbfgetint32(tpo_file_in);
-//printf("Block: %08x\tat offset: %08x\n", block_type, block_offset);
+// printf("Block: %08x\tat offset: %08x\n", block_type, block_offset);
 
     // Read offset to next record
     block_offset = gbfgetint32(tpo_file_in);
@@ -484,11 +484,11 @@ int tpo_find_block(unsigned int block_desired)
 //
 // For version 3.x files.
 //
-waypoint *tpo_convert_ll(int lat, int lon)
+waypoint* tpo_convert_ll(int lat, int lon)
 {
   double latitude;
   double longitude;
-  waypoint *waypoint_temp;
+  waypoint* waypoint_temp;
 
 
   waypoint_temp = waypt_new();
@@ -532,13 +532,94 @@ waypoint *tpo_convert_ll(int lat, int lon)
 //
 void tpo_process_tracks(void)
 {
-  unsigned int track_count;
-  unsigned int ii;
+  unsigned int track_count, track_style_count;
+  unsigned int xx,ii,tmp;
+#define TRACKNAMELENGTH 256
 
+  int DEBUG=0;
 
-//printf("Processing Tracks...\n");
+  if (DEBUG) {
+    printf("Processing Track Styles... (added in 2012 by SRE)\n");
+  }
+  // Find block 0x050000 (definitions of styles for free-hand routes)
+  if (tpo_find_block(0x050000)) {
+    // printf("Found no track styles, skipping tracks\n");
+    return;
+  }
+  // Read the number of track styles.
+  track_style_count = tpo_read_int(); // 8 bit value
 
-  // Find block 0x060000 (free-hand routes)
+  if (DEBUG) {
+    printf("Unpacking %d track styles...\n",track_style_count);
+  }
+  char style_name[track_style_count][TRACKNAMELENGTH]; // some huge value
+  int style_color[track_style_count][3];  // keep R/G/B values separate because line_color needs BGR
+  int style_wide[track_style_count],style_dash[track_style_count];
+  for (ii = 0; ii < track_style_count; ii++) {
+
+    // clumsy way to skip two undefined bytes
+    for (xx = 0; xx < 2; xx++) {
+      tmp = (unsigned char) gbfgetc(tpo_file_in);
+      // printf("Skipping (visibility?) byte 0x%x\n",tmp);
+    }
+
+    // next three bytes are RGB color, fourth is unknown
+    // Topo and web uses rrggbb, also need line_color.bbggrr for KML
+    for (xx = 0; xx < 3; xx++) {
+      style_color[ii][xx] = (int) gbfgetc(tpo_file_in);
+      if((style_color[ii][xx] < 0) || (style_color[ii][xx] >255)) {
+        style_color[ii][xx] = 0; // assign black if out of range 0x00 to 0xff
+        // used to store strings: sprintf(style_color[ii], "%s%02x",style_color[ii],tmp);
+      }
+    }
+
+    tmp = (unsigned char) gbfgetc(tpo_file_in);
+    // printf("Skipping unknown byte 0x%x after color\n",tmp);
+
+    // byte for name length, then name
+    tmp = (unsigned char) gbfgetc(tpo_file_in);
+    // wrong byte order?? tmp = tpo_read_int(); // 16 bit value
+    // printf("Track %d has %d-byte (0x%x) name\n",ii,tmp,tmp);
+    if (tmp >= TRACKNAMELENGTH) {
+      printf("ERROR! Found track style over TRACKNAMELENGTH chars, skipping all tracks!\n");
+      return;
+    }
+    if (tmp) {
+      style_name[ii][0] = '\0';
+      gbfread(style_name[ii], 1, tmp, tpo_file_in);
+      style_name[ii][tmp] = '\0';  // Terminator
+    } else { // Assign a generic style name
+      sprintf(style_name[ii], "STYLE %d", ii);
+    }
+    for (xx = 0; xx < 3; xx++) {
+      if (style_name[ii][xx] == (char) ',') {
+        style_name[ii][xx] = (char) '_';
+      }
+      if (style_name[ii][xx] == (char) '=') {
+        style_name[ii][xx] = (char) '_';
+      }
+    }
+
+    // one byte for line width (value 1-4), one byte for 'dashed' boolean
+    style_wide[ii] = (unsigned int) gbfgetc(tpo_file_in);
+    style_dash[ii] = (unsigned int) gbfgetc(tpo_file_in);
+
+    // clumsy way to skip two undefined bytes
+    for (xx = 0; xx < 2; xx++) {
+      tmp = (unsigned char) gbfgetc(tpo_file_in);
+      // printf("Skipping final byte 0x%x\n",tmp);
+    }
+
+    if (DEBUG) {
+      printf("Track style %d: color=#%02x%02x%02x, width=%d, dashed=%d, name=%s\n",ii,style_color[ii][0],style_color[ii][1],style_color[ii][2],style_wide[ii],style_dash[ii],style_name[ii]);
+    }
+  }
+
+  if (DEBUG) {
+    printf("Processing Tracks... found %d track styles\n",track_style_count);
+  }
+
+  // Find block 0x060000 (free-hand routes) (original track code, pre-2012, without styles)
   if (tpo_find_block(0x060000)) {
     return;
   }
@@ -546,7 +627,9 @@ void tpo_process_tracks(void)
   // Read the number of tracks.  Can be 8/16/32-bit value.
   track_count = tpo_read_int();
 
-//printf("Total Tracks: %d\n", track_count);
+  if (DEBUG) {
+    printf("Total Tracks: %d\n", track_count);
+  }
 
   if (track_count == 0) {
     return;
@@ -556,13 +639,13 @@ void tpo_process_tracks(void)
   //
   for (ii = 0; ii < track_count; ii++) {
     unsigned int line_type;
-    unsigned int track_number;
+    unsigned int track_style;
     unsigned int track_length;
     unsigned int name_length;
-    char *track_name;
+    char* track_name = NULL;
     unsigned int track_byte_count;
     int llvalid;
-    unsigned char *buf;
+    unsigned char* buf;
     int lonscale;
     int latscale;
     int waypoint_count = 0;
@@ -570,38 +653,59 @@ void tpo_process_tracks(void)
     int lon = 0;
     unsigned int jj;
     route_head* track_temp;
-
+    char rgb[7],bgr[7];
+    int bbggrr = 0;
 
     // Allocate the track struct
     track_temp = route_head_alloc();
     track_add_head(track_temp);
 
 //UNKNOWN DATA LENGTH
-    line_type = tpo_read_int();
+    line_type = tpo_read_int(); // always zero??
 
-    // Can be 8/16/32-bit value
-    track_number = tpo_read_int();
+    // Can be 8/16/32-bit value (defined in 2012, ignored before then)
+    track_style = tpo_read_int(); // index into freehand route styles defined in this .tpo file
+    track_style -= 1;  // STARTS AT 1, whereas style arrays start at 0
 
-    // Can be 8/16/32-bit value
+    // Can be 8/16/32-bit value - never used?
     track_length = tpo_read_int();
 
 //UNKNOWN DATA LENGTH
     name_length = tpo_read_int();
 
     if (name_length) {
-      track_name = (char *) xmalloc(name_length+1);
+      track_name = (char*) xmalloc(name_length+1);
       track_name[0] = '\0';
       gbfread(track_name, 1, name_length, tpo_file_in);
       track_name[name_length] = '\0';  // Terminator
     } else { // Assign a generic track name
-      track_name = (char *) xmalloc(15);
-      sprintf(track_name, "TRK %d", ii+1);
+      xasprintf(&track_name, "TRK %d", ii+1);
     }
     track_temp->rte_name = track_name;
-//printf("\nTrack Name: %s  ", track_name);
 
-    // Route description
-//        track_temp->rte_desc = NULL;
+    // RGB line_color expressed for html=rrggbb and kml=bbggrr - not assigned before 2012
+    sprintf(rgb,"%02x%02x%02x",style_color[track_style][0],style_color[track_style][1],style_color[track_style][2]);
+    sprintf(bgr,"%02x%02x%02x",style_color[track_style][2],style_color[track_style][1],style_color[track_style][0]);
+    sscanf(bgr,"%06x",&bbggrr); // hex string to integer - probably not the best way to do style_color to bbggrr
+    track_temp->line_color.bbggrr = bbggrr;
+
+    // track texture (dashed=1, solid=0) mapped into opacity - not assigned before 2012
+    track_temp->line_color.opacity = 0xff;   // 255
+    if(style_dash[track_style]) {
+      track_temp->line_color.opacity = 0x50;
+    }
+
+    // track width, from 1=hairline to 4=thick in Topo - not assigned before 2012
+    //  (what are correct values for KML or other outputs??)
+    track_temp->line_width = style_wide[track_style];
+
+    if (DEBUG) printf("Track Name: %s, ?Type?: %d, Style Name: %s, Width: %d, Dashed: %d, Color: #%s\n",
+                        track_name, line_type, style_name[track_style], style_wide[track_style], style_dash[track_style],rgb);
+
+    // Track description
+    // track_temp->rte_desc = NULL; // pre-2012 default, next line from SRE saves track style as track description
+    xasprintf(&track_temp->rte_desc, "Style=%s, Width=%d, Dashed=%d, Color=#%s",
+            style_name[track_style], style_wide[track_style], style_dash[track_style], rgb);
 
     // Route number
     track_temp->rte_num = ii+1;
@@ -617,7 +721,7 @@ void tpo_process_tracks(void)
     // proper place for the next track.
 
     // Read the track bytes into a buffer
-    buf = (unsigned char *) xmalloc(track_byte_count);
+    buf = (unsigned char*) xmalloc(track_byte_count);
     gbfread(buf, 1, track_byte_count, tpo_file_in);
 
     latscale=0;
@@ -757,7 +861,7 @@ void tpo_process_waypoints(void)
 
   // Fetch storage for the waypoint index (needed later for
   // routes)
-  tpo_wp_index = (waypoint **)(char *) xmalloc(sizeof(waypoint *) * waypoint_count);
+  tpo_wp_index = (waypoint**) xmalloc(sizeof(waypoint*) * waypoint_count);
 
   if (waypoint_count == 0) {
     return;
@@ -768,7 +872,7 @@ void tpo_process_waypoints(void)
     waypoint* waypoint_temp;
     waypoint* waypoint_temp2;
     unsigned int name_length;
-    char *waypoint_name;
+    char* waypoint_name;
     int lat;
     int lon;
     int altitude;
@@ -785,13 +889,12 @@ void tpo_process_waypoints(void)
     name_length = tpo_read_int();
 //printf("\nName Length: %d\n", name_length);
     if (name_length) {
-      waypoint_name = (char *) xmalloc(name_length+1);
+      waypoint_name = (char*) xmalloc(name_length+1);
       waypoint_name[0] = '\0';
       gbfread(waypoint_name, 1, name_length, tpo_file_in);
       waypoint_name[name_length] = '\0';  // Terminator
     } else { // Assign a generic waypoint name
-      waypoint_name = (char *) xmalloc(15);
-      sprintf(waypoint_name, "WPT %d", ii+1);
+      xasprintf(&waypoint_name, "WPT %d", ii+1);
     }
 //printf("\tWaypoint Name: %s\n", waypoint_name);
 
@@ -820,9 +923,9 @@ void tpo_process_waypoints(void)
     name_length = tpo_read_int();
 //printf("\tComment length: %d\n", name_length);
     if (name_length) {
-      char *comment;
+      char* comment;
 
-      comment = (char *) xmalloc(name_length+1);
+      comment = (char*) xmalloc(name_length+1);
       comment[0] = '\0';
       gbfread(comment, 1, name_length, tpo_file_in);
       comment[name_length] = '\0';  // Terminator
@@ -897,7 +1000,7 @@ void tpo_process_map_notes(void)
     int lat;
     int lon;
     unsigned int name_length;
-    char *waypoint_name;
+    char* waypoint_name;
     waypoint* waypoint_temp;
     unsigned int num_bytes;
     unsigned int jj;
@@ -913,8 +1016,7 @@ void tpo_process_map_notes(void)
     waypoint_temp = tpo_convert_ll(lat, lon);
 
     // Assign a generic waypoint name
-    waypoint_name = (char *) xmalloc(15);
-    sprintf(waypoint_name, "NOTE %d", ii+1);
+    xasprintf(&waypoint_name, "NOTE %d", ii+1);
 //printf("Waypoint Name: %s\t\t", waypoint_name);
     waypoint_temp->shortname = waypoint_name;
 
@@ -931,9 +1033,9 @@ void tpo_process_map_notes(void)
     // Fetch comment length
     name_length = tpo_read_int();
     if (name_length) {
-      char *comment;
+      char* comment;
 
-      comment = (char *) xmalloc(name_length+1);
+      comment = (char*) xmalloc(name_length+1);
       comment[0] = '\0';
       gbfread(comment, 1, name_length, tpo_file_in);
       comment[name_length] = '\0';  // Terminator
@@ -951,9 +1053,9 @@ void tpo_process_map_notes(void)
     name_length = tpo_read_int();
 //printf("name_length: %x\n", name_length);
     if (name_length) {
-      char *notes;
+      char* notes;
 
-      notes = (char *) xmalloc(name_length+1);
+      notes = (char*) xmalloc(name_length+1);
       notes[0] = '\0';
       gbfread(notes, 1, name_length, tpo_file_in);
       notes[name_length] = '\0';  // Terminator
@@ -966,9 +1068,9 @@ void tpo_process_map_notes(void)
 //UNKNOWN DATA LENGTH
     name_length = tpo_read_int();
     if (name_length) {
-      char *notes;
+      char* notes;
 
-      notes = (char *) xmalloc(name_length+1);
+      notes = (char*) xmalloc(name_length+1);
       notes[0] = '\0';
       gbfread(notes, 1, name_length, tpo_file_in);
       notes[name_length] = '\0';  // Terminator
@@ -1033,7 +1135,7 @@ void tpo_process_symbols(void)
   for (ii = 0; ii < waypoint_count; ii++) {
     int lat;
     int lon;
-    char *waypoint_name;
+    char* waypoint_name;
     waypoint* waypoint_temp;
 
 
@@ -1050,8 +1152,7 @@ void tpo_process_symbols(void)
     waypoint_temp = tpo_convert_ll(lat, lon);
 
     // Assign a generic waypoint name
-    waypoint_name = (char *) xmalloc(15);
-    sprintf(waypoint_name, "SYM %d", ii+1);
+    xasprintf(&waypoint_name, "SYM %d", ii+1);
 //printf("Waypoint Name: %s\n", waypoint_name);
     waypoint_temp->shortname = waypoint_name;
 
@@ -1099,7 +1200,7 @@ void tpo_process_text_labels(void)
     int lat;
     int lon;
     unsigned int name_length;
-    char *waypoint_name;
+    char* waypoint_name;
     waypoint* waypoint_temp;
 
 
@@ -1116,8 +1217,7 @@ void tpo_process_text_labels(void)
     waypoint_temp = tpo_convert_ll(lat, lon);
 
     // Assign a generic waypoint name
-    waypoint_name = (char *) xmalloc(15);
-    sprintf(waypoint_name, "TXT %d", ii+1);
+    xasprintf(&waypoint_name, "TXT %d", ii+1);
 //printf("Waypoint Name: %s\t\t", waypoint_name);
     waypoint_temp->shortname = waypoint_name;
 
@@ -1130,9 +1230,9 @@ void tpo_process_text_labels(void)
 //UNKNOWN DATA LENGTH
     name_length = tpo_read_int();
     if (name_length) {
-      char *comment;
+      char* comment;
 
-      comment = (char *) xmalloc(name_length+1);
+      comment = (char*) xmalloc(name_length+1);
       comment[0] = '\0';
       gbfread(comment, 1, name_length, tpo_file_in);
       comment[name_length] = '\0';  // Terminator
@@ -1187,7 +1287,7 @@ void tpo_process_routes(void)
   //
   for (ii = 0; ii < route_count; ii++) {
     unsigned int name_length = 0;
-    char *route_name;
+    char* route_name;
     unsigned int jj;
     unsigned int waypoint_cnt;
     route_head* route_temp;
@@ -1207,13 +1307,12 @@ void tpo_process_routes(void)
     // Fetch name length
     name_length = tpo_read_int();
     if (name_length) {
-      route_name = (char *) xmalloc(name_length+1);
+      route_name = (char*) xmalloc(name_length+1);
       route_name[0] = '\0';
       gbfread(route_name, 1, name_length, tpo_file_in);
       route_name[name_length] = '\0';  // Terminator
     } else { // Assign a generic route name
-      route_name = (char *) xmalloc(15);
-      sprintf(route_name, "RTE %d", ii+1);
+      xasprintf(&route_name, "RTE %d", ii+1);
     }
     route_temp->rte_name = route_name;
 //printf("Route Name: %s\n", route_name);
@@ -1637,7 +1736,7 @@ tpo_write_file_header()
 }
 
 static void
-tpo_track_hdr(const route_head *rte)
+tpo_track_hdr(const route_head* rte)
 {
   double amt;
   unsigned char temp_buffer[8];
@@ -1703,7 +1802,7 @@ tpo_track_hdr(const route_head *rte)
 }
 
 static void
-tpo_track_disp(const waypoint *waypointp)
+tpo_track_disp(const waypoint* waypointp)
 {
   double lat, lon, amt, x, y, z;
   short lat_delta, lon_delta;
@@ -1756,7 +1855,7 @@ tpo_track_disp(const waypoint *waypointp)
 }
 
 static void
-tpo_track_tlr(const route_head *rte)
+tpo_track_tlr(const route_head* rte)
 {
   unsigned char unknown1[] = { 0x06, 0x00 };
 
@@ -1783,7 +1882,7 @@ tpo_track_tlr(const route_head *rte)
 }
 
 static void
-tpo_wr_init(const char *fname)
+tpo_wr_init(const char* fname)
 {
   if (doing_wpts || doing_rtes) {
     fatal(MYNAME ": this file format only supports tracks, not waypoints or routes.\n");

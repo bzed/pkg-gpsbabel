@@ -32,7 +32,7 @@
       exported = Geocache export date 
       found =    <link linkend="style_def_geofound">Geocache last found date</link>
       fix =      3d, 2d, etc.
-      gcid =     Geocache chache id
+      gcid =     Geocache cache id
       geschw =   Geschwindigkeit (speed)
       hdop =     Horizontal dilution of precision
       head =     Heading / Course true
@@ -48,6 +48,7 @@
       pdop =     Position dilution of precision
       placer =   <link linkend="style_def_geoplacer">Geocache placer</link>
       placer_id =Geocache placer id
+      power =    Cycling power (in Watts)
       prox =     Proximity (in meters).  Add "ft" or "feet" for feet.
       sat =      Number of sats used for fix
       speed =    Speed
