@@ -1,7 +1,7 @@
 /*
     Great Circle utility functions
 
-    Copyright (C) 2002 Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2014 Robert Lipe, robertlipe+source@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ double linedistprj(double lat1, double lon1,
                    double lat2, double lon2,
                    double lat3, double lon3,
                    double* prjlat, double* prjlon,
-                   double* frac );
+                   double* frac);
 
 double linedist(double lat1, double lon1,
                 double lat2, double lon2,

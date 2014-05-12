@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007  Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2002-2014 Robert Lipe, robertlipe+source@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -18,18 +18,13 @@
  */
 #ifndef gpsbabel_defs_h_included
 #define gpsbabel_defs_h_included
-#include <time.h>
-#include <stdlib.h>
-#include <math.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stddef.h>
+
+#include <stdint.h>
+
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
 #include "queue.h"
-#include "gbtypes.h"
 #if HAVE_LIBZ
 #include <zlib.h>
 #elif !ZLIB_INHIBITED
@@ -41,10 +36,13 @@
 #include "inifile.h"
 #include "session.h"
 
-// Turn on Unicode in expat?
-#ifdef _UNICODE
-#  define XML_UNICODE
-#endif
+#include <QtCore/QString>
+#include <QtCore/QDebug>
+#include <QtCore/QTextStream>
+
+# include "src/core/datetime.h"
+
+#define CSTR(qstr) (qstr.toUtf8().constData())
 
 /*
  * Amazingly, this constant is not specified in the standard...
@@ -54,11 +52,11 @@
 #endif
 
 #ifndef FALSE
-#  define FALSE 0
+#  define FALSE false
 #endif
 
 #ifndef TRUE
-#  define TRUE !FALSE
+#  define TRUE true
 #endif
 
 #define FEET_TO_METERS(feetsies) ((feetsies) * 0.3048)
@@ -153,6 +151,8 @@
  * Common definitions.   There should be no protocol or file-specific
  * data in this file.
  */
+
+
 #define BASE_STRUCT(memberp, struct_type, member_name) \
    ((struct_type *)((char *)(memberp) - offsetof(struct_type, member_name)))
 
@@ -215,6 +215,7 @@ extern const char gpsbabel_version[];
 extern time_t gpsbabel_now;	/* gpsbabel startup-time; initialized in main.c with time() */
 extern time_t gpsbabel_time;	/* gpsbabel startup-time; initialized in main.c with current_time(), ! ZERO within testo ! */
 extern int geocaches_present;
+extern QTextStream cerr;
 
 #define MILLI_TO_MICRO(t) (t * 1000)  /* Milliseconds to Microseconds */
 #define MICRO_TO_MILLI(t) (t / 1000)  /* Microseconds to Milliseconds*/
@@ -258,12 +259,32 @@ typedef enum {
   gc_small
 } geocache_container;
 
-typedef struct {
-  int is_html;
-  char* utfstring;
-} utf_string;
+class utf_string
+{
+public:
+  utf_string() :
+    is_html(false)
+  {};
+  bool is_html;
+  QString utfstring;
+};
 
-typedef struct {
+class geocache_data
+{
+public:
+  geocache_data() :
+    id(0),
+    type(gt_unknown),
+    container(gc_unknown),
+    diff(0),
+    terr(0),
+    is_archived(status_unknown),
+    is_available(status_unknown),
+    is_memberonly(status_unknown),
+    has_customcoords(status_unknown),
+    placer_id(0),
+    favorite_points(0)
+  {}
   int id; /* The decimal cache number */
   geocache_type type:5;
   geocache_container container:4;
@@ -273,28 +294,16 @@ typedef struct {
   status_type is_available:2;
   status_type is_memberonly:2;
   status_type has_customcoords:2;
-  time_t exported;
-  time_t last_found;
-  char* placer; /* Placer name */
+  gpsbabel::DateTime exported;
+  gpsbabel::DateTime last_found;
+  QString placer; /* Placer name */
   int placer_id; /* Placer id */
-  char* hint; /* all these UTF8, XML entities removed, May be not HTML. */
+  QString hint; /* all these UTF8, XML entities removed, May be not HTML. */
   utf_string desc_short;
   utf_string desc_long;
   int favorite_points;
-  char* personal_note;
-} geocache_data ;
-
-typedef struct xml_tag {
-  char* tagname;
-  char* cdata;
-  int cdatalen;
-  char* parentcdata;
-  int parentcdatalen;
-  char** attributes;
-  struct xml_tag* parent;
-  struct xml_tag* sibling;
-  struct xml_tag* child;
-} xml_tag ;
+  QString personal_note;
+};
 
 typedef void (*fs_destroy)(void*);
 typedef void (*fs_copy)(void**, void*);
@@ -309,23 +318,21 @@ typedef struct format_specific_data {
   fs_convert convert;
 } format_specific_data;
 
-typedef struct {
+class gb_color
+{
+public:
+  gb_color() :
+    bbggrr(-1),
+    opacity(255) {}
   int bbggrr;   // 32 bit color: Blue/Green/Red.  < 0 == unknown.
   unsigned char opacity;  // 0 == transparent.  255 == opaque.
-} gb_color;
+};
 
 
 format_specific_data* fs_chain_copy(format_specific_data* source);
 void fs_chain_destroy(format_specific_data* chain);
 format_specific_data* fs_chain_find(format_specific_data* chain, long type);
 void fs_chain_add(format_specific_data** chain, format_specific_data* data);
-
-typedef struct fs_xml {
-  format_specific_data fs;
-  xml_tag* tag;
-} fs_xml;
-
-fs_xml* fs_xml_alloc(long type);
 
 #define FS_GPX 0x67707800L
 #define FS_AN1W 0x616e3177L
@@ -338,25 +345,59 @@ fs_xml* fs_xml_alloc(long type);
 /*
  * Structures and functions for multiple URLs per waypoint.
  */
-typedef struct url_link {
-  struct url_link* url_next;
-  char* url;
-  char* url_link_text;
-} url_link;
+
+class UrlLink
+{
+public:
+  UrlLink() { }
+  UrlLink(const QString url) :
+    url_(url)
+  { }
+  UrlLink(const char* url) :
+    url_(url)
+  { }
+  UrlLink(const QString url, const QString url_link_text) :
+    url_(url),
+    url_link_text_(url_link_text)
+  { }
+  UrlLink(const QString url, const QString url_link_text, const QString url_link_type) :
+    url_(url),
+    url_link_text_(url_link_text),
+    url_link_type_(url_link_type)
+  { }
+  QString url_;
+  QString url_link_text_;
+  QString url_link_type_;
+};
+
 
 /*
  * Misc bitfields inside struct waypoint;
  */
-typedef struct {
-  unsigned int icon_descr_is_dynamic:1;
+class wp_flags
+{
+public:
+  wp_flags() :
+    shortname_is_synthetic(0),
+    cet_converted(0),
+    fmt_use(0),
+    temperature(0),
+    proximity(0),
+    course(0),
+    speed(0),
+    geoidheight(0),
+    depth(0),
+    is_split(0),
+    new_trkseg(0) {}
   unsigned int shortname_is_synthetic:1;
   unsigned int cet_converted:1;		/* strings are converted to UTF8; interesting only for input */
-  unsigned int fmt_use:1;			/* lightweight "extra data" */
+  unsigned int fmt_use:2;			/* lightweight "extra data" */
   /* "flagged fields" */
   unsigned int temperature:1;		/* temperature field is set */
   unsigned int proximity:1;		/* proximity field is set */
   unsigned int course:1;			/* course field is set */
   unsigned int speed:1;			/* speed field is set */
+  unsigned int geoidheight:1;	/* geoidheight field is set */
   unsigned int depth:1;			/* depth field is set */
   /* !ToDo!
   unsigned int altitude:1;		/+ altitude field is set +/
@@ -366,39 +407,63 @@ typedef struct {
   unsigned int new_trkseg:1;		/* True if first in new trkseg. */
 
 
-} wp_flags;
+};
 
 // These are dicey as they're collected on read. Subsequent filters may change
 // things, though it's u nlikely to matter in practical terms.  Don't use these
 // if a false positive would be deleterious.
-typedef struct {
+#
+class global_trait
+{
+public:
+  global_trait() :
+    trait_geocaches(0),
+    trait_heartrate(0),
+    trait_cadence(0),
+    trait_power(0),
+    trait_depth(0),
+    trait_temperature(0) {}
   unsigned int trait_geocaches:1;
   unsigned int trait_heartrate:1;
   unsigned int trait_cadence:1;
   unsigned int trait_power:1;
   unsigned int trait_depth:1;
   unsigned int trait_temperature:1;
-} global_trait;
+};
+
 const global_trait* get_traits();
 
 #define WAYPT_SET(wpt,member,val) { wpt->member = (val); wpt->wpt_flags.member = 1; }
 #define WAYPT_GET(wpt,member,def) ((wpt->wpt_flags.member) ? (wpt->member) : (def))
 #define WAYPT_UNSET(wpt,member) wpt->wpt_flags.member = 0
 #define WAYPT_HAS(wpt,member) (wpt->wpt_flags.member)
+
+#define CSTRc(qstr) (qstr.toLatin1().constData())
+// Maybe the XmlGeneric string callback really shouldn't have a type
+// of its own; this was a crutch during the move from char* to QString.
+// It's "just" a search and replace to make it go away, but it might
+// be convenient to overload some day.
+typedef const QString& xg_string;
+
 /*
  * This is a waypoint, as stored in the GPSR.   It tries to not
  * cater to any specific model or protocol.  Anything that needs to
  * be truncated, edited, or otherwise trimmed should be done on the
  * way to the target.
  */
+class Waypoint
+{
+private:
+  static geocache_data empty_gc_data;
 
-typedef struct {
+public:
   queue Q;			/* Master waypoint q.  Not for use
 					   by modules. */
 
   double latitude;		/* Degrees */
   double longitude; 		/* Degrees */
   double altitude; 		/* Meters. */
+  double geoidheight;	/* Height (in meters) of geoid (mean sea level) above WGS84 earth ellipsoid. */
 
   /*
    * The "thickness" of a waypoint; adds an element of 3D.  Can be
@@ -420,36 +485,29 @@ typedef struct {
    * minimum length for shortname is 6 characters for NMEA units,
    * 8 for Magellan and 10 for Vista.   These are only guidelines.
    */
-  char* shortname;
+  QString shortname;
   /*
    * description is typically a human readable description of the
    * waypoint.   It may be used as a comment field in some receivers.
    * These are probably under 40 bytes, but that's only a guideline.
    */
-  char* description;
+  QString description;
   /*
    * notes are relatively long - over 100 characters - prose associated
    * with the above.   Unlike shortname and description, these are never
    * used to compute anything else and are strictly "passed through".
    * Few formats support this.
    */
-  char* notes;
+  QString notes;
 
-  /* This is a bit icky.   Multiple waypoint support is an
-   * afterthought and I don't want to change our data structures.
-   * So we have the first in the waypoint itself and subsequent
-   * ones in a linked list.
-   * We also use an implicit anonymous union here, so these three
-   * members must match struct url_link...
+  /* TODO: UrlLink should probably move to a "real" class of its own.
    */
-  struct url_link* url_next;
-  char* url;
-  char* url_link_text;
+  QList<UrlLink> url_link_list_;
 
   wp_flags wpt_flags;
-  const char* icon_descr;
-  time_t creation_time;	/* standardized in UTC/GMT */
-  int microseconds;	/* Optional millionths of a second. */
+  QString icon_descr;
+
+  gpsbabel::DateTime creation_time;
 
   /*
    * route priority is for use by the simplify filter.  If we have
@@ -479,18 +537,40 @@ typedef struct {
   float power; /* watts, as measured by cyclists */
   float temperature; /* Degrees celsius */
   float odometer_distance; /* Meters? */
-  const geocache_data* gc_data;
+  geocache_data* gc_data;
   format_specific_data* fs;
   session_t* session;	/* pointer to a session struct */
   void* extra_data;	/* Extra data added by, say, a filter. */
-} waypoint;
 
-typedef struct {
+private:
+  Waypoint& operator=(const Waypoint& other);
+
+public:
+  Waypoint();
+  ~Waypoint();
+  Waypoint(const Waypoint& other);
+
+  bool HasUrlLink() const;
+  const UrlLink& GetUrlLink() const;
+  const QList<UrlLink> GetUrlLinks() const;
+  void AddUrlLink(const UrlLink l);
+  QString CreationTimeXML() const;
+  gpsbabel::DateTime  GetCreationTime() const;
+  void SetCreationTime(gpsbabel::DateTime t);
+  void SetCreationTime(time_t t);
+  void SetCreationTime(time_t t, int ms);
+  geocache_data* AllocGCData();
+  int EmptyGCData() const;
+};
+
+class route_head
+{
+public:
   queue Q;		/* Link onto parent list. */
   queue waypoint_list;	/* List of child waypoints */
-  char* rte_name;
-  char* rte_desc;
-  char* rte_url;
+  QString rte_name;
+  QString rte_desc;
+  QString rte_url;
   int rte_num;
   int rte_waypt_ct;		/* # waypoints in waypoint list */
   format_specific_data* fs;
@@ -498,7 +578,11 @@ typedef struct {
   gb_color line_color;         /* Optional line color for rendering */
   int line_width;         /* in pixels (sigh).  < 0 is unknown. */
   session_t* session;	/* pointer to a session struct */
-} route_head;
+
+public:
+  route_head();
+  ~route_head();
+};
 
 /*
  *  Structure of recomputed track/roue data.
@@ -541,8 +625,8 @@ typedef void (*ff_deinit)(void);
 typedef void (*ff_read)(void);
 typedef void (*ff_write)(void);
 typedef void (*ff_exit)(void);
-typedef void (*ff_writeposn)(waypoint*);
-typedef waypoint* (*ff_readposn)(posn_status*);
+typedef void (*ff_writeposn)(Waypoint*);
+typedef Waypoint* (*ff_readposn)(posn_status*);
 
 #ifndef DEBUG_MEM
 char* get_option(const char* iarglist, const char* argname);
@@ -557,19 +641,19 @@ typedef void (*filter_process)(void);
 typedef void (*filter_deinit)(void);
 typedef void (*filter_exit)(void);
 
-typedef void (*waypt_cb)(const waypoint*);
+typedef void (*waypt_cb)(const Waypoint*);
 typedef void (*route_hdr)(const route_head*);
 typedef void (*route_trl)(const route_head*);
-void waypt_add(waypoint*);
-waypoint* waypt_dupe(const waypoint*);
-waypoint* waypt_new(void);
-void waypt_del(waypoint*);
-void waypt_free(waypoint*);
+void waypt_add(Waypoint*);
+Waypoint* waypt_dupe(const Waypoint*);
+Waypoint* waypt_new(void);
+void waypt_del(Waypoint*);
+void waypt_free(Waypoint*);
 void waypt_disp_all(waypt_cb);
 void waypt_disp_session(const session_t* se, waypt_cb cb);
 void waypt_init_bounds(bounds* bounds);
 int waypt_bounds_valid(bounds* bounds);
-void waypt_add_to_bounds(bounds* bounds, const waypoint* waypointp);
+void waypt_add_to_bounds(bounds* bounds, const Waypoint* waypointp);
 void waypt_compute_bounds(bounds*);
 double gcgeodist(const double lat1, const double lon1,
                  const double lat2, const double lon2);
@@ -577,29 +661,34 @@ void waypt_flush(queue*);
 void waypt_flush_all(void);
 unsigned int waypt_count(void);
 void set_waypt_count(unsigned int nc);
-void waypt_add_url(waypoint* wpt, char* link, char* url_link_text);
-void free_gpx_extras(xml_tag* tag);
+void waypt_add_url(Waypoint* wpt, const QString& link,
+                   const QString& url_link_text);
+void waypt_add_url(Waypoint* wpt, const QString& link,
+                   const QString& url_link_text,
+                   const QString& url_link_type);
 void xcsv_setup_internal_style(const char* style_buf);
 void xcsv_read_internal_style(const char* style_buf);
-waypoint* find_waypt_by_name(const char* name);
+Waypoint* find_waypt_by_name(const QString& name);
 void waypt_backup(signed int* count, queue** head_bak);
 void waypt_restore(signed int count, queue* head_bak);
 
-geocache_data* waypt_alloc_gc_data(waypoint* wpt);
-int waypt_empty_gc_data(const waypoint* wpt);
-geocache_type gs_mktype(const char* t);
-geocache_container gs_mkcont(const char* t);
+geocache_data* waypt_alloc_gc_data(Waypoint* wpt);
+int waypt_empty_gc_data(const Waypoint* wpt);
+geocache_type gs_mktype(const QString& t);
+geocache_container gs_mkcont(const QString& t);
 
 route_head* route_head_alloc(void);
-void route_add(waypoint*);
-void route_add_wpt(route_head* rte, waypoint* wpt);
-void route_del_wpt(route_head* rte, waypoint* wpt);
-void track_add_wpt(route_head* rte, waypoint* wpt);
-void track_del_wpt(route_head* rte, waypoint* wpt);
+void route_add(Waypoint*);
+void route_add_wpt(route_head* rte, Waypoint* wpt);
+void route_add_wpt_named(route_head* rte, Waypoint* wpt, const QString& namepart, int number_digits);
+void route_del_wpt(route_head* rte, Waypoint* wpt);
+void track_add_wpt(route_head* rte, Waypoint* wpt);
+void track_add_wpt_named(route_head* rte, Waypoint* wpt, const QString& namepart, int number_digits);
+void track_del_wpt(route_head* rte, Waypoint* wpt);
 void route_add_head(route_head* rte);
 void route_del_head(route_head* rte);
 void route_reverse(const route_head* rte_hd);
-waypoint* route_find_waypt_by_name(route_head* rh, const char* name);
+Waypoint* route_find_waypt_by_name(route_head* rh, const char* name);
 void track_add_head(route_head* rte);
 void track_del_head(route_head* rte);
 void track_insert_head(route_head* rte, route_head* predecessor);
@@ -652,6 +741,7 @@ typedef mkshort_handle_imp* short_handle;
 
 #ifndef DEBUG_MEM
 char* mkshort(short_handle,  const char*);
+QString mkshort(short_handle,  const QString&);
 short_handle mkshort_new_handle(void);
 #else
 char* MKSHORT(short_handle,  const char*, DEBUG_PARAMS);
@@ -659,7 +749,7 @@ short_handle MKSHORT_NEW_HANDLE(DEBUG_PARAMS);
 #define mkshort( a, b) MKSHORT(a,b,__FILE__, __LINE__)
 #define mkshort_new_handle() MKSHORT_NEW_HANDLE(__FILE__,__LINE__)
 #endif
-char* mkshort_from_wpt(short_handle h, const waypoint* wpt);
+QString mkshort_from_wpt(short_handle h, const Waypoint* wpt);
 void mkshort_del_handle(short_handle* h);
 void setshort_length(short_handle, int n);
 void setshort_badchars(short_handle,  const char*);
@@ -670,19 +760,6 @@ void setshort_whitespace_ok(short_handle,  int n);
 void setshort_repeating_whitespace_ok(short_handle,  int n);
 void setshort_defname(short_handle, const char* s);
 void setshort_is_utf8(short_handle h, const int is_utf8);
-
-/*
- *  Vmem flags values.
- */
-#define VMFL_NOZERO (1 << 0)
-typedef struct vmem {
-  char* mem;		/* visible memory object */
-  size_t size; 		/* allocated size of object */
-} vmem_t;
-vmem_t 	vmem_alloc(size_t, int flags);
-void 	vmem_free(vmem_t*);
-void 	vmem_realloc(vmem_t*, size_t);
-
 
 #define ARGTYPE_UNKNOWN    0x00000000
 #define ARGTYPE_INT        0x00000001
@@ -719,14 +796,14 @@ void 	vmem_realloc(vmem_t*, size_t);
 #define ARGTYPE_FLAGMASK 0xfffff000
 
 #define ARG_NOMINMAX NULL, NULL
-#define ARG_TERMINATOR {0, 0, 0, 0, 0, ARG_NOMINMAX}
+#define ARG_TERMINATOR {0, 0, 0, 0, 0, ARG_NOMINMAX, NULL}
 
 typedef struct arglist {
   const char* argstring;
   char** argval;
   const char* helpstring;
   const char* defaultvalue;
-  const gbuint32 argtype;
+  const uint32_t argtype;
   const char* minvalue;		/* minimum value for numeric options */
   const char* maxvalue;		/* maximum value for numeric options */
   char* argvalptr;	/* !!! internal helper. Not used in definitions !!! */
@@ -769,6 +846,8 @@ typedef struct position_ops {
   ff_deinit wr_deinit;
 } position_ops_t;
 
+#define NULL_POS_OPS { 0, 0, 0, 0, 0, 0, }
+
 /*
  *  Describe the file format to the caller.
  */
@@ -797,21 +876,21 @@ extern style_vecs_t style_list[];
 
 void waypt_init(void);
 void route_init(void);
-void waypt_disp(const waypoint*);
+void waypt_disp(const Waypoint*);
 void waypt_status_disp(int total_ct, int myct);
-double waypt_time(const waypoint* wpt);
-double waypt_speed(const waypoint* A, const waypoint* B);
-double waypt_speed_ex(const waypoint* A, const waypoint* B);
-double waypt_course(const waypoint* A, const waypoint* B);
-double waypt_distance(const waypoint* A, const waypoint* B);
-double waypt_distance_ex(const waypoint* A, const waypoint* B);
+double waypt_time(const Waypoint* wpt);
+double waypt_speed(const Waypoint* A, const Waypoint* B);
+double waypt_speed_ex(const Waypoint* A, const Waypoint* B);
+double waypt_course(const Waypoint* A, const Waypoint* B);
+double waypt_distance(const Waypoint* A, const Waypoint* B);
+double waypt_distance_ex(const Waypoint* A, const Waypoint* B);
 
 NORETURN fatal(const char*, ...) PRINTFLIKE(1, 2);
 void is_fatal(const int condition, const char*, ...) PRINTFLIKE(2, 3);
 void warning(const char*, ...) PRINTFLIKE(1, 2);
 void debug_print(int level, const char* fmt, ...) PRINTFLIKE(2,3);
 
-ff_vecs_t* find_vec(char* const, char**);
+ff_vecs_t* find_vec(const char*, const char**);
 void assign_option(const char* vecname, arglist_t* ap, const char* val);
 void disp_vec_options(const char* vecname, arglist_t* ap);
 void disp_vecs(void);
@@ -826,8 +905,8 @@ void printposn(const double c, int is_lat);
 void* xcalloc(size_t nmemb, size_t size);
 void* xmalloc(size_t size);
 void* xrealloc(void* p, size_t s);
-void xfree(void* mem);
-char* xstrdup(const char* s);
+void xfree(const void* mem);
+char* xstrdup(const QString& s);
 char* xstrndup(const char* s, size_t n);
 char* xstrndupt(const char* s, size_t n);
 char* xstrappend(char* src, const char* addon);
@@ -867,42 +946,51 @@ void debug_mem_close();
 #endif /* DEBUG_MEM */
 
 FILE* xfopen(const char* fname, const char* type, const char* errtxt);
-void xfprintf(const char* errtxt, FILE* stream, const char* format, ...);
-void xfputs(const char* errtxt, const char* s, FILE* stream);
 
-int case_ignore_strcmp(const char* s1, const char* s2);
-int case_ignore_strncmp(const char* s1, const char* s2, int n);
+// FIXME: case_ignore_strcmp() and case_ignore_strncmp() should probably
+// just be replaced at the call sites.  These shims are just here to make
+// them more accomidating of QString input.
+inline int
+case_ignore_strcmp(const QString& s1, const QString& s2) {
+  return QString::compare(s1, s2, Qt::CaseInsensitive);
+}
+// In 95% of the callers, this could be s1.startsWith(s2)...
+inline int case_ignore_strncmp(const QString& s1, const QString& s2, int n) {
+  return s1.left(n).compare(s2, Qt::CaseInsensitive);
+}
+
 int str_match(const char* str, const char* match);
 int case_ignore_str_match(const char* str, const char* match);
-char* strenquote(const char* str, const char quot_char);
+QString strenquote(const QString& str, const QChar quot_char);
 
 char* strsub(const char* s, const char* search, const char* replace);
 char* gstrsub(const char* s, const char* search, const char* replace);
-char* xstrrstr(const char* s1, const char* s2);
+const char* xstrrstr(const char* s1, const char* s2);
 void rtrim(char* s);
 char* lrtrim(char* s);
 int xasprintf(char** strp, const char* fmt, ...) PRINTFLIKE(2, 3);
+int xasprintf(QString* strp, const char* fmt, ...) PRINTFLIKE(2, 3);
 int xvasprintf(char** strp, const char* fmt, va_list ap);
 char* strupper(char* src);
 char* strlower(char* src);
 signed int get_tz_offset(void);
 time_t mklocaltime(struct tm* t);
 time_t mkgmtime(struct tm* t);
-time_t current_time(void);
+gpsbabel::DateTime current_time(void);
 void dotnet_time_to_time_t(double dotnet, time_t* t, int* ms);
 signed int month_lookup(const char* m);
-const char* get_cache_icon(const waypoint* waypointp);
+const char* get_cache_icon(const Waypoint* waypointp);
 const char* gs_get_cachetype(geocache_type t);
 const char* gs_get_container(geocache_container t);
 char* xml_entitize(const char* str);
-char* html_entitize(const char* str);
+char* html_entitize(const QString& str);
 char* strip_html(const utf_string*);
-char* strip_nastyhtml(const char* in);
+char* strip_nastyhtml(const QString& in);
 char* convert_human_date_format(const char* human_datef);	/* "MM,YYYY,DD" -> "%m,%Y,%d" */
 char* convert_human_time_format(const char* human_timef);	/* "HH+mm+ss"   -> "%H+%M+%S" */
 char* pretty_deg_format(double lat, double lon, char fmt, const char* sep, int html);    /* decimal ->  dd.dddd or dd mm.mmm or dd mm ss */
 
-char* get_filename(const char* fname);				/* extract the filename portion */
+const char* get_filename(const char* fname);			/* extract the filename portion */
 
 /*
  * Character encoding transformations.
@@ -922,13 +1010,9 @@ char* get_filename(const char* fname);				/* extract the filename portion */
 #define str_iso8859_1_to_utf8(str) cet_str_iso8859_1_to_utf8((str))
 
 /* this lives in gpx.c */
-time_t xml_parse_time(const char* cdatastr, int* microsecs);
+gpsbabel::DateTime xml_parse_time(const QString& cdatastr);
 
-xml_tag* xml_findfirst(xml_tag* root, const char* tagname);
-xml_tag* xml_findnext(xml_tag* root, xml_tag* cur, const char* tagname);
-char* xml_attribute(xml_tag* tag, const char* attrname);
-
-char* rot13(const char* str);
+char* rot13(const QString& str);
 
 /*
  * PalmOS records like fixed-point numbers, which should be rounded
@@ -936,6 +1020,13 @@ char* rot13(const char* str);
  */
 
 signed int si_round(double d);
+
+#if _MSC_VER
+//These functions are not included in the MS pre C99 implementation, use internal implementation
+//This asssumes that non-_MSC_VER includes math.h (all should include defs.h)
+#define round si_round
+#define lround si_round
+#endif
 
 /*
  * Data types for Palm/OS files.
@@ -1018,8 +1109,8 @@ typedef enum {
 
 /* bit manipulation functions (util.c) */
 
-char gb_getbit(const void* buf, const gbuint32 nr);
-void gb_setbit(void* buf, const gbuint32 nr);
+char gb_getbit(const void* buf, const uint32_t nr);
+void gb_setbit(void* buf, const uint32_t nr);
 
 void* gb_int2ptr(const int i);
 int gb_ptr2int(const void* p);
@@ -1051,9 +1142,9 @@ typedef enum {
 } fmt_units;
 
 int    fmt_setunits(fmt_units);
-double fmt_distance(const double, char** tag);
-double fmt_altitude(const double, char** tag);
-double fmt_speed(const double, char** tag);
+double fmt_distance(const double, const char** tag);
+double fmt_altitude(const double, const char** tag);
+double fmt_speed(const double, const char** tag);
 
 /*
  * From gbsleep.c
@@ -1076,5 +1167,9 @@ int color_to_bbggrr(const char* cname);
  */
 #define unknown_alt 	-99999999.0
 #define unknown_color	-1
+
+// TODO: this is a (probably temporary) shim for the C->QString conversion.
+// It's here instead of gps to avoid C/C++ linkage issues.
+int32_t GPS_Lookup_Datum_Index(const QString& n);
 
 #endif /* gpsbabel_defs_h_included */

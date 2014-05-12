@@ -3,6 +3,7 @@
     Implementation of special data used by Garmin products.
 
     Copyright (C) 2006 Olaf Klein, o.b.klein@gpsbabel.org
+    Copyright (C) 2006-2014 Robert Lipe, robertlipe@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -51,6 +52,7 @@
 
 /* GMSD_SETSTR(a,b): a = gmsd field, b = null terminated source */
 #define GMSD_SETSTR(a,b) if (gmsd && (b) && (b)[0]) { gmsd->a = xstrdup((b)); gmsd->flags.a = 1; }
+#define GMSD_SETSTRQ(a,b) if (gmsd && !b.isEmpty())  { gmsd->a = xstrdup((b)); gmsd->flags.a = 1; }
 
 /* GMSD_SETNSTR(a,b,c): a = gmsd field, b = source, c = sizeof(source) */
 #define GMSD_SETNSTR(a,b,c) if (gmsd && (b) && (b)[0]) { gmsd->a = xstrndup((b),(c)); gmsd->flags.a = 1; }
@@ -92,10 +94,10 @@ typedef struct garmin_fs_s {
 
   int protocol;		/* ... used by device (-1 is MapSource) */
 
-  gbint32 icon;
+  int32_t icon;
   int wpt_class;
-  gbint32 display;
-  gbint16 category;
+  int32_t display;
+  int16_t category;
   char* city;			/* city name */
   char* facility;			/* facility name */
   char* state;			/* state */
@@ -121,20 +123,21 @@ void garmin_fs_convert(void* fs);
 char* garmin_fs_xstrdup(const char* src, size_t size);
 
 /* for GPX */
-void garmin_fs_xml_convert(const int base_tag, int tag, const char* cdatastr, waypoint* waypt);
-void garmin_fs_xml_fprint(gbfile* ofd, const waypoint* waypt);
+void garmin_fs_xml_convert(const int base_tag, int tag, const QString& cdatastr, Waypoint* waypt);
+class QXmlStreamWriter;
+void garmin_fs_xml_fprint(const Waypoint* waypt, QXmlStreamWriter*);
 
 /* common garmin_fs utilities */
 
 /* ..convert_category: returns 1=OK; 0=Unable to convert category */
-unsigned char garmin_fs_convert_category(const char* category_name, gbuint16* category);
+unsigned char garmin_fs_convert_category(const char* category_name, uint16_t* category);
 
 /* ..merge_category: returns 1=OK; 0=Unable to convert category */
-unsigned char garmin_fs_merge_category(const char* category_name, waypoint* waypt);
+unsigned char garmin_fs_merge_category(const char* category_name, Waypoint* waypt);
 
 #define GMSD_SECTION_CATEGORIES "Garmin Categories"
 
-void garmin_fs_garmin_after_read(const GPS_PWay way, waypoint* wpt, const int protoid);
-void garmin_fs_garmin_before_write(const waypoint* wpt, GPS_PWay way, const int protoid);
+void garmin_fs_garmin_after_read(const GPS_PWay way, Waypoint* wpt, const int protoid);
+void garmin_fs_garmin_before_write(const Waypoint* wpt, GPS_PWay way, const int protoid);
 
 #endif

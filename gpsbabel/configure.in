@@ -3,17 +3,18 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT(GPSBabel, 1.4.4, BUG-REPORT-ADDRESS)
-DOCVERSION=`echo $PACKAGE_VERSION`
+#PACKAGE_RELEASE=
+AC_INIT(GPSBabel, 1.5.0, BUG-REPORT-ADDRESS)
+DOCVERSION=1.5.0
 
-DOCVERSION=1.4.4
-
-
-# Increase GBBUILD for a new release
-GBBUILD=24
 # YYYYMMDD, please, if beta, i.e. "-beta20060413"
-# PACKAGE_RELEASE="-beta20120114"
-# DOCVERSION=development
+#DOCVERSION=development
+
+
+# Increase GBBUILD for a new release (why? Where is this ever used?)
+# A: it's used by win32/gpsbabel.rc.in which is used by the setup program,
+GBBUILD=26
+# PACKAGE_RELEASE="-beta20140216"
 AC_DEFINE_UNQUOTED(PACKAGE_RELEASE, "$PACKAGE_RELEASE", [Define to the release name of this package.])
 AC_SUBST(PACKAGE_RELEASE)
 
@@ -38,6 +39,8 @@ AC_CANONICAL_TARGET
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CXX
+AC_LANG(C++)
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 AC_EXEEXT
@@ -150,6 +153,21 @@ case "$target" in
 esac
 AC_SUBST(FILEINFO)
 AC_SUBST(RC)
+# On RHEL/OEL/SL/CENTOS/FEDORA qmake is from Qt3, and qmake-qt4 is from Qt4.
+# If qmake-qt4 isn't found look for the standard name qmake and assume it is
+# from a useful version Qt.
+AC_CHECK_TOOLS(QMAKE, [qmake-qt4 qmake], "no")
+AC_CHECK_PROGS(LUPDATE, [lupdate-qt4 lupdate])
+AC_CHECK_PROGS(LRELEASE, [lrelease-qt4 lrelease])
+
+if test "$QMAKE" = no ; then
+  AC_MSG_ERROR([Qt4 is required, but not found]);
+fi
+
+QT_LIBS="-L$($QMAKE -query QT_INSTALL_LIBS) -l QtCore"
+QT_INC=$($QMAKE -query QT_INSTALL_HEADERS)
+QT_INC_OPT="-I"
+QT_SYSINC_OPT="-isystem"
 
 case "$target" in
     *-*-cygwin* | *-*-mingw32*)
@@ -161,7 +179,7 @@ case "$target" in
 		OSJEEPS=jeeps/gpsusbstub.o
 	else
 		OSJEEPS=jeeps/gpsusbwin.o
-		USB_LIBS="-lsetupapi"
+		USB_LIBS="-lsetupapi -lole32 -lws2_32 -luuid"
 		AC_MSG_CHECKING(for Windows DDK)
 		old_LIBS="$LIBS"
 		LIBS="$LIBS -lhid"
@@ -169,7 +187,9 @@ case "$target" in
 			[#include <hidsdi.h>],
 			[HANDLE              HidDeviceObject;
 			HIDD_ATTRIBUTES    Attributes;
-			HidD_GetAttributes(HidDeviceObject, &Attributes);],
+			PHIDP_PREPARSED_DATA HidPPD;
+			HidD_GetAttributes(HidDeviceObject, &Attributes);
+			HidD_GetPreparsedData(HidDeviceObject, &HidPPD);],
 			[AC_MSG_RESULT(yes)]
 			[AC_DEFINE(HAVE_WDK, 1, [Defined if you have Windows DDK])]
 			[USB_LIBS=${USB_LIBS}" -lhid"],
@@ -187,7 +207,20 @@ case "$target" in
       mac/libusb/usb.o "
       USB_LIBS="-framework  IOKit -framework CoreFoundation"
       AC_DEFINE(HAVE_LIBUSB, 1)
-      CFLAGS="$CFLAGS -Imac/libusb/"
+ 
+      # On Mac, use frameworks for includes and library files.
+      # Macports uses a non-standard build of Qt with an added 
+      # QT_INSTALL_FRAMEWORKS flag, so look for thier custom
+      # version first.  That will fail on 'normal' Qt so fall 
+      # back to QT_INSTALL_LIBS.
+      QT_FW_OR_LIBS=$($QMAKE -query QT_INSTALL_FRAMEWORKS)
+      if test $QT_FW_OR_LIBS = "**Unknown**" ; then
+         QT_FW_OR_LIBS=$($QMAKE -query QT_INSTALL_LIBS)
+      fi
+      QT_LIBS="-F$QT_FW_OR_LIBS -framework QtCore"
+      QT_INC="$QT_FW_OR_LIBS"
+      QT_INC_OPT="-F"
+      QT_SYSINC_OPT="-iframework"
       ;;
     *)
 	GBSER=gbser_posix.o
@@ -229,7 +262,7 @@ dnl Linux HID support
 case "$target" in
 	*-linux-*)
 	AC_MSG_CHECKING(for Linux HID interface)
-	AC_COMPILE_IFELSE([
+	AC_COMPILE_IFELSE([AC_LANG_SOURCE([
 		#include <sys/ioctl.h>
 		#include <linux/types.h>
 		#include <linux/hiddev.h>
@@ -243,7 +276,7 @@ case "$target" in
 			ioctl(0, HIDIOCGFIELDINFO, &finfo);
 			ioctl(0, HIDIOCSUSAGES, &urefm);
 			ioctl(0, HIDIOCSREPORT, &rinfo);
-		}],
+		}])],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_LINUX_HID, 1, [Defined if you have Linux HID]),
 		AC_MSG_RESULT(no))
@@ -252,91 +285,6 @@ esac
 
 AC_MSG_CHECKING(for random stuff to make you feel better)
 AC_MSG_RESULT(failed)
-
-AC_ARG_WITH(expathdr,
-  [  --with-expathdr[=DIR]   Use this to specify the location of expat.h],
-  [ xpathdr="$withval" ], [
-	case "$target" in
-	*-*-darwin6*|*-*-darwin7*|*-*-darwin8*)
-		# Restrict test to OS/X 10.4 and earlier.  Leopard (10.5) 
-		# provides expat and in a sensible location.
-		if test -f /sw/include/expat.h ; then
-			xpathdr=/sw/include/
-		fi
-		;;
-	*-gentoo-freebsd*)
-		;;
-	*-*-freebsd*)
- 		if test -f /usr/local/include/expat.h ; then
-			xpathdr=/usr/local/include
-		fi
-		;;
-	*) 	;;
-	esac
-]
-)
-
-if test "x-$xpathdr" != "x-" ; then
-	CFLAGS="$CFLAGS -I$xpathdr"
-fi
-
-AC_MSG_CHECKING(for libexpat)
-AC_ARG_WITH(libexpat,
-  [  --with-libexpat[=DIR]   Use this to specify expat library .],
-  [ 
-    # If the developer specified a reference
-    # to a FILE and not a directory, assume they are a highly
-    # trained professional that has specified a .a to to be used.
-    if test -f $withval ; then
-      EXPAT_LIB=$withval
-    else
-      CFLAGS="$CFLAGS -L$withval"
-      EXPAT_LIB="-L$withval -lexpat"
-    fi
-  ], [
-	case "$target" in
-	*-*-darwin6*|*-*-darwin7*|*-*-darwin8*)
-		# Restrict test to OS/X 10.4 and earlier.  Leopard (10.5) 
-		# provides expat and in a sensible location.
-		if test -f /sw/lib/libexpat.a ; then
-			# libexpat installed via fink
-			EXPAT_LIB=/sw/lib/libexpat.a
-			LIBS="$LIBS -L/sw/lib"
-		fi
-		if test -f /opt/local/lib/libexpat.a ; then
-			# libexpat installed via macports
-			EXPAT_LIB=/opt/local/lib/libexpat.a
-			LIBS="$LIBS -L/opt/local/lib"
-		fi
-		if test -f /usr/local/lib/libexpat.a ; then
-			# libexpat installed from source
-			EXPAT_LIB=/usr/local/lib/libexpat.a
-			LIBS="$LIBS -L/usr/local/lib"
-		fi				
-		;;
-	*-gentoo-freebsd*)
-		EXPAT_LIB=-lexpa
-		;;
-	*-*-freebsd*)
-		if test -f /usr/local/lib/libexpat.a ; then
-			EXPAT_LIB=/usr/local/lib/libexpat.a
-		fi
-		;;
-	esac
-  ]
-)
-
-if ! test "x${EXPAT_LIB}" = x; then
-  AC_MSG_RESULT($EXPAT_LIB)
-  AC_DEFINE(HAVE_LIBEXPAT, 1, [Defined if you have libexpat])
-else
-  AC_MSG_RESULT(try to autodetect)
-  AC_CHECK_LIB([expat], [XML_ParserCreate], 
-    AC_DEFINE(HAVE_LIBEXPAT, 1, [Defined if you have libexpat])
-    EXPAT_LIB=-lexpat
-  )
-fi
-AC_SUBST(EXPAT_LIB)
 
 AC_MSG_CHECKING(for efence)
 AC_ARG_ENABLE(efence,
@@ -429,6 +377,16 @@ if test "$ac_cv_valistisarray" = true ; then
 else
        AC_MSG_RESULT(no)
 fi
-AC_CONFIG_FILES([Makefile gbversion.h gui/setup.iss gui/makelinuxdist.sh xmldoc/makedoc tools/mkcapabilities win32/gpsbabel.rc jeeps/Makefile shapelib/Makefile zlib/empty])
+
+#
+# There's probably some more "autoconfish" way to do this.
+#
+AC_SUBST(QT_INC)
+AC_SUBST(QT_INC_OPT)
+AC_SUBST(QT_SYSINC_OPT)
+AC_SUBST(QT_LIBS)
+
+AC_CONFIG_FILES([Makefile gbversion.h gui/setup.iss xmldoc/makedoc tools/mkcapabilities win32/gpsbabel.rc jeeps/Makefile shapelib/Makefile zlib/empty])
+AC_CONFIG_FILES([gui/makelinuxdist.sh], [chmod +x gui/makelinuxdist.sh])
 AC_OUTPUT
 

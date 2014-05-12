@@ -19,11 +19,6 @@
 
  */
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 #ifndef gpsdevice_h
 #define gpsdevice_h
 
@@ -42,7 +37,7 @@ extern "C"
   int32  GPS_Device_Read(int32 ignored, void* ibuf, int size);
   int32  GPS_Device_Write(int32 ignored, const void* obuf, int size);
   void   GPS_Device_Error(char* hdr, ...);
-  int32  GPS_Write_Packet(gpsdevh* fd, GPS_PPacket packet);
+  int32  GPS_Write_Packet(gpsdevh* fd, GPS_PPacket& packet);
   int32  GPS_Send_Ack(gpsdevh* fd, GPS_PPacket* tra, GPS_PPacket* rec);
   int32  GPS_Packet_Read(gpsdevh* fd, GPS_PPacket* packet);
   int32  GPS_Get_Ack(gpsdevh* fd, GPS_PPacket* tra, GPS_PPacket* rec);
@@ -50,7 +45,7 @@ extern "C"
   typedef int32(*gps_device_op)(gpsdevh*);
   typedef int32(*gps_device_op5)(const char*, gpsdevh** fd);
   typedef int32(*gps_device_op10)(gpsdevh* fd,  GPS_PPacket* tra, GPS_PPacket* rec);
-  typedef int32(*gps_device_op12)(gpsdevh* fd, GPS_PPacket packet);
+  typedef int32(*gps_device_op12)(gpsdevh* fd, GPS_PPacket& packet);
   typedef int32(*gps_device_op13)(gpsdevh* fd, GPS_PPacket* packet);
   typedef struct {
     gps_device_op5 Device_On;
@@ -65,7 +60,3 @@ extern "C"
   } gps_device_ops;
 
 #endif /* gpsdevice.h */
-
-#ifdef __cplusplus
-}
-#endif
