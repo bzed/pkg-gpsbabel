@@ -2,11 +2,11 @@ Make statistics reporting an opt-in option.
 --- a/gpsbabel/gui/babeldata.h
 +++ b/gpsbabel/gui/babeldata.h
 @@ -64,7 +64,7 @@ public:
-     upgradeOffers(0),
-     runCount(0),
-     startupVersionCheck(true),
--    reportStatistics(true),
-+    reportStatistics(false),
-     allowBetaUpgrades(false),
-     ignoreVersionMismatch(true),
-     disableDonateDialog(false),
+     upgradeOffers_(0),
+     runCount_(0),
+     startupVersionCheck_(true),
+-    reportStatistics_(true),
++    reportStatistics_(false),
+     allowBetaUpgrades_(false),
+     ignoreVersionMismatch_(true),
+     disableDonateDialog_(false),

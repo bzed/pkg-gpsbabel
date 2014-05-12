@@ -16,38 +16,38 @@ Disable check for newer versions on start.
           <widget class="QCheckBox" name="reportStatisticsCheck">
            <property name="text">
             <string>Anonymously report usage data.</string>
---- a/gpsbabel/gui/preferences.cpp
-+++ b/gpsbabel/gui/preferences.cpp
+--- a/gpsbabel/gui/preferences.cc
++++ b/gpsbabel/gui/preferences.cc
 @@ -39,7 +39,6 @@ Preferences::Preferences(QWidget* parent
  {
    ui_.setupUi(this);
  
--  ui_.startupCheck->setChecked(bd_.startupVersionCheck);
-   ui_.reportStatisticsCheck->setChecked(bd_.reportStatistics);
+-  ui_.startupCheck->setChecked(babelData_.startupVersionCheck_);
+   ui_.reportStatisticsCheck->setChecked(babelData_.reportStatistics_);
    // Because of an unfortunate bug in 1.4.0, we turn this off in 1.4.1.
    if (VERSION == QString("1.4.1"))
 @@ -81,7 +80,6 @@ void Preferences::acceptClicked()
      formatList_[i].setHidden(item->checkState() == Qt::Unchecked);
    }
  
--  bd_.startupVersionCheck = ui_.startupCheck->isChecked();
-   bd_.reportStatistics = ui_.reportStatisticsCheck->isChecked();
+-  babelData_.startupVersionCheck_ = ui_.startupCheck->isChecked();
+   babelData_.reportStatistics_ = ui_.reportStatisticsCheck->isChecked();
    accept();
  }
 --- a/gpsbabel/gui/babeldata.h
 +++ b/gpsbabel/gui/babeldata.h
 @@ -63,7 +63,7 @@ public:
-     upgradeErrors(0),
-     upgradeOffers(0),
-     runCount(0),
--    startupVersionCheck(true),
-+    startupVersionCheck(false),
-     reportStatistics(false),
-     allowBetaUpgrades(false),
-     ignoreVersionMismatch(true),
+     upgradeErrors_(0),
+     upgradeOffers_(0),
+     runCount_(0),
+-    startupVersionCheck_(true),
++    startupVersionCheck_(false),
+     reportStatistics_(false),
+     allowBetaUpgrades_(false),
+     ignoreVersionMismatch_(true),
 --- a/gpsbabel/gui/mainwinui.ui
 +++ b/gpsbabel/gui/mainwinui.ui
-@@ -641,7 +641,6 @@
+@@ -651,7 +651,6 @@
      <addaction name="actionHelp"/>
      <addaction name="separator"/>
      <addaction name="actionAbout"/>
@@ -55,7 +55,7 @@ Disable check for newer versions on start.
      <addaction name="separator"/>
      <addaction name="actionVisit_Website"/>
      <addaction name="actionMake_a_Donation"/>
-@@ -670,11 +669,6 @@
+@@ -680,11 +679,6 @@
      <string>Preferences...</string>
     </property>
    </action>
@@ -67,44 +67,44 @@ Disable check for newer versions on start.
    <action name="actionVisit_Website">
     <property name="text">
      <string>Visit Website...</string>
---- a/gpsbabel/gui/mainwindow.cpp
-+++ b/gpsbabel/gui/mainwindow.cpp
-@@ -162,7 +162,6 @@ MainWindow::MainWindow(QWidget* parent):
-   connect(ui.actionAbout, SIGNAL(triggered()), this, SLOT(aboutActionX()));
-   connect(ui.actionVisit_Website, SIGNAL(triggered()), this, SLOT(visitWebsiteActionX()));
-   connect(ui.actionMake_a_Donation, SIGNAL(triggered()), this, SLOT(donateActionX()));
--  connect(ui.actionUpgradeCheck, SIGNAL(triggered()), this, SLOT(upgradeCheckActionX()));
-   connect(ui.actionPreferences, SIGNAL(triggered()), this, SLOT(preferencesActionX()));
+--- a/gpsbabel/gui/mainwindow.cc
++++ b/gpsbabel/gui/mainwindow.cc
+@@ -172,7 +172,6 @@ MainWindow::MainWindow(QWidget* parent):
+   connect(ui_.actionAbout, SIGNAL(triggered()), this, SLOT(aboutActionX()));
+   connect(ui_.actionVisit_Website, SIGNAL(triggered()), this, SLOT(visitWebsiteActionX()));
+   connect(ui_.actionMake_a_Donation, SIGNAL(triggered()), this, SLOT(donateActionX()));
+-  connect(ui_.actionUpgradeCheck, SIGNAL(triggered()), this, SLOT(upgradeCheckActionX()));
+   connect(ui_.actionPreferences, SIGNAL(triggered()), this, SLOT(preferencesActionX()));
  
-   connect(ui.inputFormatCombo,  SIGNAL(currentIndexChanged(int)),
-@@ -218,19 +217,8 @@ MainWindow::MainWindow(QWidget* parent):
+   connect(ui_.inputFormatCombo,  SIGNAL(currentIndexChanged(int)),
+@@ -231,19 +230,7 @@ MainWindow::MainWindow(QWidget* parent):
  
    //--- Restore from registry
    restoreSettings();
 -
-   upgrade = new UpgradeCheck(parent, formatList, bd);
--  if (bd.startupVersionCheck) {
--    upgrade->checkForUpgrade(babelVersion, bd.upgradeCheckTime, 
+   upgrade = new UpgradeCheck(parent, formatList_, babelData_);
+-  if (babelData_.startupVersionCheck_) {
+-    upgrade->checkForUpgrade(babelVersion_, babelData_.upgradeCheckTime_,
 -                             allowBetaUpgrades());
 -  }
 -
--  if (!bd.ignoreVersionMismatch && babelVersion != VERSION) {
--    VersionMismatch vm(0, babelVersion, QString(VERSION));
- 
+-  if (!babelData_.ignoreVersionMismatch_ && babelVersion_ != VERSION) {
+-    VersionMismatch vm(0, babelVersion_, QString(VERSION));
+-
 -    vm.exec();
--    bd.ignoreVersionMismatch = vm.neverAgain();
+-    babelData_.ignoreVersionMismatch_ = vm.neverAgain();
 -  }
  }
  
  //------------------------------------------------------------------------
-@@ -1060,10 +1048,6 @@ void MainWindow::applyActionX()
+@@ -1074,10 +1061,6 @@ void MainWindow::applyActionX()
  //------------------------------------------------------------------------
  void MainWindow::closeActionX()
  {
 -  QDateTime wt= upgrade->getUpgradeWarningTime();
 -  if (wt.isValid()) {
--    bd.upgradeCheckTime = wt;
+-    babelData_.upgradeCheckTime_ = wt;
 -  }
-   bd.runCount++;
+   babelData_.runCount_++;
  
    QDateTime now = QDateTime::currentDateTime();
