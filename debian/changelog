@@ -1,10 +1,14 @@
-gpsbabel (1.4.4-1) unstable; urgency=low
+gpsbabel (1.5.0-1) unstable; urgency=medium
 
   * [72ac73df] Support nocheck in DEB_BUILD_OPTIONS.
-  * [3eb772af] Importing upstream version 1.4.4 (Closes: #690256)
+  * [3eb772af] Importing upstream version 1.4.4
   * [91e94593] Refreshing patches.
+  * [d9a07846] Updating changelog.
+  * [e089d5ab] Merging upstream 1.5.0
+  * [77258acf] Refreshing patches
+  * [cba6d75d] Create/clean autogen directory.
 
- -- Bernd Zeimetz <bernd@bzed.de>  Wed, 22 May 2013 00:36:51 +0200
+ -- Bernd Zeimetz <bzed@debian.org>  Tue, 13 May 2014 01:19:24 +0200
 
 gpsbabel (1.4.3-1) unstable; urgency=low
 
