@@ -35,6 +35,7 @@ configure: configure-stamp gui/Makefile
 configure-stamp: $(QUILT_STAMPFN)
 	dh_testdir
 	dh_autotools-dev_updateconfig -Dgpsbabel
+	mkdir -p gpsbabel/xmldoc/autogen
 	cd gpsbabel && $(CONFENV) ./configure \
 	    				--with-zlib=system \
 					--with-doc=$(DOCTEMP) \
@@ -97,6 +98,7 @@ clean-patched:
 	dh_testdir
 	dh_testroot 
 	rm -f *-stamp gpsbabel/dep gpsbabel/doc/*.ps
+	rm -rf gpsbabel/xmldoc/autogen
 
 	# Add here commands to clean up after the build process.
 	[ ! -f gpsbabel/Makefile ] || $(MAKE) -C gpsbabel clean
