@@ -59,12 +59,15 @@ debian/gpsbabel.1: build-stamp
 gpsbabel/gui/Makefile: $(QUILT_STAMPFN)
 	cd gpsbabel/gui && qmake-qt4
 
+debian/gpsbabel.xpm: gpsbabel/gui/images/appicon.png
+	convert -resize 32x32 $< $@
+
 BUILD_TARGETS_ARCH = build-stamp build-gui-stamp debian/gpsbabel.1
 BUILD_TARGETS_INDEP = build-doc-stamp
 # indep targets are only built by binary-indep.
 build: $(BUILD_TARGETS_ARCH)
 
-build-stamp: configure-stamp 
+build-stamp: configure-stamp debian/gpsbabel.xpm
 	dh_testdir
 
 	# Add here commands to compile the package.
@@ -99,6 +102,7 @@ clean-patched:
 	dh_testroot 
 	rm -f *-stamp gpsbabel/dep gpsbabel/doc/*.ps
 	rm -rf gpsbabel/xmldoc/autogen
+	rm -f debian/gpsbabel.xpm
 
 	# Add here commands to clean up after the build process.
 	[ ! -f gpsbabel/Makefile ] || $(MAKE) -C gpsbabel clean
@@ -166,6 +170,7 @@ binary-arch: build-arch install-arch
 	dh_installchangelogs -a
 	dh_installdocs -a
 	dh_installman -a
+	dh_installmenu -a
 	dh_strip -a
 	dh_compress -a
 	dh_fixperms -a

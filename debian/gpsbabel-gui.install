@@ -1,1 +1,3 @@
 gpsbabel/gui/objects/gpsbabelfe /usr/bin
+debian/gpsbabel.xpm /usr/share/pixmaps
+debian/gpsbabel-gui.desktop /usr/share/applications

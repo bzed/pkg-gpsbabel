@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=GPSBabel
+Comment=
+Exec=gpsbabelfe
+Terminal=false
+StartupNotify=no
+Icon=gpsbabel.xpm
+Categories=Education;Science;Geoscience
