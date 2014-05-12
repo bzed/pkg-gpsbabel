@@ -1,5 +1,6 @@
 /*
     Copyright (C) 2002 Alex Mottram (geo_alexm at cox-internet.com)
+    Copyright (C) 2002-2014 Robert Lipe
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +27,7 @@ csv_stringtrim(const char* string, const char* enclosure, int strip_max);
 CSV_STRINGTRIM(const char* string, const char* enclosure, int strip_max, DEBUG_PARAMS);
 #define csv_stringtrim( s, e,m ) CSV_STRINGTRIM( s, e, m, __FILE__, __LINE__)
 #endif
+QString csv_stringtrim(const QString& source, const QString& enclosure);
 
 char*
 csv_lineparse(const char* stringstart, const char* delimited_by, const char* enclosed_in, const int line_no);
@@ -40,6 +42,7 @@ csv_stringclean(const char* string, const char* chararray);
 CSV_STRINGCLEAN(const char* string, const char* chararray,DEBUG_PARAMS);
 #define csv_stringclean(s,c) CSV_STRINGCLEAN(s,c,__FILE__,__LINE__)
 #endif
+QString csv_stringclean(const QString& string, const QString& chararray);
 
 void
 xcsv_data_read(void);

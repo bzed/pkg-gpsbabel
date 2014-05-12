@@ -5,57 +5,52 @@ consideration and integration.
 Rules to Live By
 ----------------
 
-Standards are good.   ISO C and POSIX are greatly preferred.
-
-Reuse is good, if doing so is not onerous.  For example, using the expat
-libraries vastly simplifies the XML parsers while increasing their
-robustness plus those libraries are ubiquitous.  So I consider it OK to
-require expat.
+Standards are good.   ISO C++, Qt, and POSIX are greatly preferred to
+adding more libraries or implementing your own hash maps or other common
+functions.
 
 You may find format_skeleton.c and filter_skeleton.c in the source tree
 to be helpful examples. Just add meat!
 
 Compilers complain for a reason.   Code shouldn't emit warnings.
 
-The entire world doesn't run <your OS here>.  I've tested this code on
+The entire world doesn't run <your OS here>.  We regularly test this code on
 at least five different OSes.  If you find yourself wanting to insert
 compiler or OS specific magic, please resist.
 
-Coding consistency is encouraged. The reality is we have a lot of code
-that was written by different authors. Some code from other projects is
-included. We don't have immutable rules about code style (indention,
-curly location, whitespace rules, etc.) but we do ask that you try to
-match what is around any code you modify.  "When in Rome..."  
-
-If writing new code, we'd prefer a style like:
+We try to keep a consistent convention in code that's "ours".  We aren't
+interested in trying to convert zlib or jeeps to it, but in general we
+prefer:
 
 	int
 	mumble(int whatever)
 	{
-	<tab>if (whatevever) {
-	<tab><tab>return blah;
-	<tab>}
+	<2spaces>if (whatevever) {
+	<4spaces>return blah;
+	<2spaces>}
 	}
 
-...but if you're submitting a new source file that you intend to
-maintain and are convinced that two space indents will make the world a
-better place, knock yourself out.  But if you need to add a line of code
-to the above before "return blah" and do it with spaces instead of hard
-tabs, that would be bad.
+Formatting can be done with astyle using the included style file
+astylerc with the command "astyle --options=astylerc {source files}".
+astyle is available at http://astyle.sourceforge.net/
+
+The corresponding astyle settings for this are provided in our source
+tree in the file named 'astylerc'
+
 
 Submitting Patches
 ------------------
 
 If you are creating a new target you should submit patches (use 
-"cvs diff -uN" to create patches) to the following files:
+"svn diff" to create patches) to the following files:
 * Yourcode.c and/or Yourcode.h - this is the code required to do your
   conversions and any support files that your code requires.
 * vecs.c - an updated vecs.c file implementing your conversion code into
   GPSBabel.
-* Makefile - an updated Makefile telling the compiler how to build and link
+* Makefile.in - an updated Makefile telling the compiler how to build and link
   your conversion into GPSBabel
-* testo - an updated script that tests your conversion (this should produce
-  no output if all is good, see the current testo script for examples)
+* testo.d/$TARGET - an updated script that tests your conversion (this should 
+  produce no output if all is good, see the current testo script for examples)
 * YourOutput - a sample file of code produced by your function (used in testo
   and lives in a directory called "reference").
 * Documentation - see below.
@@ -111,4 +106,4 @@ no need to repeat that information in your documentation.
 Enjoy!
 
 Robert Lipe,
-robertlipe@usa.net
+robertlipe@gpsbabel.org

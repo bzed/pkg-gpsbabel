@@ -1,13 +1,7 @@
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 #ifndef gpsmath_h
 #define gpsmath_h
 
-
-#include "gps.h"
+#include "gpsport.h"
 
 #define GPS_PI 3.141592653589
 #define GPS_FLTMIN 1.75494351E-38
@@ -141,10 +135,6 @@ extern "C"
                                  const double lambda0, const double E0, const double N0);
 
   int32 GPS_Lookup_Datum_Index(const char* n);
-  char* GPS_Math_Get_Datum_Name(const int datum_index);
+  const char* GPS_Math_Get_Datum_Name(const int datum_index);
 
-#endif
-
-#ifdef __cplusplus
-}
 #endif

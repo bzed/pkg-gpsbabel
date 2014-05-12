@@ -1,7 +1,7 @@
 /*
     Filter definitions.
 
-    Copyright (C) 2005  Robert Lipe, robertlipe@usa.net
+    Copyright (C) 2005-2014 Robert Lipe, robertlipe+source@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,6 +27,9 @@
  */
 
 extern queue waypt_head;
+#if NEWQ
+extern QList<Waypoint*> waypt_list;
+#endif
 
 typedef struct filter_vecs {
   filter_init f_init;

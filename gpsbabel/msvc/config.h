@@ -1,4 +1,6 @@
-#define HAVE_LIBEXPAT 1
+#if 0
+//This file is no longer used, the defines are set in the project files
+
 #define __va_copy(ap1, ap2) ((ap1) = (ap2))
 
 // This controls the capabilities of our Character Encoding Transformations.
@@ -19,10 +21,11 @@
 #define FILTERS_ENABLED 1
 
 /* 1 to enable Palm PDB support */
-#define  PDBFMTS_ENABLED 1
+#define PDBFMTS_ENABLED 1
 
 /* 1 to enable shapefile support */
 #define SHAPELIB_ENABLED 1
 
 /* 1 to inhibit our use of zlib. */
 #undef ZLIB_INHIBITED
+#endif

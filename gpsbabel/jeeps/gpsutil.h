@@ -1,8 +1,3 @@
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 #ifndef gpsutil_h
 #define gpsutil_h
 
@@ -24,10 +19,10 @@ extern "C"
   void   GPS_Util_Put_Uint(UC* s, const uint32 v);
   uint32 GPS_Util_Get_Uint(const UC* s);
 
-  void   GPS_Warning(char* s);
-  void   GPS_Error(char* fmt, ...);
+  void   GPS_Warning(const char* s);
+  void   GPS_Error(const char* fmt, ...);
   void   GPS_Serial_Error(const char* hdr, ...);
-  void   GPS_Fatal(char* s);
+  void   GPS_Fatal(const char* s);
   void   GPS_Enable_Error(void);
   void   GPS_Enable_Warning(void);
   void   GPS_Disable_Error(void);
@@ -42,8 +37,4 @@ extern "C"
   void   GPS_Disable_Diagnose(void);
 
 
-#endif
-
-#ifdef __cplusplus
-}
 #endif
