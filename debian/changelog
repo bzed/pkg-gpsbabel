@@ -1,3 +1,15 @@
+gpsbabel (1.5.0-2) unstable; urgency=medium
+
+  * [d7bbdd34] Add menu and desktop files for gpsbabel-gui.
+    Thanks to Julien Valroff (Closes: #592799)
+  * [c8c9fc34] Ignore make check results for now.
+    Checks fail on various architectures due to endianess/byte ordering
+    issues or due to floating point numbers not being completely equal.
+  * [bd0b02a9] Build-depend on locales-all.
+    make check needs the en_US.UTF8 locale.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Wed, 14 May 2014 22:19:45 +0200
+
 gpsbabel (1.5.0-1) unstable; urgency=medium
 
   * [72ac73df] Support nocheck in DEB_BUILD_OPTIONS.
