@@ -81,14 +81,17 @@ endif
 
 # We need a gpsbabel binary to build the documentation.
 build-doc-stamp: build-stamp
-	$(MAKE) -C gpsbabel $(DOCTEMP)/htmldoc-devel/index.html WEB=$(DOCTEMP) DOCVERSION=devel
+	mkdir -p debian/doctmp/htmldoc-devel
+	cd gpsbabel && perl xmldoc/makedoc && cd ..
+	$(MAKE) -C gpsbabel gpsbabel.html
+	cp gpsbabel/gpsbabel.html debian/doctmp
 	cp $(CURDIR)/debian/gpsbabel-doc.doc-base-common $(CURDIR)/debian/gpsbabel-doc.doc-base
 ifneq (mips,$(HOSTARCH))
 	$(MAKE) -C gpsbabel gpsbabel.pdf WEB=$(DOCTEMP) DOCVERSION=devel
-	rm -f $(CURDIR)/$(DOCTEMP)/htmldoc-devel/gpsbabel-$(DOCVERSION).pdf DOCVERSION=devel
 	cp gpsbabel/gpsbabel.pdf $(DOCTEMP)
 	cat $(CURDIR)/debian/gpsbabel-doc.doc-base-pdf >> $(CURDIR)/debian/gpsbabel-doc.doc-base
 endif
+	rm -rf debian/doctmp/htmldoc-devel
 	touch $@
 
 build-gui: build-gui-stamp
@@ -141,9 +144,6 @@ install-arch: $(BUILD_TARGETS_ARCH) install-prep
 	dh_install -a 
 
 install-indep: $(BUILD_TARGETS_INDEP) install-prep
-	# Rename htmldoc dir
-	mv `ls -d $(CURDIR)/debian/doctmp/htmldoc-*` $(CURDIR)/debian/doctmp/htmldoc
-
 	dh_install -i
 
 
@@ -156,7 +156,7 @@ binary-indep: build-indep install-indep
 	dh_installchangelogs -i 
 	dh_installdocs -i
 	dh_link -i 
-	dh_compress -i
+	dh_compress -i -X.pdf -X.html
 	dh_fixperms -i
 	dh_installdeb -i
 	dh_gencontrol -i
@@ -172,7 +172,7 @@ binary-arch: build-arch install-arch
 	dh_installman -a
 	dh_installmenu -a
 	dh_strip -a
-	dh_compress -a
+	dh_compress -a -X.pdf -X.html
 	dh_fixperms -a
 	dh_installdeb -a
 	dh_shlibdeps -a
