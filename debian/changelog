@@ -1,3 +1,10 @@
+gpsbabel (1.5.2-1) unstable; urgency=medium
+
+  * [fda6f38] Merge branch 'upstream'
+  * [901aac0] Refreshing patches.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 25 Oct 2015 20:36:55 +0100
+
 gpsbabel (1.5.0-3) unstable; urgency=medium
 
   * [5b27c1cd] Install gpsbabel.html only.
