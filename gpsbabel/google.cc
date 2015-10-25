@@ -17,15 +17,16 @@
 
  */
 
-#include <QtCore/QFile>
-#include <QtCore/QXmlStreamAttributes>
 
 #include "defs.h"
 #include "xmlgeneric.h"
+#include <QtCore/QFile>
+#include <QtCore/QTextStream>
+#include <QtCore/QXmlStreamAttributes>
 
 static char* encoded_points = NULL;
 static char* encoded_levels = NULL;
-static char* script = NULL;
+static QString script;
 static route_head** routehead;
 static int* routecount;
 static short_handle desc_handle;
@@ -58,11 +59,7 @@ xg_tag_mapping google_map[] = {
 
 void goog_script(xg_string args, const QXmlStreamAttributes*)
 {
-  if (script) {
-    script = xstrappend(script, CSTRc(args));
-  } else {
-    script = xstrdup(args);
-  }
+  script += args;
 }
 
 
@@ -86,7 +83,7 @@ void goog_levels(xg_string args, const QXmlStreamAttributes*)
 }
 
 static char goog_segname[7];
-static char* goog_realname = NULL;
+static QString goog_realname;
 static int goog_segroute = 0;
 
 /*
@@ -106,10 +103,12 @@ void goog_segment(xg_string args, const QXmlStreamAttributes*)
 {
   Waypoint* wpt_tmp;
 
-  wpt_tmp = route_find_waypt_by_name(routehead[goog_segroute], goog_segname);
-  if (wpt_tmp) {
-    wpt_tmp->shortname = mkshort(desc_handle, args);
-    wpt_tmp->description = args;
+  if (routehead[goog_segroute]) {
+    wpt_tmp = route_find_waypt_by_name(routehead[goog_segroute], goog_segname);
+    if (wpt_tmp) {
+      wpt_tmp->shortname = mkshort(desc_handle, args);
+      wpt_tmp->description = args;
+    }
   }
 }
 
@@ -152,24 +151,17 @@ void goog_td_s(xg_string args, const QXmlStreamAttributes* attrv)
 void goog_td_b(xg_string args, const QXmlStreamAttributes*)
 {
   if (goog_segname[0] == '\\' && !strchr(CSTRc(args), '\xa0')) {
-    if (goog_realname) {
-      xfree(goog_realname);
-      goog_realname = NULL;
-    }
-    goog_realname = (char*) xmalloc(strlen(CSTRc(args))+1);
-    strcpy(goog_realname, CSTRc(args));
+    goog_realname = args;
   }
 }
+
 void goog_td_e(xg_string args, const QXmlStreamAttributes*)
 {
-  if (goog_segname[0] == '\\' && goog_realname) {
+  if (goog_segname[0] == '\\' && !goog_realname.isEmpty()) {
     goog_segment(goog_realname, NULL/*unused*/);
   }
   goog_segname[0] = '\0';
-  if (goog_realname) {
-    xfree(goog_realname);
-    goog_realname = NULL;
-  }
+  goog_realname.clear();
 }
 
 static long decode_goog64(char** str)
@@ -186,7 +178,7 @@ static long decode_goog64(char** str)
     c = (unsigned char)(*(*str)++)-'?';
     result |= (c & 31)<<shift;
     shift += 5;
-  } while (c & ~31);
+  } while (c & ~31 && **str);
 
   if (result & 1) {
     result = ~result;
@@ -295,6 +287,7 @@ google_read(void)
   routehead = (route_head**)xmalloc(sizeof(route_head*));
   routecount = (int*)xmalloc(sizeof(int));
   goog_segroute = 0;
+  routehead[goog_segroute] = NULL;
 
   goog_read_file();
 
@@ -311,10 +304,11 @@ google_read(void)
     xfree(encoded_levels);
     encoded_levels = NULL;
   }
-  if (script) {
-    char* xml = strchr(script, '\'');
-    char* dict = strstr(script, "({");
-
+  if (!script.isEmpty()) {
+    // TODO: rethink with Qt to make this less dependent on strchr...
+    char* s = xstrdup(script);
+    char* xml = strchr(s, '\'');
+    char* dict = strstr(s, "({");
     char* end = NULL;
 
     if (xml && (!dict || (xml < dict))) {
@@ -519,10 +513,10 @@ google_read(void)
         }
       }
     }
-    xfree(script);
+    script.clear();
     xfree(routehead);
     xfree(routecount);
-    script = NULL;
+    xfree(s);
   }
 
   /*

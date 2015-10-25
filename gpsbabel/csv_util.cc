@@ -20,23 +20,27 @@
 
  */
 
-#include <ctype.h>
+#include <QtCore/QRegExp>
+
+#include "defs.h"
+#include "cet_util.h"
+#include "csv_util.h"
+#include "garmin_fs.h"
+#include "grtcirc.h"
+#include "jeeps/gpsmath.h"
+#include "src/core/logging.h"
+#include "strptime.h"
+
 #include <math.h>
 #include <stdlib.h>
-#include <QtCore/QRegExp>
-#include "defs.h"
-#include "csv_util.h"
-#include "grtcirc.h"
-#include "strptime.h"
-#include "jeeps/gpsmath.h"
-#include "garmin_fs.h"
+#include <stdio.h>
 
 #define MYNAME "CSV_UTIL"
 
 /* macros */
 #define LAT_DIR(a) a < 0.0 ? 'S' : 'N'
 #define LON_DIR(a) a < 0.0 ? 'W' : 'E'
-#define NONULL(a) a.isNull() ? "" : a.toLatin1().data()
+#define NONULL(a) a.isNull() ? "" : CSTRc(a)
 #define ISWHITESPACE(a) ((a == ' ') || (a == '\t'))
 
 /* convert excel time (days since 1900) to time_t and back again */
@@ -151,7 +155,7 @@ in_word_set(register const char* str, register unsigned int len);
 /****************************************************************************/
 /* obligatory global struct                                                 */
 /****************************************************************************/
-xcsv_file_t xcsv_file;
+XcsvFile xcsv_file;
 
 extern char* xcsv_urlbase;
 extern char* prefer_shortnames;
@@ -175,15 +179,6 @@ static UrlLink* link_;
 /*     usage: p = csv_stringclean(stringtoclean, "&,\"")             */
 /*            (strip out ampersands, commas, and quotes.             */
 /*********************************************************************/
-// Implement the C version via Qt - the reverse of most of our shims.
-char*
-csv_stringclean(const char* source, const char* chararray)
-{
-  /* Make a copy of the source... */
-  QString cleansed(csv_stringclean(QString(source), chararray));
-  return xstrdup(cleansed);
-}
-
 QString
 csv_stringclean(const QString& source, const QString& to_nuke)
 {
@@ -726,13 +721,22 @@ dec_to_human(const char* format, const char* dirs, double val)
 /*****************************************************************************/
 /* xcsv_file_init() - prepare xcsv_file for first use.                       */
 /*****************************************************************************/
-void
-xcsv_file_init(void)
+void xcsv_file_init(void)
 {
-  memset(&xcsv_file, '\0', sizeof(xcsv_file_t));
+  xcsv_file.is_internal = false;
+  xcsv_file.field_delimiter = QString();
+  xcsv_file.field_encloser = QString();
+  xcsv_file.record_delimiter = QString();
+  xcsv_file.badchars = QString();
+  xcsv_file.ifield_ct = 0;
+  xcsv_file.ofield_ct = 0;
+  xcsv_file.xcsvfp = NULL;
+  xcsv_file.fname = QString();
+  xcsv_file.description = NULL;
+  xcsv_file.extension = NULL;
 
-  QUEUE_INIT(&xcsv_file.prologue);
-  QUEUE_INIT(&xcsv_file.epilogue);
+  xcsv_file.prologue.clear();
+  xcsv_file.epilogue.clear();
 
   QUEUE_INIT(&xcsv_file.ifield);
   /* ofield is alloced to allow pointing back at ifields
@@ -749,6 +753,27 @@ xcsv_file_init(void)
   xcsv_file.gps_datum = GPS_DATUM_WGS84;
 }
 
+XcsvFile::XcsvFile() {
+//   xcsv_file_init(); 
+}
+
+void validate_fieldmap(field_map_t* fmp, bool is_output) {
+  QString qkey = fmp->key;
+  QString qval = fmp->val;
+  QString qprintfc = fmp->printfc;
+
+  if (qkey.isEmpty()) {
+    Fatal() << MYNAME << ": xcsv style is missing" << 
+            (is_output ? "output" : "input") << "field type.";
+  }
+  if (!fmp->val) {
+    Fatal() << MYNAME << ": xcsv style" << qkey << "is missing default.";
+  }
+  if (is_output && !fmp->printfc) {
+    Fatal() << MYNAME << ": xcsv style" << qkey << "output is missing format specifier.";
+  }
+}
+
 /*****************************************************************************/
 /* xcsv_ifield_add() - add input field to ifield queue.                      */
 /* usage: xcsv_ifield_add("DESCRIPTION", "", "%s")                           */
@@ -763,6 +788,7 @@ xcsv_ifield_add(char* key, char* val, char* pfc)
   fmp->hashed_key = xm ? xm->xt_token : -1;
   fmp->val = val;
   fmp->printfc = pfc;
+  validate_fieldmap(fmp, false);
 
   ENQUEUE_TAIL(&xcsv_file.ifield, &fmp->Q);
   xcsv_file.ifield_ct++;
@@ -783,6 +809,7 @@ xcsv_ofield_add(char* key, char* val, char* pfc, int options)
   fmp->val = val;
   fmp->printfc = pfc;
   fmp->options = options;
+  validate_fieldmap(fmp, true);
 
   ENQUEUE_TAIL(xcsv_file.ofield, &fmp->Q);
   xcsv_file.ofield_ct++;
@@ -795,11 +822,7 @@ xcsv_ofield_add(char* key, char* val, char* pfc, int options)
 void
 xcsv_prologue_add(char* prologue)
 {
-  ogue_t* ogp = (ogue_t*) xcalloc(sizeof(*ogp), 1);
-
-  ogp->val = prologue;
-  ENQUEUE_TAIL(&xcsv_file.prologue, &ogp->Q);
-  xcsv_file.prologue_lines++;
+  xcsv_file.prologue.append(prologue);
 }
 
 /*****************************************************************************/
@@ -809,11 +832,7 @@ xcsv_prologue_add(char* prologue)
 void
 xcsv_epilogue_add(char* epilogue)
 {
-  ogue_t* ogp = (ogue_t*) xcalloc(sizeof(*ogp), 1);
-
-  ogp->val = epilogue;
-  ENQUEUE_TAIL(&xcsv_file.epilogue, &ogp->Q);
-  xcsv_file.epilogue_lines++;
+  xcsv_file.epilogue.append(epilogue);
 }
 
 static
@@ -864,10 +883,9 @@ addhms(const char* s, const char* format)
   int  hour =0;
   int  min  =0;
   int  sec  =0;
-  char* ampm = NULL;
   int ac;
 
-  ampm = (char*) xmalloc(strlen(s) + 1);
+  char* ampm = (char*) xmalloc(strlen(s) + 1);
   ac = sscanf(s, format, &hour, &min, &sec, ampm);
   /* If no time format in arg string, assume AM */
   if (ac < 4) {
@@ -1380,9 +1398,8 @@ xcsv_data_read(void)
   char* s;
   Waypoint* wpt_tmp;
   int linecount = 0;
-  queue* elem, *tmp;
+  queue* elem;
   field_map_t* fmp;
-  ogue_t* ogp;
   route_head* rte = NULL;
   route_head* trk = NULL;
   utm_northing = 0;
@@ -1409,8 +1426,7 @@ xcsv_data_read(void)
     rtrim(buff);
 
     /* skip over x many lines on the top for the prologue... */
-    if ((xcsv_file.prologue_lines) && ((linecount - 1) <
-                                       xcsv_file.prologue_lines)) {
+    if ((linecount - 1) < xcsv_file.prologue.count()) {
       continue;
     }
 
@@ -1418,21 +1434,18 @@ xcsv_data_read(void)
      * pre-read the file to know how many data lines we should be seeing,
      * we take this cheap shot at the data and cross our fingers.
      */
-
-    QUEUE_FOR_EACH(&xcsv_file.epilogue, elem, tmp) {
-      ogp = (ogue_t*) elem;
-      if (strncmp(buff, ogp->val, strlen(ogp->val)) == 0) {
-        buff[0] = '\0';
-        break;
-      }
+    foreach(const QString& ogp, xcsv_file.epilogue) {
+       if (ogp.startsWith(buff)) {
+         buff[0] = '\0';
+         break;
+       }
     }
-
     if (strlen(buff)) {
       wpt_tmp = new Waypoint;
 
       s = buff;
-      s = csv_lineparse(s, xcsv_file.field_delimiter,
-                        xcsv_file.field_encloser, linecount);
+      s = csv_lineparse(s, CSTR(xcsv_file.field_delimiter),
+                        CSTR(xcsv_file.field_encloser), linecount);
 
       if (QUEUE_EMPTY(&xcsv_file.ifield)) {
         fatal(MYNAME ": attempt to read, but style '%s' has no IFIELDs in it.\n", xcsv_file.description? xcsv_file.description : "unknown");
@@ -1458,8 +1471,8 @@ xcsv_data_read(void)
           break;
         }
 
-        s = csv_lineparse(NULL, xcsv_file.field_delimiter,
-                          xcsv_file.field_encloser, linecount);
+        s = csv_lineparse(NULL, CSTR(xcsv_file.field_delimiter),
+                          CSTR(xcsv_file.field_encloser), linecount);
       }
 
       if ((xcsv_file.gps_datum > -1) && (xcsv_file.gps_datum != GPS_DATUM_WGS84)) {
@@ -1537,7 +1550,6 @@ static void
 xcsv_waypt_pr(const Waypoint* wpt)
 {
   QString buff;
-  const char* write_delimiter;
   int i;
   field_map_t* fmp;
   queue* elem, *tmp;
@@ -1555,7 +1567,8 @@ xcsv_waypt_pr(const Waypoint* wpt)
   longitude = oldlon = wpt->longitude;
   latitude = oldlat = wpt->latitude;
 
-  if (xcsv_file.field_delimiter && strcmp(xcsv_file.field_delimiter, "\\w") == 0) {
+  QString write_delimiter;
+  if (xcsv_file.field_delimiter == "\\w") {
     write_delimiter = " ";
   } else {
     write_delimiter = xcsv_file.field_delimiter;
@@ -1598,7 +1611,6 @@ xcsv_waypt_pr(const Waypoint* wpt)
 
   i = 0;
   QUEUE_FOR_EACH(xcsv_file.ofield, elem, tmp) {
-    char* obuff;
     double lat = latitude;
     double lon = longitude;
     /*
@@ -1612,7 +1624,7 @@ xcsv_waypt_pr(const Waypoint* wpt)
     fmp = (field_map_t*) elem;
 
     if ((i != 0) && !(fmp->options & OPTIONS_NODELIM)) {
-      gbfprintf(xcsv_file.xcsvfp, write_delimiter);
+      gbfputs(write_delimiter, xcsv_file.xcsvfp);
     }
 
     if (fmp->options & OPTIONS_ABSOLUTE) {
@@ -1657,7 +1669,7 @@ xcsv_waypt_pr(const Waypoint* wpt)
         anyname = wpt->notes;
       }
       if (anyname.isEmpty()) {
-        anyname = xstrdup(fmp->val);
+        anyname = fmp->val;
       }
       buff = QString().sprintf(fmp->printfc, CSTR(anyname));
       }
@@ -1687,13 +1699,13 @@ xcsv_waypt_pr(const Waypoint* wpt)
       if (wpt->HasUrlLink()) {
         UrlLink l = wpt->GetUrlLink();
         buff = QString().sprintf(fmp->printfc,
-                 !l.url_link_text_.isEmpty() ? l.url_link_text_.toUtf8().data() : fmp->val);
+                 !l.url_link_text_.isEmpty() ? CSTR(l.url_link_text_) : fmp->val);
       }
       break;
     case XT_ICON_DESCR:
       buff = QString().sprintf(fmp->printfc,
                 (!wpt->icon_descr.isNull()) ?
-                wpt->icon_descr.toUtf8().data() : fmp->val);
+                CSTR(wpt->icon_descr) : fmp->val);
       break;
 
       /* LATITUDE CONVERSION***********************************************/
@@ -1968,11 +1980,11 @@ xcsv_waypt_pr(const Waypoint* wpt)
       field_is_unknown = wpt->gc_data->type == gt_unknown;
       break;
     case XT_GEOCACHE_HINT:
-      buff = QString().sprintf(fmp->printfc, wpt->gc_data->hint.toUtf8().data());
+      buff = QString().sprintf(fmp->printfc, CSTR(wpt->gc_data->hint));
       field_is_unknown = !wpt->gc_data->hint.isEmpty();
       break;
     case XT_GEOCACHE_PLACER:
-      buff = QString().sprintf(fmp->printfc, wpt->gc_data->placer.toUtf8().data());
+      buff = QString().sprintf(fmp->printfc, CSTR(wpt->gc_data->placer));
       field_is_unknown = !wpt->gc_data->placer.isEmpty();
       break;
     case XT_GEOCACHE_ISAVAILABLE:
@@ -2113,36 +2125,32 @@ xcsv_waypt_pr(const Waypoint* wpt)
       warning(MYNAME ": Unknown style directive: %s\n", fmp->key);
       break;
     }
-    obuff = csv_stringclean(CSTR(buff), xcsv_file.badchars);
+    QString obuff = csv_stringclean(buff, xcsv_file.badchars);
 
     if (field_is_unknown && fmp->options & OPTIONS_OPTIONAL) {
-      goto next;
+      continue;
     }
 
-    if (xcsv_file.field_encloser) {
+    if (!xcsv_file.field_encloser.isEmpty()) {
       /* print the enclosing character(s) */
-      gbfprintf(xcsv_file.xcsvfp, "%s", xcsv_file.field_encloser);
+      gbfputs(xcsv_file.record_delimiter, xcsv_file.xcsvfp);
     }
 
     /* As a special case (pronounced "horrible hack") we allow
      * ""%s"" to smuggle bad characters through.
      */
     if (0 == strcmp(fmp->printfc, "\"%s\"")) {
-      gbfprintf(xcsv_file.xcsvfp, "\"%s\"", obuff);
-    } else {
-      gbfprintf(xcsv_file.xcsvfp, "%s", obuff);
+      obuff = '"' + obuff + '"';
     }
+    gbfputs(obuff, xcsv_file.xcsvfp);
 
-    if (xcsv_file.field_encloser) {
+    if (!xcsv_file.field_encloser.isEmpty()) {
       /* print the enclosing character(s) */
-      gbfprintf(xcsv_file.xcsvfp, "%s", xcsv_file.field_encloser);
+      gbfputs(xcsv_file.record_delimiter, xcsv_file.xcsvfp);
     }
-
-next:
-    xfree(obuff);
   }
 
-  gbfprintf(xcsv_file.xcsvfp, "%s", xcsv_file.record_delimiter);
+  gbfputs(xcsv_file.record_delimiter, xcsv_file.xcsvfp);
 
   /* increment the index counter */
   waypt_out_count++;
@@ -2162,11 +2170,8 @@ xcsv_noop(const route_head* wp)
 void
 xcsv_data_write(void)
 {
-  queue* elem, *tmp;
-  ogue_t* ogp;
   time_t time;
   struct tm tm;
-//  char tbuf[32];
 
   /* reset the index counter */
   waypt_out_count = 0;
@@ -2179,11 +2184,10 @@ xcsv_data_write(void)
   }
 
   /* output prologue lines, if any. */
-  QUEUE_FOR_EACH(&xcsv_file.prologue, elem, tmp) {
-    ogp = (ogue_t*) elem;
+  foreach(const QString& line, xcsv_file.prologue) {
     // If the XCSV description contains weird characters (like sportsim)
     // this is where they get lost.
-    QString cout = ogp->val;
+   QString cout = line;
 
     // Don't do potentially expensive replacements if token prefix 
     // isn't present;
@@ -2203,8 +2207,8 @@ xcsv_data_write(void)
       QString t = dt.toString("hh:mm:ss");
       cout.replace("__TIME__", t);
     }
-    gbfprintf(xcsv_file.xcsvfp, "%s", CSTR(cout));
-    gbfprintf(xcsv_file.xcsvfp, "%s", xcsv_file.record_delimiter);
+    gbfputs(cout, xcsv_file.xcsvfp);
+    gbfputs(xcsv_file.record_delimiter, xcsv_file.xcsvfp);
   }
 
   if ((xcsv_file.datatype == 0) || (xcsv_file.datatype == wptdata)) {
@@ -2218,9 +2222,9 @@ xcsv_data_write(void)
   }
 
   /* output epilogue lines, if any. */
-  QUEUE_FOR_EACH(&xcsv_file.epilogue, elem, tmp) {
-    ogp = (ogue_t*) elem;
-    gbfprintf(xcsv_file.xcsvfp, "%s%s", ogp->val, xcsv_file.record_delimiter);
+  foreach(const QString& ogp, xcsv_file.epilogue) {
+    gbfputs(ogp, xcsv_file.xcsvfp);
+    gbfputs(xcsv_file.record_delimiter, xcsv_file.xcsvfp);
   }
 }
 #endif

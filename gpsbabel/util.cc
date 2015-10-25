@@ -1,7 +1,7 @@
 /*
     Misc utilities.
 
-    Copyright (C) 2002-2005 Robert Lipe, robertlipe+source@gpsbabel.org
+    Copyright (C) 2002-2014 Robert Lipe, robertlipe+source@gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1165,10 +1165,10 @@ strlower(char* src)
   return src;
 }
 
-char*
+QString
 rot13(const QString& s)
 {
-  char* result = xstrdup(s.toUtf8().data());
+  char* result = xstrdup(s);
   char* cur = result;
   int flip = 1;
   while (cur && *cur) {
@@ -1185,7 +1185,9 @@ rot13(const QString& s)
     }
     cur++;
   }
-  return result;
+  QString r(result);
+  xfree(result);
+  return r;
 }
 
 /*
@@ -1406,8 +1408,8 @@ strip_nastyhtml(const QString& in)
   char* returnstr, *sp;
   char* lcstr, *lcp;
 
-  sp = returnstr = xstrdup(in.toUtf8().data());
-  lcp = lcstr = strlower(xstrdup(in.toUtf8().data()));
+  sp = returnstr = xstrdup(in);
+  lcp = lcstr = strlower(xstrdup(in));
 
   while (lcp = strstr(lcstr, "<body>"), NULL != lcp) {
     sp = returnstr + (lcp - lcstr) ; /* becomes <!   > */

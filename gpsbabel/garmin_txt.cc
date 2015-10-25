@@ -23,11 +23,6 @@
 #include "defs.h"
 
 #if CSVFMTS_ENABLED
-#include <math.h>
-#include <time.h>
-#include <ctype.h>
-#include <errno.h>
-#include <stdarg.h>
 #include "cet_util.h"
 #include "csv_util.h"
 #include "garmin_fs.h"
@@ -36,6 +31,9 @@
 #include "inifile.h"
 #include "jeeps/gpsmath.h"
 #include "strptime.h"
+
+#include <cmath>
+#include <stdlib.h> // qsort
 
 #define MYNAME "garmin_txt"
 
@@ -61,6 +59,10 @@ static int current_line;
 static char* date_time_format = NULL;
 static int precision = 3;
 static time_t utc_offs = 0;
+// Having a Windows background, this software encodes degree marks in
+// Windows CP-1252.  We don't attempt to handle all the subtleties of that,
+// but since we write degree marks and we know how they're encoded, use this.
+static const int kDegreeSymbol = 0xB0;
 
 static gtxt_flags_t gtxt_flags;
 
@@ -350,7 +352,7 @@ print_position(const Waypoint* wpt)
   if (! valid) {
     gbfprintf(fout, "#####\n");
     fatal(MYNAME ": %s (%s) is outside of convertable area \"%s\"!\n",
-          wpt->shortname.isEmpty() ? "Waypoint" : CSTR(wpt->shortname),
+          wpt->shortname.isEmpty() ? "Waypoint" : qPrintable(wpt->shortname),
           pretty_deg_format(wpt->latitude, wpt->longitude, 'd', NULL, 0),
           gt_get_mps_grid_longname(grid_index, MYNAME));
   }
@@ -424,7 +426,7 @@ print_course(const Waypoint* A, const Waypoint* B)		/* seems to be okay */
   if ((A != NULL) && (B != NULL) && (A != B)) {
     int course;
     course = si_round(waypt_course(A, B));
-    cet_gbfprintf(fout, &cet_cs_vec_cp1252, "%d%c true", course, 0xB0);
+    gbfprintf(fout, "%d%c true", course, kDegreeSymbol);
   }
 }
 
@@ -525,7 +527,7 @@ print_string(const char* fmt, const char* string)
 static void
 print_string(const char* fmt, const QString& string)
 {
-  print_string(fmt, string.toUtf8().data());
+  print_string(fmt, CSTR(string));
 }
 
 
@@ -540,8 +542,7 @@ write_waypt(const Waypoint* wpt)
   const char* dspl_mode;
   const char* country;
   double x;
-  int i, icon, dynamic;
-  const char* icon_descr;
+  int i, icon;
 
   gmsd = GMSD_FIND(wpt);
 
@@ -605,12 +606,7 @@ write_waypt(const Waypoint* wpt)
   if (icon == -1) {
     icon = gt_find_icon_number_from_desc(wpt->icon_descr, GDB);
   }
-  icon_descr = gt_find_desc_from_icon_number(icon, GDB, &dynamic);
-  print_string("%s\t", icon_descr);
-  if (dynamic) {
-    // sleaze alert: cast away constness.
-    xfree((char*) icon_descr);
-  }
+  print_string("%s\t", gt_find_desc_from_icon_number(icon, GDB));
 
   print_string("%s\t", GMSD_GET(facility, ""));
   print_string("%s\t", GMSD_GET(city, ""));
@@ -827,9 +823,9 @@ garmin_txt_write(void)
 
   grid_str = xstrdup(gt_get_mps_grid_longname(grid_index, MYNAME));
   while ((c = strchr(grid_str, '*'))) {
-    *c = 0xB0;  /* degree sign */
+    *c = kDegreeSymbol;  /* degree sign */
   }
-  cet_gbfprintf(fout, &cet_cs_vec_cp1252, "Grid\t%s\r\n", grid_str);
+  gbfprintf(fout, "Grid\t%s\r\n", grid_str);
   xfree(grid_str);
 
   datum_str = gt_get_mps_datum_name(datum_index);
@@ -1122,7 +1118,7 @@ parse_waypoint(void)
   fs_chain_add(&wpt->fs, (format_specific_data*) gmsd);
 
   while ((str = csv_lineparse(NULL, "\t", "", column++))) {
-    int i, dynamic;
+    int i;
     double d;
     int field_no = header_fields[waypt_header][column];
 
@@ -1175,7 +1171,7 @@ parse_waypoint(void)
     case 11:
       i = gt_find_icon_number_from_desc(str, GDB);
       GMSD_SET(icon, i);
-      wpt->icon_descr = gt_find_desc_from_icon_number(i, GDB, &dynamic);
+      wpt->icon_descr = gt_find_desc_from_icon_number(i, GDB);
       break;
     case 12:
       GMSD_SETSTR(facility, str);

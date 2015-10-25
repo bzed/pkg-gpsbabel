@@ -28,7 +28,8 @@ ALL_FMTS=$$MINIMAL_FMTS gtm.cc gpsutil.cc pcx.cc \
         pocketfms_bc.cc pocketfms_fp.cc pocketfms_wp.cc naviguide.cc enigma.cc \
         vpl.cc teletype.cc jogmap.cc bushnell.cc bushnell_trl.cc wintec_tes.cc \
         subrip.cc garmin_xt.cc garmin_fit.cc lowranceusr4.cc \
-        mtk_locus.cc googledir.cc mapbar_track.cc mapfactor.cc
+        mtk_locus.cc googledir.cc mapbar_track.cc mapfactor.cc f90g_track.cc \
+        energympro.cc mynav.cc
 
 DEPRECIATED_FMTS=cetus.cc copilot.cc gpspilot.cc magnav.cc psp.cc gcdb.cc quovadis.cc gpilots.cc geoniche.cc palmdoc.cc hsa_ndv.cc coastexp.cc pathaway.cc coto.cc msroute.cc mag_pdb.cc axim_gpb.cc
 
@@ -61,7 +62,9 @@ SUPPORT = queue.cc route.cc waypt.cc filter_vecs.cc util.cc vecs.cc mkshort.cc \
           csv_util.cc strptime.c grtcirc.cc util_crc.cc xmlgeneric.cc \
           formspec.cc xmltag.cc cet.cc cet_util.cc fatal.cc rgbcolors.cc \
           inifile.cc garmin_fs.cc gbsleep.cc units.cc gbser.cc \
-          gbfile.cc parse.cc session.cc main.cc globals.cc src/core/xmlstreamwriter.cc
+          gbfile.cc parse.cc session.cc main.cc globals.cc \
+          src/core/usasciicodec.cc \
+          src/core/xmlstreamwriter.cc 
 
 HEADERS =  \
 	an1sym.h \
@@ -179,7 +182,6 @@ HEADERS =  \
 	cet/viscii.h \
 	cet/vps.h \
 	cet_util.h \
-	config.h \
 	csv_util.h \
 	defs.h \
 	explorist_ini.h \
@@ -218,7 +220,6 @@ HEADERS =  \
 	jeeps/gpsutil.h \
 	magellan.h \
 	mapsend.h \
-	msvc/config.h \
 	navilink.h \
 	pdbfile.h \
 	queue.h \
@@ -238,13 +239,13 @@ HEADERS =  \
 	zlib/zconf.in.h \
 	zlib/zlib.h \
 	zlib/zutil.h \
-	src/core/xmlstreamwriter.h
+	src/core/xmlstreamwriter.h \
+	src/core/logging.h
 
 SUBDIRS += jeeps
 
 macx|linux {
   DEFINES += HAVE_NANOSLEEP HAVE_LIBUSB HAVE_GLOB
-  DEFINES += HAVE_VA_COPY HAVE_VA_LIST_AS_ARRAY
   SOURCES += gbser_posix.cc
   JEEPS += jeeps/gpslibusb.cc
   INCLUDEPATH += jeeps
@@ -282,7 +283,6 @@ macx {
 }
 
 SOURCES += $$ALL_FMTS $$FILTERS $$SUPPORT $$SHAPE $$ZLIB $$JEEPS
-
 DEFINES += NEW_STRINGS
 
 # We don't care about stripping things out of the build.  Full monty, baby.
@@ -292,3 +292,11 @@ DEFINES += PDBFMTS_ENABLED
 DEFINES += SHAPELIB_ENABLED
 DEFINES += CSVFMTS_ENABLED
 DEFINES += CET_WANTED
+
+# Creator insists on adding -W to -Wall which results in a completely
+# absurd amount of jibber-jabber on perfectly legally formed code.
+# Rather than wade through a thousand lines of yammer, let's just nuke -W
+# but leave -Wall, which actually has useful stuff.
+# Citation: http://stackoverflow.com/questions/18667291/disable-wall-compiler-warnings-in-a-qt-project
+QMAKE_CFLAGS_WARN_ON -= -W
+QMAKE_CXXFLAGS_WARN_ON -= -W

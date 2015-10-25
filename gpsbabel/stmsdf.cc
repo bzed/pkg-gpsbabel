@@ -31,17 +31,15 @@
 
 #if CSVFMTS_ENABLED
 
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
+#include "cet_util.h"
 #include "csv_util.h"
 #include "strptime.h"
 #include "jeeps/gpsmath.h"
 #include "grtcirc.h"
 
 #include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define MYNAME "stmsdf"
 

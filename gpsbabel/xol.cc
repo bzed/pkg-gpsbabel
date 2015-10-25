@@ -20,12 +20,11 @@
 
 */
 
-#include <QtCore/QXmlStreamAttributes>
-
 #include "defs.h"
 #include "xmlgeneric.h"
 #include "jeeps/gpsmath.h"
 #include "garmin_tables.h"
+#include <QtCore/QXmlStreamAttributes>
 
 static Waypoint* wpt;
 static route_head* trk;
@@ -60,7 +59,7 @@ xol_overlay(xg_string args, const QXmlStreamAttributes* attrv)
   if (attrv->hasAttribute("version")) {
     if (attrv->value("version") != "1.0") {
       fatal(MYNAME ": Unsupported version %s.\n",
-            attrv->value("version").toString().toUtf8().constData());
+            qPrintable(attrv->value("version").toString()));
     }
   }
 }
@@ -166,7 +165,7 @@ xol_fatal_outside(const Waypoint* wpt)
 {
   gbfprintf(fout, "#####\n");
   fatal(MYNAME ": %s (%s) is outside of convertable area \"%s\"!\n",
-        wpt->shortname.isEmpty() ? "Waypoint" : CSTRc(wpt->shortname),
+        wpt->shortname.isEmpty() ? "Waypoint" : qPrintable(wpt->shortname),
         pretty_deg_format(wpt->latitude, wpt->longitude, 'd', NULL, 0),
         gt_get_mps_grid_longname(grid_swiss, MYNAME));
 }
@@ -185,8 +184,8 @@ static void
 xol_write_string(const QString& name, const QString& str)
 {
   if (!str.isEmpty()) {
-    QString temp = strenquote(str, '"');
-    gbfprintf(fout, " %s=%s", CSTR(name), CSTR(temp));
+    QString out = name + "=" + strenquote(str, '"');
+    gbfputs(out, fout);
   }
 }
 
@@ -240,7 +239,7 @@ xol_waypt_disp_cb(const Waypoint* wpt)
   gbfprintf(fout, "%*s<shape type=\"waypoint\"", space++*2, "");
   xol_write_string("name", name);
   xol_write_string("comment", wpt->notes);
-  xol_write_string("icon", wpt->icon_descr.toUtf8().data());
+  xol_write_string("icon", wpt->icon_descr);
   if (wpt->creation_time.isValid()) {
     xol_write_time(wpt);
   }

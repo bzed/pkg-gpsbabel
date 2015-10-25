@@ -19,10 +19,13 @@
 
  */
 
-#include <math.h>
 
 #include "defs.h"
+#include "cet_util.h"
 #include "magellan.h"
+#include <cmath>
+#include <stdio.h>
+#include <stdlib.h>
 
 static gbfile* file_in, *file_out;
 static short_handle mkshort_handle;
@@ -159,7 +162,7 @@ gpsutil_disp(const Waypoint* wpt)
              (wpt->altitude < 0.0)) ? 0 : wpt->altitude,
             'm',
             CSTRc(wpt->description) ? tdesc : "",
-            icon_token.toUtf8().data());
+            CSTR(icon_token));
 
   xfree(tdesc);
 }

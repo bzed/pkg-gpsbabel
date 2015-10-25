@@ -20,10 +20,10 @@
 
 */
 
-#include <QtCore/QXmlStreamAttributes>
 
 #include "defs.h"
 #include "xmlgeneric.h"
+#include <QtCore/QXmlStreamAttributes>
 
 static arglist_t ikt_args[] = {
   ARG_TERMINATOR
@@ -115,7 +115,7 @@ iktobj_type(xg_string args, const QXmlStreamAttributes*)
     track = route_head_alloc();
     break;
   default:
-    fatal(MYNAME ": Unknown object type %s!\n", CSTRc(args));
+    fatal(MYNAME ": Unknown object type %s!\n", qPrintable(args));
   }
 }
 

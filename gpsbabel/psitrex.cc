@@ -19,12 +19,11 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
  */
 
-#include <stdio.h>
-#include <string.h>
-
 #include "defs.h"
 #include "garmin_tables.h"
 #include <ctype.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #define MYNAME "PSITREX"
 
@@ -326,7 +325,7 @@ psit_waypoint_r(gbfile* psit_file, Waypoint** wpt)
     /* since PsiTrex only deals with Garmins, let's use the "proper" Garmin icon name */
     /* convert the PsiTrex name to the number, which is the PCX one; from there to Garmin desc */
     garmin_icon_num = psit_find_icon_number_from_desc(psit_current_token);
-    thisWaypoint->icon_descr = gt_find_desc_from_icon_number(garmin_icon_num, PCX, NULL);
+    thisWaypoint->icon_descr = gt_find_desc_from_icon_number(garmin_icon_num, PCX);
 
     waypt_add(thisWaypoint);
 
@@ -357,7 +356,7 @@ psit_waypoint_w(gbfile* psit_file, const Waypoint* wpt)
 
   ident = global_opts.synthesize_shortnames ?
           mkshort(mkshort_handle, src) :
-          xstrdup(CSTRc(wpt->shortname));
+          xstrdup(wpt->shortname);
 
   gbfprintf(psit_file, " %-6s, ", ident);
   xfree(ident);
@@ -448,7 +447,7 @@ psit_route_r(gbfile* psit_file, route_head** rte)
       /* since PsiTrex only deals with Garmins, let's use the "proper" Garmin icon name */
       /* convert the PsiTrex name to the number, which is the PCX one; from there to Garmin desc */
       garmin_icon_num = psit_find_icon_number_from_desc(psit_current_token);
-      thisWaypoint->icon_descr = gt_find_desc_from_icon_number(garmin_icon_num, PCX, NULL);
+      thisWaypoint->icon_descr = gt_find_desc_from_icon_number(garmin_icon_num, PCX);
 
       route_add_wpt(rte_head, thisWaypoint);
 
@@ -470,9 +469,8 @@ psit_route_r(gbfile* psit_file, route_head** rte)
 static void
 psit_routehdr_w(gbfile* psit_file, const route_head* rte)
 {
-  char		hdr[20];
   unsigned int rte_datapoints;
-  char*		rname;
+  QString	rname;
 
   Waypoint*	testwpt;
   time_t		uniqueValue = 0;
@@ -485,7 +483,6 @@ psit_routehdr_w(gbfile* psit_file, const route_head* rte)
   allWptNameLengths = 0;
 
   if (rte->waypoint_list.next) {		/* this test doesn't do what I want i.e test if this is a valid route - treat as a placeholder for now */
-    char* c;
 
     QUEUE_FOR_EACH(&rte->waypoint_list, elem, tmp) {
       testwpt = (Waypoint*)elem;
@@ -501,18 +498,14 @@ psit_routehdr_w(gbfile* psit_file, const route_head* rte)
 
     /* route name */
     if (rte->rte_name.isEmpty()) {
-      sprintf(hdr, "Route%04x", (unsigned) uniqueValue);
-      rname = xstrdup(hdr);
+      rname = QString("Route%1").arg((uint) uniqueValue, 4, 16, QChar('0'));
     } else {
-      rname = xstrdup(rte->rte_name);
+      rname = rte->rte_name;
     }
     /* check for psitrex comment sign; replace with '$' */
-    while ((c = strchr(rname, '#'))) {
-      *c = '$';
-    }
+    rname = rname.replace(QChar('#'), QChar('$'));
 
-    gbfprintf(psit_file, "Route:  %s\n", rname);
-    xfree(rname);
+    gbfputs(QString("Route:  %1\n").arg(rname), psit_file);
   }
 }
 
@@ -631,9 +624,8 @@ psit_track_r(gbfile* psit_file, route_head** trk)
 static void
 psit_trackhdr_w(gbfile* psit_file, const route_head* trk)
 {
-  char		hdr[30];
   unsigned int trk_datapoints;
-  char*		tname;
+  QString	tname;
   Waypoint*	testwpt;
   time_t		uniqueValue = 0;
 
@@ -643,7 +635,6 @@ psit_trackhdr_w(gbfile* psit_file, const route_head* trk)
     /* total nodes (waypoints) this track */
     trk_datapoints = 0;
     if (trk->waypoint_list.next) {	/* this test doesn't do what I want i.e test if this is a valid track - treat as a placeholder for now */
-      char* c;
 
       QUEUE_FOR_EACH(&trk->waypoint_list, elem, tmp) {
         if (trk_datapoints == 0) {
@@ -659,20 +650,15 @@ psit_trackhdr_w(gbfile* psit_file, const route_head* trk)
 
       /* track name */
       if (trk->rte_name.isEmpty()) {
-        sprintf(hdr, "Track%04x", (unsigned) uniqueValue);
-        tname = xstrdup(hdr);
+        tname = QString("Track%1").arg((uint) uniqueValue, 4, 16, QChar('0'));
       } else {
-        tname = xstrdup(trk->rte_name);
+        tname = trk->rte_name;
       }
 
       /* check for psitrex comment sign; replace with '$' */
-      while ((c = strchr(tname, '#'))) {
-        *c = '$';
-      }
+      tname = tname.replace(QChar('#'), QChar('$'));
 
-      gbfprintf(psit_file, "Track:  %s\n", tname);
-
-      xfree(tname);
+      gbfputs(QString("Track:  %1\n").arg(tname), psit_file);
     }
   }
   psit_track_state = 1;

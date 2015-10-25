@@ -21,10 +21,11 @@
 
  */
 
-#include <math.h>
 
 #include "defs.h"
 #include "filterdefs.h"
+#include <math.h>
+#include <stdlib.h>
 
 #define MYNAME "height"
 

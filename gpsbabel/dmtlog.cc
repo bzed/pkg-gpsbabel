@@ -26,10 +26,6 @@
 #include "jeeps/gpsmath.h"
 #include "xmlgeneric.h"
 
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #define MYNAME "dmtlog"
 
 #define DEFLATE_BUFF_SIZE 16384
@@ -151,7 +147,7 @@ static void
 tlog3a_xgcb_version(xg_string args, const QXmlStreamAttributes*)
 {
   if (args != "1") {
-    fatal(MYNAME ": Unsupported file version '%s'!\n", CSTRc(args));
+    fatal(MYNAME ": Unsupported file version '%s'!\n", qPrintable(args));
   }
 }
 
@@ -411,7 +407,7 @@ static void
 read_CTrackFile(const int version)
 {
   char buf[128];
-  uint32_t ver;
+  int32_t ver;
   int32_t tcount, wcount;
   int16_t u1;
   int32_t ux;

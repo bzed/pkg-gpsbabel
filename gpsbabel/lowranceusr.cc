@@ -33,8 +33,10 @@
 
 
 #include "defs.h"
-#include <string.h>
-#include <math.h> /* for lat/lon conversion */
+#include <QtCore/QDebug>
+#include <stdio.h>
+#include <cmath> /* for lat/lon conversion */
+#include <stdlib.h> // atoi
 
 typedef struct lowranceusr_icon_mapping {
   const int	value;
@@ -253,7 +255,7 @@ lowranceusr_readstr(char* buf, const int maxlen, gbfile* file)
   return len;
 }
 
-const char*
+const QString
 lowranceusr_find_desc_from_icon_number(const int icon)
 {
   const lowranceusr_icon_mapping_t* i;
@@ -382,8 +384,6 @@ lowranceusr_parse_waypt(Waypoint* wpt_tmp)
 {
   char buff[MAXUSRSTRINGSIZE + 1];
   int text_len;
-  time_t waypt_time;
-  short waypt_type;
 
   wpt_tmp->latitude = lat_mm_to_deg(gbfgetint32(file_in));
   wpt_tmp->longitude = lon_mm_to_deg(gbfgetint32(file_in));
@@ -399,7 +399,7 @@ lowranceusr_parse_waypt(Waypoint* wpt_tmp)
   }
 
   if (global_opts.debug_level >= 1)
-    printf(MYNAME " parse_waypt: Waypt name = %s Lat = %f Lon = %f alt = %f\n",CSTRc(wpt_tmp->shortname), wpt_tmp->latitude,
+    printf(MYNAME " parse_waypt: Waypt name = %s Lat = %f Lon = %f alt = %f\n",qPrintable(wpt_tmp->shortname), wpt_tmp->latitude,
            wpt_tmp->longitude, wpt_tmp->altitude);
 
   text_len = lowranceusr_readstr(&buff[0], MAXUSRSTRINGSIZE, file_in);
@@ -408,7 +408,7 @@ lowranceusr_parse_waypt(Waypoint* wpt_tmp)
     wpt_tmp->description = buff;
   }
   /* Time is number of seconds since Jan. 1, 2000 */
-  waypt_time = gbfgetint32(file_in);
+  time_t waypt_time = gbfgetint32(file_in);
   if (waypt_time) {
     wpt_tmp->SetCreationTime(base_time_secs + waypt_time);
   }
@@ -429,7 +429,7 @@ lowranceusr_parse_waypt(Waypoint* wpt_tmp)
   }
 
   /* Waypoint Type (USER, TEMPORARY, POINT_OF_INTEREST) */
-  waypt_type = gbfgetint16(file_in);
+  short waypt_type = gbfgetint16(file_in);
   if (global_opts.debug_level >= 1) {
     printf(MYNAME " parse_waypt: waypt_type = %d\n",waypt_type);
   }
@@ -437,7 +437,7 @@ lowranceusr_parse_waypt(Waypoint* wpt_tmp)
   // Version 3 has a depth field here.
   if (reading_version >= 3) {
     float depth_feet = gbfgetflt(file_in);
-    if (abs(depth_feet - 99999.0)  > .1) {
+    if (std::abs(depth_feet - 99999.0)  > .1) {
       WAYPT_SET(wpt_tmp, depth, FEET_TO_METERS(depth_feet));
     }
   }
@@ -564,7 +564,7 @@ lowranceusr_parse_trails(void)
     }
 
     if (global_opts.debug_level >= 1) {
-      printf(MYNAME " parse_trails: trail name = %s\n", CSTRc(trk_head->rte_name));
+      printf(MYNAME " parse_trails: trail name = %s\n", qPrintable(trk_head->rte_name));
     }
 
     /* visible */
@@ -679,7 +679,6 @@ lowranceusr_waypt_disp(const Waypoint* wpt)
 {
   int text_len, Lat, Lon, Time, SymbolId;
   short int WayptType;
-  char* comment;
   int alt = METERS_TO_FEET(wpt->altitude);
 
   if (wpt->altitude == unknown_alt) {
@@ -732,21 +731,20 @@ lowranceusr_waypt_disp(const Waypoint* wpt)
   gbfwrite(CSTRc(name), 1, text_len, file_out);
 
   if (global_opts.debug_level >= 1) {
-    printf(MYNAME " waypt_disp: Waypt name = %s\n", CSTRc(name));
+    printf(MYNAME " waypt_disp: Waypt name = %s\n", qPrintable(name));
   }
 
   /**
    * Comments are now used by the iFinder (Expedition C supports them)
    */
   if (wpt->description != wpt->shortname) {
-    comment = xstrdup(wpt->description);
-    text_len = strlen(comment);
+    QString comment = wpt->description;
+    text_len = comment.length();
     if (text_len > MAXUSRSTRINGSIZE) {
       text_len = MAXUSRSTRINGSIZE;
     }
     gbfputint32(text_len, file_out);
-    gbfwrite(comment, 1, text_len, file_out);
-    xfree(comment);
+    gbfwrite(CSTR(comment), 1, text_len, file_out);
   } else {
     text_len = 0;
     gbfputint32(text_len, file_out);
@@ -842,23 +840,21 @@ static void
 lowranceusr_track_hdr(const route_head* trk)
 {
   int text_len;
-  char* name, tmp_name[20];
+  QString name;
   short num_trail_points, max_trail_size;
   char visible=1;
 
   ++trail_count;
 //TODO: This whole function needs to be replaced...
   if (!trk->rte_name.isEmpty()) {
-    name = xstrdup(trk->rte_name);
+    name = trk->rte_name;
   } else if (!trk->rte_desc.isEmpty()) {
-    name = xstrdup(trk->rte_desc);
+    name = trk->rte_desc;
   } else {
-    tmp_name[0]='\0';
-    snprintf(tmp_name, sizeof(tmp_name), "Babel %d", trail_count);
-    name = xstrdup(tmp_name);
+    name = name + QString("Babel %1").arg(trail_count);
   }
 
-  text_len = strlen(name);
+  text_len = name.length();
   if (text_len > MAXUSRSTRINGSIZE) {
     text_len = MAXUSRSTRINGSIZE;
   }
@@ -868,10 +864,9 @@ lowranceusr_track_hdr(const route_head* trk)
   gbfputint32(text_len, file_out);
 
   if (global_opts.debug_level >= 1) {
-    printf(MYNAME " track_hdr: trail name = %s\n", name);
+    qDebug() << MYNAME << " track_hdr: trail name" << name;
   }
-
-  gbfwrite(name, 1, text_len, file_out);
+  gbfwrite(CSTR(name), 1, text_len, file_out);
 
   num_trail_points = (short) trk->rte_waypt_ct;
   max_trail_size = MAX_TRAIL_POINTS;
@@ -888,7 +883,6 @@ lowranceusr_track_hdr(const route_head* trk)
   gbfputint16(num_trail_points, file_out);
   gbfputint16(max_trail_size, file_out);
   gbfputint16(num_section_points, file_out);
-  xfree(name);
   trail_point_count=1;
 }
 
@@ -926,7 +920,7 @@ lowranceusr_route_hdr(const route_head* rte)
 
   if (global_opts.debug_level >= 1)
     printf(MYNAME " route_hdr: route name \"%s\" num_legs = %d\n",
-           CSTRc(rte->rte_name), num_legs);
+           qPrintable(rte->rte_name), num_legs);
 
 }
 

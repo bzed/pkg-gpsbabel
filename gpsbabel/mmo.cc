@@ -20,35 +20,11 @@
 
  */
 
-/*
-    History:
-
-	2008/10/18: Initial release
-	2008/10/19: Don't write empty names
-		    Add options 'locked' and 'visible'
-	2008/11/06: Fix enumeration of objects for empty routes or tracks
-		    Add option "ver" (internal version) to writer
-		    We support write of version:
-		    * 0x11 - reported as " "Memory Map OS Edition 2004, Version 4.2.3 Build 432"
-		    * 0x12 - most files in my test pool :-)
-	2008/11/19: Fix routes with a loop but different start and end point
-	2008/12/12: Fix object release error
-	2010/09/10: Added read support for version 0x18
-		    (test file created by Memory-Map European Edition, Version 5.4.2, Build 1089).
-	2011/10/05: Fixed read support: Track, CurrentPosition, UTF-16 strings
-		    (test file is version 0x18 as written by GPS units running 5.4.4 build 1114).
-		    Strings now written in UTF-16 if necessary.
-*/
-
-#include <ctype.h>
-#include <errno.h>
-#include <math.h>
+#include "defs.h"
+#include <QtCore/QHash>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
-#include "defs.h"
+#include <errno.h>
 
 #define MYNAME "mmo"
 
@@ -188,15 +164,15 @@ mmo_readstr(void)
       // length is number of "characters" not number of bytes
       len = (unsigned)gbfgetc(fin);
       if (len > 0) {
-        unsigned int ii, jj, ch, resbytes=0;
+        unsigned int ch, resbytes=0;
         res = (char*) xmalloc(len*2 + 1);  // bigger to allow for utf-8 expansion
-        for (ii=0; ii<len; ii++) {
+        for (signed int ii = 0; ii<len; ii++) {
           char utf8buf[8];
           int utf8len;
           ch = gbfgetint16(fin);
           // convert to utf-8, possibly multiple bytes
           utf8len = cet_ucs4_to_utf8(utf8buf, sizeof(utf8buf), ch);
-          for (jj=0; jj < utf8len; jj++) {
+          for (signed int jj = 0; jj < utf8len; jj++) {
             res[resbytes++] = utf8buf[jj];
           }
         }
@@ -214,7 +190,7 @@ mmo_readstr(void)
   res[len] = '\0';
   if (len) {
     gbfread(res, len, 1, fin);
-    if (len != strlen(res)) {
+    if (static_cast<size_t>(len) != strlen(res)) {
       // strlen requires a size_t, but Microsoft's stupid compiler doesn't
       // do C99 %zd.  Thanx, Microsoft.
       fprintf(stdout, "got len %d but str is '%s' (strlen %d)\n", len, res, (int) strlen(res));
@@ -540,7 +516,7 @@ mmo_read_CObjWaypoint(mmo_data_t* data)
   if (i != -1) {
     if (icons.contains(i)) {
       wpt->icon_descr = icons.value(i);
-      DBG((sobj, "icon = \"%s\"\n", CSTR(wpt->icon_descr)));
+      DBG((sobj, "icon = \"%s\"\n", qPrintable(wpt->icon_descr)));
     }
 #ifdef MMO_DBG
     else {
@@ -968,10 +944,12 @@ mmo_finalize_rtept_cb(const Waypoint* wptref)
   if ((wpt->shortname[0] == 1) && (wpt->latitude == 0) && (wpt->longitude == 0)) {
     mmo_data_t* data;
     Waypoint* wpt2;
-#if NEW_STRINGS
-#warning this code is on drugs.
+
+// This code path isn't tested in anything we have and I have  No Idea 
+// what it was trying to do.  Throw a hard error to force the hand of
+// getting a sample file.
     abort();
-#else
+#if OLD
     sscanf(wpt->shortname + 1, "%p", &data);
 #endif
     wpt2 = (Waypoint*)data->data;
@@ -1143,6 +1121,12 @@ mmo_writestr(const char* str)
   }
 }
 
+static void
+mmo_writestr(const QString& str) {
+  // If UTF-8 is used instgead of Latin1, we fail in weird ways.
+  mmo_writestr(str.toLatin1().constData());
+}
+
 
 static void
 mmo_enum_waypt_cb(const Waypoint* wpt)
@@ -1230,7 +1214,7 @@ mmo_write_obj_head(const char* sobj, const char* name, const time_t ctime,
 static void
 mmo_write_wpt_cb(const Waypoint* wpt)
 {
-  char* str; 
+  QString str; 
   QString cx;
   int objid;
   time_t time;
@@ -1257,13 +1241,8 @@ mmo_write_wpt_cb(const Waypoint* wpt)
   }
 
   DBG(("write", "waypoint \"%s\"\n", wpt->shortname ? wpt->shortname : "Mark"));
-#if NEW_STRINGS
   objid = mmo_write_obj_head("CObjWaypoint",
                              wpt->shortname.isEmpty() ? "Mark" : CSTRc(wpt->shortname), time, obj_type_wpt);
-#else
-  objid = mmo_write_obj_head("CObjWaypoint",
-                             (wpt->shortname && *wpt->shortname) ? CSTRc(wpt->shortname) : "Mark", time, obj_type_wpt);
-#endif
   data = mmo_register_object(objid, wpt, wptdata);
   data->refct = 1;
   mmo_write_category("CCategory", (mmo_datatype == rtedata) ? "Waypoints" : "Marks");
@@ -1280,12 +1259,10 @@ mmo_write_wpt_cb(const Waypoint* wpt)
   }
 
   if (wpt->HasUrlLink()) {
-    str = xstrdup("_FILE_ ");
+    str = "_FILE_ ";
     UrlLink l = wpt->GetUrlLink();
-    str = xstrappend(str, l.url_.toUtf8().data());
-    str = xstrappend(str, "\n");
-  } else {
-    str = xstrdup("");
+    str += l.url_;
+    str += "\n";
   }
 
   cx = wpt->notes;
@@ -1302,13 +1279,12 @@ mmo_write_wpt_cb(const Waypoint* wpt)
       tmp.is_html = 1;
       cx = kml = strip_html(&tmp);
     }
-    str = xstrappend(str, CSTRc(cx));
+    str += cx;
     if (kml) {
       xfree(kml);
     }
   }
   mmo_writestr(str);
-  xfree(str);
 
   gbfputuint32(0x01, fout);
   if WAYPT_HAS(wpt, proximity) {
@@ -1358,13 +1334,8 @@ mmo_write_rte_head_cb(const route_head* rte)
   if (time == 0x7FFFFFFF) {
     time = gpsbabel_time;
   }
-#if NEW_STRINGS
   objid = mmo_write_obj_head("CObjRoute",
                              rte->rte_name.isEmpty() ? "Route" : CSTRc(rte->rte_name), time, obj_type_rte);
-#else
-  objid = mmo_write_obj_head("CObjRoute",
-                             (rte->rte_name && *rte->rte_name) ? CSTRc(rte->rte_name) : "Route", time, obj_type_rte);
-#endif
   mmo_register_object(objid, rte, rtedata);
   mmo_write_category("CCategory", "Route");
   gbfputc(0, fout); /* unknown */
@@ -1413,13 +1384,9 @@ mmo_write_trk_head_cb(const route_head* trk)
   if (trk->rte_waypt_ct <= 0) {
     return;
   }
-#if NEW_STRINGS
   objid = mmo_write_obj_head("CObjTrack",
                              trk->rte_name.isEmpty() ? "Track" : CSTRc(trk->rte_name), gpsbabel_time, obj_type_trk);
-#else
-  objid = mmo_write_obj_head("CObjTrack",
-                             (trk->rte_name && *trk->rte_name) ? CSTRc(trk->rte_name) : "Track", gpsbabel_time, obj_type_trk);
-#endif
+
   mmo_write_category("CCategory", "Track");
   gbfputuint16(trk->rte_waypt_ct, fout);
 

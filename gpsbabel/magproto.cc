@@ -20,10 +20,6 @@
 
  */
 
-#include <ctype.h>
-#include <math.h>
-#include <time.h>
-
 #include "defs.h"
 #include "magellan.h"
 #include "gbser.h"
@@ -32,6 +28,10 @@
 #if HAVE_GLOB
 #include <glob.h>
 #endif
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <time.h>
 
 static int bitrate = 4800;
 static int wptcmtcnt;
@@ -84,11 +84,15 @@ typedef enum {
 /*
  *   An individual element of a route.
  */
-typedef struct mag_rte_elem {
+class mag_rte_elem {
+ public:
+  mag_rte_elem() {
+    QUEUE_INIT(&Q);
+  }
   queue Q;	 		/* My link pointers */
-  char* wpt_name;
-  char* wpt_icon;
-} mag_rte_elem;
+  QString wpt_name;
+  QString wpt_icon;
+};
 
 /*
  *  A header of a route.  Related elements of a route belong to this.
@@ -1038,9 +1042,7 @@ mag_rteparse(char* rtemsg)
   char xbuf[100],next_stop[100],abuf[100];
   char* currtemsg;
   static mag_rte_head* mag_rte_head;
-  mag_rte_elem* rte_elem;
   char* p;
-  char* rte_name = NULL;
 
 #if 0
   sscanf(rtemsg,"$PMGNRTE,%d,%d,%c,%d%n",
@@ -1050,6 +1052,7 @@ mag_rteparse(char* rtemsg)
          &frags,&frag,xbuf,&rtenum,&n);
 
   /* Explorist has a route name here */
+  QString rte_name;
   if (explorist) {
     char* ca, *ce;
 
@@ -1060,9 +1063,11 @@ mag_rteparse(char* rtemsg)
     is_fatal(ce == NULL, MYNAME ": Incorrectly formatted route line '%s'", rtemsg);
 
     if (ca == ce) {
-      xasprintf(&rte_name, "Route%d", rtenum);
+      rte_name = "Route";
+      rte_name += QString::number(rtenum);
     } else {
-      rte_name = xstrndup(ca, ce - ca);
+      rte_name = ca;
+      rte_name.truncate(ce-ca);
     }
 
     n += ((ce - ca) + 1);
@@ -1096,11 +1101,10 @@ mag_rteparse(char* rtemsg)
       *p = '\0';
     }
 
-    rte_elem = (mag_rte_elem*) xcalloc(sizeof(*rte_elem),1);
-    QUEUE_INIT(&rte_elem->Q);
+    mag_rte_elem* rte_elem = new mag_rte_elem;
 
-    rte_elem->wpt_name = xstrdup(next_stop);
-    rte_elem->wpt_icon = xstrdup(abuf);
+    rte_elem->wpt_name = next_stop;
+    rte_elem->wpt_icon = abuf;
 
     ENQUEUE_TAIL(&mag_rte_head->Q, &rte_elem->Q);
 
@@ -1110,9 +1114,8 @@ mag_rteparse(char* rtemsg)
      * routepoint.
      */
     if (broken_sportrak && abuf[0]) {
-      rte_elem = (mag_rte_elem*) xcalloc(sizeof(*rte_elem),1);
-      QUEUE_INIT(&rte_elem->Q);
-      rte_elem->wpt_name = (abuf);
+      rte_elem = new mag_rte_elem;
+      rte_elem->wpt_name = abuf;
 
       ENQUEUE_TAIL(&mag_rte_head->Q, &rte_elem->Q);
     }
@@ -1158,14 +1161,9 @@ mag_rteparse(char* rtemsg)
       }
 
       dequeue(&re->Q);
-      xfree(re->wpt_name);
-      xfree(re->wpt_icon);
-      xfree(re);
+      delete re;
     }
     xfree(mag_rte_head);
-  }
-  if (rte_name) {
-    xfree(rte_name);
   }
 }
 
@@ -1415,7 +1413,7 @@ mag_waypt_pr(const Waypoint* waypointp)
           wpt_len,
           CSTRc(owpt),
           CSTRc(odesc),
-          icon_token.toUtf8().data());
+          CSTR(icon_token));
   mag_writemsg(obuf);
 
   if (!is_file) {

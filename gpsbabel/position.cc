@@ -18,11 +18,12 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-#include <math.h>
 
 #include "defs.h"
 #include "filterdefs.h"
 #include "grtcirc.h"
+#include <math.h>
+#include <stdlib.h>
 
 #if FILTERS_ENABLED
 
@@ -85,8 +86,13 @@ position_runqueue(queue* q, int nelems, int qtype)
   comp = (Waypoint**) xcalloc(nelems, sizeof(*comp));
   qlist = (int*) xcalloc(nelems, sizeof(*qlist));
 
+#if NEWQ
+  foreach(Waypoint* waypointp, waypt_list) {
+    comp[i] = waypointp;
+#else
   QUEUE_FOR_EACH(q, elem, tmp) {
     comp[i] = (Waypoint*)elem;
+#endif
     qlist[i] = 0;
     i++;
   }

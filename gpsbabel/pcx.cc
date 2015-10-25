@@ -19,12 +19,14 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 */
 
-#include <ctype.h>
-#include <math.h>
 
 #include "defs.h"
 #include "garmin_tables.h"
+#include "cet_util.h"
 #include "csv_util.h"
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 static gbfile* file_in, *file_out;
 static short_handle mkshort_handle;
@@ -163,7 +165,7 @@ data_read(void)
       if (*cp != '\0') {
         wpt_tmp->description = cp;
       }
-      wpt_tmp->icon_descr = gt_find_desc_from_icon_number(symnum, PCX, NULL);
+      wpt_tmp->icon_descr = gt_find_desc_from_icon_number(symnum, PCX);
 
       if (read_as_degrees || read_gpsu) {
         human_to_dec(tbuf, &lat, &lon, 1);

@@ -21,63 +21,16 @@
 	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 */
 
-/*
-	History:
-
-	    2005/06/27: initial release (reader only)
-	    2005/07/26: added write support
-	    2005/07/27: replaced "tricky code" in route reader
-	    2005/07/28: fixed handling of single point routes
-			new option "via"
-			new option "ver"
-			fixed compiler warnings
-	    2005/07/29: fixed compiler warnings
-	    2005/08/04: Read/write URL (reference data changed)
-	    2005/08/11: Display sym and name in GDB
-	    2005/08/12: Neuter proximity and depth for now
-	    2005/08/29: big CET merge
-	    2005/09/13: Make sure routes have unique wpt names
-	    2005/10/10: MSVC fixes from Andrew
-	    2005/10/17: RJL: Tighten up types of a short handle.  It's now a "real" type and not a void *
-	    2005/10/31: RJL: Add v3 format, min/max, provide defaults, data types, etc
-	    2005/11/09: RJL: Clarify help text for dropping via points
-	    2005/12/01: changed waypt's URL to descr for hidden waypoints (-> reference data changed)
-	                removed unused procedure gdb_add_to_hidden
-	    2005/12/04: additional testo sequences
-	    2006/02/24: last field of a route is rte url
-	    2006/02/25: rte_read_loop: zero check replaced with a dummy read (8 unknown bytes)
-	    2006/03/05: first implementation of Garmin special data (garmin_fs)
-	    2006/04/04: Use track_add_wpt for all tracks
-	    2006/04/19: add url i/o to tracks and routes
-	    2006/04/19: check for empty waypoint shortnames (paranioa)
-	    2006/11/01: Use version of GPSBabel and date/time of gdb.c (managed by CVS) for watermark
-	    2007/01/23: add support for GDB version 3
-	    2007/02/07: Add special code for unknown bytes in waypoints with class GE 8 (calculated points)
-	    2007/02/15: Nearly full rewrite. Full support for GDB V3. New option roadbook.
-	    2007/05/03: Add code for tricky V3 descriptions
-	    2007/06/18: Tweak some forgotten "flagged" fields
-	    2007/07/07: Better support for new fields since V3 (postal code/street address/instruction)
-	    2008/01/09: Fix handling of option category (cat)
-	    2008/04/27: Add zero to checklist of "unknown bytes"
-	    2008/08/17: Add concept of route/track line colors
-	    2008/09/11: Make format 'pipeable' (cached writes using gbfile memapi)
-*/
-
-#include <ctype.h>
-#include <math.h>
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
-
 #include "defs.h"
 
-#include "cet.h"
 #include "cet_util.h"
 #include "csv_util.h"
 #include "garmin_fs.h"
 #include "garmin_tables.h"
 #include "grtcirc.h"
 #include "jeeps/gpsmath.h"
+#include <cmath>
+#include <stdlib.h>
 
 #define MYNAME "gdb"
 
@@ -389,7 +342,7 @@ gdb_add_route_waypt(route_head* rte, Waypoint* ref, const int wpt_class)
     if (fabs(dist) > 100) {
       warning(MYNAME ": Route point mismatch!\n");
       warning(MYNAME ": \"%s\" from waypoints differs to \"%s\"\n",
-              CSTRc(tmp->shortname), CSTRc(ref->shortname));
+              qPrintable(tmp->shortname), qPrintable(ref->shortname));
       fatal(MYNAME ": from route table by more than %0.1f meters!\n",
             dist);
 
@@ -443,7 +396,7 @@ gdb_write_cstr_list(const char* str)
 static void
 gdb_write_cstr_list(const QString& str)
 {
-  return gdb_write_cstr_list(str.toLatin1().data());
+  return gdb_write_cstr_list(CSTRc(str));
 }
 
 static void
@@ -525,7 +478,7 @@ static Waypoint*
 read_waypoint(gt_waypt_classes_e* waypt_class_out)
 {
   char buf[128];		/* used for temporary stuff */
-  int display, icon, dynamic;
+  int display, icon;
   gt_waypt_classes_e wpt_class;
   int i;
   Waypoint* res;
@@ -688,7 +641,7 @@ read_waypoint(gt_waypt_classes_e* waypt_class_out)
 #if GDB_DEBUG
         DBG(GDB_DBG_WPTe, 1)
         printf(MYNAME "-wpt \"%s\" (%d): url(%d) = %s\n",
-               sn, wpt_class, url_ct - i, CSTR(str));
+               sn, wpt_class, url_ct - i, qPrintable(str));
 #endif
       }
     }
@@ -744,7 +697,7 @@ read_waypoint(gt_waypt_classes_e* waypt_class_out)
     GMSD_SETSTR(postal_code, bufp);
   }
 
-  res->icon_descr = gt_find_desc_from_icon_number(icon, GDB, &dynamic);
+  res->icon_descr = gt_find_desc_from_icon_number(icon, GDB);
 
 #if GDB_DEBUG
   DBG(GDB_DBG_WPTe, icon != GDB_DEF_ICON)
@@ -842,9 +795,9 @@ read_route(void)
 
       warnings++;
       if (warnings > 3) {
-        fatal(MYNAME "-rte_pt \"%s\": too many warnings!\n", CSTRc(wpt->shortname));
+        fatal(MYNAME "-rte_pt \"%s\": too many warnings!\n", qPrintable(wpt->shortname));
       }
-      warning(MYNAME "-rte_pt \"%s\" (class %d): possible error in route.\n", CSTRc(wpt->shortname), wpt_class);
+      warning(MYNAME "-rte_pt \"%s\" (class %d): possible error in route.\n", qPrintable(wpt->shortname), wpt_class);
       warning(MYNAME "-rte_pt (dump):");
       for (i = 0; i < 18; i++) {
         warning(" %02x", (unsigned char)buf[i]);
@@ -1319,10 +1272,10 @@ gdb_check_waypt(Waypoint* wpt)
 
   if ((wpt->latitude < -90) || (wpt->latitude > 90.0))
     fatal("Invalid latitude %f in waypoint %s.\n",
-          lat_orig, !wpt->shortname.isEmpty() ? CSTRc(wpt->shortname) : "<no name>");
+          lat_orig, !wpt->shortname.isEmpty() ? qPrintable(wpt->shortname) : "<no name>");
   if ((wpt->longitude < -180) || (wpt->longitude > 180.0))
     fatal("Invalid longitude %f in waypoint %s.\n",
-          lon_orig, !wpt->shortname.isEmpty() ? CSTRc(wpt->shortname) : "<no name>");
+          lon_orig, !wpt->shortname.isEmpty() ? qPrintable(wpt->shortname) : "<no name>");
 }
 
 /*-----------------------------------------------------------------------------*/
@@ -1438,7 +1391,7 @@ write_waypoint(
     cnt += wpt->url_link_list_.size();
     FWRITE_i32(cnt);
     foreach(UrlLink l, wpt->GetUrlLinks()) {
-      FWRITE_CSTR(l.url_.toUtf8().data());
+      FWRITE_CSTR(l.url_);
     }
   }
 

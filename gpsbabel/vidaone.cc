@@ -32,7 +32,7 @@ struct
 */
 
 #include "defs.h"
-#include <ctype.h>
+#include <stdlib.h>
 #include <math.h>
 
 #define MYNAME "vidaone"

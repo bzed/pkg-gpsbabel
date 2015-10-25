@@ -19,9 +19,6 @@
 	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-#include <math.h>
-#include <QtCore/QRegExp>
-#include <QtCore/QXmlStreamAttributes>
 
 #ifdef __WIN32__
 # include <windows.h>
@@ -30,10 +27,14 @@
 #include "defs.h"
 #include "xmlgeneric.h"
 #include "grtcirc.h"
-
 #include "src/core/file.h"
 #include "src/core/xmlstreamwriter.h"
 #include "src/core/xmltag.h"
+#include <QtCore/QRegExp>
+#include <QtCore/QXmlStreamAttributes>
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 // options
 static char* opt_deficon = NULL;
@@ -67,6 +68,9 @@ static Waypoint* wpt_tmp;
 static int wpt_tmp_queued;
 static const char* posnfilename;
 static char* posnfilenametmp;
+
+static route_head* gx_trk_head;
+static QList<gpsbabel::DateTime>* gx_trk_times;
 
 static gpsbabel::File* oqfile;
 static gpsbabel::XmlStreamWriter* writer;
@@ -185,7 +189,7 @@ struct {
 #define ICON_TRK ICON_BASE "track-directional/track-none.png"
 #define ICON_RTE ICON_BASE "track-directional/track-none.png"
 #define ICON_MULTI_TRK ICON_BASE "track-directional/track-0.png"
-#define ICON_DIR ICON_BASE "track-directional/track-%d.png" // format string where next arg is rotational degrees.
+#define ICON_DIR ICON_BASE "track-directional/track-%1.png" // format string where next arg is rotational degrees.
 
 static struct {
   float seq;
@@ -218,9 +222,9 @@ static void kml_step_color(void)
   // Map kml_color_sequencer.seq to an integer in the range [0, KML_COLOR_LIMIT*6).
   // Note that color_seq may be outside this range if the cast from float to int fails.
   color_seq = ((int) kml_color_sequencer.seq) % (KML_COLOR_LIMIT * 6);
-#ifdef KML_COLOR_DEBUG
-  printf("kml_color_sequencer seq %f %d, step %f\n",kml_color_sequencer.seq, color_seq, kml_color_sequencer.step);
-#endif
+  if (global_opts.debug_level >= 1) {
+    printf(MYNAME ": kml_color_sequencer seq %f %d, step %f\n",kml_color_sequencer.seq, color_seq, kml_color_sequencer.step);
+  }
   if ((color_seq >= (0*KML_COLOR_LIMIT)) && (color_seq < (1*KML_COLOR_LIMIT))) {
     kml_color_sequencer.color.bbggrr = (0)<<16 | (color_seq)<<8 | (KML_COLOR_LIMIT);
   } else if ((color_seq >= (1*KML_COLOR_LIMIT)) && (color_seq < (2*KML_COLOR_LIMIT))) {
@@ -234,7 +238,7 @@ static void kml_step_color(void)
   } else if ((color_seq >= (5*KML_COLOR_LIMIT)) && (color_seq < (6*KML_COLOR_LIMIT))) {
     kml_color_sequencer.color.bbggrr = (6*KML_COLOR_LIMIT-color_seq)<<16 | (0)<<8 | (KML_COLOR_LIMIT);
   } else { // should not occur, but to be safe generate a legal color.
-    fprintf(stderr, "Error in color conversion - using default color.\n");
+    warning(MYNAME ": Error in color conversion - using default color.\n");
     kml_color_sequencer.color.bbggrr = (102)<<16 | (102)<<8 | (102);
   }
   // compute next color.
@@ -243,6 +247,8 @@ static void kml_step_color(void)
 
 static xg_callback wpt_s, wpt_e;
 static xg_callback wpt_name, wpt_desc, wpt_coord, wpt_icon, trk_coord, wpt_time;
+static xg_callback gx_trk_s, gx_trk_e;
+static xg_callback gx_trk_when, gx_trk_coord;
 
 static
 xg_tag_mapping kml_map[] = {
@@ -257,8 +263,12 @@ xg_tag_mapping kml_map[] = {
   { wpt_icon, 	cb_cdata, 	"/Placemark/Style/Icon/href" },
   { trk_coord, 	cb_cdata, 	"/Placemark/MultiGeometry/LineString/coordinates" },
   { trk_coord, 	cb_cdata, 	"/Placemark/GeometryCollection/LineString/coordinates" },
-  { trk_coord, 	cb_cdata,	"/Placemark/Polygon/outerBoundaryIs/LinearRing/coordinates" },
+  { trk_coord, 	cb_cdata, 	"/Placemark/Polygon/outerBoundaryIs/LinearRing/coordinates" },
   { trk_coord, 	cb_cdata, 	"/Placemark/LineString/coordinates" },
+  { gx_trk_s,  	cb_start, 	"/Placemark/*gx:Track" },
+  { gx_trk_e,  	cb_end, 	"/Placemark/*gx:Track" },
+  { gx_trk_when,  cb_cdata, "/Placemark/*gx:Track/when" },
+  { gx_trk_coord, cb_cdata, "/Placemark/*gx:Track/gx:coord" },
   { NULL,	(xg_cb_type) 0, 		NULL }
 };
 
@@ -272,38 +282,58 @@ const char* kml_tags_to_ignore[] = {
 
 void wpt_s(xg_string, const QXmlStreamAttributes*)
 {
+  if (wpt_tmp) {
+    fatal(MYNAME ": wpt_s: invalid kml file\n");
+  }
   wpt_tmp = new Waypoint;
   wpt_tmp_queued = 0;
 }
 
 void wpt_e(xg_string, const QXmlStreamAttributes*)
 {
+  if (!wpt_tmp) {
+    fatal(MYNAME ": wpt_e: invalid kml file\n");
+  }
   if (wpt_tmp_queued) {
     waypt_add(wpt_tmp);
+    wpt_tmp = NULL;
   } else {
     delete wpt_tmp;
+    wpt_tmp = NULL;
   }
   wpt_tmp_queued = 0;
 }
 
 void wpt_name(xg_string args, const QXmlStreamAttributes*)
 {
+  if (!wpt_tmp) {
+    fatal(MYNAME ": wpt_name: invalid kml file\n");
+  }
   wpt_tmp->shortname = args;
 }
 
 void wpt_desc(const QString& args, const QXmlStreamAttributes*)
 {
+  if (!wpt_tmp) {
+    fatal(MYNAME ": wpt_desc: invalid kml file\n");
+  }
   wpt_tmp->description += args.trimmed();
 }
 
 void wpt_time(xg_string args, const QXmlStreamAttributes*)
 {
+  if (!wpt_tmp) {
+    fatal(MYNAME ": wpt_time: invalid kml file\n");
+  }
   wpt_tmp->SetCreationTime(xml_parse_time(args));
 }
 void wpt_coord(const QString& args, const QXmlStreamAttributes*)
 {
   int n = 0;
   double lat, lon, alt;
+  if (! wpt_tmp) {
+    return;
+  }
   // Alt is actually optional.
   n = sscanf(CSTRc(args), "%lf,%lf,%lf", &lon, &lat, &alt);
   if (n >= 2) {
@@ -333,18 +363,18 @@ void trk_coord(xg_string args, const QXmlStreamAttributes*)
   route_head* trk_head = route_head_alloc();
 
   QString iargs = args;
-  if (!wpt_tmp->shortname.isEmpty()) {
+  if (wpt_tmp && !wpt_tmp->shortname.isEmpty()) {
     trk_head->rte_name  = wpt_tmp->shortname;
   }
   track_add_head(trk_head);
-  while ((n = sscanf(CSTR(iargs), "%lf,%lf,%lf%n", &lon, &lat, &alt, &consumed)) > 0) {
+  while ((n = sscanf(CSTRc(iargs), "%lf,%lf,%lf%n", &lon, &lat, &alt, &consumed)) > 0) {
     trkpt = new Waypoint;
     trkpt->latitude = lat;
     trkpt->longitude = lon;
 
     // Line malformed or two-arg format without alt .  Rescan.
     if (2 == n) {
-      sscanf(CSTRc(args), "%lf,%lf%n", &lon, &lat, &consumed);
+      sscanf(CSTRc(iargs), "%lf,%lf%n", &lon, &lat, &consumed);
     }
 
     if (3 == n) {
@@ -353,6 +383,70 @@ void trk_coord(xg_string args, const QXmlStreamAttributes*)
 
     track_add_wpt(trk_head, trkpt);
     iargs = iargs.mid(consumed);
+  }
+}
+
+void gx_trk_s(xg_string, const QXmlStreamAttributes*)
+{
+  gx_trk_head = route_head_alloc();
+  if (wpt_tmp && !wpt_tmp->shortname.isEmpty()) {
+    gx_trk_head->rte_name  = wpt_tmp->shortname;
+  }
+  if (wpt_tmp && !wpt_tmp->description.isEmpty()) {
+    gx_trk_head->rte_desc  = wpt_tmp->description;
+  }
+  track_add_head(gx_trk_head);
+  if (gx_trk_times) {
+    delete gx_trk_times;
+  }
+  gx_trk_times = new QList<gpsbabel::DateTime>;
+}
+
+void gx_trk_e(xg_string, const QXmlStreamAttributes*)
+{
+  if (!gx_trk_head->rte_waypt_ct) {
+    track_del_head(gx_trk_head);
+  }
+  delete gx_trk_times;
+  gx_trk_times = NULL;
+}
+
+void gx_trk_when(xg_string args, const QXmlStreamAttributes*)
+{
+  if (! gx_trk_times) {
+    fatal(MYNAME ": gx_trk_when: invalid kml file\n");
+  }
+  gx_trk_times->append(xml_parse_time(args));
+}
+
+void gx_trk_coord(xg_string args, const QXmlStreamAttributes*)
+{
+  Waypoint* trkpt;
+  double lat, lon, alt;
+  int n;
+
+  if (! gx_trk_times || gx_trk_times->isEmpty()) {
+    fatal(MYNAME ": There were more gx:coord elements than the number of when elements.\n");
+  }
+  trkpt = new Waypoint;
+  trkpt->SetCreationTime(gx_trk_times->takeFirst());
+  n = sscanf(CSTR(args), "%lf %lf %lf", &lon, &lat, &alt);
+  // Empty gx_coord elements are allowed to balance the number of when elements,
+  // but if we get one we will throw away the time as we don't have a location.
+  // It is not clear that coord elements without altitude are allowed, but our
+  // writer produces them.
+  if (0 != n && 2 != n && 3 != n) {
+    fatal(MYNAME ": gx:coord field decode failure on \"%s\".\n", qPrintable(args));
+  }
+  if (n >= 2) {
+    trkpt->latitude = lat;
+    trkpt->longitude = lon;
+    if (n >= 3) {
+      trkpt->altitude = alt;
+    }
+    track_add_wpt(gx_trk_head, trkpt);
+  } else {
+    delete trkpt;
   }
 }
 
@@ -478,15 +572,15 @@ kml_output_linestyle(char* /*color*/, int width)
 
 
 #define hovertag(h) h ? 'h' : 'n'
-static void kml_write_bitmap_style_(const char* style, const char* bitmap,
+static void kml_write_bitmap_style_(const QString& style, const QString& bitmap,
                                     int highlighted, int force_heading)
 {
-  int is_track = !strncmp(style, "track", 5);
-  int is_multitrack = !strncmp(style, "multiTrack", 5);
+  int is_track = style.startsWith("track");
+  int is_multitrack = style.startsWith("multiTrack");
 
-  writer->writeComment(QString(" ") + QString(highlighted ? "Highlighted" : "Normal") + QString(" ") + QString(style) + QString(" style "));
+  writer->writeComment(QString(" ") + QString(highlighted ? "Highlighted" : "Normal") + QString(" ") + style + QString(" style "));
   writer->writeStartElement("Style");
-  writer->writeAttribute("id", QString(style) + QString("_") + QString(hovertag(highlighted)));
+  writer->writeAttribute("id", style + QString("_") + QString(hovertag(highlighted)));
 
   writer->writeStartElement("IconStyle");
   if (highlighted) {
@@ -524,11 +618,11 @@ static void kml_write_bitmap_style_(const char* style, const char* bitmap,
  * and non-highlighted version of the style to allow the icons
  * to magnify slightly on a rollover.
  */
-static void kml_write_bitmap_style(kml_point_type pt_type, const char* bitmap,
-                                   const char* customstyle)
+static void kml_write_bitmap_style(kml_point_type pt_type, const QString& bitmap,
+                                   const QString& customstyle)
 {
   int force_heading = 0;
-  const char* style;
+  QString style;
   switch (pt_type) {
   case kmlpt_track:
     style = "track";
@@ -558,11 +652,11 @@ static void kml_write_bitmap_style(kml_point_type pt_type, const char* bitmap,
   writer->writeAttribute("id", style);
   writer->writeStartElement("Pair");
   writer->writeTextElement("key", "normal");
-  writer->writeTextElement("styleUrl", QString("#") + QString(style) + QString("_") + QString(hovertag(0)));
+  writer->writeTextElement("styleUrl", QString("#") + style + QString("_") + QString(hovertag(0)));
   writer->writeEndElement(); // Close Pair tag
   writer->writeStartElement("Pair");
   writer->writeTextElement("key", "highlight");
-  writer->writeTextElement("styleUrl", QString("#") + QString(style) + QString("_") + QString(hovertag(1)));
+  writer->writeTextElement("styleUrl", QString("#") + style + QString("_") + QString(hovertag(1)));
   writer->writeEndElement(); // Close Pair tag
   writer->writeEndElement(); // Close StyleMap tag
 }
@@ -873,7 +967,7 @@ static void kml_add_to_bounds(const Waypoint* waypointp)
 
 static void kml_output_point(const Waypoint* waypointp, kml_point_type pt_type)
 {
-  const char* style;
+  QString style;
 
   switch (pt_type) {
   case kmlpt_track:
@@ -908,13 +1002,14 @@ static void kml_output_point(const Waypoint* waypointp, kml_point_type pt_type)
       writer->writeEndElement(); // Close Style tag
     } else {
       if (trackdirection && (pt_type == kmlpt_track)) {
-        char buf[100];
+        QString value;
         if (waypointp->speed < 1) {
-          snprintf(buf, sizeof(buf), "%s-none", style);
-        } else
-          snprintf(buf, sizeof(buf), "%s-%d", style,
-                   (int)(waypointp->course / 22.5 + .5) % 16);
-        writer->writeTextElement("styleUrl", buf);
+          value = QString("%1-none").arg(style);
+        } else {
+          value = QString("%1-%2").arg(style)
+                  .arg((int)(waypointp->course / 22.5 + .5) % 16);
+        }
+        writer->writeTextElement("styleUrl", value);
       } else {
         writer->writeTextElement("styleUrl", style);
       }
@@ -1038,7 +1133,7 @@ void kml_gc_all_tabs_text(QString& cdataStr)
 
 }
 
-const char* map_templates[] = {
+static const QString map_templates[] = {
   "<a href=\"http://maps.google.com/maps?q=$[gc_lat],$[gc_lon]\" target=\"_blank\">Google Maps</a>",
   "<a href=\"http://maps.google.com/maps?q=$[gc_lat],$[gc_lon]\" target=\"_blank\">Google Street View</a>",
   "<a href=\"http://www.geocaching.com/map/default.aspx?lat=$[gc_lat]&lng=$[gc_lon]\" target=\"_blank\">Geocaching.com Google Map</a>",
@@ -1057,7 +1152,6 @@ const char* map_templates[] = {
 static
 void kml_gc_make_balloonstyletext(void)
 {
-  const char** tp;
   QString cdataStr;
 
   writer->writeStartElement("BalloonStyle");
@@ -1108,10 +1202,10 @@ void kml_gc_make_balloonstyletext(void)
   cdataStr.append("  <ul>\n");
   // Fortunately, all the mappy map URLs take lat/longs in the URLs, so
   // the substition is easy.
-  for (tp = map_templates; *tp; tp++) {
+  for (int tp = 0; !map_templates[tp].isEmpty(); tp++) {
     cdataStr.append("    <li>\n");
     cdataStr.append("    ");
-    cdataStr.append(*tp);
+    cdataStr.append(map_templates[tp]);
     cdataStr.append("</li>\n");
   }
   cdataStr.append("  <ul>\n");
@@ -1264,27 +1358,25 @@ kml_lookup_gc_container(const Waypoint* waypointp)
   return cont;
 }
 
-// Not thread safe.  Return strings are small and it's silly to xasprintf/free
-// them so we use a static buffer.
-
-char* kml_gc_mkstar(int rating)
+static QString kml_gc_mkstar(int rating)
 {
-  static char tmp[40];
+  QString star_content;
 
   if (rating < 0 || rating > 50 || rating % 5 != 0) {
     fatal("Bogus difficulty or terrain rating.");
   }
 
   if (0 == rating % 10) {
-    snprintf(tmp, sizeof(tmp), "stars%d", rating / 10);
+    star_content = QString("stars%1").arg(rating / 10);
   } else {
-    snprintf(tmp, sizeof(tmp), "stars%d_%d", rating / 10, rating % 10);
+    star_content = QString("stars%1_%2").arg(rating / 10).arg(rating % 10);
   }
 
-  return tmp;
+  return star_content;
+
 }
 
-QString kml_geocache_get_logs(const Waypoint* wpt)
+static QString kml_geocache_get_logs(const Waypoint* wpt)
 {
   QString r;
 
@@ -1316,37 +1408,29 @@ QString kml_geocache_get_logs(const Waypoint* wpt)
     if (logpart) {
       gpsbabel::DateTime t = xml_parse_time(logpart->cdata);
       if (t.isValid()) {
-        char* temp;
-        xasprintf(&temp,
-                  " %04d-%02d-%02d",
-                  t.date().year(),
-                  t.date().month(),
-                  t.date().day());
-        r += temp;
-        xfree(temp);
+        r += t.date().toString(Qt::ISODate);
       }
     }
 
     logpart = xml_findfirst(curlog, "groundspeak:text");
     if (logpart) {
       char* encstr = NULL;
-      char* s = NULL;
       char* t = NULL;
       int encoded = 0;
       encstr = xml_attribute(logpart, "encoded");
       encoded = (toupper(encstr[0]) != 'F');
 
+      QString s;
       if (html_encrypt && encoded) {
         s = rot13(logpart->cdata);
       } else {
-        s = xstrdup(logpart->cdata);
+        s = logpart->cdata;
       }
 
       r = r + "<br />";
       t = html_entitize(s);
       r = r + t;
       xfree(t);
-      xfree(s);
     }
 
     r += "</p>";
@@ -1396,11 +1480,9 @@ static void kml_geocache_pr(const Waypoint* waypointp)
   writer->writeStartElement("Placemark");
 
   writer->writeStartElement("name");
-  writer->writeCharacters("\n"); // FIXME  forced formatting to match old references
   if (waypointp->HasUrlLink()) {
     UrlLink link = waypointp->GetUrlLink();
     writer->writeCDATA(link.url_link_text_);
-    writer->writeCharacters("\n"); // FIXME  forced formatting to match old references
   }
   writer->writeEndElement(); // Close name tag
 
@@ -1891,7 +1973,7 @@ void kml_write(void)
   }
 
   if (current_time().isValid()) {
-    writer->writeTextElement("snippet", QString("Created ") + 
+    writer->writeTextElement("snippet", QString("Created ") +
                              current_time().toString());
   }
 
@@ -1904,15 +1986,9 @@ void kml_write(void)
 
   if (track_waypt_count()) {
     if (trackdirection) {
-      int i;
       kml_write_bitmap_style(kmlpt_other, ICON_TRK, "track-none");
-      for (i = 0; i < 16; i++) {
-        char buf1[100];
-        char buf2[100];
-
-        sprintf(buf1, "track-%d", i);
-        sprintf(buf2, ICON_DIR, i);
-        kml_write_bitmap_style(kmlpt_other, buf2, buf1);
+      for (int i = 0; i < 16; i++) {
+        kml_write_bitmap_style(kmlpt_other, QString(ICON_DIR).arg(i), QString("track-%1").arg(i));
       }
     } else {
       kml_write_bitmap_style(kmlpt_track, ICON_TRK, NULL);
@@ -2018,10 +2094,9 @@ static const
 char*
 kml_get_posn_icon(int freshness)
 {
-  int i;
   int n_stations = sizeof(kml_tracking_icons) / sizeof(kml_tracking_icons[0]);
 
-  for (i = 0; i < n_stations ; i++) {
+  for (int i = 0; i < n_stations ; i++) {
     if (freshness >= kml_tracking_icons[i].freshness) {
       return kml_tracking_icons[i].icon;
     }

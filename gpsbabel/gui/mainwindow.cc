@@ -84,30 +84,6 @@ bool MainWindow::allowBetaUpgrades()
 }
 
 //------------------------------------------------------------------------
-static QStringList getCharSets()
-{
-  QProcess babel;
-  babel.start("gpsbabel", QStringList() << "-l");
-  if (!babel.waitForStarted())
-    return QStringList();
-  babel.closeWriteChannel();
-  if (!babel.waitForFinished())
-    return QStringList();
-
-  QStringList strList;
-  QTextStream tstream(babel.readAll());
-  while(!tstream.atEnd()) {
-    QString l = tstream.readLine();
-    if (QRegExp("^\\*").indexIn(l) == 0) {
-      l.replace(QRegExp("^[\\*\\s]*"),  "");
-      l.replace(QRegExp("[\\s]+$"),  "");
-      strList << l;
-    }
-  }
-  return strList;
-}
-
-//------------------------------------------------------------------------
 static QString MakeOptions(const QList<FormatOption>& options)
 {
   QString str;
@@ -155,7 +131,6 @@ MainWindow::MainWindow(QWidget* parent): QMainWindow(parent)
   babelVersion_ = findBabelVersion();
   fmtChgInterlock_ = false;
   loadDeviceNameCombos();
-  loadCharSetCombos();
 
   connect(ui_.inputFileOptBtn,        SIGNAL(clicked()), this, SLOT(inputFileOptBtnClicked()));
   connect(ui_.inputDeviceOptBtn,      SIGNAL(clicked()), this, SLOT(inputDeviceOptBtnClicked()));
@@ -390,28 +365,6 @@ void MainWindow::loadDeviceNameCombos()
   loadOutputDeviceNameCombo("");
 }
 //------------------------------------------------------------------------
-void MainWindow::loadCharSetCombos()
-{
-  charSets_ = getCharSets();
-
-  ui_.inputCharSetCombo->clear();
-  ui_.outputCharSetCombo->clear();
-  ui_.inputCharSetCombo->addItem(tr("default"), QVariant(-1));
-  ui_.outputCharSetCombo->addItem(tr("default"), QVariant(-1));
-  for (int i=0; i<charSets_.size(); i++) {
-    ui_.inputCharSetCombo->addItem(charSets_[i], QVariant(i));
-    ui_.outputCharSetCombo->addItem(charSets_[i], QVariant(i));
-  }
-}
-//------------------------------------------------------------------------
-void MainWindow::checkCharSetCombos()
-{
-  ui_.inputCharSetCombo->setEnabled(babelData_.enableCharSetXform_);
-  ui_.outputCharSetCombo->setEnabled(babelData_.enableCharSetXform_);
-  ui_.inputCharSetCombo->setVisible(babelData_.enableCharSetXform_);
-  ui_.outputCharSetCombo->setVisible(babelData_.enableCharSetXform_);
-}
-//------------------------------------------------------------------------
 void MainWindow::inputFileOptBtnClicked()
 {
   fmtChgInterlock_ = true;
@@ -458,7 +411,8 @@ void MainWindow:: outputFileOptBtnClicked()
     ui_.outputFormatCombo->clear();
     for (int i=0; i<indices.size(); i++) {
       int k = indices[i];
-      ui_.outputFormatCombo->addItem(formatList_[k].getDescription(), QVariant(k));
+      if (!formatList_[k].isHidden())
+        ui_.outputFormatCombo->addItem(formatList_[k].getDescription(), QVariant(k));
     }
     setComboToFormat(ui_.outputFormatCombo, fmt, true);
   }
@@ -482,7 +436,8 @@ void MainWindow:: outputDeviceOptBtnClicked()
     ui_.outputFormatCombo->clear();
     for (int i=0; i<indices.size(); i++) {
       int k = indices[i];
-      ui_.outputFormatCombo->addItem(formatList_[k].getDescription(), QVariant(k));
+      if (!formatList_[k].isHidden())
+        ui_.outputFormatCombo->addItem(formatList_[k].getDescription(), QVariant(k));
     }
     setComboToFormat(ui_.outputFormatCombo, fmt, false);
   }
@@ -967,10 +922,6 @@ void MainWindow::applyActionX()
   if (babelData_.debugLevel_ >=0)     args << QString("-D%1").arg(babelData_.debugLevel_);
   if (babelData_.synthShortNames_)    args << "-s";
 
-  // Input char set if specified
-  if (babelData_.enableCharSetXform_ && babelData_.inputCharSet_ != QString())
-    args << "-c" << babelData_.inputCharSet_;
-
   Format ifmt = formatList_[currentComboFormatIndex(ui_.inputFormatCombo)];
   Format ofmt = formatList_[currentComboFormatIndex(ui_.outputFormatCombo)];
 
@@ -1004,10 +955,6 @@ void MainWindow::applyActionX()
 
   // --- Filters!
   args << filterData_.getAllFilterStrings();
-
-  // Output char set if specified
-  if (babelData_.enableCharSetXform_ && babelData_.outputCharSet_ != QString())
-    args << "-c" << babelData_.outputCharSet_;
 
   // Output type, with options
   if (babelData_.outputType_ != BabelData::noType_) {
@@ -1125,7 +1072,7 @@ void MainWindow::dropEvent(QDropEvent *event)
       QList<QUrl> urlList = event->mimeData()->urls();
       babelData_.inputFileNames_.clear();
       for (int i = 0; i < urlList.size(); ++i) {
-        QFileInfo file_info(urlList.at(i).path());
+        QFileInfo file_info(urlList.at(i).toLocalFile());
         QString name = file_info.filePath();
         QString ext = file_info.suffix();
 
@@ -1195,11 +1142,10 @@ void MainWindow::resetFormatDefaults()
 void MainWindow::moreOptionButtonClicked()
 {
   AdvDlg advDlg(0, babelData_.synthShortNames_,
-        babelData_.enableCharSetXform_, babelData_.previewGmap_, babelData_.debugLevel_);
+                babelData_.previewGmap_, babelData_.debugLevel_);
   connect(advDlg.formatButton(), SIGNAL(clicked()),
 	  this, SLOT(resetFormatDefaults()));
   advDlg.exec();
-  checkCharSetCombos();
 }
 //------------------------------------------------------------------------
 void MainWindow::aboutActionX()
@@ -1270,7 +1216,6 @@ void MainWindow::setWidgetValues()
     ui_.inputStackedWidget->setCurrentWidget(ui_.inputDevicePage);
   }
   setComboToDevice(ui_.inputDeviceNameCombo, babelData_.inputDeviceName_);
-  setComboToCharSet(ui_.inputCharSetCombo, babelData_.inputCharSet_);
 
   if (babelData_.outputType_ == BabelData::fileType_) {
     ui_.outputFileOptBtn->setChecked(true);
@@ -1294,7 +1239,6 @@ void MainWindow::setWidgetValues()
   }
 
   setComboToDevice(ui_.outputDeviceNameCombo, babelData_.outputDeviceName_);
-  setComboToCharSet(ui_.outputCharSetCombo, babelData_.outputCharSet_);
 
   ui_.xlateWayPtsCk->setChecked(babelData_.xlateWayPts_);
   ui_.xlateTracksCk->setChecked(babelData_.xlateTracks_);
@@ -1303,7 +1247,6 @@ void MainWindow::setWidgetValues()
   crossCheckInOutFormats();
   displayOptionsText(ui_.inputOptionsText,  ui_.inputFormatCombo, true);
   displayOptionsText(ui_.outputOptionsText,  ui_.outputFormatCombo, false);
-  checkCharSetCombos();
   updateFilterStatus();
 }
 
@@ -1321,7 +1264,6 @@ void MainWindow::getWidgetValues()
     babelData_.inputDeviceFormat_ =formatList_[fidx].getName();
   }
   babelData_.inputDeviceName_ = ui_.inputDeviceNameCombo->currentText();
-  babelData_.inputCharSet_ = charSetFromCombo(ui_.inputCharSetCombo);
 
   comboIdx = ui_.outputFormatCombo->currentIndex();
   fidx = ui_.outputFormatCombo->itemData(comboIdx).toInt();
@@ -1337,7 +1279,6 @@ void MainWindow::getWidgetValues()
     babelData_.outputType_ = BabelData::noType_;
   }
   babelData_.outputDeviceName_ = ui_.outputDeviceNameCombo->currentText();
-  babelData_.outputCharSet_ = charSetFromCombo(ui_.outputCharSetCombo);
 
   babelData_.xlateWayPts_ = ui_.xlateWayPtsCk->isChecked();
   babelData_.xlateTracks_ = ui_.xlateTracksCk->isChecked();

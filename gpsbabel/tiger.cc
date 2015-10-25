@@ -19,10 +19,12 @@
 
  */
 
-#include <math.h>
-
 #include "defs.h"
+#include "cet_util.h"
 #include "csv_util.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static gbfile* file_in, *file_out;
 static short_handle mkshort_handle;
@@ -210,7 +212,7 @@ tiger_disp(const Waypoint* wpt)
     }
   }
 
-  gbfprintf(file_out, "%f,%f:%s", lon, lat, pin.toUtf8().data());
+  gbfprintf(file_out, "%f,%f:%s", lon, lat, CSTR(pin));
   if (!nolabels) {
     QString temp;
     QString desc = csv_stringclean(wpt->description, ":");

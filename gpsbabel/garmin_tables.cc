@@ -21,10 +21,9 @@
  */
 
 #include "garmin_tables.h"
+#include "src/core/logging.h"
 #include "jeeps/gpsmath.h"
-
-#include <stdio.h>
-#include <string.h>
+#include <stdlib.h> // qsort
 
 #define MYNAME "garmin_tables"
 
@@ -730,29 +729,18 @@ gt_switch_display_mode_value(const unsigned char display_mode, const int protoid
   }
 }
 
-const char*
-gt_find_desc_from_icon_number(const int icon, garmin_formats_e garmin_format, int* dynamic)
+const QString 
+gt_find_desc_from_icon_number(const int icon, garmin_formats_e garmin_format)
 {
-  icon_mapping_t* i;
-  char custom[] = "Custom 63 ";
-
   if ((garmin_format == GDB) && (icon >= 500) && (icon <= 563)) {
-    snprintf(custom, sizeof(custom), "Custom %d", icon - 500);
-    *dynamic = 1;
-    return xstrdup(custom);
+    return QString("Custom %d").arg(icon - 500);
   }
 
   if ((garmin_format == PCX) && (icon >= 7680) && (icon <= 8191)) {
-    snprintf(custom, sizeof(custom), "Custom %d", icon - 7680);
-    *dynamic = 1;
-    return xstrdup(custom);
+    return QString("Custom %d").arg(icon - 7680);
   }
 
-  if (dynamic) {
-    *dynamic = 0;
-  }
-
-  for (i = garmin_icon_table; i->icon; i++) {
+  for (icon_mapping_t* i = garmin_icon_table; i->icon; i++) {
     switch (garmin_format) {
     case MAPSOURCE:
     case GDB:
@@ -965,19 +953,19 @@ gt_get_icao_cc(const QString& country, const QString& shortname)
 }
 
 grid_type
-gt_lookup_grid_type(const char* grid_name, const char* module)
+gt_lookup_grid_type(const char* grid_name, const QString& module)
 {
   grid_mapping_t* g;
 
   for (g = gt_mps_grid_names; (g->shortname); g++) {
-    if ((case_ignore_strcmp(grid_name, g->shortname) == 0) ||
-        (case_ignore_strcmp(grid_name, g->longname) == 0)) {
+    if (QString::compare(grid_name, g->shortname, Qt::CaseInsensitive) == 0 ||
+        QString::compare(grid_name, g->longname,Qt::CaseInsensitive) == 0) {
       return g->grid;
     }
   }
 
-  fatal("%s: Unsupported grid (%s)! See GPSBabel help for supported grids.\n",
-        module, grid_name);
+  Fatal() << module << ": Unsupported grid (" << grid_name << 
+                       ". See GPSBabel help for supported grids.\n";
 
   return grid_unknown;	/* (warnings) */
 }
@@ -1001,7 +989,7 @@ gt_get_mps_datum_name(const int datum_index)
   result = GPS_Math_Get_Datum_Name(datum_index);
 
   for (d = gt_mps_datum_names; (d->jeeps_name); d++)
-    if (case_ignore_strcmp(result, d->jeeps_name) == 0) {
+    if (QString::compare(result, d->jeeps_name, Qt::CaseInsensitive) == 0) {
       return d->mps_name;
     }
 
@@ -1009,14 +997,14 @@ gt_get_mps_datum_name(const int datum_index)
 }
 
 int
-gt_lookup_datum_index(const char* datum_str, const char* module)
+gt_lookup_datum_index(const char* datum_str, const QString& module)
 {
   datum_mapping_t* d;
   int result;
   const char* name = datum_str;
 
   for (d = gt_mps_datum_names; (d->jeeps_name); d++) {
-    if (case_ignore_strcmp(name, d->mps_name) == 0) {
+    if (QString::compare(name, d->mps_name, Qt::CaseInsensitive) == 0) {
       name = d->jeeps_name;
       break;
     }
@@ -1024,15 +1012,16 @@ gt_lookup_datum_index(const char* datum_str, const char* module)
 
   result = GPS_Lookup_Datum_Index(name);
 
+  // Didn't get a hit?  Try again after modifying the lookup.
   if (result < 0) {
     QString tmp = QString(datum_str) + " mean";
-    result = GPS_Lookup_Datum_Index(CSTR(tmp));
+    result = GPS_Lookup_Datum_Index(tmp);
   }
 
-  is_fatal(result < 0,
-           "%s: Unsupported datum (%s)! See GPSBabel help for supported datums.",
-           module, datum_str);
-
+  if (result < 0) {
+    Fatal() << module << ": Unsupported datum (" << datum_str << 
+                         "). See GPSBabel help for supported datums.";
+  }
   return result;
 }
 
@@ -1047,12 +1036,12 @@ gt_color_value(const unsigned int garmin_index)
 }
 
 uint32_t
-gt_color_value_by_name(const char* name)
+gt_color_value_by_name(const QString& name)
 {
   unsigned int i;
 
   for (i = 0; i < GT_COLORS_CT; i++)
-    if (case_ignore_strcmp(gt_colors[i].name, name) == 0) {
+    if (QString::compare(gt_colors[i].name, name, Qt::CaseInsensitive) == 0) {
       return gt_colors[i].rgb;
     }
 
@@ -1060,12 +1049,12 @@ gt_color_value_by_name(const char* name)
 }
 
 int
-gt_color_index_by_name(const char* name)
+gt_color_index_by_name(const QString& name)
 {
   unsigned int i;
 
   for (i = 0; i < GT_COLORS_CT; i++)
-    if (case_ignore_strcmp(name, gt_colors[i].name) == 0) {
+    if (QString::compare(gt_colors[i].name, name, Qt::CaseInsensitive) == 0) {
       return i;
     }
 

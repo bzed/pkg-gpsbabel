@@ -21,16 +21,11 @@
  */
 
 #include "defs.h"
-#include "zlib/zconf.h"
 #include "gbfile.h"
+#include "src/core/logging.h"
 
 #include <assert.h>
-#include <ctype.h>
-#include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <QtCore/QDebug>
-
 
 #if __WIN32__
 /* taken from minigzip.c (part of the zlib project) */
@@ -498,7 +493,7 @@ memapi_error(gbfile* self)
  */
 
 gbfile*
-gbfopen(const char* filename, const char* mode, const char* module)
+gbfopen(const QString filename, const char* mode, const char* module)
 {
   gbfile* file;
   const char* m;
@@ -543,7 +538,7 @@ gbfopen(const char* filename, const char* mode, const char* module)
     file->filewrite = memapi_write;
   } else {
     file->name = xstrdup(filename);
-    file->is_pipe = (strcmp(filename, "-") == 0);
+    file->is_pipe = (filename == "-");
 
     /* Do we have a '.gz' extension in the filename ? */
     len = strlen(file->name);
@@ -606,7 +601,7 @@ gbfopen(const char* filename, const char* mode, const char* module)
  */
 
 gbfile*
-gbfopen_be(const char* filename, const char* mode, const char* module)
+gbfopen_be(const QString filename, const char* mode, const char* module)
 {
   gbfile* result;
 
@@ -701,6 +696,19 @@ gbfread(void* buf, const gbsize_t size, const gbsize_t members, gbfile* file)
   return file->fileread(buf, size, members, file);
 }
 
+// This probably makes an unnecessary alloc/copy, but keeps the above (kinda
+// goofy) calling signature.
+gbsize_t
+gbfread(QString& buf, const gbsize_t size, 
+        const gbsize_t members, gbfile* file) 
+{
+  QByteArray tmp;
+  tmp.resize(members * size);
+  gbsize_t retval = gbfread(tmp.data(), size, members, file);
+  buf = QString(tmp);
+  return retval;
+}
+
 /*
  * gbvfprintf: (as vfprintf)
  */
@@ -778,24 +786,13 @@ gbfputc(int c, gbfile* file)
  * gbfputs: (as fputs)
  */
 
-int
-gbfputs(const char* s, gbfile* file)
-{
-  return gbfwrite(s, 1, strlen(s), file);
-}
-
 // This is a depressing hack, meant to ease the pain from C strings
 // to QStrings, which are consitently encoded.
 int
 gbfputs(const QString& s, gbfile* file)
 {
-  // Why is this Latin1() and not toUtf8()?  Becuase our string data is
-  // already utf8 in most of the "C" places and calling toUtf8() here would
-  // double encode them.
-  const char* qs = xstrdup(s.toLatin1().data());
-  unsigned int l = strlen(qs);
-  int rv =  gbfwrite(qs, 1, l, file);
-  xfree(qs);
+  QByteArray qs = s.toUtf8();
+  int rv =  gbfwrite(qs.constData(), 1, qs.size(), file);
   return rv;
 }
 
@@ -1028,19 +1025,12 @@ gbfgetcstr(gbfile* file)
 QString
 gbfgetpstr(gbfile* file)
 {
-  int len;
-  char* result;
+  int len = gbfgetc(file);
+  QByteArray ba;
+  ba.resize(len);
+  gbfread(ba.data(), 1, len, file);
 
-  len = gbfgetc(file);
-  result = (char*) xmalloc(len + 1);
-  if (len > 0) {
-    gbfread(result, 1, len, file);
-  }
-  result[len] = '\0';
-
-  QString r(result);
-  xfree(result);
-  return r;
+  return QString(ba);
 }
 
 static char*
@@ -1094,6 +1084,10 @@ gbfgetucs2str(gbfile* file)
     }
 
     clen = cet_ucs4_to_utf8(buff, sizeof(buff), c0);
+    if (clen < 1) {
+      Warning() << "Malformed UCS character" << c0 << "found.";
+      return NULL;
+    }
 
     if (len+clen >= file->buffsz) {
       file->buffsz += 64;
@@ -1235,24 +1229,13 @@ gbfputflt(const float f, gbfile* file)
  * gbfputcstr: write a NULL terminated string into a stream (!) including NULL
  *             return the number of written characters
  */
-
 int
-gbfputcstr(const char* s, gbfile* file)
+gbfputcstr(const QString& s, gbfile* file) 
 {
-  int len;
-
-  len = (s == NULL) ? 0 : strlen(s);
-  if (len > 0) {
-    return gbfwrite(s, 1, len + 1, file);
-  } else {
-    gbfputc(0, file);
-    return 1;
-  }
-}
-int
-gbfputcstr(const QString& s, gbfile* file)
-{
-  return gbfputcstr(qPrintable(s), file);
+  QByteArray qs = s.toUtf8();
+  int rv =  gbfwrite(qs.constData(), 1, qs.size(), file);
+  gbfputc(0, file);
+  return rv;
 }
 
 /*
@@ -1261,28 +1244,16 @@ gbfputcstr(const QString& s, gbfile* file)
  */
 
 int
-gbfputpstr(const char* s, gbfile* file)
-{
-  int len;
-
-  len = (s == NULL) ? 0 : strlen(s);
-  if (len > 255) {
-    len = 255;  /* the maximum size of a standard pascal string */
-  }
-  gbfputc(len, file);
-  if (len > 0) {
-    gbfwrite(s, 1, len, file);
-  }
-  return (len + 1);
-}
-
-int
 gbfputpstr(const QString& s, gbfile* file)
 {
-  const char* t = xstrdup(s.toUtf8().data());
-  int r = gbfputpstr(t, file);
-  xfree(t);
-  return r;
+  QString out(s);
+  // Pascal strings can be a max of 255 bytes.
+  out.truncate(255);
+
+  gbfputc(out.size(), file);
+  QByteArray qs = s.toUtf8();
+  int rv =  gbfwrite(qs.constData(), 1, qs.size(), file);
+  return rv;
 }
 
 /* Much more higher level functions */

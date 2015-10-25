@@ -19,15 +19,12 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-
-#include <ctype.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
 #include "defs.h"
 #include "csv_util.h"
+#include <QtCore/QHash>
+#include <cmath>
+#include <stdlib.h>
+#include <stdio.h>
 
 #define MYNAME "jtr"
 

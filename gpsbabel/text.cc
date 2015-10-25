@@ -24,6 +24,7 @@
 #include "jeeps/gpsmath.h"
 #include "src/core/xmltag.h"
 #include <ctype.h>
+#include <stdlib.h>
 
 static gbfile* file_out;
 static short_handle mkshort_handle;
@@ -106,8 +107,8 @@ text_disp(const Waypoint* wpt)
   waypoint_count++;
 
   if (split_output) {
-    char* thisfname;
-    xasprintf(&thisfname, "%s%d", output_name, waypoint_count);
+    QString thisfname(output_name);
+    thisfname += QString::number(waypoint_count);
     file_out = gbfopen(thisfname, "w", MYNAME);
   }
 
@@ -130,9 +131,10 @@ text_disp(const Waypoint* wpt)
   }
 
   if (wpt->description != wpt->shortname) {
-    gbfprintf(file_out, "%s", CSTRc(wpt->description));
+    gbfputs(wpt->description, file_out);
     if (!wpt->gc_data->placer.isEmpty()) {
-      gbfprintf(file_out, " by %s", wpt->gc_data->placer.toUtf8().data());
+      gbfputs(" by ", file_out);
+      gbfputs(wpt->gc_data->placer, file_out);
     }
   }
   if (wpt->gc_data->terr) {
@@ -151,17 +153,18 @@ text_disp(const Waypoint* wpt)
       xfree(stripped_html);
     }
     if (!wpt->gc_data->hint.isEmpty()) {
-      char* hint = NULL;
+      QString hint;
       if (txt_encrypt) {
         hint = rot13(wpt->gc_data->hint);
       } else {
         hint = xstrdup(wpt->gc_data->hint);
       }
-      gbfprintf(file_out, "\nHint: %s\n", hint);
-      xfree(hint);
+      gbfprintf(file_out, "\nHint: %s\n", CSTR(hint));
     }
   } else if (!wpt->notes.isEmpty() && (wpt->description.isEmpty() || wpt->notes != wpt->description)) {
-    gbfprintf(file_out, "\n%s\n", CSTRc(wpt->notes));
+    gbfputs("\n", file_out);
+    gbfputs(wpt->notes, file_out);
+    gbfputs("\n", file_out);
   }
 
   fs_gpx = NULL;
@@ -181,12 +184,14 @@ text_disp(const Waypoint* wpt)
 
       logpart = xml_findfirst(curlog, "groundspeak:type");
       if (logpart) {
-        gbfprintf(file_out, "%s by ", CSTR(logpart->cdata));
+        gbfputs(logpart->cdata, file_out);
+        gbfputs(" by ", file_out);
       }
 
       logpart = xml_findfirst(curlog, "groundspeak:finder");
       if (logpart) {
-        gbfprintf(file_out, "%s on ", CSTR(logpart->cdata));
+        gbfputs(logpart->cdata, file_out);
+        gbfputs(" on ", file_out);
       }
 
       logpart = xml_findfirst(curlog, "groundspeak:date");
@@ -223,19 +228,18 @@ text_disp(const Waypoint* wpt)
       logpart = xml_findfirst(curlog, "groundspeak:text");
       if (logpart) {
         char* encstr = NULL;
-        char* s = NULL;
         int encoded = 0;
         encstr = xml_attribute(logpart, "encoded");
         encoded = (toupper(encstr[0]) != 'F');
 
+        QString s;
         if (txt_encrypt && encoded) {
           s = rot13(logpart->cdata);
         } else {
-          s = xstrdup(logpart->cdata);
+          s = logpart->cdata;
         }
 
-        gbfprintf(file_out, "%s", s);
-        xfree(s);
+        gbfputs(s, file_out);
       }
 
       gbfprintf(file_out, "\n");

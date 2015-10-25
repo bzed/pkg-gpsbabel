@@ -18,11 +18,17 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
+/*
+ * Relevant schema definitions can be found at
+ * http://www8.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd
+ * http://www8.garmin.com/xmlschemas/ActivityExtensionv2.xsd
+ */
 
 #include <QtCore/QXmlStreamAttributes>
 
 #include "defs.h"
 #include "xmlgeneric.h"
+#include <stdio.h>
 
 static gbfile* ofd;
 static int lap_ct = 0;
@@ -121,6 +127,9 @@ static xg_tag_mapping gtc_map[] = {
   { gtc_trk_hr,   cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/HeartRateBpm" },
   { gtc_trk_cad,  cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/Cadence" },
   { gtc_trk_pwr,  cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/Extensions/ns3:TPX/ns3:Watts" },
+  // Sample from Marcelo Kittlein 5/2014 declares a default namespace with the start tag of the TPX element,
+  // and thus doesn't use prefixes.
+  { gtc_trk_pwr,  cb_cdata, "/Activities/Activity/Lap/Track/Trackpoint/Extensions/TPX/Watts" },
   // It looks like Speed and Watts should be siblings, but Garmin can't get
   // their namespace act very consistent.  This works for a sample provided
   // by Laurent Desmons in 5/2013.
@@ -242,7 +251,7 @@ gtc_write_xml(int indent, const QString s)
 }
 
 static void
-gtc_lap_start(const route_head* rte)
+gtc_lap_start(const route_head*)
 {
   gtc_least_time = gpsbabel::DateTime();
   gtc_most_time = gpsbabel::DateTime();
@@ -334,6 +343,10 @@ gtc_waypt_pr(const Waypoint* wpt)
 static void
 gtc_fake_hdr(void)
 {
+  /* handle the CourseLap_t or the ActivityLap_t types. */
+  /* note that the elements must appear in the order required by the schema. */
+  /* also note some of the elements are required. */
+
   long secs = 0;
   if (gtc_least_time.isValid() && gtc_most_time.isValid()) {
     secs = gtc_most_time.toTime_t() - gtc_least_time.toTime_t();
@@ -341,25 +354,7 @@ gtc_fake_hdr(void)
 
   /* write these in either case, course or activity format */
   gtc_write_xml(0, "<TotalTimeSeconds>%d</TotalTimeSeconds>\n", secs);
-  if (tdata->distance_meters) {
-    gtc_write_xml(0, "<DistanceMeters>%.2f</DistanceMeters>\n",
-                  tdata->distance_meters);
-  }
-  if (tdata->avg_hrt) {
-    gtc_write_xml(1, "<AverageHeartRateBpm xsi:type=\"HeartRateInBeatsPerMinute_t\">\n");
-    gtc_write_xml(0, "<Value>%d</Value>\n", (int)(tdata->avg_hrt + 0.5));
-    gtc_write_xml(-1,"</AverageHeartRateBpm>\n");
-  }
-  if (tdata->max_hrt) {
-    gtc_write_xml(1, "<MaximumHeartRateBpm xsi:type=\"HeartRateInBeatsPerMinute_t\">\n");
-    gtc_write_xml(0, "<Value>%d</Value>\n", (int)(tdata->max_hrt + 0.5));
-    gtc_write_xml(-1,"</MaximumHeartRateBpm>\n");
-  }
-  if (tdata->avg_cad) {
-    gtc_write_xml(0, "<Cadence>%d</Cadence>\n", tdata->avg_cad);
-  }
-  gtc_write_xml(0, "<Intensity>Active</Intensity>\n");
-
+  gtc_write_xml(0, "<DistanceMeters>%.2f</DistanceMeters>\n", tdata->distance_meters);
   if (gtc_course_flag) { /* course format */
     gtc_write_xml(1, "<BeginPosition>\n");
     gtc_write_xml(0, "<LatitudeDegrees>%lf</LatitudeDegrees>\n", gtc_start_lat);
@@ -374,7 +369,24 @@ gtc_fake_hdr(void)
     if (tdata->max_spd) {
       gtc_write_xml(0, "<MaximumSpeed>%.3f</MaximumSpeed>\n", tdata->max_spd);
     }
-    //gtc_write_xml(0, "<Calories>0</Calories>\n");
+    gtc_write_xml(0, "<Calories>0</Calories>\n"); /* element is required */
+  }
+  if (tdata->avg_hrt) {
+    gtc_write_xml(1, "<AverageHeartRateBpm xsi:type=\"HeartRateInBeatsPerMinute_t\">\n");
+    gtc_write_xml(0, "<Value>%d</Value>\n", (int)(tdata->avg_hrt + 0.5));
+    gtc_write_xml(-1,"</AverageHeartRateBpm>\n");
+  }
+  if (tdata->max_hrt) {
+    gtc_write_xml(1, "<MaximumHeartRateBpm xsi:type=\"HeartRateInBeatsPerMinute_t\">\n");
+    gtc_write_xml(0, "<Value>%d</Value>\n", (int)(tdata->max_hrt + 0.5));
+    gtc_write_xml(-1,"</MaximumHeartRateBpm>\n");
+  }
+  gtc_write_xml(0, "<Intensity>Active</Intensity>\n");
+  if (tdata->avg_cad) {
+    gtc_write_xml(0, "<Cadence>%d</Cadence>\n", tdata->avg_cad);
+  }
+
+  if (!gtc_course_flag) { /* activity (history) format */
     gtc_write_xml(0, "<TriggerMethod>Manual</TriggerMethod>\n");
   }
 
@@ -401,7 +413,7 @@ gtc_act_hdr(const route_head* rte)
 }
 
 static void
-gtc_act_ftr(const route_head* rte)
+gtc_act_ftr(const route_head*)
 {
   gtc_write_xml(-1, "</Track>\n");
   gtc_write_xml(-1, "</Lap>\n");
@@ -432,7 +444,7 @@ gtc_crs_hdr(const route_head* rte)
 }
 
 static void
-gtc_crs_ftr(const route_head* rte)
+gtc_crs_ftr(const route_head*)
 {
   gtc_write_xml(-1,"</Track>\n");
   gtc_write_xml(-1, "</Course>\n");
@@ -459,7 +471,7 @@ gtc_write(void)
 }
 
 void
-gtc_trk_s(const xg_string unused, const QXmlStreamAttributes*attrs)
+gtc_trk_s(xg_string, const QXmlStreamAttributes*)
 {
   trk_head = route_head_alloc();
   track_add_head(trk_head);
@@ -472,26 +484,26 @@ gtc_trk_ident(xg_string args, const QXmlStreamAttributes*)
 }
 
 void
-gtc_trk_lap_s(xg_string unused, const QXmlStreamAttributes*attrs)
+gtc_trk_lap_s(xg_string, const QXmlStreamAttributes*)
 {
   lap_ct++;
   lap_s = 1;
 }
 
 void
-gtc_trk_lap_e(xg_string unused, const QXmlStreamAttributes*attrs)
+gtc_trk_lap_e(xg_string, const QXmlStreamAttributes*)
 {
   lap_s = 0;
 }
 
 void
-gtc_trk_pnt_s(xg_string unused, const QXmlStreamAttributes*attrs)
+gtc_trk_pnt_s(xg_string, const QXmlStreamAttributes*)
 {
   wpt_tmp = new Waypoint;
 }
 
 void
-gtc_trk_pnt_e(xg_string args, const QXmlStreamAttributes*)
+gtc_trk_pnt_e(xg_string, const QXmlStreamAttributes*)
 {
   if (wpt_tmp->longitude != 0. && wpt_tmp->latitude != 0.) {
     if (lap_s) {
@@ -563,13 +575,13 @@ gtc_trk_spd(xg_string args, const QXmlStreamAttributes*)
 }
 
 void
-gtc_wpt_crs_s(const QString& args, const QXmlStreamAttributes*)
+gtc_wpt_crs_s(const QString&, const QXmlStreamAttributes*)
 {
   wpt_tmp = new Waypoint;
 }
 
 void
-gtc_wpt_crs_e(xg_string args, const QXmlStreamAttributes*)
+gtc_wpt_crs_e(xg_string, const QXmlStreamAttributes*)
 {
   if (wpt_tmp->longitude != 0. && wpt_tmp->latitude != 0.) {
     waypt_add(wpt_tmp);
@@ -581,14 +593,14 @@ gtc_wpt_crs_e(xg_string args, const QXmlStreamAttributes*)
 }
 
 void
-gtc_wpt_pnt_s(xg_string unused, const QXmlStreamAttributes*attrs)
+gtc_wpt_pnt_s(xg_string, const QXmlStreamAttributes*)
 {
   wpt_tmp = new Waypoint;
   lap_ct++;
 }
 
 void
-gtc_wpt_pnt_e(xg_string args, const QXmlStreamAttributes*)
+gtc_wpt_pnt_e(xg_string, const QXmlStreamAttributes*)
 {
   if (wpt_tmp->longitude != 0. && wpt_tmp->latitude != 0.) {
     /* Add the begin position of a CourseLap as

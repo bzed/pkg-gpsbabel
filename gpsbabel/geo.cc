@@ -17,18 +17,14 @@
 
  */
 #include "defs.h"
-
-static char* deficon = NULL;
-static char* nuke_placer;
-
-
-static gbfile* ofd;
-
 #include <QtCore/QXmlStreamReader>
 #include <QtCore/QXmlStreamWriter>
 #include <QtCore/QDebug>
 #include "src/core/file.h"
 
+static char* deficon = NULL;
+static char* nuke_placer;
+static gbfile* ofd;
 static QString ostring;
 static QXmlStreamWriter writer(&ostring);
 
@@ -114,8 +110,8 @@ geo_read(void)
   GeoReadLoc();
   if (reader.hasError())  {
     fatal(MYNAME ":Read error: %s (%s, line %ld, col %ld)\n",
-          CSTR(reader.errorString()),
-          CSTR(file.fileName()),
+          qPrintable(reader.errorString()),
+          qPrintable(file.fileName()),
           (long) reader.lineNumber(),
           (long) reader.columnNumber());
   }

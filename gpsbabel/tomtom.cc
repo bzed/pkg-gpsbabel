@@ -39,6 +39,8 @@
 
 
 #include "defs.h"
+#include <stdio.h> // sprintf
+#include <stdlib.h> // qsort
 
 #define MYNAME "TomTom"
 

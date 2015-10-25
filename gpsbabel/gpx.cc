@@ -1,7 +1,7 @@
 /*
     Access GPX data files.
 
-    Copyright (C) 2002-2013 Robert Lipe, gpsbabel.org
+    Copyright (C) 2002-2014 Robert Lipe, gpsbabel.org
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,18 +23,20 @@
 #include "cet_util.h"
 #include "garmin_fs.h"
 #include "garmin_tables.h"
-#include <math.h>
-#include <QtCore/QXmlStreamReader>
-static QXmlStreamReader* reader;
+#include "src/core/logging.h"
 #include "src/core/file.h"
 #include "src/core/xmlstreamwriter.h"
 #include "src/core/xmltag.h"
 
+#include <QtCore/QXmlStreamReader>
 #include <QtCore/QRegExp>
 #include <QtCore/QDateTime>
 #include <QtCore/QDebug>
 
+#include <math.h>
 
+
+static QXmlStreamReader* reader;
 static xml_tag* cur_tag;
 static QString cdatastr;
 static char* opt_logpoint = NULL;
@@ -42,7 +44,8 @@ static char* opt_humminbirdext = NULL;
 static char* opt_garminext = NULL;
 static int logpoint_ct = 0;
 
-static char* gpx_version = NULL;
+// static char* gpx_version = NULL;
+QString gpx_version;
 static char* gpx_wversion;
 static int gpx_wversion_num;
 static QXmlStreamAttributes gpx_namespace_attribute;
@@ -292,15 +295,20 @@ typedef struct tag_mapping {
  * If it's not a tag we explictly handle, it doesn't go here.
  */
 
+/* /gpx/<name> for GPX 1.0, /gpx/metadata/<name> for GPX 1.1 */
+#define METATAG(type,name) \
+  {type, 0, "/gpx/" name}, \
+  {type, 0, "/gpx/metadata/" name}
+
 tag_mapping tag_path_map[] = {
   { tt_gpx, 0, "/gpx" },
-  { tt_name, 0, "/gpx/name" },
-  { tt_desc, 0, "/gpx/desc" },
+  METATAG(tt_name, "name"),
+  METATAG(tt_desc, "desc"),
   { tt_author, 0, "/gpx/author" },
   { tt_email, 0, "/gpx/email" },
   { tt_url, 0, "/gpx/url" },
   { tt_urlname, 0, "/gpx/urlname" },
-  { tt_keywords, 0, "/gpx/keywords" },
+  METATAG(tt_keywords, "keywords"),
 
   { tt_wpt, 0, "/gpx/wpt" },
 
@@ -442,11 +450,10 @@ tag_gpx(const QXmlStreamAttributes& attr)
     /* Set the default output version to the highest input
      * version.
      */
-    if (! gpx_version) {
-      gpx_version = xstrdup(attr.value("version").toString());
-    } else if ((strtod(gpx_version, NULL) * 10) < (attr.value("version").toString().toDouble() * 10)) {
-      xfree(gpx_version);
-      gpx_version = xstrdup(attr.value("version").toString());
+    if (gpx_version.isEmpty()) {
+      gpx_version = attr.value("version").toString();
+    } else if ((gpx_version.toInt() * 10) < (attr.value("version").toString().toDouble() * 10)) {
+      gpx_version = attr.value("version").toString();
     }
   }
   /* save namespace declarations in case we pass through elements
@@ -531,7 +538,9 @@ start_something_else(const QString el, const QXmlStreamAttributes& attr)
   new_tag->tagname = el;
 
   attr_count = attr.size();
-  new_tag->attributes = (char**)xcalloc(sizeof(char*),2*attr_count+1);
+  const QXmlStreamNamespaceDeclarations nsdecl = reader->namespaceDeclarations();
+  const int ns_count = nsdecl.size();
+  new_tag->attributes = (char**)xcalloc(sizeof(char*),2*(attr_count+ns_count)+1);
   avcp = new_tag->attributes;
   for (int i = 0; i < attr_count; i++)  {
     *avcp = xstrdup(attr[i].name().toString());
@@ -539,6 +548,13 @@ start_something_else(const QString el, const QXmlStreamAttributes& attr)
     *avcp = xstrdup(attr[i].value().toString());
     avcp++;
   }
+  for (int i = 0; i < ns_count; i++)  {
+    *avcp = xstrdup(nsdecl[i].prefix().toString().prepend(nsdecl[i].prefix().isEmpty()? "xmlns" : "xmlns:"));
+    avcp++;
+    *avcp = xstrdup(nsdecl[i].namespaceUri().toString());
+    avcp++;
+  }
+
   *avcp = NULL; // this indicates the end of the attribute name value pairs.
 
   if (cur_tag) {
@@ -793,7 +809,7 @@ xml_parse_time(const QString& dateTimeString)
   int off_sign = 1;
   char* offsetstr = NULL;
   char* pointstr = NULL;
-  char* timestr = xstrdup(dateTimeString.toUtf8().data());
+  char* timestr = xstrdup(dateTimeString);
 
   offsetstr = strchr(timestr, 'Z');
   if (offsetstr) {
@@ -859,19 +875,16 @@ xml_parse_time(const QString& dateTimeString)
 static void
 gpx_end(const QString& el)
 {
-  int pos = current_tag.lastIndexOf('/');
-  QString s = current_tag.mid(pos + 1);
   float x;
   int passthrough;
   static QDateTime gc_log_date;
   tag_type tag;
 
-  if (s.compare(el)) {
-//   TODO: I don't think this is necesary with QXmlStreamReader
-    fprintf(stderr, "Mismatched tag %s.  Expected %s\n", CSTR(el), qPrintable(s));
-  }
+  // Remove leading, trailing whitespace.
+  cdatastr = cdatastr.trimmed();
 
   tag = get_tag(current_tag, &passthrough);
+
   switch (tag) {
     /*
      * First, the tags that are file-global.
@@ -928,24 +941,20 @@ gpx_end(const QString& el)
     wpt_tmp->AllocGCData()->diff = x * 10;
     break;
   case tt_cache_hint:
-   wpt_tmp->AllocGCData()->hint = cdatastr.trimmed();
+    wpt_tmp->AllocGCData()->hint = cdatastr;
     break;
   case tt_cache_desc_long: {
     geocache_data* gc_data = wpt_tmp->AllocGCData();
     gc_data->desc_long.is_html = cache_descr_is_html;
-// FIXME: Forcing a premature conversion here saves 4% on GPX read times
-// on large PQs.  Once cdatastrp becomes  real QString this is just (minimal)
-// overhead.
-    gc_data->desc_long.utfstring = QString(cdatastr).trimmed();
+    gc_data->desc_long.utfstring = cdatastr;
   }
   break;
-  case tt_cache_desc_short:
-    {
-      geocache_data* gc_data = wpt_tmp->AllocGCData();
-      gc_data->desc_short.is_html = cache_descr_is_html;
-      gc_data->desc_short.utfstring = cdatastr;
-    }
-    break;
+  case tt_cache_desc_short: {
+    geocache_data* gc_data = wpt_tmp->AllocGCData();
+    gc_data->desc_short.is_html = cache_descr_is_html;
+    gc_data->desc_short.utfstring = cdatastr;
+  }
+  break;
   case tt_cache_terrain:
     x = cdatastr.toDouble();
     wpt_tmp->AllocGCData()->terr = x * 10;
@@ -1022,7 +1031,7 @@ gpx_end(const QString& el)
     rte_head->rte_desc = cdatastr;
     break;
   case tt_garmin_rte_display_color:
-    rte_head->line_color.bbggrr = gt_color_value_by_name(CSTR(cdatastr));
+    rte_head->line_color.bbggrr = gt_color_value_by_name(cdatastr);
     break;
   case tt_rte_number:
     rte_head->rte_num = cdatastr.toInt();
@@ -1053,7 +1062,7 @@ gpx_end(const QString& el)
     trk_head->rte_desc = cdatastr;
     break;
   case tt_garmin_trk_display_color:
-    trk_head->line_color.bbggrr = gt_color_value_by_name(CSTR(cdatastr));
+    trk_head->line_color.bbggrr = gt_color_value_by_name(cdatastr);
     break;
   case tt_trk_number:
     trk_head->rte_num = cdatastr.toInt();
@@ -1107,22 +1116,19 @@ gpx_end(const QString& el)
   case tt_wpttype_sat:
     wpt_tmp->sat = cdatastr.toDouble();
     break;
-  case tt_wpttype_fix: {
-    // FIXME: this code seems to rely on atoi() parsing 3d and 2d as 3 and 2
-    // which toInt() doesn't do.
-    //wpt_tmp->fix = (fix_type)(cdatastr.toInt() - 1);
-    wpt_tmp->fix = (fix_type)(atoi(CSTR(cdatastr)) - 1);
-    }
-    if (wpt_tmp->fix < fix_2d) {
-      if ((cdatastr.compare("none", Qt::CaseInsensitive)) == 0) {
-        wpt_tmp->fix = fix_none;
-      } else if ((cdatastr.compare("dgps", Qt::CaseInsensitive)) == 0) {
-        wpt_tmp->fix = fix_dgps;
-      } else if ((cdatastr.compare("pps", Qt::CaseInsensitive)) == 0) {
-        wpt_tmp->fix = fix_pps;
-      } else {
-        wpt_tmp->fix = fix_unknown;
-      }
+  case tt_wpttype_fix:
+    if (cdatastr == QLatin1String("none")) {
+      wpt_tmp->fix = fix_none;
+    } else if (cdatastr == QLatin1String("2d")) {
+      wpt_tmp->fix = fix_2d;
+    } else if (cdatastr == QLatin1String("3d")) {
+      wpt_tmp->fix = fix_3d;
+    } else if (cdatastr == QLatin1String("dgps")) {
+      wpt_tmp->fix = fix_dgps;
+    } else if (cdatastr == QLatin1String("pps")) {
+      wpt_tmp->fix = fix_pps;
+    } else {
+      wpt_tmp->fix = fix_unknown;
     }
     break;
   case tt_wpttype_url:
@@ -1138,10 +1144,10 @@ gpx_end(const QString& el)
     link_url = QString();
     break;
   case tt_wpttype_link_text:
-      link_text = cdatastr.trimmed();
+    link_text = cdatastr;
     break;
   case tt_wpttype_link_type:
-      link_type = cdatastr.trimmed();
+    link_type = cdatastr;
     break;
   case tt_unknown:
     end_something_else();
@@ -1162,7 +1168,7 @@ gpx_cdata(const QString& s)
 {
   QString* cdata;
   xml_tag* tmp_tag;
-  cdatastr = s;
+  cdatastr += s;
 
   if (!cur_tag) {
     return;
@@ -1177,7 +1183,7 @@ gpx_cdata(const QString& s)
   } else {
     cdata = &(cur_tag->cdata);
   }
-  *cdata = cdatastr;
+  *cdata = cdatastr.trimmed();
 }
 
 static void
@@ -1248,7 +1254,7 @@ gpx_wr_deinit(void)
 void
 gpx_read(void)
 {
-    for (bool atEnd = false; !reader->atEnd() && !atEnd;)  {
+  for (bool atEnd = false; !reader->atEnd() && !atEnd;)  {
     reader->readNext();
     // do processing
     switch (reader->tokenType()) {
@@ -1265,6 +1271,7 @@ gpx_read(void)
     case QXmlStreamReader::EndElement:
       gpx_end(reader->qualifiedName().toString());
       current_tag.chop(reader->qualifiedName().length() + 1);
+      cdatastr.clear();
       break;
 
     case QXmlStreamReader::Characters:
@@ -1284,11 +1291,10 @@ gpx_read(void)
   }
 
   if (reader->hasError())  {
-    fatal(MYNAME ":Read error: %s (%s, line %ld, col %ld)\n",
-          CSTR(reader->errorString()),
-          CSTR(iqfile->fileName()),
-          (long) reader->lineNumber(),
-          (long) reader->columnNumber());
+    Fatal() << MYNAME << "Read error:" << reader->errorString()
+            << "File:" << iqfile->fileName()
+            << "Line:" << reader->lineNumber()
+            << "Column:" << reader->columnNumber();
   }
 }
 
@@ -1450,7 +1456,7 @@ gpx_write_common_position(const Waypoint* waypointp, const gpx_point_type point_
   }
   QString t = waypointp->CreationTimeXML();
   writer->writeOptionalTextElement("time", t);
-  if (gpxpt_track==point_type && 10==gpx_wversion_num) {
+  if (gpxpt_track==point_type && 10 == gpx_wversion_num) {
     /* These were accidentally removed from 1.1, and were only a part of trkpts in 1.0 */
     if WAYPT_HAS(waypointp, course) {
       writer->writeTextElement("course", toString(waypointp->course));
@@ -1792,11 +1798,18 @@ gpx_write(void)
    * available use it, otherwise use the default.
    */
 
-  if (! gpx_wversion) {
-    if (! gpx_version) {
+  if (!gpx_wversion) {
+    if (gpx_version.isEmpty()) {
       gpx_wversion = (char*)"1.0";
     } else {
-      gpx_wversion = (char*)gpx_version;
+      // FIXME: this is gross.  The surrounding code is badly tortured by
+      // there being three concepts of "output version", each with a different
+      // data type (QString, int, char*).  This section needs a rethink. For
+      // now, we stuff over the QString gpx_version into the global char *
+      // gpx_wversion without making a malloc'ed copy.
+      static char tmp[16];
+      strncpy(tmp, CSTR(gpx_version), sizeof(tmp));
+      gpx_wversion = tmp;
     }
   }
 
@@ -1807,7 +1820,8 @@ gpx_write(void)
   gpx_wversion_num = strtod(gpx_wversion, NULL) * 10;
 
   if (gpx_wversion_num <= 0) {
-    fatal(MYNAME ": gpx version number of '%s' not valid.\n", gpx_wversion);
+    Fatal() << MYNAME << ": gpx version number of "
+            << gpx_wversion << "not valid.";
   }
 
   // FIXME: This write of a blank line is needed for Qt 4.6 (as on Centos 6.3)
@@ -1888,12 +1902,8 @@ gpx_free_gpx_global(void)
 static void
 gpx_exit(void)
 {
-  if (gpx_version) {
-    xfree(gpx_version);
-    gpx_version = NULL;
-  }
+  gpx_version.clear();
 
-  /* FIXME: is clear necessary or desirable? */
   gpx_namespace_attribute.clear();
 
   if (gpx_global) {

@@ -18,12 +18,11 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 */
 
-
-#include <ctype.h>
-#include <math.h>
-
 #include "defs.h"
 #include "jeeps/gpsmath.h"
+#include <ctype.h>
+#include <math.h>
+#include <stdlib.h>
 
 static gbfile* file_out;
 static short_handle mkshort_handle;
@@ -95,6 +94,12 @@ vcf_print(const char* s)
 }
 
 static void
+vcf_print(const QString& s)
+{
+  vcf_print(CSTR(s));
+}
+
+static void
 vcf_disp(const Waypoint* wpt)
 {
   int latint, lonint;
@@ -108,7 +113,7 @@ vcf_disp(const Waypoint* wpt)
 
   if (wpt->HasUrlLink()) {
     UrlLink link = wpt->GetUrlLink();
-    gbfprintf(file_out, "URL:%s\n", link.url_.toUtf8().data());
+    gbfprintf(file_out, "URL:%s\n", CSTR(link.url_));
   }
 
   gbfprintf(file_out, "NOTE:");
@@ -117,11 +122,10 @@ vcf_disp(const Waypoint* wpt)
   vcf_print_utf(&wpt->gc_data->desc_long);
   gbfprintf(file_out, "\\n\\nHINT:\\n");
   if (vcf_encrypt) {
-    char* s = rot13(wpt->gc_data->hint);
+    QString s = rot13(wpt->gc_data->hint);
     vcf_print(s);
-    xfree(s);
   } else {
-    vcf_print(wpt->gc_data->hint.toUtf8().data());
+    vcf_print(CSTR(wpt->gc_data->hint));
   }
 
   gbfprintf(file_out, "\nEND:VCARD\n");

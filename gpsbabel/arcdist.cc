@@ -19,11 +19,14 @@
 
  */
 
-#include <math.h>
 
 #include "defs.h"
 #include "filterdefs.h"
 #include "grtcirc.h"
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h> // strtod
 
 #if FILTERS_ENABLED
 #define MYNAME "Arc filter"
@@ -253,7 +256,7 @@ arcdist_process(void)
         }
         if (global_opts.debug_level >= 1) {
           warning("Including waypoint %s at dist:%f lat:%f lon:%f\n",
-                  CSTRc(wp->shortname), ed->distance, wp->latitude, wp->longitude);
+                  qPrintable(wp->shortname), ed->distance, wp->latitude, wp->longitude);
         }
       }
       xfree(ed);
