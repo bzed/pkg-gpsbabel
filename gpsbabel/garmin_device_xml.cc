@@ -24,11 +24,12 @@
 // http://developer.garmin.com/web-device/garmin-mass-storage-mode-devices/
 // http://developer.garmin.com/schemas/device/v2/
 
-#include <QtCore/QXmlStreamAttributes>
 
 #include "defs.h"
 #include "xmlgeneric.h"
 #include "garmin_device_xml.h"
+#include <QtCore/QXmlStreamAttributes>
+#include <stdio.h>
 
 #define MYNAME "whatever"
 
@@ -92,7 +93,7 @@ void dir_s(xg_string args, const QXmlStreamAttributes*)
     my_gdx_info->to_device.basename = xstrdup(base);
     my_gdx_info->to_device.extension = xstrdup(ext);
   } else {
-    fatal(MYNAME ":Unknown direction '%s'\n", CSTRc(args));
+    fatal(MYNAME ":Unknown direction '%s'\n", qPrintable(args));
   }
 
   if (base) {

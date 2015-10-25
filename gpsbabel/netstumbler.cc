@@ -21,8 +21,11 @@
  */
 
 #include "defs.h"
+#include "cet_util.h"
 #include "csv_util.h"
 #include <ctype.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 static gbfile* file_in;
 static char* nseicon = NULL;
@@ -300,10 +303,9 @@ fix_netstumbler_dupes(void)
 #if NEWQ
   // Why, oh, why is this format running over the entire waypoint list and
   // modifying it?  This seems wrong.
-//  extern QList<Waypoint*> waypt_list;
-//  foreach(Waypoint* waypointp, waypt_list) {
-//    bh->wpt = waypointp;
-  if (false) {
+  extern QList<Waypoint*> waypt_list;
+  foreach(Waypoint* waypointp, waypt_list) {
+    bh->wpt = waypointp;
 #else
   queue* elem, *tmp;
   extern queue waypt_head;

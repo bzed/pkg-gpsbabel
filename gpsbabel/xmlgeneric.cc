@@ -19,16 +19,16 @@
 
  */
 
+#include "defs.h"
+#include "xmlgeneric.h"
+#include "cet_util.h"
+#include "src/core/file.h"
+
 #include <QtCore/QByteArray>
 #include <QtCore/QDebug>
 #include <QtCore/QTextCodec>
 #include <QtCore/QXmlStreamAttributes>
 #include <QtCore/QXmlStreamReader>
-
-#include "defs.h"
-#include "xmlgeneric.h"
-#include "cet_util.h"
-#include "src/core/file.h"
 
 #define DEBUG_TAG 0
 #if DEBUG_TAG
@@ -62,7 +62,7 @@ xml_tbl_lookup(const QString& tag, xg_cb_type cb_type)
 {
   xg_tag_mapping* tm;
   for (tm = xg_tag_tbl; tm->tag_cb != NULL; tm++) {
-    if (str_match(tag.toUtf8().data(), tm->tag_name) && (cb_type == tm->cb_type)) {
+    if (str_match(CSTR(tag), tm->tag_name) && (cb_type == tm->cb_type)) {
       return tm->tag_cb;
     }
   }
@@ -184,8 +184,8 @@ void xml_read(void)
   xml_run_parser(reader, current_tag);
   if (reader.hasError())  {
     fatal(MYNAME ":Read error: %s (%s, line %ld, col %ld)\n",
-          CSTR(reader.errorString()),
-          CSTR(file.fileName()),
+          qPrintable(reader.errorString()),
+          qPrintable(file.fileName()),
           (long) reader.lineNumber(),
           (long) reader.columnNumber());
   }
@@ -218,7 +218,7 @@ void xml_readstring(const char* str)
   xml_run_parser(reader, current_tag);
   if (reader.hasError())  {
     fatal(MYNAME ":Read error: %s (%s, line %ld, col %ld)\n",
-          CSTR(reader.errorString()),
+          qPrintable(reader.errorString()),
           "unknown",
           (long) reader.lineNumber(),
           (long) reader.columnNumber());

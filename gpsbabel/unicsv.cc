@@ -19,10 +19,6 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 */
 
-#include <math.h>
-#include <string.h>
-#include <time.h>
-
 #include "defs.h"
 #include "cet.h"
 #include "cet_util.h"
@@ -30,6 +26,8 @@
 #include "garmin_fs.h"
 #include "garmin_tables.h"
 #include "jeeps/gpsmath.h"
+#include <QtCore/QVector>
+#include <cmath>
 
 #define MYNAME "unicsv"
 
@@ -242,7 +240,6 @@ static field_t fields_def[] = {
 };
 
 static QVector<field_e> unicsv_fields_tab;
-static int unicsv_fields_tab_ct;
 static double unicsv_altscale, unicsv_depthscale, unicsv_proximityscale
 ;
 static const char* unicsv_fieldsep;
@@ -302,44 +299,26 @@ unicsv_strrcmp(const char* s1, const char* s2)
   }
 }
 
-
+// There is no test coverage of this and it's been wrong for years and
+// nobody has noticed...
 static int
-unicsv_parse_gc_id(const char* str)
+unicsv_parse_gc_id(const QString& str)
 {
   int res = 0;
-
-  if (str && (str[0] == 'G') && (str[1] == 'C')) {
-    int base;
-    char cx;
-
-    str += 2;
-    if (strlen(str) > 4) {
-      base = 31;
-    } else {
-      base = (*str < 'G') ? 16 : 31;
+  const QString kBase35 = "0123456789ABCDEFGHJKMNPQRTVWXYZ"; //  ILOSU are omitted.
+  if (str.startsWith("GC")) {
+    int base35 = str.size() > 6; // above GCFFFF? 
+    QString s = str.mid(2);
+    while (!s.isEmpty()) {
+      res = res * 16 + kBase35.indexOf(s[0]);
+      s = str.mid(1);
     }
-
-    while ((cx = *str++)) {
-      int num;
-
-      if ((cx >= '0') && (cx <= '9')) {
-        num = cx - '0';
-      } else if ((cx >= 'A') && (cx <= 'Z')) {
-        num = cx - 'A' + 10;
-      } else {
-        break;
-      }
-
-      res = (res * base) + num;
-    }
-    if (base == 31) {
+    if (base35) {
       res -= 411120;
     }
   }
   return res;
 }
-
-// static int unicsv_parse_time(const char *str, int *msec, time_t *date);
 
 static time_t
 unicsv_parse_date(const char* str, int* consumed)
@@ -398,11 +377,11 @@ unicsv_parse_date(const char* str, int* consumed)
 }
 
 static time_t
-unicsv_parse_time(const char* str, int* msec, time_t* date)
+unicsv_parse_time(const char* str, int* usec, time_t* date)
 {
   int hour, min, ct, sec;
   int consumed = 0;
-  double ms;
+  double us;
   char sep[2];
   time_t ldate;
 
@@ -416,36 +395,41 @@ unicsv_parse_time(const char* str, int* msec, time_t* date)
       *date = ldate;
     }
   }
-
-  ct = sscanf(str, "%d%1[.://]%d%1[.://]%d%lf", &hour, sep, &min, sep, &sec, &ms);
+  ct = sscanf(str, "%d%1[.://]%d%1[.://]%d%lf", &hour, sep, &min, sep, &sec, &us);
   is_fatal(ct < 5, MYNAME ": Could not parse time string (%s).\n", str);
   if (ct == 6) {
-    *msec = lround((ms * 1000000));
-    if (*msec > 999999) {
-      *msec = 0;
+    *usec = lround((us * 1000000));
+    if (*usec > 999999) {
+      *usec = 0;
       sec++;
     }
   } else {
-    *msec = 0;
+    *usec = 0;
   }
 
   return ((hour * SECONDS_PER_HOUR) + (min * 60) + (int)sec);
 }
 
-static status_type
-unicsv_parse_status(const char* str)
+static time_t
+unicsv_parse_time(const QString& str, int* msec, time_t* date)
 {
-  if ((case_ignore_strcmp(str, "true") == 0) ||
-      (case_ignore_strcmp(str, "yes") == 0) ||
-      (*str == '1')) {
+  return unicsv_parse_time(CSTR(str), msec, date);
+}
+
+static status_type
+unicsv_parse_status(const QString& str)
+{
+  if (str.compare("true", Qt::CaseInsensitive) == 0 ||
+      str.compare("yes", Qt::CaseInsensitive) == 0 ||
+      str == "1") {
     return status_true;
-  } else if ((case_ignore_strcmp(str, "false") == 0) ||
-             (case_ignore_strcmp(str, "no") == 0) ||
-             (*str == '0')) {
-    return status_false;
-  } else {
-    return status_unknown;
   }
+  if (str.compare("false", Qt::CaseInsensitive) == 0 ||
+      str.compare("no", Qt::CaseInsensitive) == 0 ||
+      str == "0") {
+    return status_false;
+  }
+return status_unknown;
 }
 
 static QDateTime
@@ -517,13 +501,12 @@ unicsv_compare_fields(const QString& s, const field_t* f)
   return unicsv_compare_fields(CSTR(s), f);
 }
 
-
 static void
-unicsv_fondle_header(char* ibuf)
+unicsv_fondle_header(QString s)
 {
-  QString s;
+  // TODO: clean up this back and forth between QString and char*.
   char* buf = NULL;
-  int column;
+  char* cbuf_start = NULL;
   const cet_cs_vec_t* ascii = &cet_cs_vec_ansi_x3_4_1968;	/* us-ascii */
 
   /* Convert the entire header to lower case for convenience.
@@ -537,34 +520,32 @@ unicsv_fondle_header(char* ibuf)
   } else if (s.contains('|')) {
     unicsv_fieldsep = "|";
   }
-  s = s.toLower();
+  cbuf_start = xstrdup(s.toLower());
+  const char* cbuf = cbuf_start;
 
   /* convert the header line into native ascii */
   if (global_opts.charset != ascii) {
-    buf = cet_str_any_to_any(ibuf, global_opts.charset, ascii);
-    ibuf = buf;
+    buf = cet_str_any_to_any(cbuf, global_opts.charset, ascii);
+    cbuf = buf;
   }
 
-  column = -1;
-  while ((s = csv_lineparse(ibuf, unicsv_fieldsep, "\"", 0)) , !s.isEmpty()) {
+  while ((s = csv_lineparse(cbuf, unicsv_fieldsep, "\"", 0)) , !s.isEmpty()) {
     s = s.trimmed();
 
     field_t* f = &fields_def[0];
 
-    ibuf = NULL;
-    column++;
-    unicsv_fields_tab_ct++;
+    cbuf = NULL;
 
     unicsv_fields_tab.append(fld_terminator);
     while (f->name) {
       if (unicsv_compare_fields(s, f)) {
-        unicsv_fields_tab[column] = f->type;
+        unicsv_fields_tab.last() = f->type;
         break;
       }
       f++;
     }
     if ((! f->name) && global_opts.debug_level) {
-      warning(MYNAME ": Unhandled column \"%s\".\n", CSTR(s));
+      warning(MYNAME ": Unhandled column \"%s\".\n", qPrintable(s));
     }
 
     /* handle some special items */
@@ -592,6 +573,9 @@ unicsv_fondle_header(char* ibuf)
   if (buf) {
     xfree(buf);
   }
+  if (cbuf_start) {
+    xfree(cbuf_start);
+  }
 }
 
 static void
@@ -603,7 +587,6 @@ unicsv_rd_init(const char* fname)
   unicsv_proximityscale = 1.0;
 
   unicsv_fields_tab.clear();
-  unicsv_fields_tab_ct = 0;
   unicsv_data_type = global_opts.objective;
   unicsv_detect = (!(global_opts.masked_objective & (WPTDATAMASK | TRKDATAMASK | RTEDATAMASK | POSNDATAMASK)));
 
@@ -632,7 +615,6 @@ unicsv_rd_deinit(void)
 static void
 unicsv_parse_one_line(char* ibuf)
 {
-  char* s;
   Waypoint* wpt = NULL;
   int column;
   int  utm_zone = -9999;
@@ -646,8 +628,9 @@ unicsv_parse_one_line(char* ibuf)
   double swiss_easting = unicsv_unknown;
   double swiss_northing = unicsv_unknown;
   int checked = 0;
-  time_t date = -1, time = -1;
-  int msec = -1;
+  time_t date = -1; 
+  time_t time = -1;
+  int usec = -1;
   char is_localtime = 0;
   garmin_fs_t* gmsd;
   double d;
@@ -662,19 +645,17 @@ unicsv_parse_one_line(char* ibuf)
   memset(&ymd, 0, sizeof(ymd));
 
   column = -1;
-  while ((s = csv_lineparse(ibuf, unicsv_fieldsep, "\"", 0))) {
-
-    if (column > unicsv_fields_tab_ct) {
+  QString s;
+  while ((s = csv_lineparse(ibuf, unicsv_fieldsep, "\"", 0)), !s.isNull()) {
+    if (++column >= unicsv_fields_tab.size()) {
       break;  /* ignore extra fields on line */
     }
 
     ibuf = NULL;
 
-    column++;
     checked++;
-
-    s = lrtrim(s);
-    if (! *s) {
+    s = s.trimmed();
+    if (s.isEmpty()) {
       continue;  /* skip empty columns */
     }
     switch (unicsv_fields_tab[column]) {
@@ -683,7 +664,7 @@ unicsv_parse_one_line(char* ibuf)
     case fld_date:
     case fld_datetime:
       /* switch column type if it looks like an iso time string */
-      if (strchr(s, 'T')) {
+      if (s.contains('T')) {
         unicsv_fields_tab[column] = fld_iso_time;
       }
       break;
@@ -695,12 +676,12 @@ unicsv_parse_one_line(char* ibuf)
     switch (unicsv_fields_tab[column]) {
 
     case fld_latitude:
-      human_to_dec(s, &wpt->latitude, &wpt->longitude, 1);
+      human_to_dec(CSTR(s), &wpt->latitude, &wpt->longitude, 1);
       wpt->latitude = wpt->latitude * ns;
       break;
 
     case fld_longitude:
-      human_to_dec(s, &wpt->latitude, &wpt->longitude, 2);
+      human_to_dec(CSTR(s), &wpt->latitude, &wpt->longitude, 2);
       wpt->longitude = wpt->longitude * ew;
       break;
 
@@ -730,19 +711,19 @@ unicsv_parse_one_line(char* ibuf)
       break;
 
     case fld_utm_zone:
-      utm_zone = atoi(s);
+      utm_zone = s.toInt();
       break;
 
     case fld_utm_easting:
-      utm_easting = atof(s);
+      utm_easting = s.toDouble();
       break;
 
     case fld_utm_northing:
-      utm_northing = atof(s);
+      utm_northing = s.toDouble();
       break;
 
     case fld_utm_zone_char:
-      utm_zc = toupper(s[0]);
+      utm_zc = s[0].toUpper().toLatin1();
       break;
 
     case fld_utm:
@@ -762,16 +743,16 @@ unicsv_parse_one_line(char* ibuf)
       break;
 
     case fld_bng_zone:
-      strncpy(bng_zone, s, sizeof(bng_zone) -1 );
+      strncpy(bng_zone, CSTR(s), sizeof(bng_zone) -1);
       strupper(bng_zone);
       break;
 
     case fld_bng_northing:
-      bng_northing = atof(s);
+      bng_northing = s.toDouble();
       break;
 
     case fld_bng_easting:
-      bng_easting = atof(s);
+      bng_easting = s.toDouble();
       break;
 
     case fld_swiss:
@@ -783,36 +764,36 @@ unicsv_parse_one_line(char* ibuf)
       break;
 
     case fld_swiss_easting:
-      swiss_easting = atof(s);
+      swiss_easting = s.toDouble();
       break;
 
     case fld_swiss_northing:
-      swiss_northing = atof(s);
+      swiss_northing = s.toDouble();
       break;
 
     case fld_hdop:
-      wpt->hdop = atof(s);
+      wpt->hdop = s.toDouble();
       if (unicsv_detect) {
         unicsv_data_type = trkdata;
       }
       break;
 
     case fld_pdop:
-      wpt->pdop = atof(s);
+      wpt->pdop = s.toDouble();
       if (unicsv_detect) {
         unicsv_data_type = trkdata;
       }
       break;
 
     case fld_vdop:
-      wpt->vdop = atof(s);
+      wpt->vdop = s.toDouble();
       if (unicsv_detect) {
         unicsv_data_type = trkdata;
       }
       break;
 
     case fld_sat:
-      wpt->sat = atoi(s);
+      wpt->sat = s.toInt();
       if (unicsv_detect) {
         unicsv_data_type = trkdata;
       }
@@ -839,14 +820,14 @@ unicsv_parse_one_line(char* ibuf)
 
     case fld_utc_date:
       if ((is_localtime < 2) && (date < 0)) {
-        date = unicsv_parse_date(s, NULL);
+        date = unicsv_parse_date(CSTR(s), NULL);
         is_localtime = 0;
       }
       break;
 
     case fld_utc_time:
       if ((is_localtime < 2) && (time < 0)) {
-        time = unicsv_parse_time(s, &msec, &date);
+        time = unicsv_parse_time(s, &usec, &date);
         is_localtime = 0;
       }
       break;
@@ -861,42 +842,42 @@ unicsv_parse_one_line(char* ibuf)
       break;
 
     case fld_course:
-      WAYPT_SET(wpt, course, atof(s));
+      WAYPT_SET(wpt, course, s.toDouble());
       if (unicsv_detect) {
         unicsv_data_type = trkdata;
       }
       break;
 
     case fld_temperature:
-      d = atof(s);
+      d = s.toDouble();
       if (fabs(d) < 999999) {
         WAYPT_SET(wpt, temperature, d);
       }
       break;
 
     case fld_temperature_f:
-      d = atof(s);
+      d = s.toDouble();
       if (fabs(d) < 999999) {
         WAYPT_SET(wpt, temperature, FAHRENHEIT_TO_CELSIUS(d));
       }
       break;
 
     case fld_heartrate:
-      wpt->heartrate = atoi(s);
+      wpt->heartrate = s.toInt();
       if (unicsv_detect) {
         unicsv_data_type = trkdata;
       }
       break;
 
     case fld_cadence:
-      wpt->cadence = atoi(s);
+      wpt->cadence = s.toInt();
       if (unicsv_detect) {
         unicsv_data_type = trkdata;
       }
       break;
 
     case fld_power:
-      wpt->power = atof(s);
+      wpt->power = s.toDouble();
       if (unicsv_detect) {
         unicsv_data_type = trkdata;
       }
@@ -925,56 +906,56 @@ unicsv_parse_one_line(char* ibuf)
 
     case fld_time:
       if ((is_localtime < 2) && (time < 0)) {
-        time = unicsv_parse_time(s, &msec, &date);
+        time = unicsv_parse_time(s, &usec, &date);
         is_localtime = 1;
       }
       break;
 
     case fld_date:
       if ((is_localtime < 2) && (date < 0)) {
-        date = unicsv_parse_date(s, NULL);
+        date = unicsv_parse_date(CSTR(s), NULL);
         is_localtime = 1;
       }
       break;
 
     case fld_year:
-      ymd.tm_year = atoi(s);
+      ymd.tm_year = s.toInt();
       break;
 
     case fld_month:
-      ymd.tm_mon = atoi(s);
+      ymd.tm_mon = s.toInt();
       break;
 
     case fld_day:
-      ymd.tm_mday = atoi(s);
+      ymd.tm_mday = s.toInt();
       break;
 
     case fld_hour:
-      ymd.tm_hour = atoi(s);
+      ymd.tm_hour = s.toInt();
       break;
 
     case fld_min:
-      ymd.tm_min = atoi(s);
+      ymd.tm_min = s.toInt();
       break;
 
     case fld_sec:
-      ymd.tm_sec = atoi(s);
+      ymd.tm_sec = s.toInt();
       break;
 
     case fld_datetime:
       if ((is_localtime < 2) && (date < 0) && (time < 0)) {
-        time = unicsv_parse_time(s, &msec, &date);
+        time = unicsv_parse_time(s, &usec, &date);
         is_localtime = 1;
       }
       break;
 
     case fld_ns:
-      ns = tolower(s[0]) == 'n' ? 1 : -1;
+      ns = s.startsWith('n', Qt::CaseInsensitive) ? 1 : -1;
       wpt->latitude *= ns;
       break;
 
     case fld_ew:
-      ew = tolower(s[0]) == 'e' ? 1 : -1;
+      ns = s.startsWith('e', Qt::CaseInsensitive) ? 1 : -1;
       wpt->longitude *= ew;
       break;
 
@@ -995,34 +976,34 @@ unicsv_parse_one_line(char* ibuf)
       }
       switch (unicsv_fields_tab[column]) {
       case fld_garmin_city:
-        GMSD_SETSTR(city, s);
+        GMSD_SETQSTR(city, s);
         break;
       case fld_garmin_postal_code:
-        GMSD_SETSTR(postal_code, s);
+        GMSD_SETQSTR(postal_code, s);
         break;
       case fld_garmin_state:
-        GMSD_SETSTR(state, s);
+        GMSD_SETQSTR(state, s);
         break;
       case fld_garmin_country:
-        GMSD_SETSTR(country, s);
+        GMSD_SETQSTR(country, s);
         break;
       case fld_garmin_addr:
-        GMSD_SETSTR(addr, s);
+        GMSD_SETQSTR(addr, s);
         break;
       case fld_garmin_phone_nr:
-        GMSD_SETSTR(phone_nr, s);
+        GMSD_SETQSTR(phone_nr, s);
         break;
       case fld_garmin_phone_nr2:
-        GMSD_SETSTR(phone_nr2, s);
+        GMSD_SETQSTR(phone_nr2, s);
         break;
       case fld_garmin_fax_nr:
-        GMSD_SETSTR(fax_nr, s);
+        GMSD_SETQSTR(fax_nr, s);
         break;
       case fld_garmin_email:
-        GMSD_SETSTR(email, s);
+        GMSD_SETQSTR(email, s);
         break;
       case fld_garmin_facility:
-        GMSD_SETSTR(facility, s);
+        GMSD_SETQSTR(facility, s);
         break;
       default:
         break;
@@ -1046,7 +1027,7 @@ unicsv_parse_one_line(char* ibuf)
       switch (unicsv_fields_tab[column]) {
 
       case fld_gc_id:
-        gc_data->id = atoi(s);
+        gc_data->id = s.toInt();
         if (gc_data->id == 0) {
           gc_data->id = unicsv_parse_gc_id(s);
         }
@@ -1058,10 +1039,10 @@ unicsv_parse_one_line(char* ibuf)
         gc_data->container = gs_mkcont(s);
         break;
       case fld_gc_terr:
-        gc_data->terr = atof(s) * 10;
+        gc_data->terr = s.toDouble() * 10;
         break;
       case fld_gc_diff:
-        gc_data->diff = atof(s) * 10;
+        gc_data->diff = s.toDouble() * 10;
         break;
       case fld_gc_is_archived:
         gc_data->is_archived = unicsv_parse_status(s);
@@ -1071,8 +1052,8 @@ unicsv_parse_one_line(char* ibuf)
         break;
       case fld_gc_exported: {
         time_t time, date;
-        int msec;
-        time = unicsv_parse_time(s, &msec, &date);
+        int usec;
+        time = unicsv_parse_time(s, &usec, &date);
         if (date || time) {
           gc_data->exported = unicsv_adjust_time(time, &date);
         }
@@ -1080,8 +1061,8 @@ unicsv_parse_one_line(char* ibuf)
       break;
       case fld_gc_last_found: {
         time_t time, date;
-        int msec;
-        time = unicsv_parse_time(s, &msec, &date);
+        int usec;
+        time = unicsv_parse_time(s, &usec, &date);
         if (date || time) {
           gc_data->last_found = unicsv_adjust_time(time, &date);
         }
@@ -1091,7 +1072,7 @@ unicsv_parse_one_line(char* ibuf)
         gc_data->placer = s;
         break;
       case fld_gc_placer_id:
-        gc_data->placer_id = atoi(s);
+        gc_data->placer_id = s.toInt();
         break;
       case fld_gc_hint:
         gc_data->hint = s;
@@ -1162,8 +1143,8 @@ unicsv_parse_one_line(char* ibuf)
       }
     }
 
-    if (msec >= 0) {
-      wpt->creation_time = wpt->creation_time.addMSecs(msec);
+    if (usec >= 0) {
+      wpt->creation_time = wpt->creation_time.addMSecs(MICRO_TO_MILLI(usec));
     }
 
     if (opt_utc) {
@@ -1243,7 +1224,7 @@ unicsv_fatal_outside(const Waypoint* wpt)
 {
   gbfprintf(fout, "#####\n");
   fatal(MYNAME ": %s (%s) is outside of convertable area of grid \"%s\"!\n",
-        wpt->shortname.isEmpty() ? "Waypoint" : CSTR(wpt->shortname),
+        wpt->shortname.isEmpty() ? "Waypoint" : qPrintable(wpt->shortname),
         pretty_deg_format(wpt->latitude, wpt->longitude, 'd', NULL, 0),
         gt_get_mps_grid_longname(unicsv_grid_idx, MYNAME));
 }
@@ -1255,8 +1236,8 @@ unicsv_print_str(const QString& s)
   QString t;
   if (!s.isEmpty()) {
     t = strenquote(s, UNICSV_QUOT_CHAR);
-    // I'm not sure these three replacements are necessary; they're just a 
-    // slavish re-implementation of (what I think) the original C code 
+    // I'm not sure these three replacements are necessary; they're just a
+    // slavish re-implementation of (what I think) the original C code
     // was doing.
     t.replace("\r\n", ",");
     t.replace("\r", ",");
@@ -1272,11 +1253,11 @@ unicsv_print_data_time(const QDateTime& idt)
     return;
   }
   QDateTime dt = idt;
-    if (opt_utc) {
-      //time += atoi(opt_utc) * SECONDS_PER_HOUR;
-      dt = dt.addSecs(atoi(opt_utc) * SECONDS_PER_HOUR);
-      dt = dt.toUTC();
-    }
+  if (opt_utc) {
+    //time += atoi(opt_utc) * SECONDS_PER_HOUR;
+    dt = dt.addSecs(atoi(opt_utc) * SECONDS_PER_HOUR);
+    dt = dt.toUTC();
+  }
 
   unicsv_print_str(dt.toString("yyyy/MM/dd hh:mm:ss"));
 }
@@ -1664,52 +1645,38 @@ unicsv_waypt_disp_cb(const Waypoint* wpt)
   }
   if FIELD_USED(fld_date) {
     if (wpt->creation_time.toTime_t() >= SECONDS_PER_DAY) {
-      struct tm tm;
-      char buf[32];
-      time_t time = wpt->GetCreationTime().toTime_t();
-
+      QDateTime dt;
       if (opt_utc) {
-        time += atoi(opt_utc) * SECONDS_PER_HOUR;
-        tm = *gmtime(&time);
+        dt = wpt->GetCreationTime().toUTC();
+        // We might wrap to a different day by overriding the TZ offset.
+        dt = dt.addSecs(atoi(opt_utc) * SECONDS_PER_HOUR);
       } else {
-        const time_t tt = wpt->GetCreationTime().toTime_t();
-        tm = *localtime(&tt);
+        dt = wpt->GetCreationTime();
       }
-      tm.tm_year += 1900;
-      tm.tm_mon += 1;
-      snprintf(buf, sizeof(buf), "%04d/%02d/%02d", tm.tm_year, tm.tm_mon, tm.tm_mday);
-      gbfprintf(fout, "%s%s", unicsv_fieldsep, buf);
+      QString date = dt.toString("yyyy/MM/dd");
+      gbfputs(unicsv_fieldsep, fout);
+      gbfputs(date, fout);
     } else {
       gbfputs(unicsv_fieldsep, fout);
     }
   }
   if FIELD_USED(fld_time) {
     if (wpt->creation_time.isValid()) {
-      struct tm tm;
-      char buf[32], msec[12];
-      time_t time = wpt->GetCreationTime().toTime_t();
-
+      QTime t;
       if (opt_utc) {
-        time += atoi(opt_utc) * SECONDS_PER_HOUR;
-        tm = *gmtime(&time);
+        t = wpt->GetCreationTime().toUTC().time();
+        t = t.addSecs(atoi(opt_utc) * SECONDS_PER_HOUR);
       } else {
-        const time_t tt = wpt->GetCreationTime().toTime_t();
-        tm = *localtime(&tt);
+        t = wpt->GetCreationTime().time();
       }
-      snprintf(buf, sizeof(buf), "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
-
-      int millisecs = wpt->GetCreationTime().time().msec();
-      if (millisecs > 0) {
-        int len = 3;
-
-        while (len && (millisecs % 10 == 0)) {
-          millisecs /= 10;
-          len--;
-        }
-        snprintf(msec, sizeof(msec), ".%0*d", len, millisecs);
-        strcat(buf, msec);
+      QString out;
+      if (t.msec() > 0) {
+        out = t.toString("hh:mm:ss.z");
+      } else {
+        out = t.toString("hh:mm:ss");
       }
-      gbfprintf(fout, "%s%s", unicsv_fieldsep, buf);
+      gbfputs(unicsv_fieldsep, fout);
+      gbfputs(out, fout);
     } else {
       gbfputs(unicsv_fieldsep, fout);
     }

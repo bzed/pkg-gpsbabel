@@ -24,7 +24,6 @@
 #ifndef GARMIN_FS_H
 #define GARMIN_FS_H
 
-#include <ctype.h>
 #include "defs.h"
 #include "jeeps/gps.h"
 
@@ -52,6 +51,7 @@
 
 /* GMSD_SETSTR(a,b): a = gmsd field, b = null terminated source */
 #define GMSD_SETSTR(a,b) if (gmsd && (b) && (b)[0]) { gmsd->a = xstrdup((b)); gmsd->flags.a = 1; }
+#define GMSD_SETQSTR(a,b) if (gmsd) { gmsd->a = xstrdup((b)); gmsd->flags.a = 1; }
 #define GMSD_SETSTRQ(a,b) if (gmsd && !b.isEmpty())  { gmsd->a = xstrdup((b)); gmsd->flags.a = 1; }
 
 /* GMSD_SETNSTR(a,b,c): a = gmsd field, b = source, c = sizeof(source) */

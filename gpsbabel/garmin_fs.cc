@@ -21,11 +21,14 @@
  */
 
 #include "defs.h"
+#include "cet_util.h"
 #include "garmin_fs.h"
 #include "garmin_tables.h"
 #include "inifile.h"
 
 #include <QtCore/QXmlStreamWriter>
+#include <stdlib.h>
+#include <stdio.h>
 
 #define MYNAME "garmin_fs"
 
@@ -288,7 +291,7 @@ garmin_fs_xml_convert(const int base_tag, int tag, const QString& Qcdatastr, Way
 {
   garmin_fs_t* gmsd;
 // FIXME: eliminate C string copy/use here:
-  const char *cdatastr = xstrdup(CSTR(Qcdatastr));
+  const char *cdatastr = xstrdup(Qcdatastr);
   gmsd = GMSD_FIND(waypt);
   if (gmsd == NULL) {
     gmsd = garmin_fs_alloc(-1);

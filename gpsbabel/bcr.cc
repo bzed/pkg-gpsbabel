@@ -29,12 +29,11 @@
 #include "defs.h"
 #include "csv_util.h"
 #include "garmin_tables.h"
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
 #include "cet_util.h"
 #include "inifile.h"
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #define MYNAME "bcr"
 
@@ -146,7 +145,7 @@ bcr_handle_icon_str(const char* str, Waypoint* wpt)
       wpt->description = m->symbol_DE;
       if (m->mps_name != NULL) {
         nr = gt_find_icon_number_from_desc(m->mps_name, MAPSOURCE);
-        wpt->icon_descr = gt_find_desc_from_icon_number(nr, MAPSOURCE, NULL);
+        wpt->icon_descr = gt_find_desc_from_icon_number(nr, MAPSOURCE);
       }
       return;
     }

@@ -23,10 +23,12 @@
  * 59 Temple Place - Suite 330, Boston, MA 02111 USA
  */
 
+#include "defs.h"
+#include "cet_util.h"
 #include <errno.h>
 #include <math.h>
-
-#include "defs.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 static gbfile* file_in, *file_out;
 static char manufacturer[4];

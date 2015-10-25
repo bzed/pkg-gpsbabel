@@ -17,13 +17,11 @@
 
  */
 #include "defs.h"
-
+#include "src/core/file.h"
+#include "src/core/xmlstreamwriter.h"
 #include <QtCore/QXmlStreamReader>
 #include <QtCore/QXmlStreamWriter>
 #include <QtCore/QDebug>
-#include "src/core/file.h"
-#include "src/core/xmlstreamwriter.h"
-
 
 static gpsbabel::File* oqfile;
 static QXmlStreamWriter* writer;
@@ -85,8 +83,8 @@ mapfactor_read(void)
   MapfactorRead();
   if (reader.hasError())  {
     fatal(MYNAME ":Read error: %s (%s, line %ld, col %ld)\n",
-          CSTR(reader.errorString()),
-          CSTR(file.fileName()),
+          qPrintable(reader.errorString()),
+          qPrintable(file.fileName()),
           (long) reader.lineNumber(),
           (long) reader.columnNumber());
   }

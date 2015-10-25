@@ -20,16 +20,12 @@
 
  */
 
-#include <ctype.h>
-#include <errno.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-
 #include "defs.h"
 #include "jeeps/gpsmath.h"
 #include "strptime.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h> //strtod
 
 /*
  * parse_distance:
@@ -48,7 +44,6 @@ parse_distance(const char* str, double* val, double scale, const char* module)
   if ((str == NULL) || (*str == '\0')) {
     return 0;
   }
-
   *val = strtod(str, &unit);
   if (unit == NULL) {
     fatal("%s: Unconvertable numeric value (%s)!\n", module, str);
@@ -86,6 +81,11 @@ parse_distance(const char* str, double* val, double scale, const char* module)
     fatal("%s: Unsupported distance unit in item '%s'!\n", module, str);
   }
   return 2;
+}
+
+int
+parse_distance(const QString& str, double* val, double scale, const char* module) {
+  return parse_distance(CSTR(str), val, scale, module);
 }
 
 /*
@@ -142,6 +142,12 @@ parse_speed(const char* str, double* val, const double scale, const char* module
   }
 
   return 2;
+}
+
+int
+parse_speed(const QString& str, double* val, const double scale, const char* module)
+{
+  return parse_speed(CSTR(str), val, scale, module);
 }
 
 /*
@@ -273,4 +279,12 @@ parse_coordinates(const char* str, int datum, const grid_type grid,
   }
 
   return result;
+}
+
+int
+parse_coordinates(const QString& str, int datum, const grid_type grid,
+                  double* latitude, double* longitude, const char* module)
+{
+  return parse_coordinates(CSTR(str), datum, grid,
+                           latitude, longitude, module);
 }

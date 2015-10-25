@@ -26,12 +26,15 @@
 
 #include "defs.h"
 #include "csv_util.h"
+#include "cet_util.h"
 #include "garmin_fs.h"
 #include "garmin_tables.h"
 #include "jeeps/gpsmath.h"
 #include "strptime.h"
 
 #include <time.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #if CSVFMTS_ENABLED
 
@@ -89,7 +92,7 @@ parse_line(char* buff, int index, const char* delimiter, Waypoint* wpt)
 
     switch (index) {
 
-      int categories, dyn;
+      int categories;
       struct tm tm;
       char* cerr;
 
@@ -114,7 +117,7 @@ parse_line(char* buff, int index, const char* delimiter, Waypoint* wpt)
 
     case WAYPT__OFS + 2:
       wpt->icon_descr = gt_find_desc_from_icon_number(
-                          atoi(cin), PCX, &dyn);
+                          atoi(cin), PCX);
       break;
 
     case WAYPT__OFS + 4:
@@ -410,7 +413,6 @@ data_read(void)
   char* buff;
   int line = 0;
   Waypoint* wpt = NULL;
-  Waypoint* prev = NULL;
   route_head* head = NULL;
 
   while ((buff = gbfgetstr(fin))) {
@@ -467,11 +469,9 @@ data_read(void)
         cdata++;
       }
       if (*cdata == ';') {
-        int dyn;
-
         cdata++;
         wpt->icon_descr = gt_find_desc_from_icon_number(
-                            atoi(cdata), PCX, &dyn);
+                            atoi(cdata), PCX);
       }
       waypt_add(wpt);
       break;
@@ -483,7 +483,6 @@ data_read(void)
     case 'P': /* proximity waypoint */
     case 'W': /* normal waypoint */
       wpt = parse_waypt(cin + 3);
-      prev = wpt;
       if (wpt) {
         if (mode == rtedata) {
           route_add_wpt(head, wpt);

@@ -19,15 +19,10 @@
 	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 */
 
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-
-#include <QtCore/QXmlStreamAttributes>
-
 #include "defs.h"
 #include "xmlgeneric.h"
+#include <QtCore/QXmlStreamAttributes>
+#include <stdio.h>
 
 #define MYNAME "IGNRando"
 
@@ -125,7 +120,7 @@ ignr_etape_pos(xg_string args, const QXmlStreamAttributes* attrv)
   ignr_xml_error((wpt == NULL) || (args.isEmpty()));
 
   if (2 != sscanf(CSTRc(args), "%lf,%lf", &wpt->latitude, &wpt->longitude)) {
-    fatal(MYNAME ": Invalid coordinates \"%s\"!\n", CSTRc(args));
+    fatal(MYNAME ": Invalid coordinates \"%s\"!\n", qPrintable(args));
   }
 }
 
@@ -138,7 +133,7 @@ ignr_etape_alt(xg_string args, const QXmlStreamAttributes* attrv)
   }
 
   if (1 != sscanf(CSTRc(args), "%lf", &wpt->altitude)) {
-    fatal(MYNAME ": Invalid altitude \"%s\"!\n", CSTRc(args));
+    fatal(MYNAME ": Invalid altitude \"%s\"!\n", qPrintable(args));
   }
 }
 

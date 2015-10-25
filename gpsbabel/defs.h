@@ -31,18 +31,16 @@
 #include "zlib/zlib.h"
 #endif
 #include "gbfile.h"
-#include "cet.h"
-#include "cet_util.h"
 #include "inifile.h"
 #include "session.h"
 
 #include <QtCore/QString>
-#include <QtCore/QDebug>
-#include <QtCore/QTextStream>
 
 # include "src/core/datetime.h"
 
 #define CSTR(qstr) (qstr.toUtf8().constData())
+#define STRFROMUNICODE(qstr) (global_opts.codec->fromUnicode(qstr).constData())
+#define STRTOUNICODE(cstr) (global_opts.codec->toUnicode(cstr))
 
 /*
  * Amazingly, this constant is not specified in the standard...
@@ -135,17 +133,6 @@
 #  define NORETURN void
 #endif
 
-#ifndef HAVE_VA_COPY
-#  ifdef __va_copy
-#    define va_copy(DEST,SRC) __va_copy((DEST),(SRC))
-#  else
-#    ifdef HAVE_VA_LIST_AS_ARRAY
-#      define va_copy(DEST,SRC) (*(DEST) = *(SRC))
-#    else
-#      define va_copy(DEST,SRC) ((DEST) = (SRC))
-#    endif
-#  endif
-#endif
 
 /*
  * Common definitions.   There should be no protocol or file-specific
@@ -208,6 +195,7 @@ typedef struct {
   cet_cs_vec_t* charset;
   char* charset_name;
   inifile_t* inifile;
+  QTextCodec* codec;
 } global_options;
 
 extern global_options global_opts;
@@ -215,6 +203,7 @@ extern const char gpsbabel_version[];
 extern time_t gpsbabel_now;	/* gpsbabel startup-time; initialized in main.c with time() */
 extern time_t gpsbabel_time;	/* gpsbabel startup-time; initialized in main.c with current_time(), ! ZERO within testo ! */
 extern int geocaches_present;
+class QTextStream;
 extern QTextStream cerr;
 
 #define MILLI_TO_MICRO(t) (t * 1000)  /* Milliseconds to Microseconds */
@@ -956,7 +945,7 @@ case_ignore_strcmp(const QString& s1, const QString& s2) {
 }
 // In 95% of the callers, this could be s1.startsWith(s2)...
 inline int case_ignore_strncmp(const QString& s1, const QString& s2, int n) {
-  return s1.left(n).compare(s2, Qt::CaseInsensitive);
+  return s1.left(n).compare(s2.left(n), Qt::CaseInsensitive);
 }
 
 int str_match(const char* str, const char* match);
@@ -999,8 +988,8 @@ const char* get_filename(const char* fname);			/* extract the filename portion *
 #define CET_NOT_CONVERTABLE_DEFAULT '$'
 #define CET_CHARSET_ASCII	"US-ASCII"
 #define CET_CHARSET_UTF8	"UTF-8"
-#define CET_CHARSET_HEBREW  "CP1255"
-#define CET_CHARSET_MS_ANSI	"MS-ANSI"
+#define CET_CHARSET_HEBREW  "ISO-8859-8"
+#define CET_CHARSET_MS_ANSI	"windows-1252"
 #define CET_CHARSET_LATIN1	"ISO-8859-1"
 
 #define str_utf8_to_cp1252(str) cet_str_utf8_to_cp1252((str))
@@ -1012,7 +1001,7 @@ const char* get_filename(const char* fname);			/* extract the filename portion *
 /* this lives in gpx.c */
 gpsbabel::DateTime xml_parse_time(const QString& cdatastr);
 
-char* rot13(const QString& str);
+QString rot13(const QString& str);
 
 /*
  * PalmOS records like fixed-point numbers, which should be rounded
@@ -1120,9 +1109,14 @@ int gb_ptr2int(const void* p);
  */
 int parse_coordinates(const char* str, int datum, const grid_type grid,
                       double* latitude, double* longitude, const char* module);
+int parse_coordinates(const QString& str, int datum, const grid_type grid,
+                      double* latitude, double* longitude, const char* module);
 int parse_distance(const char* str, double* val, double scale, const char* module);
+int parse_distance(const QString& str, double* val, double scale, const char* module);
 int parse_speed(const char* str, double* val, const double scale, const char* module);
+int parse_speed(const QString& str, double* val, const double scale, const char* module);
 time_t parse_date(const char* str, const char* format, const char* module);
+time_t parse_date(const QString& str, const char* format, const char* module);
 
 /*
  *  From util_crc.c

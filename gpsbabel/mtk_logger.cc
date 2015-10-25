@@ -52,13 +52,15 @@
 
  */
 
-#include <ctype.h>
-#include <errno.h>
-#include <math.h>
+
 
 #include "defs.h"
 #include "gbser.h"
 #include "gbfile.h" /* used for csv output */
+#include <QtCore/QDir>
+#include <errno.h>
+#include <math.h>
+#include <stdlib.h>
 
 #define MYNAME "mtk_logger"
 
@@ -230,9 +232,6 @@ static enum MTK_DEVICE_TYPE mtk_device = MTK_LOGGER;
 struct mtk_loginfo mtk_info;
 
 const char LIVE_CHAR[4] = {'-', '\\','|','/'};
-static const char TEMP_DATA_BIN[]= "data.bin";
-static const char TEMP_DATA_BIN_OLD[]= "data_old.bin";
-
 
 const char CMD_LOG_DISABLE[]= "$PMTK182,5*20\r\n";
 const char CMD_LOG_ENABLE[] = "$PMTK182,4*21\r\n";
@@ -281,6 +280,27 @@ static void dbg(int l, const char* msg, ...)
   }
   va_end(ap);
 }
+
+// Returns a fully qualified pathname to a temporary file that is a copy
+// of the data downloaded from the device. Only two copies are ever in play,
+// the primary (e.g. "/tmp/data.bin") and the backup ("/tmp/data_old.bin").
+//
+// It returns a temporary C string - it's totally kludged in to replace
+// TEMP_DATA_BIN being string constants.
+static const char* GetTempName(bool backup) {
+  const char kData[]= "data.bin";
+  const char kDataBackup[]= "data_old.bin";
+
+  QString t = QDir::tempPath(); 
+  t += QDir::separator();
+  t += backup ? kDataBackup : kData;
+  // If your temp directory isn't representable in Latin1, you're going to 
+  // have a bad day.
+  return t.toLatin1();
+}
+#define TEMP_DATA_BIN GetTempName(false)
+#define TEMP_DATA_BIN_OLD GetTempName(true)
+
 static int do_send_cmd(const char* cmd, int cmdLen)
 {
   int rc;
@@ -1588,11 +1608,12 @@ static void file_read(void)
 
 /**************************************************************************/
 // GPS logger will only handle tracks - neither waypoints or tracks...
+// Actually, some of the Holux devices will read waypoints.
 
 ff_vecs_t mtk_vecs = {
   ff_type_serial,
   {
-    ff_cap_none 	/* waypoints */,
+    ff_cap_read 	/* waypoints */,
     ff_cap_read 	/* tracks */,
     ff_cap_none 	/* routes */
   },

@@ -36,6 +36,7 @@
  */
 #include "garminusb.h"
 #include "gpsusbint.h"
+#include "gpsserial.h"
 
 time_t gps_save_time;
 double gps_save_lat;
@@ -324,7 +325,10 @@ static int32 GPS_A000(const char* port)
           goto carry_on;
         }
 
-        if (GPS_Packet_Read(fd, &rec) <= 0) {
+        // Garmin 276C serial - not USB - sees a zero here, so we changed
+        // <= 0 to <0 on 2014-06-29 per Pierre Brial.
+         
+        if (GPS_Packet_Read(fd, &rec) < 0) {
           goto carry_on;
         }
 
@@ -3655,7 +3659,7 @@ static void GPS_D210_Send(UC* data, GPS_PWay way, int32* len)
 **
 ** @return [int32] number of track entries
 ************************************************************************/
-int32 GPS_A300_Get(const char* port, GPS_PTrack** trk, pcb_fn cb)
+int32 GPS_A300_Get(const char* port , GPS_PTrack** trk, pcb_fn)
 {
   static UC data[2];
   gpsdevh* fd;
@@ -6176,7 +6180,7 @@ int32 GPS_A800_On(const char* port, gpsdevh** fd)
 **
 ** @return [int32] success
 ************************************************************************/
-int32 GPS_A800_Off(const char* port, gpsdevh** fd)
+int32 GPS_A800_Off(const char*, gpsdevh** fd)
 {
   static UC data[2];
   GPS_PPacket tra;
@@ -6638,7 +6642,7 @@ int32  GPS_A1006_Get
 **
 ** @return [int32] success
 ************************************************************************/
-int32 GPS_A1006_Send(const char* port,
+int32 GPS_A1006_Send(const char*,
                      GPS_PCourse* crs,
                      int32 n_crs,
                      gpsdevh* fd)
@@ -6875,7 +6879,7 @@ int32 GPS_A1007_Get(const char* port, GPS_PCourse_Lap** clp, pcb_fn cb)
 **
 ** @return [int32] success
 ************************************************************************/
-int32 GPS_A1007_Send(const char* port,
+int32 GPS_A1007_Send(const char*,
                      GPS_PCourse_Lap* clp,
                      int32 n_clp,
                      gpsdevh* fd)
@@ -7150,7 +7154,7 @@ int32 GPS_A1008_Get(const char* port, GPS_PCourse_Point** cpt, pcb_fn cb)
 **
 ** @return [int32] success
 ************************************************************************/
-int32 GPS_A1008_Send(const char* port,
+int32 GPS_A1008_Send(const char*,
                      GPS_PCourse_Point* cpt,
                      int32 n_cpt,
                      gpsdevh* fd)
@@ -7640,4 +7644,24 @@ void GPS_Prepare_Track_For_Device(GPS_PTrack** trk, int32* n)
       }
     }
   }
+}
+
+int32 GPS_Set_Baud_Rate(const char* port, int br)
+{
+
+  gpsdevh* fd;
+  
+  if (!GPS_Device_On(port, &fd)) {
+    return gps_errno;
+  }
+
+  if (gps_is_usb) return -1; // this feature is serial only
+  GPS_Serial_Set_Baud_Rate(fd, br);
+
+  if (!GPS_Device_Off(fd)) {
+    return gps_errno;
+  }
+  
+  return 0;
+
 }

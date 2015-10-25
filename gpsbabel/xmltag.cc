@@ -19,12 +19,12 @@
 
  */
 
+#include "defs.h"
+#include "cet_util.h"
+#include "src/core/xmltag.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-
-#include "defs.h"
-#include "src/core/xmltag.h"
 
 static void
 free_xml_tag(xml_tag* tag)

@@ -21,11 +21,14 @@
 
 #include <ctype.h>
 #include <limits.h>
+#include <stdlib.h>
 #include <math.h>
 
 #include "defs.h"
+#include "cet_util.h"
 #include "grtcirc.h"
 #include "jeeps/gps.h"
+#include "jeeps/gpsserial.h"
 #include "garmin_tables.h"
 #include "garmin_fs.h"
 #include "garmin_device_xml.h"
@@ -48,6 +51,8 @@ static char* snwhiteopt = NULL;
 static char* deficon = NULL;
 static char* category = NULL;
 static char* categorybitsopt = NULL;
+static char* baudopt = NULL;
+static int baud = 0;
 static int categorybits;
 static int receiver_must_upper = 1;
 
@@ -93,6 +98,10 @@ arglist_t garmin_args[] = {
     "bitscategory", &categorybitsopt, "Bitmap of categories",
     NULL, ARGTYPE_INT, "1", "65535"
   },
+  {
+    "baud", &baudopt, "Speed in bits per second of serial port (baud=9600)",
+    NULL, ARGTYPE_INT, ARG_NOMINMAX },
+
   ARG_TERMINATOR
 };
 
@@ -139,10 +148,30 @@ rw_init(const char* fname)
     categorybits = strtol(categorybitsopt, NULL, 0);
   }
 
+  if (baudopt) {
+    baud = strtol(baudopt, NULL, 0);
+    switch (baud) {
+      case 9600:
+      case 19200:
+      case 38400:
+      case 57600:
+      case 115200:
+        break;
+      default:
+        fatal("Baud rate %d is not supported\n", baud);
+    }
+  }
+
   if (GPS_Init(fname) < 0) {
     fatal(MYNAME ":Can't init %s\n", fname);
   }
   portname = fname;
+
+  if (baud && baud != DEFAULT_BAUD) {
+    if (0 == GPS_Set_Baud_Rate(portname, baud)) {
+      gps_baud_rate = baud;
+    }
+  }
 
   /*
    * Grope the unit we're talking to to set setshort_length to
@@ -314,6 +343,12 @@ rd_init(const char* fname)
 static void
 rw_deinit(void)
 {
+  if (gps_baud_rate != DEFAULT_BAUD) {
+    if (0 == GPS_Set_Baud_Rate(portname, DEFAULT_BAUD)) {
+      gps_baud_rate = baud;
+    }
+  }
+  
   if (mkshort_handle) {
     mkshort_del_handle(&mkshort_handle);
   }
@@ -366,9 +401,8 @@ waypt_read(void)
       wpt_tmp->icon_descr = d103_symbol_from_icon_number(
                               way[i]->smbl);
     } else {
-      int dyn = 0;
       wpt_tmp->icon_descr = gt_find_desc_from_icon_number(
-                              way[i]->smbl, PCX, &dyn);
+                              way[i]->smbl, PCX);
     }
     /*
      * If a unit doesn't store altitude info (i.e. a D103)

@@ -19,11 +19,12 @@
 
  */
 
-#include <stdio.h>
 #include "defs.h"
 #include "csv_util.h"
 #include "inifile.h"
 #include "gbversion.h"
+#include <stdio.h>
+#include <stdlib.h> // qsort
 
 #define MYNAME "vecs.c"
 
@@ -47,6 +48,7 @@ extern ff_vecs_t delbin_vecs;
 extern ff_vecs_t dg100_vecs;
 extern ff_vecs_t dg200_vecs;
 extern ff_vecs_t easygps_vecs;
+extern ff_vecs_t energympro_vecs;
 extern ff_vecs_t garmin_vecs;
 extern ff_vecs_t garmin_txt_vecs;
 extern ff_vecs_t gcdb_vecs;
@@ -86,6 +88,7 @@ extern ff_vecs_t mtk_fvecs;
 extern ff_vecs_t mtk_m241_vecs;
 extern ff_vecs_t mtk_m241_fvecs;
 extern ff_vecs_t mtk_locus_vecs;
+extern ff_vecs_t mynav_vecs;
 extern ff_vecs_t navicache_vecs;
 extern ff_vecs_t netstumbler_vecs;
 extern ff_vecs_t nmea_vecs;
@@ -175,6 +178,7 @@ extern ff_vecs_t subrip_vecs;
 extern ff_vecs_t format_garmin_xt_vecs;
 extern ff_vecs_t format_fit_vecs;
 extern ff_vecs_t mapbar_track_vecs;
+extern ff_vecs_t f90g_track_vecs;
 extern ff_vecs_t mapfactor_vecs;
 
 static
@@ -1062,10 +1066,31 @@ vecs_t vec_list[] = {
     NULL,
   },
   {
+    &f90g_track_vecs,
+    "f90g",
+    "F90G Automobile DVR GPS log file",
+    "map",
+    NULL,
+  },
+  {
     &mapfactor_vecs,
     "mapfactor",
     "Mapfactor Navigator",
     "xml",
+    NULL,
+  },
+  {
+    &energympro_vecs,
+    "energympro",
+    "Energympro GPS training watch",
+    "cpo",
+    NULL,
+  },
+  {
+    &mynav_vecs,
+    "mynav",
+    "MyNav TRC format",
+    "trc",
     NULL,
   },
 #endif // MAXIMAL_ENABLED
@@ -1149,6 +1174,9 @@ assign_option(const char* module, arglist_t* ap, const char* val)
     return;
   }
 
+  // Fixme - this is probably somewhere between wrong and less than great.  If you have an option "foo" 
+  // and want to set it to the value "foo", this code will prevent that from happening, but we seem to have
+  // code all over the place that relies on this. :-/
   if (case_ignore_strcmp(val, ap->argstring) == 0) {
     c = "";
   } else {

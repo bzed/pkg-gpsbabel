@@ -19,34 +19,18 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-/*
-   2005-07-20: implemented interval option from Etienne Tasse
-   2005-07-26: implemented range option
-   2005-07-26: implemented move option
-   2005-07-26: implemented merge option
-   2005-07-29: warning fixes
-   2005-08-01: Add 'static' qualifier when we can (robertl)
-   2005-10-04: Add filterdefs to hold protos for filter functions... (robertl)
-   2005-10-04: Fix range-check max. value; exit filter, if no more tracks left
-   2006-04-06: Add fix, course, and speed options (parkrrrr)
-   2006-06-01: Add name option
-   2007-01-08: if not really needed disable check for valid timestamps
-	(based on patch from Vladimir Kondratiev)
-   2007-07-26: Allow 'range' together with trackpoints without timestamp
-   2010-06-02: Add specified timestamp to each trackpoint (added by sven_luzar)
-   2012-05-04: Added 'discard' option to 'merge' to throw out track points without timestamp
-*/
 
-#include <ctype.h>
-#include <math.h>
-
-#include <QtCore/QXmlStreamAttributes>
 
 #include "defs.h"
 #include "filterdefs.h"
-#include "strptime.h"
 #include "grtcirc.h"
+#include "strptime.h"
 #include "xmlgeneric.h"
+#include <QtCore/QRegExp>
+#include <QtCore/QXmlStreamAttributes>
+#include <cmath>
+#include <stdio.h> /* for snprintf */
+#include <stdlib.h> /* for qsort */
 
 #if FILTERS_ENABLED || MINIMAL_FILTERS
 #define MYNAME "trackfilter"
@@ -333,8 +317,7 @@ trackfilter_fill_track_list_cb(const route_head* track) 	/* callback for track_d
   }
 
   if (opt_name != NULL) {
-    if ((track->rte_name == NULL) ||
-        (case_ignore_str_match(CSTRc(track->rte_name), opt_name) == 0)) {
+    if (!QRegExp(opt_name, Qt::CaseInsensitive, QRegExp::WildcardUnix).exactMatch(track->rte_name)) {
       QUEUE_FOR_EACH((queue*)&track->waypoint_list, elem, tmp) {
         Waypoint* wpt = (Waypoint*)elem;
         track_del_wpt((route_head*)track, wpt);
@@ -473,8 +456,8 @@ trackfilter_pack(void)
     prev = track_list[j];
     if (prev.last_time >= track_list[i].first_time) {
       fatal(MYNAME "-pack: Tracks overlap in time! %s >= %s at %d\n",
-        CSTR(prev.last_time.toString()), 
-        CSTR(track_list[i].first_time.toString()), i);
+        qPrintable(prev.last_time.toString()), 
+        qPrintable(track_list[i].first_time.toString()), i);
     }
   }
 
@@ -1144,9 +1127,9 @@ trackfilter_points_are_same(const Waypoint* wpta, const Waypoint* wptb)
   // reasonable tradeoff.
 
   return
-    fabs(wpta->latitude - wptb->latitude) < .00001 &&
-    fabs(wpta->longitude - wptb->longitude) < .00001 &&
-    abs(wpta->altitude - wptb->altitude) < 20 &&
+    std::abs(wpta->latitude - wptb->latitude) < .00001 &&
+    std::abs(wpta->longitude - wptb->longitude) < .00001 &&
+    std::abs(wpta->altitude - wptb->altitude) < 20 &&
     (WAYPT_HAS(wpta,course) == WAYPT_HAS(wptb,course)) &&
     (wpta->course == wptb->course) &&
     (wpta->speed == wptb->speed) &&

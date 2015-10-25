@@ -26,10 +26,10 @@
  * we don't implement that at this time in GPSBabel.
  */
 
-#include <QtCore/QXmlStreamAttributes>
-
 #include "defs.h"
 #include "xmlgeneric.h"
+#include <stdio.h>
+#include <QtCore/QXmlStreamAttributes>
 
 static gbfile* ofd;
 static Waypoint* wpt_tmp;
@@ -185,7 +185,7 @@ lmx_write_xml(int tag, const QString& data, int indent)
     gbfputc(0x03, ofd); // inline string follows
     gbfputcstr(data, ofd);
   } else {
-    char* tmp_ent = xml_entitize(data.toUtf8().data());
+    char* tmp_ent = xml_entitize(CSTR(data));
     gbfputs(tmp_ent, ofd);
     xfree(tmp_ent);
   }

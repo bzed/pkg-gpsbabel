@@ -22,8 +22,6 @@
 #ifndef CET_UTIL_H
 #define CET_UTIL_H
 
-#include <ctype.h>
-#include <stdio.h>
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -44,12 +42,6 @@ char* cet_str_iso8859_1_to_utf8(const char* src);
 char* cet_str_utf8_to_iso8859_1(const char* src);
 extern cet_cs_vec_t cet_cs_vec_iso8859_1;
 
-char* cet_str_iso8859_15_to_utf8(const char* src);
-char* cet_str_utf8_to_iso8859_15(const char* src);
-extern const cet_cs_vec_t cet_cs_vec_iso8859_15;
-
-char* cet_str_utf8_to_us_ascii(const char* src);
-char* cet_str_us_ascii_to_utf8(const char* src);
 extern cet_cs_vec_t cet_cs_vec_ansi_x3_4_1968;
 
 short* cet_str_utf8_to_uni(const char* src, int* length);
@@ -59,9 +51,7 @@ extern cet_cs_vec_t cet_cs_vec_utf8;
 
 /* helpers */
 
-char* cet_str_uni_to_any(const short* src, int length, const cet_cs_vec_t* dest_vec);
 char* cet_str_any_to_any(const char* src, const cet_cs_vec_t* src_vec, const cet_cs_vec_t* dest_vec);
-int cet_valid_char(const char* src, const cet_cs_vec_t* vec);
 
 int cet_gbfprintf(gbfile* stream, const cet_cs_vec_t* src_vec, const char* fmt, ...);
 

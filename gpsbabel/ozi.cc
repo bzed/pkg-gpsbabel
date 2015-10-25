@@ -23,10 +23,13 @@
  */
 
 #include "defs.h"
+#include "cet_util.h"
 #include "csv_util.h"
 #include "jeeps/gpsmath.h"
 #include <ctype.h>
 #include <math.h>                /* for floor */
+#include <stdlib.h>
+#include <stdio.h>
 
 #define MYNAME        "OZI"
 #define BADCHARS	",\r\n"
@@ -275,7 +278,7 @@ ozi_track_disp(const Waypoint* waypointp)
 }
 
 static void
-ozi_track_tlr(const route_head* rte)
+ozi_track_tlr(const route_head*)
 {
 }
 
@@ -370,7 +373,7 @@ ozi_route_disp(const Waypoint* waypointp)
 }
 
 static void
-ozi_route_tlr(const route_head* rte)
+ozi_route_tlr(const route_head*)
 {
 }
 
@@ -501,7 +504,7 @@ ozi_parse_waypt(int field, const QString& str, Waypoint* wpt_tmp, ozi_fsdata* fs
     break;
   case 1:
     /* waypoint name */
-    wpt_tmp->shortname = csv_stringtrim(str, "");
+    wpt_tmp->shortname = str.trimmed();
     break;
   case 2:
     /* degrees latitude */
@@ -541,7 +544,7 @@ ozi_parse_waypt(int field, const QString& str, Waypoint* wpt_tmp, ozi_fsdata* fs
     break;
   case 10:
     /* Description */
-    wpt_tmp->description = csv_stringtrim(str, "");
+    wpt_tmp->description = str.trimmed();
     break;
   case 11:
     /* pointer direction 0,1,2,3 bottom,top,left,right */
@@ -688,7 +691,7 @@ ozi_parse_routepoint(int field, char* str, Waypoint* wpt_tmp)
 }
 
 static void
-ozi_parse_routeheader(int field, const QString& str, Waypoint* wpt_tmp)
+ozi_parse_routeheader(int field, const QString& str, Waypoint*)
 {
 
   switch (field) {
@@ -749,7 +752,7 @@ data_read(void)
       datum = GPS_Lookup_Datum_Index(buff);
 
       if (datum < 0) {
-        fatal(MYNAME ": Unsupported datum '%s'.\n", CSTR(buff));
+        fatal(MYNAME ": Unsupported datum '%s'.\n", qPrintable(buff));
       }
     } else if (linecount == 3) {
       if (buff.startsWith( "Altitude is in ", Qt::CaseInsensitive)) {
@@ -761,7 +764,7 @@ data_read(void)
           altunit = 'm';
           alt_scale = 1.0;
         } else {
-          fatal(MYNAME ": Unknown unit (%s) used by altitude values!\n", CSTR(unit));
+          fatal(MYNAME ": Unknown unit (%s) used by altitude values!\n", qPrintable(unit));
         }
       }
     } else if ((linecount == 5) && (ozi_objective == trkdata)) {

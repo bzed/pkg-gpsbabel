@@ -19,15 +19,14 @@
 
  */
 
-#include <ctype.h>
-#include <math.h>
-
-#include <QtCore/QXmlStreamAttributes>
-
 #include "defs.h"
 #include "csv_util.h"
 #include "xmlgeneric.h"
 #include "magellan.h"
+#include <QtCore/QXmlStreamAttributes>
+#include <cmath>
+#include <stdlib.h>
+#include <stdio.h>
 
 #define MYNAME "maggeo"
 
@@ -295,8 +294,8 @@ maggeo_waypt_pr(const Waypoint* waypointp)
            0 : waypointp->altitude);
   append(obuf, CSTRc(waypointp->shortname));
   append(obuf, CSTR(cname));
-  append(obuf, placer.toUtf8().data());
-  append(obuf, waypointp->gc_data->hint.toUtf8().data());
+  append(obuf, CSTR(placer));
+  append(obuf, CSTR(waypointp->gc_data->hint));
   append(obuf, ctype);
   append(obuf, placeddate.toUtf8());
   append(obuf, lfounddate.toUtf8());

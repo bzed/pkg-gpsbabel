@@ -25,8 +25,9 @@
 ** Boston, MA  02111-1307, USA.
 ********************************************************************/
 #include "gps.h"
-#include <stdio.h>
 #include <float.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 
 /* @func GPS_Command_Off ***********************************************
@@ -1306,7 +1307,7 @@ int32 GPS_Command_Send_Track_As_Course(const char* port, GPS_PTrack* trk, int32 
 }
 
 /*Stubs for unimplemented stuff*/
-int32  GPS_Command_Get_Workout(const char* port, void** lap, int (*cb)(int, struct GPS_SWay**))
+int32  GPS_Command_Get_Workout(const char*, void**, int (*cb)(int, struct GPS_SWay**))
 {
   return 0;
 }

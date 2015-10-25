@@ -17,10 +17,10 @@
 
  */
 
-#include <QtCore/QXmlStreamAttributes>
-
 #include "defs.h"
 #include "xmlgeneric.h"
+#include <QtCore/QXmlStreamAttributes>
+#include <stdio.h>
 
 /* argument storage */
 static char* 	aicicon	=0;

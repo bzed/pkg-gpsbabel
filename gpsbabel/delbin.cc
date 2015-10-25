@@ -23,6 +23,8 @@
 #include "defs.h"
 #include "src/core/xmltag.h"
 #include <assert.h>
+#include <stdio.h> /* for atoi, sprintf */
+#include <stdlib.h> // atoi
 
 #define MYNAME "delbin"
 static short_handle mkshort_handle;
@@ -1086,7 +1088,7 @@ read_waypoints(void)
       notes_i = 0;
       notes_max = 0;
       if (global_opts.debug_level >= DBGLVL_L) {
-        warning(MYNAME ": read waypoint '%s'\n", CSTRc(wp->description));
+        warning(MYNAME ": read waypoint '%s'\n", qPrintable(wp->description));
       }
     } else if (wp && id == MSG_WAYPOINT_NOTE_OUT) {
       const msg_waypoint_note_t* p = (const msg_waypoint_note_t*) msg_array[i].data;
@@ -1205,7 +1207,7 @@ get_gc_notes(const Waypoint* wp, int* symbol, char** notes, unsigned* notes_size
   if (!wp->description.isEmpty()) {
     gbfputs(wp->description, fd);
     if (!wp->gc_data->placer.isEmpty()) {
-      gbfprintf(fd, " by %s", wp->gc_data->placer.toUtf8().data());
+      gbfprintf(fd, " by %s", CSTR(wp->gc_data->placer));
     }
     gbfputc('\n', fd);
   }
@@ -1215,7 +1217,7 @@ get_gc_notes(const Waypoint* wp, int* symbol, char** notes, unsigned* notes_size
     gbfprintf(fd, "%s\n", waypoint_symbol(gc_sym));
     *symbol = gc_sym;
   } else if (!wp->icon_descr.isNull()) {
-    gbfprintf(fd, "%s\n", wp->icon_descr.toUtf8().data());
+    gbfprintf(fd, "%s\n", CSTR(wp->icon_descr));
   }
   switch (wp->gc_data->container) {
   case gc_micro:
@@ -1257,7 +1259,7 @@ get_gc_notes(const Waypoint* wp, int* symbol, char** notes, unsigned* notes_size
     gbfprintf(fd, "/T%u\n", wp->gc_data->terr / 10);
   }
   if (!wp->gc_data->hint.isEmpty() && !opt_hint_at_end) {
-    gbfprintf(fd, "HINT: %s\n", wp->gc_data->hint.toUtf8().data());
+    gbfprintf(fd, "HINT: %s\n", CSTR(wp->gc_data->hint));
   }
   if (!wp->gc_data->desc_short.utfstring.isEmpty() || !wp->gc_data->desc_long.utfstring.isEmpty()) {
     gbfputs("DESC: ", fd);
@@ -1312,7 +1314,7 @@ get_gc_notes(const Waypoint* wp, int* symbol, char** notes, unsigned* notes_size
     }
   }
   if (!wp->gc_data->hint.isEmpty() && opt_hint_at_end) {
-    gbfprintf(fd, "\nHINT: %s\n", wp->gc_data->hint.toUtf8().data());
+    gbfprintf(fd, "\nHINT: %s\n", CSTR(wp->gc_data->hint));
   }
   gbfputc(0, fd);
   *notes_size = fd->memlen;
@@ -1437,7 +1439,7 @@ write_waypoint(const Waypoint* wp)
   if (symbol < 0) {
     symbol = 0;
     if (!wp->icon_descr.isNull()) {
-      symbol = waypoint_symbol_index(wp->icon_descr.toUtf8().data());
+      symbol = waypoint_symbol_index(CSTR(wp->icon_descr));
     }
   }
   p->symbol = symbol;
@@ -1469,7 +1471,7 @@ write_waypoint(const Waypoint* wp)
     xfree(notes_freeable);
   }
   if (global_opts.debug_level >= DBGLVL_L) {
-    warning(MYNAME ": wrote waypoint %u '%s'\n", waypoint_i, CSTRc(name));
+    warning(MYNAME ": wrote waypoint %u '%s'\n", waypoint_i, qPrintable(name));
   }
 }
 
@@ -1584,10 +1586,10 @@ read_track(route_head* track)
       break;
     }
     if (--attempt == 0) {
-      fatal(MYNAME ": reading track '%s' failed\n", CSTRc(track->rte_name));
+      fatal(MYNAME ": reading track '%s' failed\n", qPrintable(track->rte_name));
     }
     if (global_opts.debug_level >= DBGLVL_M) {
-      warning(MYNAME ": timed out reading track '%s', retrying\n", CSTRc(track->rte_name));
+      warning(MYNAME ": timed out reading track '%s', retrying\n", qPrintable(track->rte_name));
     }
     m.size = MSG_BREAK_SIZE;
     memset(m.data, 0, m.size);
@@ -1595,7 +1597,7 @@ read_track(route_head* track)
   }
   message_free(&m);
   if (msg_array_n == 0 || message_get_id(&msg_array[0]) != MSG_TRACK_HEADER_OUT) {
-    fatal(MYNAME ": reading track '%s' failed (missing track header)\n", CSTRc(track->rte_name));
+    fatal(MYNAME ": reading track '%s' failed (missing track header)\n", qPrintable(track->rte_name));
   }
   // process track messages
   p = (const msg_track_header_t*) msg_array[0].data;
@@ -1611,7 +1613,7 @@ read_track(route_head* track)
     if (id == MSG_TRACK_POINT_OUT) {
       decode_track_point(msg_array[i].data, &wp_array_i, n_point);
     } else {
-      fatal(MYNAME ": unexpected message %x while reading track '%s'\n", id, CSTRc(track->rte_name));
+      fatal(MYNAME ": unexpected message %x while reading track '%s'\n", id, qPrintable(track->rte_name));
     }
     message_free(&msg_array[i]);
   }
@@ -1620,7 +1622,7 @@ read_track(route_head* track)
     fatal(MYNAME ": track point count mismatch, expected %u, got %u\n", n_point, wp_array_i);
   }
   if (global_opts.debug_level >= DBGLVL_L) {
-    warning(MYNAME ": read track '%s' %u points\n", CSTRc(track->rte_name), n_point);
+    warning(MYNAME ": read track '%s' %u points\n", qPrintable(track->rte_name), n_point);
   }
   for (i = 0; i < n_point; i++) {
     track_add_wpt(track, wp_array[i]);
@@ -1962,10 +1964,10 @@ read_route(route_head* route)
       break;
     }
     if (--attempt == 0) {
-      fatal(MYNAME ": reading route '%s' failed (timed out)\n", CSTRc(route->rte_name));
+      fatal(MYNAME ": reading route '%s' failed (timed out)\n", qPrintable(route->rte_name));
     }
     if (global_opts.debug_level >= DBGLVL_M) {
-      warning(MYNAME ": timed out reading route route '%s', retrying\n", CSTRc(route->rte_name));
+      warning(MYNAME ": timed out reading route route '%s', retrying\n", qPrintable(route->rte_name));
     }
     m.size = MSG_BREAK_SIZE;
     memset(m.data, 0, m.size);
@@ -1982,7 +1984,7 @@ read_route(route_head* route)
   wp_array = (Waypoint**) xcalloc(total, sizeof(*wp_array));
   if (global_opts.debug_level >= DBGLVL_L) {
     warning(MYNAME ": route '%s' %u points, %u shape points\n",
-            CSTRc(route->rte_name), route_total, shape_total);
+            qPrintable(route->rte_name), route_total, shape_total);
   }
   message_free(&msg_array[0]);
   for (i = 1; i < msg_array_n; i++) {
@@ -1990,13 +1992,13 @@ read_route(route_head* route)
     if (id == MSG_ROUTE_POINT_OUT) {
       wp_array[wp_array_i] = decode_route_point(msg_array[i].data);
       if (global_opts.debug_level >= DBGLVL_L) {
-        warning(MYNAME ": route point '%s'\n", CSTRc(wp_array[wp_array_i]->shortname));
+        warning(MYNAME ": route point '%s'\n", qPrintable(wp_array[wp_array_i]->shortname));
       }
       wp_array_i++;
     } else if (id == MSG_ROUTE_SHAPE_OUT) {
       decode_route_shape(msg_array[i].data, &wp_array_i);
     } else {
-      fatal(MYNAME ": unexpected message %x while reading route '%s'\n", id, CSTRc(route->rte_name));
+      fatal(MYNAME ": unexpected message %x while reading route '%s'\n", id, qPrintable(route->rte_name));
     }
     message_free(&msg_array[i]);
   }

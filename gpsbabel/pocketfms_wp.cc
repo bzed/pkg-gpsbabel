@@ -20,6 +20,8 @@
 
 #include "defs.h"
 #include "csv_util.h"
+#include <stdlib.h>
+#include <stdio.h>
 
 #define MYNAME "PocketFMS waypoint text file format"
 
@@ -74,13 +76,13 @@ data_read(void)
     wpt->shortname = s;
     s = csv_lineparse(NULL, "\\w", "", linecount);
     if (!s) {
-      fatal(MYNAME "Invalid latitude %s", CSTRc(wpt->shortname));
+      fatal(MYNAME "Invalid latitude %s", qPrintable(wpt->shortname));
     }
     wpt->latitude = wppos_to_dec(s);
 
     s = csv_lineparse(NULL, "\\w", "", linecount);
     if (!s) {
-      fatal(MYNAME "Invalid longitude %s", CSTRc(wpt->shortname));
+      fatal(MYNAME "Invalid longitude %s", qPrintable(wpt->shortname));
     }
     wpt->longitude = wppos_to_dec(s);
     waypt_add(wpt);
