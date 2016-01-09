@@ -1,0 +1,15 @@
+sudo: false
+language: cpp
+compiler:
+  - gcc
+  - clang
+addons:
+  apt:
+    packages:
+    - expat
+    - fop
+    - valgrind
+    - xsltproc
+script:
+ - ./build_and_test
+# TODO: build mac
