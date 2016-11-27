@@ -1,3 +1,15 @@
+gpsbabel (1.5.3-1) unstable; urgency=medium
+
+  * [41ba336] Merge branch 'upstream'
+  * [9511cf2] removing extra gpsbabel directory from d/rules.
+  * [65959cd] Refreshing patches.
+  * [cd70dc1] ensur emissing minizip .o files are built
+  * [48328e9] Fix help2man call for gpsbabel
+  * [bf2c668] Bump dh compat level to 10.
+  * [ec910a4] Remove gpsbabel/ from some more places.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 27 Nov 2016 16:18:18 +0100
+
 gpsbabel (1.5.2-1) unstable; urgency=medium
 
   * [fda6f38] Merge branch 'upstream'
