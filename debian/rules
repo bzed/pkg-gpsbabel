@@ -34,12 +34,12 @@ CONFENV = LDFLAGS="$(LDFLAGS)" CFLAGS="$(CFLAGS)"
 configure: configure-stamp gui/Makefile
 configure-stamp: $(QUILT_STAMPFN)
 	dh_testdir
-	dh_autotools-dev_updateconfig -Dgpsbabel
-	mkdir -p gpsbabel/xmldoc/autogen
-	cd gpsbabel && $(CONFENV) ./configure \
-	    				--with-zlib=system \
-					--with-doc=$(DOCTEMP) \
-					--prefix=/usr
+	dh_autotools-dev_updateconfig
+	mkdir -p xmldoc/autogen
+	$(CONFENV) ./configure \
+		--with-zlib=system \
+		--with-doc=$(DOCTEMP) \
+		--prefix=/usr
 
 	touch $@
 
@@ -56,10 +56,10 @@ debian/gpsbabel.1: build-stamp
 			-o $@ \
 			gpsbabel
 
-gpsbabel/gui/Makefile: $(QUILT_STAMPFN)
-	cd gpsbabel/gui && qmake-qt4
+gui/Makefile: $(QUILT_STAMPFN)
+	cd gui && qmake-qt4
 
-debian/gpsbabel.xpm: gpsbabel/gui/images/appicon.png
+debian/gpsbabel.xpm: gui/images/appicon.png
 	convert -resize 32x32 $< $@
 
 BUILD_TARGETS_ARCH = build-stamp build-gui-stamp debian/gpsbabel.1
@@ -71,10 +71,10 @@ build-stamp: configure-stamp debian/gpsbabel.xpm
 	dh_testdir
 
 	# Add here commands to compile the package.
-	$(MAKE) -C gpsbabel
+	$(MAKE)
 ifeq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
-	chmod u+x gpsbabel/testo
-	$(MAKE) -C gpsbabel check || true
+	chmod u+x testo
+	$(MAKE) check || true
 endif
 
 	touch $@
@@ -82,50 +82,50 @@ endif
 # We need a gpsbabel binary to build the documentation.
 build-doc-stamp: build-stamp
 	mkdir -p debian/doctmp/htmldoc-devel
-	cd gpsbabel && perl xmldoc/makedoc && cd ..
-	$(MAKE) -C gpsbabel gpsbabel.html
-	cp gpsbabel/gpsbabel.html debian/doctmp
+	perl xmldoc/makedoc && cd ..
+	$(MAKE) gpsbabel.html
+	cp gpsbabel.html debian/doctmp
 	cp $(CURDIR)/debian/gpsbabel-doc.doc-base-common $(CURDIR)/debian/gpsbabel-doc.doc-base
 ifneq (mips,$(HOSTARCH))
-	$(MAKE) -C gpsbabel gpsbabel.pdf WEB=$(DOCTEMP) DOCVERSION=devel
-	cp gpsbabel/gpsbabel.pdf $(DOCTEMP)
+	$(MAKE) gpsbabel.pdf WEB=$(DOCTEMP) DOCVERSION=devel
+	cp gpsbabel.pdf $(DOCTEMP)
 	cat $(CURDIR)/debian/gpsbabel-doc.doc-base-pdf >> $(CURDIR)/debian/gpsbabel-doc.doc-base
 endif
 	rm -rf debian/doctmp/htmldoc-devel
 	touch $@
 
 build-gui: build-gui-stamp
-build-gui-stamp: gpsbabel/gui/Makefile
-	$(MAKE) -C gpsbabel/gui
+build-gui-stamp: gui/Makefile
+	$(MAKE) gui
 	touch $@
 
 clean: clean-patched unpatch
 clean-patched:
 	dh_testdir
 	dh_testroot 
-	rm -f *-stamp gpsbabel/dep gpsbabel/doc/*.ps
-	rm -rf gpsbabel/xmldoc/autogen
+	rm -f *-stamp dep doc/*.ps
+	rm -rf xmldoc/autogen
 	rm -f debian/gpsbabel.xpm
 
 	# Add here commands to clean up after the build process.
-	[ ! -f gpsbabel/Makefile ] || $(MAKE) -C gpsbabel clean
-	[ ! -f gpsbabel/gui/Makefile ] || $(MAKE) -C gpsbabel/gui clean
+	[ ! -f Makefile ] || $(MAKE) clean
+	[ ! -f gui/Makefile ] || $(MAKE) gui clean
 	rm -rf debian/doctmp xmldoc/autogen/*
-	cd gpsbabel && rm -rf Makefile config.h config.log config.status \
+	rm -rf Makefile config.h config.log config.status \
 		gpsbabel.fo tools/mkcapabilities win32/gpsbabel.rc \
 		xmldoc/makedoc \
 		zlib/empty jeeps/Makefile shapelib/Makefile
 	rm -f debian/*.inc
-	cd gpsbabel && rm -rf gui/Makefile gui/objects gui/setup.iss
+	rm -rf gui/Makefile gui/objects gui/setup.iss
 	rm -f debian/gpsbabel.1
-	cd gpsbabel && rm -f gpsbabel/gpsbabel.pdf
-	cd gpsbabel && rm -f gui/makelinuxdist.sh
-	cd gpsbabel && rm -f   xmldoc/formats/tomtom_itn_places.xml \
+	rm -f gpsbabel/gpsbabel.pdf
+	rm -f gui/makelinuxdist.sh
+	rm -f   xmldoc/formats/tomtom_itn_places.xml \
 		xmldoc/formats/options/naviguide-reorder.xml \
 		xmldoc/formats/options/naviguide-output.xml \
 		xmldoc/filters/options/track-trk2seg.xml \
 		xmldoc/filters/options/track-seg2trk.xml
-	cd gpsbabel && rm -f gbversion.h
+	rm -f gbversion.h
 	rm -f $(CURDIR)/debian/gpsbabel-doc.doc-base
 	dh_autotools-dev_restoreconfig -Dgpsbabel
 	dh_clean
@@ -139,7 +139,7 @@ install-prep:
 install-arch: $(BUILD_TARGETS_ARCH) install-prep
 
 	# Add here commands to install the package into debian/gpsbabel.
-	$(MAKE) -C gpsbabel install DESTDIR=$(CURDIR)/debian/gpsbabel
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel
 
 	dh_install -a 
 
