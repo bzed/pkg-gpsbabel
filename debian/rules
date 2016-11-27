@@ -54,7 +54,7 @@ debian/gpsbabel.1: build-stamp
 			--version-string=$(VERSION) \
 			--opt-include=$(CURDIR)/debian/gpsbabel.help2man \
 			-o $@ \
-			gpsbabel
+			./gpsbabel
 
 gui/Makefile: $(QUILT_STAMPFN)
 	cd gui && qmake-qt4
