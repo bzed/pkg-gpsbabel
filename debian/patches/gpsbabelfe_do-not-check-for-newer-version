@@ -1,7 +1,7 @@
 Disable check for newer versions on start.
 
---- a/gpsbabel/gui/preferences.ui
-+++ b/gpsbabel/gui/preferences.ui
+--- a/gui/preferences.ui
++++ b/gui/preferences.ui
 @@ -40,13 +40,6 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -16,8 +16,8 @@ Disable check for newer versions on start.
           <widget class="QCheckBox" name="reportStatisticsCheck">
            <property name="text">
             <string>Anonymously report usage data.</string>
---- a/gpsbabel/gui/preferences.cc
-+++ b/gpsbabel/gui/preferences.cc
+--- a/gui/preferences.cc
++++ b/gui/preferences.cc
 @@ -39,7 +39,6 @@ Preferences::Preferences(QWidget* parent
  {
    ui_.setupUi(this);
@@ -34,8 +34,8 @@ Disable check for newer versions on start.
    babelData_.reportStatistics_ = ui_.reportStatisticsCheck->isChecked();
    accept();
  }
---- a/gpsbabel/gui/babeldata.h
-+++ b/gpsbabel/gui/babeldata.h
+--- a/gui/babeldata.h
++++ b/gui/babeldata.h
 @@ -63,7 +63,7 @@ public:
      upgradeErrors_(0),
      upgradeOffers_(0),
@@ -45,8 +45,8 @@ Disable check for newer versions on start.
      reportStatistics_(false),
      allowBetaUpgrades_(false),
      ignoreVersionMismatch_(true),
---- a/gpsbabel/gui/mainwinui.ui
-+++ b/gpsbabel/gui/mainwinui.ui
+--- a/gui/mainwinui.ui
++++ b/gui/mainwinui.ui
 @@ -637,7 +637,6 @@
      <addaction name="actionHelp"/>
      <addaction name="separator"/>
@@ -67,8 +67,8 @@ Disable check for newer versions on start.
    <action name="actionVisit_Website">
     <property name="text">
      <string>Visit Website...</string>
---- a/gpsbabel/gui/mainwindow.cc
-+++ b/gpsbabel/gui/mainwindow.cc
+--- a/gui/mainwindow.cc
++++ b/gui/mainwindow.cc
 @@ -147,7 +147,6 @@ MainWindow::MainWindow(QWidget* parent):
    connect(ui_.actionAbout, SIGNAL(triggered()), this, SLOT(aboutActionX()));
    connect(ui_.actionVisit_Website, SIGNAL(triggered()), this, SLOT(visitWebsiteActionX()));

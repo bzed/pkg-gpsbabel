@@ -1,6 +1,6 @@
 Rename gpsbabelfe binary.
---- a/gpsbabel/gui/app.pro
-+++ b/gpsbabel/gui/app.pro
+--- a/gui/app.pro
++++ b/gui/app.pro
 @@ -36,7 +36,7 @@ win32 {
    TARGET=GPSBabelFE
    QMAKE_LFLAGS_RELEASE += -static-libgcc
