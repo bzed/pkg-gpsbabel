@@ -118,7 +118,7 @@ clean-patched:
 	rm -f debian/*.inc
 	rm -rf gui/Makefile gui/objects gui/setup.iss
 	rm -f debian/gpsbabel.1
-	rm -f gpsbabel/gpsbabel.pdf
+	rm -f gpsbabel.pdf
 	rm -f gui/makelinuxdist.sh
 	rm -f   xmldoc/formats/tomtom_itn_places.xml \
 		xmldoc/formats/options/naviguide-reorder.xml \
@@ -127,7 +127,7 @@ clean-patched:
 		xmldoc/filters/options/track-seg2trk.xml
 	rm -f gbversion.h
 	rm -f $(CURDIR)/debian/gpsbabel-doc.doc-base
-	dh_autotools-dev_restoreconfig -Dgpsbabel
+	dh_autotools-dev_restoreconfig
 	dh_clean
 
 install-prep:
