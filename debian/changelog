@@ -1,3 +1,11 @@
+gpsbabel (1.5.3-2) unstable; urgency=medium
+
+  * [b2954b1] Fix skytraq default values.
+    Taken from upstream
+    Thanks to Jeroen N. Witmond (Closes: #846945)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sun, 01 Jan 2017 22:06:31 +0100
+
 gpsbabel (1.5.3-1) unstable; urgency=medium
 
   * [41ba336] Merge branch 'upstream'
