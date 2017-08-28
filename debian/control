@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 7.0.0), quilt,
  libexpat1-dev, expat, help2man,
  libxml2-utils,
  libusb-dev, zlib1g-dev,
- libqtwebkit-dev | libqt4-dev (<= 4:4.7.0~beta1), libqt4-dev (>= 4:4.4.3),
+ qtbase5-dev, qtwebengine5-dev, qttools5-dev-tools,
  imagemagick,
  locales-all
 Build-Depends-Indep: fop [!mips], xsltproc, docbook-xml,
