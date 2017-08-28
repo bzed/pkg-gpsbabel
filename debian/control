@@ -2,7 +2,7 @@ Source: gpsbabel
 Section: utils
 Priority: optional
 Maintainer: Bernd Zeimetz <bzed@debian.org>
-Build-Depends: debhelper (>= 7.0.0), quilt,
+Build-Depends: debhelper (>= 10~), quilt,
  autotools-dev, autoconf,
  libexpat1-dev, expat, help2man,
  libxml2-utils,
