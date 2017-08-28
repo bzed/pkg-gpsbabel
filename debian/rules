@@ -60,7 +60,7 @@ debian/gpsbabel.1: build-stamp
 			./gpsbabel
 
 gui/Makefile: $(QUILT_STAMPFN)
-	cd gui && qmake-qt4
+	cd gui && qmake
 
 debian/gpsbabel.xpm: gui/images/appicon.png
 	convert -resize 32x32 $< $@
