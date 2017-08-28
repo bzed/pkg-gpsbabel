@@ -3,6 +3,9 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
+export QT_SELECT=qt5
+
+
 PKG_GPSBABEL=gpsbabel
 PKG_GPSBABEL_GUI=gpsbabel-gui
 DOCTEMP = $(CURDIR)/debian/doctmp
