@@ -4,3 +4,4 @@ gpsbabelfe_do-not-check-for-newer-version
 htmldoc-location
 gpsbabelfe-name
 use_minizip
+fix-qt5-build
