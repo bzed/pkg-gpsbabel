@@ -61,6 +61,11 @@
 #include <errno.h>
 #include <math.h>
 #include <stdlib.h>
+#if __WIN32__
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 #define MYNAME "mtk_logger"
 
@@ -227,6 +232,7 @@ static char* OPT_erase;  /* erase ? command option */
 static char* OPT_erase_only;  /* erase_only ? command option */
 static char* OPT_log_enable;  /* enable ? command option */
 static char* csv_file; /* csv ? command option */
+static char* OPT_block_size_kb; /* block_size_kb ? command option */
 static enum MTK_DEVICE_TYPE mtk_device = MTK_LOGGER;
 
 struct mtk_loginfo mtk_info;
@@ -240,8 +246,8 @@ const char CMD_LOG_ERASE[]  = "$PMTK182,6,1*3E\r\n";
 const char CMD_LOG_STATUS[] = "$PMTK182,2,7*3C\r\n";
 
 static int  mtk_log_len(unsigned int bitmask);
-static void mtk_rd_init(const char* fname);
-static void file_init(const char* fname);
+static void mtk_rd_init(const QString& fname);
+static void file_init(const QString& fname);
 static void file_deinit(void) ;
 static void holux245_init(void);
 static void file_read(void);
@@ -266,6 +272,10 @@ static arglist_t mtk_sargs[] = {
   {
     "csv",   &csv_file, "MTK compatible CSV output file",
     NULL, ARGTYPE_STRING, ARG_NOMINMAX
+  },
+  {
+    "block_size_kb", &OPT_block_size_kb, "Size of blocks in KB to request from device",
+    "1", ARGTYPE_INT, "1", "64"
   },
   ARG_TERMINATOR
 };
@@ -417,21 +427,21 @@ static int do_cmd(const char* cmd, const char* expect, char** rslt, time_t timeo
 /*******************************************************************************
 * %%%        global callbacks called by gpsbabel main process              %%% *
 *******************************************************************************/
-static void mtk_rd_init_m241(const char* fname)
+static void mtk_rd_init_m241(const QString& fname)
 {
   mtk_device = HOLUX_M241;
   mtk_rd_init(fname);
 }
 
-static void mtk_rd_init(const char* fname)
+static void mtk_rd_init(const QString& fname)
 {
   int rc;
   char* model;
 
-  port = xstrdup(fname);
+  port = xstrdup(qPrintable(fname));
 
   errno = 0;
-  dbg(1, "Opening port %s...\n", fname);
+  dbg(1, "Opening port %s...\n", port);
   if ((fd = gbser_init(port)) == NULL) {
     fatal(MYNAME ": Can't initialise port \"%s\" (%s)\n", port, strerror(errno));
   }
@@ -531,8 +541,9 @@ static void mtk_read(void)
   char cmd[256];
   char* line = NULL;
   unsigned char crc, *data = NULL;
-  int cmdLen, j, bsize, i, len, ff_len, null_len, rc, init_scan, retry_cnt, log_enabled;
-  unsigned int line_size, data_size, data_addr, addr, addr_max;
+  int cmdLen, i, len, rc, init_scan, retry_cnt, log_enabled;
+  unsigned int j, bsize, scan_bsize, read_bsize_kb, read_bsize, scan_step, ff_len, null_len, chunk_size;
+  unsigned int line_size, data_size, data_addr, addr, addr_max, rcvd_addr, rcvd_bsize;
   unsigned long dsize, dpos = 0;
   FILE* dout;
   char* fusage = NULL;
@@ -608,11 +619,25 @@ static void mtk_read(void)
     }
   }
 
-  bsize = 0x0400;
+  scan_step = 0x10000;
+  scan_bsize = 0x0400;
+  read_bsize_kb = strtol(OPT_block_size_kb, NULL, 10);
+  if (errno == ERANGE || read_bsize_kb < 1) {
+    read_bsize_kb = 1;
+  } else if (read_bsize_kb > 64) {
+    read_bsize_kb = 64;
+  }
+  read_bsize = read_bsize_kb * 1024;
+  dbg(2, "Download block size is %d bytes\n", read_bsize);
+  if (init_scan) {
+    bsize = scan_bsize;
+  } else {
+    bsize = read_bsize;
+  }
   addr  = 0x0000;
 
-  line_size = 2*bsize + 32; // logdata as nmea/hex.
-  data_size = bsize + 32;
+  line_size = 2*read_bsize + 32; // logdata as nmea/hex.
+  data_size = read_bsize + 32;
   if ((line = (char*) xmalloc(line_size)) == NULL) {
     fatal(MYNAME ": Can't allocate %u bytes for NMEA buffer\n",  line_size);
   }
@@ -636,6 +661,7 @@ mtk_retry:
     do_send_cmd(cmd, cmdLen);
 
     memset(line, '\0', line_size);
+    rcvd_addr = addr;
     do {
       rc = gbser_read_line(fd, line, line_size-1, TIMEOUT, 0x0A, 0x0D);
       if (rc != gbser_OK) {
@@ -654,12 +680,12 @@ mtk_retry:
         if (strncmp(line, "$PMTK182,8", 10) == 0) { //  $PMTK182,8,00005000,FFFFFFF
           retry_cnt = 0;
           data_addr = strtoul(&line[11], NULL, 16);
-          fseek(dout, data_addr, SEEK_SET);
+          // fixme - we should check if all data before data_addr is already received
           i = 20;
-          j = 0;
+          j = data_addr - addr;
           ff_len = 0; // number of 0xff bytes.
           null_len = 0; // number of 0x00 bytes.
-          while (i < (len-3)) {
+          while (i + 3 < len && j < data_size) {
             data[j] = (isdigit(line[i])?(line[i]-'0'):(line[i]-'A'+0xA))*0x10 +
                       (isdigit(line[i+1])?(line[i+1]-'0'):(line[i+1]-'A'+0xA));
             if (data[j] == 0xff) {
@@ -671,34 +697,24 @@ mtk_retry:
             i += 2;
             j++;
           }
+          rcvd_addr = addr + j;
+          chunk_size = rcvd_addr - data_addr;
           if (init_scan) {
-            if (dsize > 0 && addr < dsize) {
-              fseek(dout, addr, SEEK_SET);
-              if (fread(line, 1, bsize, dout) == bsize && memcmp(line, data, bsize) == 0) {
-                dpos = addr;
-                dbg(2, "%s same at %d\n", TEMP_DATA_BIN, addr);
-              } else {
-                dbg(2, "%s differs at %d\n", TEMP_DATA_BIN, addr);
-              }
-            }
-            if (ff_len == j) {  // data in sector - we've found max sector..
-              addr_max = addr;
+            if (ff_len == chunk_size) {  // data in sector - we've found max sector..
+              addr_max = data_addr;
+              rcvd_addr = data_addr;
               dbg(1, "Initial scan done - Download %dkB from device\n", (addr_max+1) >> 10);
+              break;
             }
-            len = 0;
           } else {
-            if (null_len == j) {  // 0x00 block - bad block....
+            if (null_len == chunk_size) {  // 0x00 block - bad block....
               fprintf(stderr, "FIXME -- read bad block at 0x%.6x - retry ? skip ?\n%s\n", data_addr, line);
             }
-            if (fwrite(data, 1, j, dout) != j) {
-              fatal(MYNAME ": Failed to write temp. binary file\n");
-            }
-            if (ff_len == j) {  // 0xff block - read complete...
+            if (ff_len == chunk_size) {  // 0xff block - read complete...
               len = ff_len;
-              addr_max = addr;
+              addr_max = data_addr;
+              rcvd_addr = data_addr;
               break;
-            } else {
-              len = 0;
             }
           }
         } else if (strncmp(line, "$PMTK001,182,7,", 15) == 0) {  // Command ACK
@@ -711,15 +727,38 @@ mtk_retry:
           }
         }
       }
-    } while (len != 0);
+    } while (rcvd_addr < addr + bsize);
+
+    rcvd_bsize = rcvd_addr - addr;
+    dbg(2, "Received %d bytes\n", rcvd_bsize);
+
     if (init_scan) {
-      addr += 0x10000;
-      if (addr >= addr_max) {  // initial scan complete...
-        init_scan = 0;
-        addr = dpos;
+      if (dsize > 0 && addr < dsize) {
+        fseek(dout, addr, SEEK_SET);
+        if (fread(line, 1, rcvd_bsize, dout) == rcvd_bsize && memcmp(line, data, rcvd_bsize) == 0) {
+          dpos = addr;
+          dbg(2, "%s same at %d\n", TEMP_DATA_BIN, addr);
+        } else {
+          dbg(2, "%s differs at %d\n", TEMP_DATA_BIN, addr);
+          init_scan = 0;
+          addr = dpos;
+          bsize = read_bsize;
+        }
+      }
+      if (init_scan) {
+        addr += scan_step;
+        if (addr >= addr_max) {  // initial scan complete...
+          init_scan = 0;
+          addr = dpos;
+          bsize = read_bsize;
+        }
       }
     } else {
-      addr += bsize;
+      fseek(dout, addr, SEEK_SET);
+      if (fwrite(data, 1, rcvd_bsize, dout) != rcvd_bsize) {
+        fatal(MYNAME ": Failed to write temp. binary file\n");
+      }
+      addr += rcvd_bsize;
       if (global_opts.verbose_status || (global_opts.debug_level >= 2 && global_opts.debug_level < 5)) {
         int perc;
         perc = 100 - 100*(addr_max-addr)/addr_max;
@@ -731,6 +770,11 @@ mtk_retry:
     }
   }
   if (dout != NULL) {
+#if __WIN32__
+    _chsize(fileno(dout), addr_max);
+#else
+    ftruncate(fileno(dout), addr_max);
+#endif
     fclose(dout);
   }
   if (global_opts.verbose_status || (global_opts.debug_level >= 2 && global_opts.debug_level < 5)) {
@@ -1327,11 +1371,19 @@ static int mtk_parse_info(const unsigned char* data, int dataLen)
     case 0x03:
       dbg(1, "# Log period change %.0f sec\n", cmd/10.);
       mtk_info.track_event |= MTK_EVT_PERIOD;
+      if (mtk_device != MTK_LOGGER)
+      {
+        mtk_info.track_event |= MTK_EVT_START;
+      }
       mtk_info.period = cmd;
       break;
     case 0x04:
       dbg(1, "# Log distance change %.1f m\n", cmd/10.);
       mtk_info.track_event |= MTK_EVT_DISTANCE;
+      if (mtk_device != MTK_LOGGER)
+      {
+        mtk_info.track_event |= MTK_EVT_START;
+      }
       mtk_info.distance = cmd;
       break;
     case 0x05:
@@ -1350,8 +1402,11 @@ static int mtk_parse_info(const unsigned char* data, int dataLen)
       break;
     case 0x07:
       if (cmd == 0x0106) {
-        dbg(5, "# GPS Logger# Turned On\n"); // Fixme - start new trk
-        mtk_info.track_event |= MTK_EVT_START;
+        dbg(5, "# GPS Logger# Turned On\n");
+        if (mtk_device == MTK_LOGGER)
+        {
+          mtk_info.track_event |= MTK_EVT_START;
+        }
       }
       if (cmd == 0x0104) {
         dbg(5, "# GPS Logger# Log disabled\n");
@@ -1407,17 +1462,17 @@ static int mtk_log_len(unsigned int bitmask)
 
 /********************** File-in interface ********************************/
 
-static void file_init_m241(const char* fname)
+static void file_init_m241(const QString& fname)
 {
   mtk_device = HOLUX_M241;
   file_init(fname);
 }
 
-static void file_init(const char* fname)
+static void file_init(const QString& fname)
 {
-  dbg(4, "Opening file %s...\n", fname);
-  if (fl = fopen(fname, "rb"), NULL == fl) {
-    fatal(MYNAME ": Can't open file '%s'\n", fname);
+  dbg(4, "Opening file %s...\n", qPrintable(fname));
+  if (fl = fopen(qPrintable(fname), "rb"), NULL == fl) {
+    fatal(MYNAME ": Can't open file '%s'\n", qPrintable(fname));
   }
   switch (mtk_device) {
   case HOLUX_M241:

@@ -18,6 +18,7 @@
  */
 
 #include <QtCore/QTextCodec>
+#include <QtCore/QCoreApplication>
 
 #include "defs.h"
 #include "filterdefs.h"
@@ -240,26 +241,32 @@ main(int argc, char* argv[])
   queue* wpt_head_bak, *rte_head_bak, *trk_head_bak;	/* #ifdef UTF8_SUPPORT */
   signed int wpt_ct_bak, rte_ct_bak, trk_ct_bak;	/* #ifdef UTF8_SUPPORT */
   arg_stack_t* arg_stack = NULL;
+
+  // Create a QCoreApplication object to handle application initialization. 
+  // TODO: Someday we may actually use this, but for now we are just trying
+  // to get Qt initialized, especially locale related QTextCodec stuff.
+  // For example, this will get the QTextCodec::codecForLocale set
+  // correctly.
+  QCoreApplication app(argc, argv);
+  // TODO: use QCoreApplication::arguments() to process command line.
+
   (void) new gpsbabel::UsAsciiCodec(); /* make sure a US-ASCII codec is available */
 
-#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
-  // Qt 5.0 uses QString::fromUtf8 to convert from character pointers
-  // and QBytreArrays to QStrings while previous version of Qt used
-  // QString::fromAscii.  QString::fromAscii used the codec set
-  // by QTextCode::setCodecForCStrings.
-  // This makes the converstion consistent between Qt4 and Qt5.
-  QTextCodec::setCodecForCStrings(QTextCodec::codecForName("UTF-8"));
+#if (QT_VERSION < QT_VERSION_CHECK(5, 2, 0))
+  #error This version of Qt is not supported.
 #endif
 
   // The first invocation of QTextCodec::codecForLocale() may result in LC_ALL being set to the native environment
   // as opposed to the initial default "C" locale.
   // This was demonstrated with Qt5 on Mac OS X.
+  // TODO: This need to invoke QTextCodec::codecForLocale() may be taken care of
+  // by creating a QCoreApplication.
 #ifdef DEBUG_LOCALE
-  printf("%s\n",setlocale(LC_ALL, NULL));
+  printf("Initial locale: %s\n",setlocale(LC_ALL, NULL));
 #endif
   (void) QTextCodec::codecForLocale();
 #ifdef DEBUG_LOCALE
-  printf("%s\n",setlocale(LC_ALL, NULL));
+  printf("Locale after codedForLocale: %s\n",setlocale(LC_ALL, NULL));
 #endif
   // As recommended in QCoreApplication reset the locale to the default.
   // Note the documentation says to set LC_NUMERIC, but QCoreApplicationPrivate::initLocale()
@@ -271,7 +278,17 @@ main(int argc, char* argv[])
 #endif
     setlocale(LC_NUMERIC,"C");
 #ifdef DEBUG_LOCALE
-    printf("%s\n",setlocale(LC_ALL, NULL));
+    printf("LC_ALL: %s\n",setlocale(LC_ALL, NULL));
+#endif
+  }
+  /* reset LC_TIME for strftime */
+  if (strcmp(setlocale(LC_TIME,0), "C") != 0) {
+#ifdef DEBUG_LOCALE
+    printf("Resetting LC_TIME\n");
+#endif
+    setlocale(LC_TIME,"C");
+#ifdef DEBUG_LOCALE
+    printf("LC_ALL: %s\n",setlocale(LC_ALL, NULL));
 #endif
   }
 
@@ -394,7 +411,7 @@ main(int argc, char* argv[])
       cet_convert_init(ivecs->encode, ivecs->fixed_encode);	/* init by module vec */
 
       start_session(ivecs->name, fname);
-      ivecs->rd_init(fname);
+      ivecs->rd_init(QString::fromLocal8Bit(fname));
       ivecs->read();
       ivecs->rd_deinit();
 
@@ -426,7 +443,7 @@ main(int argc, char* argv[])
         trk_ct_bak = -1;
         rte_head_bak = trk_head_bak = NULL;
 
-        ovecs->wr_init(ofname);
+        ovecs->wr_init(QString::fromLocal8Bit(ofname));
 
         if (global_opts.charset != &cet_cs_vec_utf8) {
           /*
@@ -628,7 +645,7 @@ main(int argc, char* argv[])
     if (ivecs->rd_init == NULL) {
       fatal("Format does not support reading.\n");
     }
-    ivecs->rd_init(argv[0]);
+    ivecs->rd_init(QString::fromLocal8Bit(argv[0]));
     ivecs->read();
     ivecs->rd_deinit();
 
@@ -643,7 +660,7 @@ main(int argc, char* argv[])
         fatal("Format does not support writing.\n");
       }
 
-      ovecs->wr_init(argv[1]);
+      ovecs->wr_init(QString::fromLocal8Bit(argv[1]));
       ovecs->write();
       ovecs->wr_deinit();
 
@@ -689,7 +706,7 @@ main(int argc, char* argv[])
         fatal("An input file (-f) must be specified.\n");
       }
       start_session(ivecs->name, fname);
-      ivecs->position_ops.rd_init(fname);
+      ivecs->position_ops.rd_init(QString::fromLocal8Bit(fname));
     }
 
     if (global_opts.masked_objective & ~POSNDATAMASK) {
@@ -707,7 +724,7 @@ main(int argc, char* argv[])
     }
 
     if (ovecs && ovecs->position_ops.wr_init) {
-      ovecs->position_ops.wr_init(ofname);
+      ovecs->position_ops.wr_init(QString::fromLocal8Bit(ofname));
     }
 
     tracking_status.request_terminate = 0;
@@ -724,7 +741,7 @@ main(int argc, char* argv[])
       }
       if (wpt) {
         if (ovecs) {
-//					ovecs->position_ops.wr_init(ofname);
+//					ovecs->position_ops.wr_init(QString::fromLocal8Bit(ofname));
           ovecs->position_ops.wr_position(wpt);
 //					ovecs->position_ops.wr_deinit();
         } else {

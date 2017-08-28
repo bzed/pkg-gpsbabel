@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <QtCore/QFile>
 
 #define MYNAME "exif"
 
@@ -135,7 +136,7 @@ static exif_app_t* exif_app;
 const Waypoint* exif_wpt_ref;
 time_t exif_time_ref;
 static char exif_success;
-static char* exif_fout_name;
+static QString exif_fout_name;
 
 static char* opt_filename, *opt_overwrite, *opt_frame, *opt_name;
 
@@ -382,7 +383,7 @@ exif_load_apps(void)
     app->marker = gbfgetuint16(fin);
     app->len = gbfgetuint16(fin);
 #ifdef EXIF_DBG
-    printf(MYNAME ": api = %02X, len = %d, offs = %04X\n", app->marker & 0xFF, app->len, gbftell(fin));
+    printf(MYNAME ": api = %02X, len = %d (0x%04x), offs = 0x%08X\n", app->marker & 0xFF, app->len, app->len, gbftell(fin));
 #endif
     if (exif_app || (app->marker == 0xFFDA)) /* compressed data */ {
       gbfcopyfrom(app->fcache, fin, 0x7FFFFFFF);
@@ -419,7 +420,7 @@ exif_read_ifd(exif_app_t* app, const uint16_t ifd_nr, gbsize_t offs,
 
 #ifdef EXIF_DBG
   {
-    char* name;
+    const char* name;
     switch (ifd_nr) {
     case IFD0:
       name = "IFD0";
@@ -440,7 +441,7 @@ exif_read_ifd(exif_app_t* app, const uint16_t ifd_nr, gbsize_t offs,
       name = "private";
       break;
     }
-    printf(MYNAME "-offs 0x%04X: Number of items in IFD%d \"%s\" = %d (0x%2x)\n",
+    printf(MYNAME "-offs 0x%08X: Number of items in IFD%d \"%s\" = %d (0x%04x)\n",
            offs, ifd_nr, name, ifd->count, ifd->count);
   }
 #endif
@@ -453,8 +454,8 @@ exif_read_ifd(exif_app_t* app, const uint16_t ifd_nr, gbsize_t offs,
 
     tag = (exif_tag_t*) xcalloc(sizeof(*tag), 1);
 #ifdef EXIF_DBG
-    tag->offs = offs;
     offs = gbftell(fin);
+    tag->offs = offs;
 #endif
 
     ENQUEUE_TAIL(&ifd->tags, &tag->Q);
@@ -485,7 +486,10 @@ exif_read_ifd(exif_app_t* app, const uint16_t ifd_nr, gbsize_t offs,
     }
   }
 
-  ifd->next_ifd = gbfgetuint16(fin);
+#ifdef EXIF_DBG
+  gbsize_t next_ifd_offs = gbftell(fin);
+#endif
+  ifd->next_ifd = gbfgetuint32(fin);
 
   QUEUE_FOR_EACH(&ifd->tags, elem, tmp) {
     exif_tag_t* tag = (exif_tag_t*)elem;
@@ -531,7 +535,7 @@ exif_read_ifd(exif_app_t* app, const uint16_t ifd_nr, gbsize_t offs,
         }
     }
 #ifdef EXIF_DBG
-    printf(MYNAME "-offs 0x%04X: ifd=%d id=0x%04X t=0x%04X c=%4d s=%4d v=0x%08X",
+    printf(MYNAME "-offs 0x%08X: ifd=%d id=0x%04X t=0x%04X c=%4d s=%4d v=0x%08X",
            tag->offs, ifd->nr, tag->id, tag->type, tag->count, tag->size, tag->value);
     if (tag->type == EXIF_TYPE_ASCII) {
       printf(" \"%s\"", exif_read_str(tag));
@@ -539,6 +543,10 @@ exif_read_ifd(exif_app_t* app, const uint16_t ifd_nr, gbsize_t offs,
     printf("\n");
 #endif
   }
+
+#ifdef EXIF_DBG
+  printf(MYNAME "-offs 0x%08X: Next IFD=0x%08X\n", next_ifd_offs,  ifd->next_ifd);
+#endif
 
   return ifd;
 }
@@ -553,7 +561,7 @@ exif_read_app(exif_app_t* app)
 
 #ifdef EXIF_DBG
   printf(MYNAME ": read_app...\n");
-  print_buff((const char*)fin->handle.mem, 16, MYNAME);
+  print_buff((const char*)fin->handle.mem, 8, MYNAME "-offs 0x00000000: Image File Header");
   printf("\n");
 #endif
   exif_ifd_ofs = gps_ifd_ofs = inter_ifd_ofs = 0;
@@ -848,9 +856,8 @@ exif_waypt_from_exif_app(exif_app_t* app)
 
   if (timestamp != UNKNOWN_TIMESTAMP) {
 #ifdef EXIF_DBG
-    char* str = exif_time_str(timestamp);
-    printf(MYNAME "-GPSTimeStamp =   %s\n", str);
-    xfree(str);
+    QString str =  QDateTime::fromTime_t(timestamp).toUTC().toString(Qt::ISODate);
+    printf(MYNAME "-GPSTimeStamp =   %s\n", qPrintable(str));
 #endif
     wpt->SetCreationTime(timestamp);
   } else {
@@ -1100,7 +1107,7 @@ exif_find_wpt_by_time(const Waypoint* wpt)
 
   if (exif_wpt_ref == NULL) {
     exif_wpt_ref = wpt;
-  } else if (abs(exif_time_ref - wpt->creation_time.toTime_t()) < abs(exif_time_ref - exif_wpt_ref->creation_time.toTime_t())) {
+  } else if (labs(exif_time_ref - wpt->creation_time.toTime_t()) < labs(exif_time_ref - exif_wpt_ref->creation_time.toTime_t())) {
     exif_wpt_ref = wpt;
   }
 }
@@ -1334,7 +1341,7 @@ exif_write_apps(void)
 *******************************************************************************/
 
 static void
-exif_rd_init(const char* fname)
+exif_rd_init(const QString& fname)
 {
   fin = gbfopen_be(fname, "rb", MYNAME);
   QUEUE_INIT(&exif_apps);
@@ -1367,12 +1374,12 @@ exif_read(void)
 }
 
 static void
-exif_wr_init(const char* fname)
+exif_wr_init(const QString& fname)
 {
   uint16_t soi;
 
   exif_success = 0;
-  exif_fout_name = xstrdup(fname);
+  exif_fout_name = fname;
 
   QUEUE_INIT(&exif_apps);
 
@@ -1399,23 +1406,21 @@ exif_wr_init(const char* fname)
 static void
 exif_wr_deinit(void)
 {
-  char* tmpname;
 
   exif_release_apps();
-  tmpname = xstrdup(fout->name);
+  QString tmpname = QString::fromLocal8Bit(fout->name);
   gbfclose(fout);
 
   if (exif_success) {
     if (*opt_overwrite == '1') {
-      remove(exif_fout_name);
-      rename(tmpname, exif_fout_name);
+      QFile::remove(exif_fout_name);
+      QFile::rename(tmpname, exif_fout_name);
     }
   } else {
-    remove(tmpname);
+    QFile::remove(tmpname);
   }
 
-  xfree(exif_fout_name);
-  xfree(tmpname);
+  exif_fout_name.clear();
 }
 
 static void
@@ -1447,12 +1452,12 @@ exif_write(void)
 
     if (exif_wpt_ref == NULL) {
       warning(MYNAME ": No point with a valid timestamp found.\n");
-    } else if (abs(exif_time_ref - exif_wpt_ref->creation_time.toTime_t()) > frame) {
+    } else if (labs(exif_time_ref - exif_wpt_ref->creation_time.toTime_t()) > frame) {
       warning(MYNAME ": No matching point found for image date %s!\n", qPrintable(str));
       if (exif_wpt_ref != NULL) {
         QString str = exif_time_str(exif_wpt_ref->creation_time.toTime_t());
-        warning(MYNAME ": Best is from %s, %d second(s) away.\n",
-                qPrintable(str), abs(exif_time_ref - exif_wpt_ref->creation_time.toTime_t()));
+        warning(MYNAME ": Best is from %s, %ld second(s) away.\n",
+                qPrintable(str), labs(exif_time_ref - exif_wpt_ref->creation_time.toTime_t()));
       }
       exif_wpt_ref = NULL;
     }

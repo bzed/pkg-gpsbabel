@@ -377,7 +377,7 @@ parse_rte_info(const char* buff, route_head* route)	/* "R" */
 /* main functions */
 
 static void
-compegps_rd_init(const char* fname)
+compegps_rd_init(const QString& fname)
 {
   fin = gbfopen(fname, "rb", MYNAME);
   input_datum = DATUM_WGS84;
@@ -484,7 +484,12 @@ write_waypt_cb(const Waypoint* wpt)
   if (curr_index != target_index) {
     return;
   }
-  name = (snlen > 0) ? mkshort_from_wpt(sh, wpt) : csv_stringclean(wpt->shortname, " ");
+
+  // Our only output cleansing is to replace
+  QString cleaned_name(wpt->shortname);
+  cleaned_name.replace(' ', '_');
+
+  name = (snlen > 0) ? mkshort(sh, cleaned_name) : cleaned_name;
 
   gbfprintf(fout, "W  %s A ", CSTR(name));
   gbfprintf(fout, "%.10f%c%c ",
@@ -612,7 +617,7 @@ write_waypoints(void)
 /* --------------------------------------------------------------------------- */
 
 static void
-compegps_wr_init(const char* fname)
+compegps_wr_init(const QString& fname)
 {
   fout = gbfopen(fname, "w", MYNAME);
   sh = mkshort_new_handle();

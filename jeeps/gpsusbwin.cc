@@ -189,7 +189,7 @@ HANDLE garmin_usb_start(HDEVINFO hdevinfo, SP_DEVICE_INTERFACE_DATA* infodata)
 static char** get_garmin_mountpoints(void)
 {
 #define BUFSIZE 512
-  TCHAR szTemp[MAX_PATH];
+  char szTemp[MAX_PATH];
   char* p = szTemp;
   char** dlist = (char **) xmalloc(sizeof(*dlist));
 
@@ -241,7 +241,7 @@ gusb_init(const char* pname, gpsdevh** dh)
 
   if (hdevinfo == INVALID_HANDLE_VALUE) {
     GPS_Serial_Error("SetupDiGetClassDevs failed");
-    warning("Is the Garmin USB driver installed?");
+    warning("Is the Garmin USB driver installed?\n");
     return 0;
   }
 
@@ -284,7 +284,7 @@ gusb_init(const char* pname, gpsdevh** dh)
       } else {
 
         GPS_Serial_Error("SetupDiEnumDeviceInterfaces");
-        warning("Is the Garmin USB unit number %d powered up and connected?", un);
+        warning("Is the Garmin USB unit number %d powered up and connected?\n", un);
         return 0;
       }
     }

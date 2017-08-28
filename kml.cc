@@ -68,8 +68,8 @@ static int precision;
 
 static Waypoint* wpt_tmp;
 static int wpt_tmp_queued;
-static const char* posnfilename;
-static char* posnfilenametmp;
+static QString posnfilename;
+static QString posnfilenametmp;
 
 static route_head* gx_trk_head;
 static QList<gpsbabel::DateTime>* gx_trk_times;
@@ -460,7 +460,7 @@ void gx_trk_coord(xg_string args, const QXmlStreamAttributes*)
 
 static
 void
-kml_rd_init(const char* fname)
+kml_rd_init(const QString& fname)
 {
   xml_init(fname, kml_map, NULL);
   xml_ignore_tags(kml_tags_to_ignore);
@@ -480,7 +480,7 @@ kml_rd_deinit(void)
 }
 
 static void
-kml_wr_init(const char* fname)
+kml_wr_init(const QString& fname)
 {
   char u = 's';
   waypt_init_bounds(&kml_bounds);
@@ -523,10 +523,10 @@ kml_wr_init(const char* fname)
  * updated.
  */
 static void
-kml_wr_position_init(const char* fname)
+kml_wr_position_init(const QString& fname)
 {
   posnfilename = fname;
-  posnfilenametmp = xstrappend(xstrdup(fname), "-");
+  posnfilenametmp = QString("%1-").arg(fname);
   realtime_positioning = 1;
 
   /*
@@ -548,12 +548,12 @@ kml_wr_deinit(void)
   delete oqfile;
   oqfile = NULL;
 
-  if (posnfilenametmp) {
+  if (!posnfilenametmp.isEmpty()) {
 #if __WIN32__
-    MoveFileExA(posnfilenametmp, posnfilename,
+    MoveFileExA(qPrintable(posnfilenametmp), qPrintable(posnfilename),
                 MOVEFILE_REPLACE_EXISTING);
 #endif
-    rename(posnfilenametmp, posnfilename);
+    QFile::rename(posnfilenametmp, posnfilename);
   }
 }
 
@@ -561,10 +561,8 @@ static void
 kml_wr_position_deinit(void)
 {
 //	kml_wr_deinit();
-  if (posnfilenametmp) {
-    xfree(posnfilenametmp);
-    posnfilenametmp = NULL;
-  }
+  posnfilename.clear();
+  posnfilenametmp.clear();
 }
 
 
@@ -870,15 +868,21 @@ static void kml_output_lookat(const Waypoint* waypointp)
   writer->writeEndElement(); // Close LookAt tag
 }
 
-static void kml_output_positioning(void)
+static void kml_output_positioning(bool tessellate)
 {
+  // These elements must be output as a sequence, i.e. in order.
+  if (extrude) {
+    writer->writeTextElement("extrude", "1");
+  }
+
+  if (tessellate) {
+    writer->writeTextElement("tessellate", "1");
+  }
+
   if (floating) {
     writer->writeTextElement("altitudeMode", "absolute");
   }
 
-  if (extrude) {
-    writer->writeTextElement("extrude", "1");
-  }
 }
 
 /* Output something interesing when we can for route and trackpoints */
@@ -1024,11 +1028,7 @@ static void kml_output_point(const Waypoint* waypointp, kml_point_type pt_type)
     }
 
     writer->writeStartElement("Point");
-    kml_output_positioning();
-
-    if (extrude) {
-      writer->writeTextElement("extrude", "1");
-    }
+    kml_output_positioning(false);
     kml_write_coordinates(waypointp);
     writer->writeEndElement(); // Close Point tag
 
@@ -1094,8 +1094,7 @@ static void kml_output_tailer(const route_head* header)
           writer->writeEndElement(); // Close LineString tag
         }
         writer->writeStartElement("LineString");
-        kml_output_positioning();
-        writer->writeTextElement("tessellate","1");
+        kml_output_positioning(true);
         writer->writeStartElement("coordinates");
         writer->writeCharacters("\n");
       }
@@ -1627,7 +1626,7 @@ static void kml_waypt_pr(const Waypoint* waypointp)
 
   // Location
   writer->writeStartElement("Point");
-  kml_output_positioning();
+  kml_output_positioning(false);
   kml_write_coordinates(waypointp);
   writer->writeEndElement(); // Close Point tag
 
@@ -1762,7 +1761,7 @@ static void kml_mt_hdr(const route_head* header)
   writer->writeOptionalTextElement("name", header->rte_name);
   writer->writeTextElement("styleUrl", "#multiTrack");
   writer->writeStartElement("gx:Track");
-  kml_output_positioning();
+  kml_output_positioning(false);
 
   QUEUE_FOR_EACH(&header->waypoint_list, elem, tmp) {
     Waypoint* tpt = (Waypoint*)elem;

@@ -68,7 +68,7 @@ ALL_FMTS=$(MINIMAL_FMTS) gtm.o gpsutil.o  \
 	saroute.o navicache.o psitrex.o delgpl.o \
 	text.o html.o netstumbler.o \
 	igc.o brauniger_iq.o shape.o hiketech.o glogbook.o  \
-	vcf.o google.o xhtmlent.o lowranceusr.o an1.o tomtom.o \
+	vcf.o xhtmlent.o lowranceusr.o an1.o tomtom.o \
 	tef_xml.o maggeo.o vitosmt.o bcr.o \
 	ignrando.o stmwpp.o cst.o nmn4.o compegps.o \
 	yahoo.o unicsv.o wfff_xml.o garmin_txt.o gpssim.o \
@@ -76,12 +76,12 @@ ALL_FMTS=$(MINIMAL_FMTS) gtm.o gpsutil.o  \
 	ggv_log.o g7towin.o garmin_gpi.o lmx.o random.o xol.o dg-100.o \
 	navilink.o mtk_logger.o ik3d.o osm.o destinator.o exif.o vidaone.o \
 	igo8.o gopal.o humminbird.o mapasia.o gnav_trl.o navitel.o ggv_ovl.o \
-	jtr.o sbp.o sbn.o mmo.o skyforce.o itracku.o v900.o delbin.o \
+	jtr.o sbp.o sbn.o mmo.o skyforce.o itracku.o v900.o  \
 	pocketfms_bc.o pocketfms_fp.o pocketfms_wp.o naviguide.o enigma.o \
 	vpl.o teletype.o jogmap.o bushnell.o bushnell_trl.o wintec_tes.o \
 	subrip.o garmin_xt.o garmin_fit.o lowranceusr4.o \
 	mtk_locus.o googledir.o mapbar_track.o f90g_track.o mapfactor.o energympro.o \
-	mynav.o
+	mynav.o ggv_bin.o globalsat_sport.o geojson.o
 
 FMTS=@FMTS@
 
@@ -108,7 +108,7 @@ MINIZIP=zlib/contrib/minizip/zip.o \
 ZLIB=zlib/adler32.o zlib/compress.o zlib/crc32.o zlib/deflate.o zlib/inffast.o \
 	zlib/inflate.o zlib/infback.o zlib/inftrees.o zlib/trees.o \
 	zlib/uncompr.o zlib/gzlib.o zlib/gzclose.o zlib/gzread.o \
-        zlib/gzwrite.o zlib/zutil.o $(MINIZIP)
+	zlib/gzwrite.o zlib/zutil.o $(MINIZIP)
 
 
 LIBOBJS = queue.o route.o waypt.o filter_vecs.o util.o vecs.o mkshort.o \
@@ -178,8 +178,10 @@ configure: configure.in
 	autoconf
 
 tag:
-	svn commit
-	svn copy https://gpsbabel.googlecode.com/svn/trunk/ https://gpsbabel.googlecode.com/svn/tags/gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@
+	# svn commit
+	# svn copy https://gpsbabel.googlecode.com/svn/trunk/ https://gpsbabel.googlecode.com/svn/tags/gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@
+	git tag -fa gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@ -m "gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@"
+	git push origin master --tags
 
 more-clean: clean
 	$(srcdir)/tools/mkmoreclean
@@ -233,7 +235,7 @@ $(WEB)/htmldoc-$(DOCVERSION)/index.html: FORCE
 	perl xmldoc/makedoc
 	xmlwf xmldoc/readme.xml		#check for well-formedness
 	xmllint --noout --valid xmldoc/readme.xml    	#validate
-	xsltproc \
+	xsltproc --load-trace \
 	 --stringparam base.dir "$(WEB)/htmldoc-$(DOCVERSION)/" \
 	 --stringparam root.filename "index" \
 	 xmldoc/babelmain.xsl \
@@ -261,7 +263,7 @@ gpsbabel.fo:  FORCE
 	perl xmldoc/makedoc
 	xmlwf xmldoc/readme.xml		#check for well-formedness
 	xmllint --noout --valid xmldoc/readme.xml    	#validate
-	xsltproc -o $@ xmldoc/babelpdf.xsl xmldoc/readme.xml
+	xsltproc --load-trace -o $@ xmldoc/babelpdf.xsl xmldoc/readme.xml
 
 gpsbabel.pdf: gpsbabel.fo
 	fop -q -fo gpsbabel.fo -pdf gpsbabel.pdf 
@@ -270,7 +272,7 @@ gpsbabel.pdf: gpsbabel.fo
 
 gpsbabel.html: FORCE # gpsbabel
 	# perl xmldoc/makedoc
-	xsltproc \
+	xsltproc --load-trace \
 	  --output $@ \
 	  --stringparam toc.section.depth "1" \
 	  --stringparam html.cleanup "1" \
@@ -301,16 +303,16 @@ WINFILES = gpsbabel.exe win32/GPSBabelGUI.exe win32/gui-2/README.gui \
 # in and tagged.
 #
 release-sourcecheck: changes.html
-	svn commit
 	# ./chkdoc
 	# make clean
 	rm -fr gpsbabel-$(VERSIOND)
 	# make gpsbabel doc gpsbabel.html
-	@(. tools/functions && ask "Enter 'y' to tag the tree as gpsbabel_$(VERSIONU)." "y") && svn copy https://gpsbabel.googlecode.com/svn/trunk/ https://gpsbabel.googlecode.com/svn/tags/gpsbabel_$(VERSIONU) ; exit 0
-	svn export https://gpsbabel.googlecode.com/svn/tags/gpsbabel_$(VERSIONU)/gpsbabel gpsbabel-$(VERSIOND) 
-	touch gpsbabel-$(VERSIOND)/internal_styles.cc
-	touch gpsbabel-$(VERSIOND)/configure
-	touch gpsbabel-$(VERSIOND)/xcsv_tokens.gperf
+	@(. tools/functions && ask "Enter 'y' to tag the tree as gpsbabel_$(VERSIONU)." "y") && git tag -fa gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@ -m "gpsbabel_@GBMAJOR@_@GBMINOR@_@GBMICRO@@PACKAGE_RELEASE@"
+	# svn export https://gpsbabel.googlecode.com/svn/tags/gpsbabel_$(VERSIONU)/gpsbabel gpsbabel-$(VERSIOND) 
+	# May have to rethink this in a Git world.
+	# touch gpsbabel-$(VERSIOND)/internal_styles.cc
+	# touch gpsbabel-$(VERSIOND)/configure
+	# touch gpsbabel-$(VERSIOND)/xcsv_tokens.gperf
 
 #
 # Build the release tarball from the exported CVS tree, tweaking 
@@ -318,8 +320,9 @@ release-sourcecheck: changes.html
 #
 release-tarball: release-sourcecheck
 #	rm -fr gpsbabel-$(VERSIOND)
-	cp -ap internal_styles.cc gpsbabel-$(VERSIOND)/
-	tar czf /tmp/gpsbabel-$(VERSIOND).tar.gz gpsbabel-$(VERSIOND)
+	# cp -ap internal_styles.cc gpsbabel-$(VERSIOND)/
+	# tar czf /tmp/gpsbabel-$(VERSIOND).tar.gz gpsbabel-$(VERSIOND)
+	git archive --prefix=gpsbabel-$(VERSIOND)/ HEAD | gzip > /tmp/gpsbabel-$(VERSIOND).tar.gz
 	gb_upload /tmp/gpsbabel-$(VERSIOND).tar.gz
 #	cd /tmp ; tar xzf gpsbabel-$(VERSIOND).tar.gz
 
@@ -468,9 +471,6 @@ csv_util.o: csv_util.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
   jeeps/gpsprot.h jeeps/gpscom.h jeeps/gpsfmt.h jeeps/gpsmath.h \
   jeeps/gpsmem.h jeeps/gpsrqst.h jeeps/gpsinput.h jeeps/gpsproj.h \
   grtcirc.h src/core/logging.h strptime.h xcsv_tokens.gperf
-delbin.o: delbin.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
-  gbfile.h cet.h inifile.h session.h src/core/datetime.h \
-  src/core/xmltag.h
 delgpl.o: delgpl.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
   gbfile.h cet.h inifile.h session.h src/core/datetime.h
 destinator.o: destinator.cc defs.h config.h queue.h zlib/zlib.h \
@@ -575,6 +575,8 @@ gdb.o: gdb.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h gbfile.h \
   garmin_tables.h grtcirc.h
 geo.o: geo.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h gbfile.h \
   cet.h inifile.h session.h src/core/datetime.h src/core/file.h
+ggv_bin.o: ggv_bin.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
+  gbfile.h cet.h inifile.h session.h src/core/datetime.h
 ggv_log.o: ggv_log.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
   gbfile.h cet.h inifile.h session.h src/core/datetime.h grtcirc.h \
   jeeps/gpsmath.h jeeps/gpsport.h
@@ -583,13 +585,14 @@ ggv_ovl.o: ggv_ovl.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
   grtcirc.h
 globals.o: globals.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
   gbfile.h cet.h inifile.h session.h src/core/datetime.h gbversion.h
+globalsat_sport.o: globalsat_sport.cc defs.h config.h queue.h zlib/zlib.h \
+ zlib/zconf.h config.h gbfile.h cet.h inifile.h session.h \
+ src/core/datetime.h gbser.h
 glogbook.o: glogbook.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
   gbfile.h cet.h inifile.h session.h src/core/datetime.h xmlgeneric.h \
   src/core/file.h
 gnav_trl.o: gnav_trl.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
   gbfile.h cet.h inifile.h session.h src/core/datetime.h
-google.o: google.cc defs.h config.h queue.h zlib/zlib.h zlib/zconf.h \
-  gbfile.h cet.h inifile.h session.h src/core/datetime.h xmlgeneric.h
 googledir.o: googledir.cc defs.h config.h queue.h zlib/zlib.h \
   zlib/zconf.h gbfile.h cet.h inifile.h session.h src/core/datetime.h \
   xmlgeneric.h

@@ -11,13 +11,16 @@ macx:DEFINES += HAVE_CONFIG_H
 
 ICON = images/appicon.icns
 
-QT += network \
+QT += core \
+      gui \
+      network \
       xml \
-      webkit
 
-greaterThan(QT_MAJOR_VERSION, 4) {
-  QT += widgets \
-        webkitwidgets
+greaterThan(QT_MINOR_VERSION, 5) {
+  QT += webenginewidgets
+  DEFINES += HAVE_WEBENGINE
+} else {
+  QT += webkit webkitwidgets 
 }
 
 unix:DESTDIR = objects
@@ -26,6 +29,13 @@ unix:OBJECTS_DIR = objects
 unix:RCC_DIR = objects
 
 mac:LIBS += -framework IOKit -framework CoreFoundation
+unix {
+    CONFIG += link_pkgconfig
+    packagesExist(libudev) {
+        DEFINES += HAVE_UDEV
+        PKGCONFIG += libudev
+    }
+}
 
 UI_DIR = tmp
 
