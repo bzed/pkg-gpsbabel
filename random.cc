@@ -97,7 +97,7 @@ rand_qstr(const int maxlen, const char* fmt)
 }
 
 static void
-random_rd_init(const char* fname)
+random_rd_init(const QString& fname)
 {
 }
 
@@ -183,7 +183,7 @@ random_read(void)
 
     wpt->SetCreationTime(time);
     if RND(3) {
-      wpt->creation_time.addMSecs(rand_int(1000) * 1000);
+      wpt->creation_time = wpt->creation_time.addMSecs(rand_int(1000) * 1000);
     }
     time += rand_int(10) + 1;
 

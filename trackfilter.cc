@@ -52,6 +52,7 @@
 #define TRACKFILTER_SEGMENT_OPTION      "segment"
 #define TRACKFILTER_FAKETIME_OPTION     "faketime"
 #define TRACKFILTER_DISCARD_OPTION      "discard"
+#define TRACKFILTER_MINPOINTS_OPTION    "minimum_points"
 
 #undef TRACKF_DBG
 
@@ -72,6 +73,7 @@ static char* opt_trk2seg = NULL;
 static char* opt_segment = NULL;
 static char* opt_faketime = NULL;
 static char* opt_discard = NULL;
+static char* opt_minpoints = NULL;
 
 static
 arglist_t trackfilter_args[] = {
@@ -155,6 +157,11 @@ arglist_t trackfilter_args[] = {
     TRACKFILTER_DISCARD_OPTION,  &opt_discard,
     "Discard track points without timestamps during merge",
     NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+  },
+  {
+    TRACKFILTER_MINPOINTS_OPTION, &opt_minpoints,
+    "Discard tracks with fewer than these points",
+    NULL, ARGTYPE_INT, "0"
   },
   ARG_TERMINATOR
 };
@@ -311,7 +318,7 @@ trackfilter_fill_track_list_cb(const route_head* track) 	/* callback for track_d
   Waypoint* wpt, *prev;
   queue* elem, *tmp;
 
-  if (track->rte_waypt_ct == 0) {
+  if (track->rte_waypt_ct == 0 ) {
     track_del_head((route_head*)track);
     return;
   }
@@ -364,6 +371,16 @@ trackfilter_fill_track_list_cb(const route_head* track) 	/* callback for track_d
   track_ct++;
 }
 
+static void
+trackfilter_minpoint_list_cb(const route_head* track)
+{
+  int minimum_points = atoi(opt_minpoints);
+  if (track->rte_waypt_ct < minimum_points ) {
+    track_del_head((route_head*)track);
+    return;
+  }
+}
+
 /*******************************************************************************
 * track title producers
 *******************************************************************************/
@@ -371,30 +388,32 @@ trackfilter_fill_track_list_cb(const route_head* track) 	/* callback for track_d
 static void
 trackfilter_split_init_rte_name(route_head* track, const QDateTime dt)
 {
-  char tbuff[128];
-  struct tm tm;
+  QString datetimestring;
 
-  time_t time = dt.toUTC().toTime_t();
-  tm = *gmtime(&time);
+  if (opt_interval != 0) {
+    datetimestring = dt.toUTC().toString("yyyyMMddhhmmss");
+  } else {
+    datetimestring = dt.toUTC().toString("yyyyMMdd");
+  }
 
-  (opt_interval != 0) ?
-  strftime(tbuff, sizeof(tbuff), "%Y%m%d%H%M%S", &tm) :
-  strftime(tbuff, sizeof(tbuff), "%Y%m%d", &tm);
-
-  // TODO: this should be q QString.
-  char buff[128];
   if ((opt_title != NULL) && (strlen(opt_title) > 0)) {
     if (strchr(opt_title, '%') != NULL) {
+      // Uggh.  strftime format exposed to user.
+      char buff[128];
+
+      time_t time = dt.toUTC().toTime_t();
+      struct tm tm = *gmtime(&time);
+
       strftime(buff, sizeof(buff), opt_title, &tm);
+      track->rte_name = buff;
     } else {
-      snprintf(buff, sizeof(buff), "%s-%s", opt_title, tbuff);
+      track->rte_name = QString("%1-%2").arg(opt_title).arg(datetimestring);
     }
   } else if (!track->rte_name.isEmpty()) {
-    snprintf(buff, sizeof(buff) - 1, "%s-%s", CSTRc(track->rte_name), tbuff);
+    track->rte_name = QString("%1-%2").arg(track->rte_name).arg(datetimestring);
   } else {
-    strncpy(buff, tbuff, sizeof(buff));
+    track->rte_name = datetimestring;
   }
-  track->rte_name = buff;
 }
 
 static void
@@ -456,7 +475,7 @@ trackfilter_pack(void)
     prev = track_list[j];
     if (prev.last_time >= track_list[i].first_time) {
       fatal(MYNAME "-pack: Tracks overlap in time! %s >= %s at %d\n",
-        qPrintable(prev.last_time.toString()), 
+        qPrintable(prev.last_time.toString()),
         qPrintable(track_list[i].first_time.toString()), i);
     }
   }
@@ -954,7 +973,7 @@ trackfilter_seg2trk(void)
         dest->rte_num = src->rte_num;
         /* name in the form TRACKNAME #n */
         if (!src->rte_name.isEmpty()) {
-          dest->rte_name = QString().sprintf("%s #%d", CSTRc(src->rte_name), ++trk_seg_num);
+          dest->rte_name = QString("%1 #%2").arg(src->rte_name).arg(++trk_seg_num);
         }
 
         /* Insert after original track or after last newly
@@ -1372,6 +1391,11 @@ trackfilter_process(void)
     }
 
     trackfilter_split();
+  }
+
+  // Performed last as previous options may have created "small" tracks.
+  if ((opt_minpoints != NULL) && atoi(opt_minpoints) > 0) {
+    track_disp_all(trackfilter_minpoint_list_cb, NULL, NULL);
   }
 }
 

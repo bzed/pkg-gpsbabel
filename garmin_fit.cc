@@ -26,8 +26,16 @@
 
 #define MYNAME "fit"
 
+static char* opt_allpoints = NULL;
+static int lap_ct = 0;
+
 static
 arglist_t fit_args[] = {
+  {
+    "allpoints", &opt_allpoints,
+    "Read all points even if latitude or longitude is missing",
+    NULL, ARGTYPE_BOOL, ARG_NOMINMAX, NULL
+  },
   ARG_TERMINATOR
 };
 
@@ -59,7 +67,7 @@ static	gbfile* fin;
 *******************************************************************************/
 
 static void
-fit_rd_init(const char* fname)
+fit_rd_init(const QString& fname)
 {
   fin = gbfopen_le(fname, "rb", MYNAME);
 }
@@ -323,6 +331,13 @@ fit_parse_data(fit_message_def* def, int time_offset)
   int8_t temperature = 0x7f;
   int i;
   Waypoint* waypt;
+  int32_t startlat = 0x7fffffff;
+  int32_t startlon = 0x7fffffff;
+  int32_t endlat = 0x7fffffff;
+  int32_t endlon = 0x7fffffff;
+  uint32_t starttime = 0; // ??? default ?
+  char cbuf[10];
+  Waypoint* lappt;  // WptPt in gpx
 
   if (global_opts.debug_level >= 7) {
     debug_print(7,"%s: parsing fit data ID %d with num_fields=%d\n", MYNAME, def->global_id, def->num_fields);
@@ -340,7 +355,7 @@ fit_parse_data(fit_message_def* def, int time_offset)
       fit_data.last_timestamp = timestamp = val;
     } else {
       switch (def->global_id) {
-      case 20: // record message
+      case 20: // record message - trkType is a track
         switch (f->id) {
         case 0:
           if (global_opts.debug_level >= 7) {
@@ -396,6 +411,57 @@ fit_parse_data(fit_message_def* def, int time_offset)
           }
           temperature = val;
           break;
+      case 19: // lap wptType , endlat+lon is wpt
+        switch (f->id) {
+        case 2:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: starttime=%d\n", MYNAME, val);
+          }
+          starttime = val;
+          break;
+        case 3:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: startlat=%d\n", MYNAME, val);
+          }
+          startlat = val;
+          break;
+        case 4:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: startlon=%d\n", MYNAME, val);
+          }
+          startlon = val;
+          break;
+        case 5:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: endlat=%d\n", MYNAME, val);
+          }
+          endlat = val;
+          break;
+        case 6:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: endlon=%d\n", MYNAME, val);
+          }
+          endlon = val;
+          break;
+        case 7:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: elapsedtime=%d\n", MYNAME, val);
+          }
+          //elapsedtime = val;
+          break;
+        case 9:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: totaldistance=%d\n", MYNAME, val);
+          }
+          //totaldistance = val;
+          break;
+        default:
+          if (global_opts.debug_level >= 1) {
+            debug_print(1, "%s: unrecognized data type in GARMIN FIT lap: f->id=%d\n", MYNAME, f->id);
+          }
+          break;
+        } // switch (f->id)
+        break;
         default:
           if (global_opts.debug_level >= 1) {
             debug_print(1, "%s: unrecognized data type in GARMIN FIT record: f->id=%d\n", MYNAME, f->id);
@@ -410,14 +476,33 @@ fit_parse_data(fit_message_def* def, int time_offset)
     debug_print(7,"%s: storing fit data with num_fields=%d\n", MYNAME, def->num_fields);
   }
   switch (def->global_id) {
+  case 19: // lap message
+    if (endlat == 0x7fffffff || endlon == 0x7fffffff) {
+      break;
+    }
+    if (global_opts.debug_level >= 7) {
+      debug_print(7,"%s: storing fit data LAP %d\n", MYNAME, def->global_id);
+    }
+    lappt = new Waypoint;
+    lappt->latitude = (endlat / (double)0x7fffffff) * 180;
+    lappt->longitude = (endlon / (double)0x7fffffff) * 180;
+    lap_ct++;
+    snprintf(cbuf, sizeof(cbuf), "LAP%03d", lap_ct);
+    lappt->shortname = cbuf;
+    waypt_add(lappt);
+    break;
   case 20: // record message
-    if (lat == 0x7fffffff || lon == 0x7fffffff) {
+    if ((lat == 0x7fffffff || lon == 0x7fffffff) && !opt_allpoints) {
       break;
     }
 
     waypt = new Waypoint;
-    waypt->latitude = (lat / (double)0x7fffffff) * 180;
-    waypt->longitude = (lon / (double)0x7fffffff) * 180;
+    if (lat != 0x7fffffff) {
+      waypt->latitude = (lat / (double)0x7fffffff) * 180;
+    }
+    if (lon != 0x7fffffff) {
+      waypt->longitude = (lon / (double)0x7fffffff) * 180;
+    }
     if (alt != 0xffff) {
       waypt->altitude = (alt / 5.0) - 500;
     }
