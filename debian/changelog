@@ -1,3 +1,24 @@
+gpsbabel (1.5.4-1) unstable; urgency=medium
+
+  * [ee23f26] Merge branch 'upstream'
+    - New upstream version.
+    - Builds fine with gcc7.
+    Thanks to Adrian Bunk (Closes: #872744)
+  * [f340fb9] Refreshing patches.
+  * [8100370] export QT_SELECT=qt5
+  * [522c580] Build for/with QT5.
+    Using as build-deps:
+    qtbase5-dev
+    qtwebengine5-dev
+    qttools5-dev-tools
+    Thanks to Dmitry Shachnev (Closes: #816808)
+  * [7d38162] Depend on dh 10 for comapt level 10.
+  * [ada8fa9] Fix building with recent QT5 versions.
+  * [d627435] Use qmake instead of qmake-qt4.
+  * [c08a568] Updating changelog.
+
+ -- Bernd Zeimetz <bzed@debian.org>  Mon, 28 Aug 2017 23:53:53 +0200
+
 gpsbabel (1.5.3-2) unstable; urgency=medium
 
   * [b2954b1] Fix skytraq default values.
