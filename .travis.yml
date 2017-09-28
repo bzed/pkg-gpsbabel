@@ -1,25 +1,11 @@
-sudo: true
-dist: trusty
-language: cpp
-compiler:
-  - gcc
-  - clang
-addons:
-  apt:
-    packages:
-    - expat
-    - fop
-    - valgrind
-    - xsltproc
-    - libxml2-utils
-    - qt5-default
-    - qtbase5-dev
-    - libqt5webkit5-dev
-    - qttools5-dev-tools
-    - qttranslations5-l10n
-    - libusb-dev
-    - docbook-xml
-    - docbook-xsl
+sudo: required
+
+services:
+  - docker
+
 script:
- - ./build_and_test
-# TODO: build mac
+  - wget -O- http://travis.debian.net/script.sh | sh -
+
+branches:
+  except:
+    - /^debian\/\d/
