@@ -1,3 +1,13 @@
+gpsbabel (1.5.4-2) unstable; urgency=medium
+
+  * [cc58f71] Move git repository to github.
+  * [fb44d98] Add a debian .travis.yml
+  * [28c7ad3] Don't build the gui on [!amd64 arm64 armhf i386 mipsel]
+    The recent qtwebengine is not available on all architectures.
+    Thanks to Adrian Bunk (Closes: #877808)
+
+ -- Bernd Zeimetz <bzed@debian.org>  Sat, 21 Oct 2017 13:37:08 +0200
+
 gpsbabel (1.5.4-1) unstable; urgency=medium
 
   * [ee23f26] Merge branch 'upstream'
