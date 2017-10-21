@@ -60,7 +60,11 @@ debian/gpsbabel.1: build-stamp
 			./gpsbabel
 
 gui/Makefile: $(QUILT_STAMPFN)
-	cd gui && qmake
+	set -e; cd gui; if dpkg -s qtwebengine5-dev; then \
+	    qmake; \
+	else \
+	    echo -e '#!/usr/bin/make -f\n\n%:\n\techo $$@' > Makefile ; \
+	fi
 
 debian/gpsbabel.xpm: gui/images/appicon.png
 	convert -resize 32x32 $< $@
@@ -99,7 +103,7 @@ endif
 
 build-gui: build-gui-stamp
 build-gui-stamp: gui/Makefile
-	$(MAKE) gui
+	if dpkg -s qtwebengine5-dev; then $(MAKE) gui; fi
 	touch $@
 
 clean: clean-patched unpatch

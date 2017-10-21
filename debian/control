@@ -7,7 +7,9 @@ Build-Depends: debhelper (>= 10~), quilt,
  libexpat1-dev, expat, help2man,
  libxml2-utils,
  libusb-dev, zlib1g-dev,
- qtbase5-dev, qtwebengine5-dev, qttools5-dev-tools,
+ qtbase5-dev,
+ qtwebengine5-dev [amd64 arm64 armhf i386 mipsel],
+ qttools5-dev-tools,
  imagemagick,
  locales-all
 Build-Depends-Indep: fop [!mips], xsltproc, docbook-xml,
@@ -67,7 +69,7 @@ Description: GPS file conversion plus transfer to/from GPS units
  This package contains the detailed documentation of gpsbabel.
 
 Package: gpsbabel-gui
-Architecture: any
+Architecture: amd64 arm64 armhf i386 mipsel
 Depends: ${shlibs:Depends}, ${misc:Depends}, gpsbabel (= ${binary:Version})
 Description: GPS file conversion plus transfer to/from GPS units - GUI
  GPSBabel converts waypoints, tracks, and routes from one format to
