@@ -21,86 +21,30 @@
 
 
 #include "defs.h"
+#include "arcdist.h"
 #include "filterdefs.h"
 #include "grtcirc.h"
 
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h> // strtod
+#include <cmath>
+#include <cstdio>
+#include <cstdlib> // strtod
 
 #if FILTERS_ENABLED
 #define MYNAME "Arc filter"
 
-static double pos_dist;
-static char* distopt = NULL;
-static char* arcfileopt = NULL;
-static char* rteopt = NULL;
-static char* trkopt = NULL;
-static char* exclopt = NULL;
-static char* ptsopt = NULL;
-static char* projectopt = NULL;
-
-typedef struct {
-  double distance;
-  double prjlatitude, prjlongitude;
-  double frac;
-  Waypoint* arcpt1, * arcpt2;
-} extra_data;
-
-static
-arglist_t arcdist_args[] = {
-  {
-    "file", &arcfileopt,  "File containing vertices of arc",
-    NULL, ARGTYPE_FILE, ARG_NOMINMAX
-  },
-  {
-    "rte", &rteopt, "Route(s) are vertices of arc",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "trk", &trkopt, "Track(s) are vertices of arc",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "distance", &distopt, "Maximum distance from arc",
-    NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED, ARG_NOMINMAX
-  },
-  {
-    "exclude", &exclopt, "Exclude points close to the arc", NULL,
-    ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "points", &ptsopt, "Use distance from vertices not lines",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "project", &projectopt, "Move waypoints to its projection on lines or vertices",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
 #define BADVAL 999999
 
-static void
-arcdist_arc_disp_wpt_cb(const Waypoint* arcpt2)
+void ArcDistanceFilter::arcdist_arc_disp_wpt_cb(const Waypoint* arcpt2)
 {
-  queue* elem, * tmp;
-  Waypoint* waypointp;
-  extra_data* ed;
-  double dist;
+  static Waypoint* arcpt1 = nullptr;
   double prjlat, prjlon, frac;
-  static Waypoint* arcpt1 = NULL;
 
   if (arcpt2 && arcpt2->latitude != BADVAL && arcpt2->longitude != BADVAL &&
       (ptsopt || (arcpt1 &&
                   (arcpt1->latitude != BADVAL && arcpt1->longitude != BADVAL)))) {
-#if NEWQ
-    foreach(Waypoint* waypointp, waypt_list) {
-#else
-    QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-      waypointp = (Waypoint*) elem;
-#endif
+    foreach (Waypoint* waypointp, *global_waypoint_list) {
+      double dist;
+      extra_data* ed;
       if (waypointp->extra_data) {
         ed = (extra_data*) waypointp->extra_data;
       } else {
@@ -136,58 +80,51 @@ arcdist_arc_disp_wpt_cb(const Waypoint* arcpt2)
             ed->prjlongitude = prjlon;
             ed->frac = frac;
             ed->arcpt1 = arcpt1;
-            ed->arcpt2 = (Waypoint*) arcpt2;
+            ed->arcpt2 = const_cast<Waypoint*>(arcpt2);
           }
         }
         waypointp->extra_data = ed;
       }
     }
   }
-  arcpt1 = (Waypoint*) arcpt2;
+  arcpt1 = const_cast<Waypoint*>(arcpt2);
 }
 
-static void
-arcdist_arc_disp_hdr_cb(const route_head* rte)
+void ArcDistanceFilter::arcdist_arc_disp_hdr_cb(const route_head*)
 {
   /* Set arcpt1 to NULL */
-  arcdist_arc_disp_wpt_cb(NULL);
+  arcdist_arc_disp_wpt_cb(nullptr);
 }
 
-void
-arcdist_process(void)
+void ArcDistanceFilter::process()
 {
-  queue* elem, * tmp;
-  unsigned removed;
+  WayptFunctor<ArcDistanceFilter> arcdist_arc_disp_wpt_cb_f(this, &ArcDistanceFilter::arcdist_arc_disp_wpt_cb);
+  RteHdFunctor<ArcDistanceFilter> arcdist_arc_disp_hdr_cb_f(this, &ArcDistanceFilter::arcdist_arc_disp_hdr_cb);
 
   if (arcfileopt) {
     int fileline = 0;
     char* line;
-    gbfile* file_in;
-    Waypoint* arcpt2, * arcpt1;
 
-    file_in = gbfopen(arcfileopt, "r", MYNAME);
+    gbfile* file_in = gbfopen(arcfileopt, "r", MYNAME);
 
-    arcpt1 = new Waypoint;
-    arcpt2 = new Waypoint;
-    arcdist_arc_disp_hdr_cb(NULL);
+    Waypoint* arcpt1 = new Waypoint;
+    Waypoint* arcpt2 = new Waypoint;
+    arcdist_arc_disp_hdr_cb(nullptr);
 
     arcpt2->latitude = arcpt2->longitude = BADVAL;
     while ((line = gbfgetstr(file_in))) {
-      char* pound = NULL;
-      int argsfound = 0;
-
       fileline++;
 
-      pound = strchr(line, '#');
+      char* pound = strchr(line, '#');
       if (pound) {
         if (0 == strncmp(pound, "#break", 6)) {
-          arcdist_arc_disp_hdr_cb(NULL);
+          arcdist_arc_disp_hdr_cb(nullptr);
         }
         *pound = '\0';
       }
 
       arcpt2->latitude = arcpt2->longitude = BADVAL;
-      argsfound = sscanf(line, "%lf %lf", &arcpt2->latitude, &arcpt2->longitude);
+      int argsfound = sscanf(line, "%lf %lf", &arcpt2->latitude, &arcpt2->longitude);
 
       if (argsfound != 2 && strspn(line, " \t\n") < strlen(line)) {
         warning(MYNAME ": Warning: Arc file contains unusable vertex on line %d.\n", fileline);
@@ -203,23 +140,17 @@ arcdist_process(void)
 
     gbfclose(file_in);
   } else if (rteopt) {
-    route_disp_all(arcdist_arc_disp_hdr_cb, NULL, arcdist_arc_disp_wpt_cb);
+    route_disp_all(arcdist_arc_disp_hdr_cb_f, nullptr, arcdist_arc_disp_wpt_cb_f);
   } else if (trkopt) {
-    track_disp_all(arcdist_arc_disp_hdr_cb, NULL, arcdist_arc_disp_wpt_cb);
+    track_disp_all(arcdist_arc_disp_hdr_cb_f, nullptr, arcdist_arc_disp_wpt_cb_f);
   }
 
-  removed = 0;
-#if NEWQ
-  foreach(Waypoint* wp, waypt_list) {
-#else
-  QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-    Waypoint* wp = (Waypoint*) elem;
-#endif
-    extra_data* ed;
-    ed = (extra_data*) wp->extra_data;
-    wp->extra_data = NULL;
+  unsigned removed = 0;
+  foreach (Waypoint* wp, *global_waypoint_list) {
+    extra_data* ed = (extra_data*) wp->extra_data;
+    wp->extra_data = nullptr;
     if (ed) {
-      if ((ed->distance >= pos_dist) == (exclopt == NULL)) {
+      if ((ed->distance >= pos_dist) == (exclopt == nullptr)) {
         waypt_del(wp);
         delete wp;
         removed++;
@@ -263,12 +194,11 @@ arcdist_process(void)
     }
   }
   if (global_opts.verbose_status > 0) {
-    printf(MYNAME "-arc: %d waypoint(s) removed.\n", removed);
+    printf(MYNAME "-arc: %u waypoint(s) removed.\n", removed);
   }
 }
 
-void
-arcdist_init(const char* args)
+void ArcDistanceFilter::init()
 {
   char* fm;
 
@@ -290,17 +220,4 @@ arcdist_init(const char* args)
   }
 }
 
-void
-arcdist_deinit(void)
-{
-  /* do nothing */
-}
-
-filter_vecs_t arcdist_vecs = {
-  arcdist_init,
-  arcdist_process,
-  arcdist_deinit,
-  NULL,
-  arcdist_args
-};
 #endif // FILTERS_ENABLED

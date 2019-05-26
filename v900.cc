@@ -72,13 +72,9 @@ for a little more info, see structures:
 ******************************************************************************/
 
 #include "defs.h"
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h> // atoi
-
-#if _MSC_VER
-#define __func__ __FUNCTION__
-#endif
+#include <cassert>
+#include <cstdio>
+#include <cstdlib> // atoi
 
 /* the start of each record (line) is common to both advanced and basic mode.
    it will be parsed by a single common code. hence, it will be easier and clearer
@@ -141,7 +137,7 @@ struct one_line_basic_mode {
 };
 
 
-static FILE* fin = NULL;
+static FILE* fin = nullptr;
 
 /* copied from dg-100.cpp */
 static void
@@ -166,14 +162,14 @@ v900_rd_init(const QString& fname)
      that will be translated to a single \n, making the line len one character shorter than
      on linux machines.
    */
-  fin = fopen(qPrintable(fname),"rb");
+  fin = ufopen(fname, "rb");
   if (!fin) {
     fatal("v900: could not open '%s'.\n", qPrintable(fname));
   }
 }
 
 static void
-v900_rd_deinit(void)
+v900_rd_deinit()
 {
   v900_log("%s\n",__func__);
   if (fin) {
@@ -182,7 +178,7 @@ v900_rd_deinit(void)
 }
 
 /* copied from dg-100.c - slight (incompatible) modification to how the date parameter is used */
-QDateTime
+static QDateTime
 bintime2utc(int date, int time) {
   int secs = time % 100;
   time /= 100;
@@ -203,7 +199,7 @@ bintime2utc(int date, int time) {
 }
 
 static void
-v900_read(void)
+v900_read()
 {
   /* use line buffer large enough to hold either basic or advanced mode lines. */
   union {
@@ -211,9 +207,7 @@ v900_read(void)
     struct one_line_advanced_mode adv;
     char text[200]; /* used to read the header line, which is normal text */
   } line;
-  int is_advanced_mode = 0;
   int lc = 0;
-  route_head* track;
 
   v900_log("%s\n",__func__);
 
@@ -226,19 +220,17 @@ v900_read(void)
   if (!fgets(line.text, sizeof(line), fin)) {
     fatal("v900: error reading header (first) line from input file\n");
   }
-  is_advanced_mode = (NULL != strstr(line.text,"PDOP")); /* PDOP field appears only in advanced mode */
+  int is_advanced_mode = (nullptr != strstr(line.text,"PDOP")); /* PDOP field appears only in advanced mode */
 
   v900_log("header line: %s",line.text);
   v900_log("is_advance_mode=%d\n",is_advanced_mode);
 
-  track = route_head_alloc();
+  route_head* track = route_head_alloc();
   track->rte_name = "V900 tracklog";
   track->rte_desc = "V900 GPS tracklog data";
   track_add_head(track);
 
-  while (1) {
-    Waypoint* wpt;
-    char c;
+  while (true) {
     int bad = 0;
     int record_len = is_advanced_mode ? sizeof(line.adv) : sizeof(line.bas);
     if (fread(&line, record_len, 1, fin) != 1) {
@@ -296,10 +288,10 @@ v900_read(void)
       line.bas.cr = 0;	/* null terminate vox field */
     }
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
     /* lat is a string in the form: 31.768380N */
-    c = line.bas.common.latitude_NS;	/* N/S */
+    char c = line.bas.common.latitude_NS;	/* N/S */
     assert(c == 'N' || c == 'S');
     wpt->latitude = atof(line.bas.common.latitude_num);
     if (c == 'S') {
@@ -319,9 +311,8 @@ v900_read(void)
 
     /* handle date/time fields */
     {
-      int date, time;
-      date = atoi(line.bas.common.date);
-      time = atoi(line.bas.common.time);
+      int date = atoi(line.bas.common.date);
+      int time = atoi(line.bas.common.time);
       wpt->SetCreationTime(bintime2utc(date, time));
     }
 
@@ -352,13 +343,12 @@ v900_read(void)
 
     track_add_wpt(track, wpt);
     if (line.bas.common.tag != 'T') {
-      Waypoint* wpt2;
       // A 'G' tag appears to be a 'T' tag, but generated on the trailing
       // edge of a DGPS fix as it decays to an SPS fix.  See 1/13/13 email
       // thread on gpsbabel-misc with Jamie Robertson.
       assert(line.bas.common.tag == 'C' || line.bas.common.tag == 'G' ||
              line.bas.common.tag == 'V');
-      wpt2 = new Waypoint(*wpt);
+      Waypoint* wpt2 = new Waypoint(*wpt);
       if (line.bas.common.tag == 'V') {	// waypoint with voice recording?
         char vox_file_name[sizeof(line.adv.vox)+5];
         const char* vox = is_advanced_mode ? line.adv.vox : line.bas.vox;
@@ -378,13 +368,14 @@ ff_vecs_t v900_vecs = {
   ff_type_file,
   {ff_cap_read, ff_cap_read, ff_cap_none}, /* Read only format. May only read trackpoints and waypoints. */
   v900_rd_init,
-  NULL,          /* wr_init */
+  nullptr,          /* wr_init */
   v900_rd_deinit,
-  NULL,          /* wr_deinit */
+  nullptr,          /* wr_deinit */
   v900_read,
-  NULL,          /* write */
-  NULL,
-  NULL,          /* args */
+  nullptr,          /* write */
+  nullptr,
+  nullptr,          /* args */
   CET_CHARSET_UTF8, 1,	/* Could be  US-ASCII, since we only read "0-9,A-Z\n\r" */
-  {NULL,NULL,NULL,NULL,NULL,NULL}
+  {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr},
+  nullptr
 };

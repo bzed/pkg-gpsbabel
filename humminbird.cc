@@ -21,8 +21,8 @@
 
 #include "defs.h"
 #include <QtCore/QMap>
-#include <stdio.h>
-#include <math.h>
+#include <cmath>
+#include <cstdio>
 
 #define MYNAME "humminbird"
 
@@ -256,7 +256,7 @@ humminbird_rd_init(const QString& fname)
 }
 
 static void
-humminbird_rd_deinit(void)
+humminbird_rd_deinit()
 {
   gbfclose(fin);
 }
@@ -265,9 +265,6 @@ static void
 humminbird_read_wpt(gbfile* fin)
 {
   humminbird_waypt_t w;
-  double guder;
-  int num_icons;
-  Waypoint* wpt;
 
   if (! gbfread(&w, 1, sizeof(w), fin)) {
     fatal(MYNAME ": Unexpected end of file!\n");
@@ -283,7 +280,7 @@ humminbird_read_wpt(gbfile* fin)
 
   /* All right! Copy the data to the gpsbabel struct... */
 
-  wpt = new Waypoint;
+  Waypoint* wpt = new Waypoint;
 
   // Could probably find a way to eliminate the alloc/copy.
   char* s = xstrndup(w.name, sizeof(w.name));
@@ -292,7 +289,7 @@ humminbird_read_wpt(gbfile* fin)
 
   wpt->SetCreationTime(w.time);
 
-  guder = gudermannian_i1924(w.north);
+  double guder = gudermannian_i1924(w.north);
   wpt->latitude = geocentric_to_geodetic_hwr(guder);
   wpt->longitude = (double)w.east / EAST_SCALE * 180.0;
 
@@ -302,7 +299,7 @@ humminbird_read_wpt(gbfile* fin)
     WAYPT_SET(wpt,depth,(double)w.depth / 100.0);
   }
 
-  num_icons = sizeof(humminbird_icons) / sizeof(humminbird_icons[0]);
+  int num_icons = sizeof(humminbird_icons) / sizeof(humminbird_icons[0]);
   if (w.icon < num_icons) {
     wpt->icon_descr = humminbird_icons[w.icon];
   }
@@ -345,19 +342,17 @@ humminbird_read_route(gbfile* fin)
   hrte.num = be_read16(&hrte.num);
 
   if (hrte.count > 0) {
-    int i;
-    route_head* rte = NULL;
+    route_head* rte = nullptr;
 
-    for (i = 0; i < hrte.count; i++) {
-      const Waypoint* wpt;
+    for (int i = 0; i < hrte.count; i++) {
       char buff[10];
       hrte.points[i] = be_read16(&hrte.points[i]);
 
       /* locate the point over his internal Humminbird "Number" */
       snprintf(buff, sizeof(buff), "%d", hrte.points[i]);
       if ((map.value(buff))) {
-        wpt = map.value(buff);
-        if (rte == NULL) {
+        const Waypoint* wpt = map.value(buff);
+        if (rte == nullptr) {
           rte = route_head_alloc();
           route_add_head(rte);
           // TODO: find a way to eliminate the copy.
@@ -377,14 +372,6 @@ humminbird_read_track(gbfile* fin)
 {
 
   humminbird_trk_header_t th;
-  humminbird_trk_point_t* points;
-  route_head* trk;
-  Waypoint* first_wpt;
-  int i;
-  int max_points = 0;
-  int32_t accum_east;
-  int32_t accum_north;
-  double g_lat;
 
   if (! gbfread(&th, 1, sizeof(th), fin)) {
     fatal(MYNAME ": Unexpected end of file reading header!\n");
@@ -404,7 +391,7 @@ humminbird_read_track(gbfile* fin)
   th.ne_east     = be_read32(&th.ne_east);
   th.ne_north    = be_read32(&th.ne_north);
 
-  max_points = (131080 - sizeof(uint32_t) - sizeof(th)) / sizeof(humminbird_trk_point_t);
+  int max_points = (131080 - sizeof(uint32_t) - sizeof(th)) / sizeof(humminbird_trk_point_t);
 
   if (th.num_points == max_points + 1) {
     th.num_points--;
@@ -417,15 +404,15 @@ humminbird_read_track(gbfile* fin)
   /* num_points is actually one too big, because it includes the value in
      the header. But we want the extra point at the end because the
      freak-value filter below looks at points[i+1] */
-  points = (humminbird_trk_point_t*) xcalloc(th.num_points, sizeof(humminbird_trk_point_t));
+  humminbird_trk_point_t* points = (humminbird_trk_point_t*) xcalloc(th.num_points, sizeof(humminbird_trk_point_t));
   if (! gbfread(points, sizeof(humminbird_trk_point_t), th.num_points-1, fin)) {
     fatal(MYNAME ": Unexpected end of file reading points!\n");
   }
 
-  accum_east  = th.start_east;
-  accum_north = th.start_north;
+  int32_t accum_east = th.start_east;
+  int32_t accum_north = th.start_north;
 
-  trk = route_head_alloc();
+  route_head* trk = route_head_alloc();
   track_add_head(trk);
 
   // TODO: find a way to eliminate the copy.
@@ -436,18 +423,16 @@ humminbird_read_track(gbfile* fin)
 
   /* We create one wpt for the info in the header */
 
-  first_wpt = new Waypoint;
-  g_lat = gudermannian_i1924(accum_north);
+  Waypoint* first_wpt = new Waypoint;
+  double g_lat = gudermannian_i1924(accum_north);
   first_wpt->latitude  = geocentric_to_geodetic_hwr(g_lat);
   first_wpt->longitude = accum_east/EAST_SCALE * 180.0;
   first_wpt->altitude  = 0.0;
   /* No depth info in the header. */
   track_add_wpt(trk, first_wpt);
 
-  for (i=0 ; i<th.num_points-1 ; i++) {
+  for (int i = 0 ; i<th.num_points-1 ; i++) {
     Waypoint* wpt = new Waypoint;
-    int16_t next_deltaeast, next_deltanorth;
-    double guder;
 
     points[i].depth      = be_read16(&points[i].depth);
     points[i].deltaeast  = be_read16(&points[i].deltaeast);
@@ -456,13 +441,13 @@ humminbird_read_track(gbfile* fin)
     /* Every once in a while the delta values are
        32767 followed by -32768. Filter that. */
 
-    next_deltaeast = be_read16(&points[i+1].deltaeast);
+    int16_t next_deltaeast = be_read16(&points[i+1].deltaeast);
     if (points[ i ].deltaeast ==  32767 &&
         next_deltaeast        == -32768) {
       points[ i ].deltaeast = -1;
       points[i+1].deltaeast =  0; /* BE 0 == LE 0 */
     }
-    next_deltanorth = be_read16(&points[i+1].deltanorth);
+    int16_t next_deltanorth = be_read16(&points[i+1].deltanorth);
     if (points[ i ].deltanorth ==  32767 &&
         next_deltanorth        == -32768) {
       points[ i ].deltanorth = -1;
@@ -472,7 +457,7 @@ humminbird_read_track(gbfile* fin)
     accum_east  += points[i].deltaeast;
     accum_north += points[i].deltanorth;
 
-    guder = gudermannian_i1924(accum_north);
+    double guder = gudermannian_i1924(accum_north);
     wpt->latitude  = geocentric_to_geodetic_hwr(guder);
     wpt->longitude = accum_east/EAST_SCALE * 180.0;
     wpt->altitude  = 0.0;
@@ -498,14 +483,6 @@ humminbird_read_track_old(gbfile* fin)
 {
 
   humminbird_trk_header_old_t th;
-  humminbird_trk_point_old_t* points;
-  route_head* trk;
-  Waypoint* first_wpt;
-  int i;
-  int max_points = 0;
-  int32_t accum_east;
-  int32_t accum_north;
-  double g_lat;
   const int file_len = 8048;
   char namebuf[TRK_NAME_LEN];
 
@@ -525,7 +502,7 @@ humminbird_read_track_old(gbfile* fin)
 
   // These files are always 8048 bytes long. Note that that's the value
   // of the second 16-bit word in the signature.
-  max_points = (file_len - (sizeof(th) + sizeof(uint32_t) + TRK_NAME_LEN)) / sizeof(humminbird_trk_point_old_t);
+  int max_points = (file_len - (sizeof(th) + sizeof(uint32_t) + TRK_NAME_LEN)) / sizeof(humminbird_trk_point_old_t);
 
   if (th.num_points > max_points) {
     fatal(MYNAME ": Too many track points! (%d)\n", th.num_points);
@@ -534,15 +511,15 @@ humminbird_read_track_old(gbfile* fin)
   /* num_points is actually one too big, because it includes the value in
      the header. But we want the extra point at the end because the
      freak-value filter below looks at points[i+1] */
-  points = (humminbird_trk_point_old_t*)xcalloc(th.num_points, sizeof(humminbird_trk_point_old_t));
+  humminbird_trk_point_old_t* points = (humminbird_trk_point_old_t*)xcalloc(th.num_points, sizeof(humminbird_trk_point_old_t));
   if (! gbfread(points, sizeof(humminbird_trk_point_old_t), th.num_points-1, fin)) {
     fatal(MYNAME ": Unexpected end of file reading points!\n");
   }
 
-  accum_east  = th.start_east;
-  accum_north = th.start_north;
+  int32_t accum_east = th.start_east;
+  int32_t accum_north = th.start_north;
 
-  trk = route_head_alloc();
+  route_head* trk = route_head_alloc();
   track_add_head(trk);
 
   /* The name is not in the header, but at the end of the file.
@@ -556,17 +533,15 @@ humminbird_read_track_old(gbfile* fin)
 
   /* We create one wpt for the info in the header */
 
-  first_wpt = new Waypoint;
-  g_lat = gudermannian_i1924(accum_north);
+  Waypoint* first_wpt = new Waypoint;
+  double g_lat = gudermannian_i1924(accum_north);
   first_wpt->latitude  = geocentric_to_geodetic_hwr(g_lat);
   first_wpt->longitude = accum_east/EAST_SCALE * 180.0;
   first_wpt->altitude  = 0.0;
   track_add_wpt(trk, first_wpt);
 
-  for (i=0 ; i<th.num_points-1 ; i++) {
+  for (int i = 0 ; i<th.num_points-1 ; i++) {
     Waypoint* wpt = new Waypoint;
-//		int16_t next_deltaeast, next_deltanorth;
-    double guder;
 
     points[i].deltaeast  = be_read16(&points[i].deltaeast);
     points[i].deltanorth = be_read16(&points[i].deltanorth);
@@ -593,7 +568,7 @@ humminbird_read_track_old(gbfile* fin)
     accum_east  += points[i].deltaeast;
     accum_north += points[i].deltanorth;
 
-    guder = gudermannian_i1924(accum_north);
+    double guder = gudermannian_i1924(accum_north);
     wpt->latitude  = geocentric_to_geodetic_hwr(guder);
     wpt->longitude = accum_east/EAST_SCALE * 180.0;
     wpt->altitude  = 0.0;
@@ -611,12 +586,10 @@ humminbird_read_track_old(gbfile* fin)
 }
 
 static void
-humminbird_read(void)
+humminbird_read()
 {
   while (! gbfeof(fin)) {
-    uint32_t signature;
-
-    signature = gbfgetuint32(fin);
+    uint32_t signature = gbfgetuint32(fin);
 
     switch (signature) {
     case WPT_MAGIC:
@@ -679,7 +652,7 @@ humminbird_wr_init(const QString& fname)
 }
 
 static void
-humminbird_wr_deinit(void)
+humminbird_wr_deinit()
 {
   mkshort_del_handle(&wptname_sh);
   mkshort_del_handle(&rtename_sh);
@@ -691,8 +664,6 @@ static void
 humminbird_write_waypoint(const Waypoint* wpt)
 {
   humminbird_waypt_t hum;
-  double lat, north, east;
-  int i;
   int num_icons = sizeof(humminbird_icons) / sizeof(humminbird_icons[0]);
 
   be_write16(&hum.num, waypoint_num++);
@@ -702,7 +673,7 @@ humminbird_write_waypoint(const Waypoint* wpt)
 
   // Icon....
   if (!wpt->icon_descr.isNull()) {
-    for (i = 0; i < num_icons; i++) {
+    for (int i = 0; i < num_icons; i++) {
       if (!wpt->icon_descr.compare(humminbird_icons[i], Qt::CaseInsensitive)) {
         hum.icon = i;
         break;
@@ -710,11 +681,10 @@ humminbird_write_waypoint(const Waypoint* wpt)
     }
     if (hum.icon == 255) {	/* no success, no try to find the item in a more comlex name */
       hum.icon = 0;	/* i.e. "Diamond" as part of "Diamond, Green" or "Green Diamond" */
-      for (i = 0; i < num_icons; i++) {
+      for (int i = 0; i < num_icons; i++) {
         char* match;
-        int j;
         xasprintf(&match, "*%s*", humminbird_icons[i]);
-        j = wpt->icon_descr.compare(match, Qt::CaseInsensitive);
+        int j = wpt->icon_descr.compare(match, Qt::CaseInsensitive);
         xfree(match);
         if (j != 0) {
           hum.icon = i;
@@ -729,17 +699,16 @@ humminbird_write_waypoint(const Waypoint* wpt)
 
   be_write32(&hum.time, wpt->GetCreationTime().toTime_t());
 
-  east = wpt->longitude / 180.0 * EAST_SCALE;
+  double east = wpt->longitude / 180.0 * EAST_SCALE;
   be_write32(&hum.east, si_round((east)));
 
-  lat = geodetic_to_geocentric_hwr(wpt->latitude);
-  north = inverse_gudermannian_i1924(lat);
+  double lat = geodetic_to_geocentric_hwr(wpt->latitude);
+  double north = inverse_gudermannian_i1924(lat);
   be_write32(&hum.north, si_round(north));
 
-  QString name;
-  name = (global_opts.synthesize_shortnames)
-         ? mkshort_from_wpt(wptname_sh, wpt)
-         : mkshort(wptname_sh, wpt->shortname);
+  QString name = (global_opts.synthesize_shortnames)
+                   ? mkshort_from_wpt(wptname_sh, wpt)
+                   : mkshort(wptname_sh, wpt->shortname);
   memset(&hum.name, 0, sizeof(hum.name));
   memcpy(&hum.name, CSTR(name), name.length());
 
@@ -759,25 +728,24 @@ humminbird_track_head(const route_head* trk)
 {
   int max_points = (131080 - sizeof(uint32_t)- sizeof(humminbird_trk_header_t)) / sizeof(humminbird_trk_point_t);
 
-  trk_head = NULL;
+  trk_head = nullptr;
   last_time = 0;
   if (trk->rte_waypt_ct > 0) {
-    QString name;
     trk_head = (humminbird_trk_header_t*) xcalloc(1, sizeof(humminbird_trk_header_t));
     trk_points = (humminbird_trk_point_t*) xcalloc(max_points, sizeof(humminbird_trk_point_t));
 
-    name = mkshort(trkname_sh, trk->rte_name);
+    QString name = mkshort(trkname_sh, trk->rte_name);
     strncpy(trk_head->name, CSTR(name), sizeof(trk_head->name)-1);
     be_write16(&trk_head->trk_num, trk->rte_num);
   }
 }
 
 static void
-humminbird_track_tail(const route_head* rte)
+humminbird_track_tail(const route_head*)
 {
   int max_points = (131080 - sizeof(uint32_t)- sizeof(humminbird_trk_header_t)) / sizeof(humminbird_trk_point_t);
 
-  if (trk_head == NULL) {
+  if (trk_head == nullptr) {
     return;
   }
 
@@ -805,26 +773,22 @@ humminbird_track_tail(const route_head* rte)
   xfree(trk_head);
   xfree(trk_points);
 
-  trk_head   = NULL;
-  trk_points = NULL;
+  trk_head   = nullptr;
+  trk_points = nullptr;
 }
 
 static void
 humminbird_track_cb(const Waypoint* wpt)
 {
-  int32_t north, east;
-  double lat;
-  int i;
-
-  if (trk_head == NULL) {
+  if (trk_head == nullptr) {
     return;
   }
 
-  i = trk_head->num_points;
+  int i = trk_head->num_points;
 
-  east  = si_round(wpt->longitude / 180.0 * EAST_SCALE);
-  lat = geodetic_to_geocentric_hwr(wpt->latitude);
-  north = si_round(inverse_gudermannian_i1924(lat));
+  int32_t east = si_round(wpt->longitude / 180.0 * EAST_SCALE);
+  double lat = geodetic_to_geocentric_hwr(wpt->latitude);
+  int32_t north = si_round(inverse_gudermannian_i1924(lat));
 
   if (wpt->creation_time.isValid()) {
     last_time = wpt->GetCreationTime().toTime_t();
@@ -879,7 +843,7 @@ humminbird_track_cb(const Waypoint* wpt)
 
 
 static void
-humminbird_track_write(void)
+humminbird_track_write()
 {
 
   track_disp_all(humminbird_track_head, humminbird_track_tail, humminbird_track_cb);
@@ -888,7 +852,7 @@ humminbird_track_write(void)
 static void
 humminbird_rte_head(const route_head* rte)
 {
-  humrte = NULL;
+  humrte = nullptr;
   if (rte->rte_waypt_ct > 0) {
     humrte = (humminbird_rte_t*) xcalloc(1, sizeof(*humrte));
   }
@@ -897,16 +861,14 @@ humminbird_rte_head(const route_head* rte)
 static void
 humminbird_rte_tail(const route_head* rte)
 {
-  if (humrte == NULL) {
+  if (humrte == nullptr) {
     return;
   }
 
   if (humrte->count > 0) {
-    int i;
-
     humrte->num = rte_num++;
     humrte->time = gpsbabel_time;
-    for (i = 0; i < humrte->count; i++) {
+    for (int i = 0; i < humrte->count; i++) {
       be_write16(&humrte->points[i], humrte->points[i]);
     }
 
@@ -921,18 +883,16 @@ humminbird_rte_tail(const route_head* rte)
   }
 
   xfree(humrte);
-  humrte = NULL;
+  humrte = nullptr;
 }
 
 static void
 humminbird_write_rtept(const Waypoint* wpt)
 {
-  int i;
-
-  if (humrte == NULL) {
+  if (humrte == nullptr) {
     return;
   }
-  i = gb_ptr2int(wpt->extra_data);
+  int i = gb_ptr2int(wpt->extra_data);
   if (i <= 0) {
     return;
   }
@@ -954,13 +914,13 @@ humminbird_write_waypoint_wrapper(const Waypoint* wpt)
 
   xasprintf(&key, "%s\01%.9f\01%.9f", CSTRc(wpt->shortname), wpt->latitude, wpt->longitude);
   if (!(tmpwpt = map[key])) {
-    tmpwpt = (Waypoint*)wpt;
-    map[key] = (Waypoint*) wpt;
+    tmpwpt = const_cast<Waypoint*>(wpt);
+    map[key] = const_cast<Waypoint*>(wpt);
     tmpwpt->extra_data = gb_int2ptr(waypoint_num + 1);	/* NOT NULL */
     humminbird_write_waypoint(wpt);
   } else {
     void* p = tmpwpt->extra_data;
-    tmpwpt = (Waypoint*)wpt;
+    tmpwpt = const_cast<Waypoint*>(wpt);
     tmpwpt->extra_data = p;
   }
 
@@ -968,10 +928,10 @@ humminbird_write_waypoint_wrapper(const Waypoint* wpt)
 }
 
 static void
-humminbird_write(void)
+humminbird_write()
 {
   waypt_disp_all(humminbird_write_waypoint_wrapper);
-  route_disp_all(NULL, NULL, humminbird_write_waypoint_wrapper);
+  route_disp_all(nullptr, nullptr, humminbird_write_waypoint_wrapper);
   route_disp_all(humminbird_rte_head, humminbird_rte_tail, humminbird_write_rtept);
 }
 
@@ -990,10 +950,12 @@ ff_vecs_t humminbird_vecs = {
   humminbird_wr_deinit,
   humminbird_read,
   humminbird_write,
-  NULL, // humminbird_exit,
+  nullptr, // humminbird_exit,
   humminbird_args,
   CET_CHARSET_ASCII, 1			/* ascii is the expected character set */
   /* currently fixed !!! */
+  , NULL_POS_OPS,
+  nullptr
 };
 
 /**************************************************************************/
@@ -1013,10 +975,12 @@ ff_vecs_t humminbird_ht_vecs = {
   humminbird_wr_deinit,
   humminbird_read,
   humminbird_track_write,
-  NULL, // humminbird_exit,
+  nullptr, // humminbird_exit,
   humminbird_args,
   CET_CHARSET_ASCII, 1			/* ascii is the expected character set */
   /* currently fixed !!! */
+  , NULL_POS_OPS,
+  nullptr
 };
 
 /**************************************************************************/

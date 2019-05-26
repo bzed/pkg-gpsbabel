@@ -29,9 +29,9 @@
 static char* opt_tag, *opt_tagnd, *created_by;
 
 static arglist_t osm_args[] = {
-  { "tag", &opt_tag, 	"Write additional way tag key/value pairs", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
-  { "tagnd", &opt_tagnd,	"Write additional node tag key/value pairs", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
-  { "created_by", &created_by, "Use this value as custom created_by value","GPSBabel", ARGTYPE_STRING, ARG_NOMINMAX },
+  { "tag", &opt_tag, 	"Write additional way tag key/value pairs", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr},
+  { "tagnd", &opt_tagnd,	"Write additional node tag key/value pairs", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
+  { "created_by", &created_by, "Use this value as custom created_by value","GPSBabel", ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
   ARG_TERMINATOR
 };
 
@@ -63,7 +63,7 @@ xg_tag_mapping osm_map[] = {
   { osm_way_tag,	cb_start,	"/osm/way/tag" },
   { osm_way_center,	cb_start,	"/osm/way/center" },
   { osm_way_end,	cb_end,		"/osm/way" },
-  { NULL,	(xg_cb_type)0,		NULL }
+  { nullptr,	(xg_cb_type)0,		nullptr }
 };
 
 static const char* osm_features[] = {
@@ -87,7 +87,7 @@ static const char* osm_features[] = {
   "tourism",	/* 17 */
   "waterway",	/* 18 */
   "aerialway",	/* 19 */
-  NULL
+  nullptr
 };
 
 typedef struct osm_icon_mapping_s {
@@ -399,7 +399,7 @@ static osm_icon_mapping_t osm_icon_mappings[] = {
 //	{ 13, "island",			"?" },
 //	{ 13, "User Defined",		"?" },
 
-  { -1, NULL, NULL }
+  { -1, nullptr, nullptr }
 };
 
 
@@ -408,7 +408,7 @@ static osm_icon_mapping_t osm_icon_mappings[] = {
 /*-----------------------------------------------------------------------------*/
 
 static void
-osm_features_init(void)
+osm_features_init()
 {
   int i;
 
@@ -439,18 +439,17 @@ static QString
 osm_feature_symbol(const int ikey, const char* value)
 {
   char buff[128];
-  QString key;
 
   buff[0] = ikey;
   strncpy(&buff[1], value, sizeof(buff) - 1);
 
-  key = QString::fromUtf8(buff);
+  QString key = QString::fromUtf8(buff);
 
   QString result;
   if (values.contains(key)) {
     result = values.value(key)->icon;
   } else {
-    result = QString("%1:%2").arg(osm_features[ikey]).arg(value);
+    result = QString("%1:%2").arg(osm_features[ikey], value);
   }
   return result;
 }
@@ -459,10 +458,7 @@ osm_feature_symbol(const int ikey, const char* value)
 static char*
 osm_strip_html(const char* str)
 {
-  utf_string utf;
-  utf.is_html = 1;
-  utf.utfstring = (char*)str;
-
+  utf_string utf(true, str);
   return strip_html(&utf);	// util.cc
 }
 
@@ -477,7 +473,7 @@ osm_strip_html(const QString& str)
 
 
 static void
-osm_node_end(xg_string args, const QXmlStreamAttributes*)
+osm_node_end(xg_string, const QXmlStreamAttributes*)
 {
   if (wpt) {
     if (wpt->wpt_flags.fmt_use) {
@@ -485,13 +481,13 @@ osm_node_end(xg_string args, const QXmlStreamAttributes*)
     } else {
       delete wpt;
     }
-    wpt = NULL;
+    wpt = nullptr;
   }
 }
 
 
 static void
-osm_node(xg_string args, const QXmlStreamAttributes* attrv)
+osm_node(xg_string, const QXmlStreamAttributes* attrv)
 {
   wpt = new Waypoint;
 
@@ -523,10 +519,9 @@ osm_node(xg_string args, const QXmlStreamAttributes* attrv)
 
 
 static void
-osm_node_tag(xg_string args, const QXmlStreamAttributes* attrv)
+osm_node_tag(xg_string, const QXmlStreamAttributes* attrv)
 {
   QString key, value;
-  QString str;
   signed char ikey;
 
   if (attrv->hasAttribute("k")) {
@@ -536,7 +531,7 @@ osm_node_tag(xg_string args, const QXmlStreamAttributes* attrv)
     value = attrv->value("v").toString();
   }
 
-  str = osm_strip_html(value);
+  QString str = osm_strip_html(value);
 
   if (key == QLatin1String("name")) {
     if (wpt->shortname.isEmpty()) {
@@ -578,7 +573,7 @@ osm_node_tag(xg_string args, const QXmlStreamAttributes* attrv)
 
 
 static void
-osm_way(xg_string args, const QXmlStreamAttributes* attrv)
+osm_way(xg_string, const QXmlStreamAttributes* attrv)
 {
   rte = route_head_alloc();
   // create a wpt to represent the route center if it has a center tag
@@ -589,16 +584,14 @@ osm_way(xg_string args, const QXmlStreamAttributes* attrv)
 }
 
 static void
-osm_way_nd(xg_string args, const QXmlStreamAttributes* attrv)
+osm_way_nd(xg_string, const QXmlStreamAttributes* attrv)
 {
   if (attrv->hasAttribute("ref")) {
     QString atstr = attrv->value("ref").toString();
-    Waypoint* tmp;
-    const Waypoint* ctmp;
 
     if (waypoints.contains(atstr)) {
-      ctmp = waypoints.value(atstr);
-      tmp = new Waypoint(*ctmp);
+      const Waypoint* ctmp = waypoints.value(atstr);
+      Waypoint* tmp = new Waypoint(*ctmp);
       route_add_wpt(rte, tmp);
     } else {
       warning(MYNAME ": Way reference id \"%s\" wasn't listed under nodes!\n", qPrintable(atstr));
@@ -607,10 +600,9 @@ osm_way_nd(xg_string args, const QXmlStreamAttributes* attrv)
 }
 
 static void
-osm_way_tag(xg_string args, const QXmlStreamAttributes* attrv)
+osm_way_tag(xg_string, const QXmlStreamAttributes* attrv)
 {
   QString key, value;
-  QString str;
   signed char ikey;
 
   if (attrv->hasAttribute("k")) {
@@ -620,7 +612,7 @@ osm_way_tag(xg_string args, const QXmlStreamAttributes* attrv)
     value = attrv->value("v").toString();
   }
 
-  str = osm_strip_html(value);
+  QString str = osm_strip_html(value);
 
   if (key == QLatin1String("name")) {
     if (rte->rte_name.isEmpty()) {
@@ -645,7 +637,7 @@ osm_way_tag(xg_string args, const QXmlStreamAttributes* attrv)
 }
 
 static void
-osm_way_center(xg_string args, const QXmlStreamAttributes* attrv)
+osm_way_center(xg_string, const QXmlStreamAttributes* attrv)
 {
   wpt->wpt_flags.fmt_use = 1;
 
@@ -658,11 +650,11 @@ osm_way_center(xg_string args, const QXmlStreamAttributes* attrv)
 }
 
 static void
-osm_way_end(xg_string args, const QXmlStreamAttributes*)
+osm_way_end(xg_string, const QXmlStreamAttributes*)
 {
   if (rte) {
     route_add_head(rte);
-    rte = NULL;
+    rte = nullptr;
   }
 
   if (wpt) {
@@ -670,7 +662,7 @@ osm_way_end(xg_string args, const QXmlStreamAttributes*)
       waypt_add(wpt);
     } else {
       delete(wpt);
-      wpt = NULL;
+      wpt = nullptr;
     }
   }
 }
@@ -678,25 +670,25 @@ osm_way_end(xg_string args, const QXmlStreamAttributes*)
 static void
 osm_rd_init(const QString& fname)
 {
-  wpt = NULL;
-  rte = NULL;
+  wpt = nullptr;
+  rte = nullptr;
 
   waypoints.clear();
   if (keys.isEmpty()) {
     osm_features_init();
   }
 
-  xml_init(fname, osm_map, NULL);
+  xml_init(fname, osm_map, nullptr);
 }
 
 static void
-osm_read(void)
+osm_read()
 {
   xml_read();
 }
 
 static void
-osm_rd_deinit(void)
+osm_rd_deinit()
 {
   xml_deinit();
   waypoints.clear();
@@ -707,15 +699,13 @@ osm_rd_deinit(void)
 /*-----------------------------------------------------------------------------*/
 
 static void
-osm_init_icons(void)
+osm_init_icons()
 {
-  int i;
-
   if (!icons.isEmpty()) {
     return;
   }
 
-  for (i = 0; osm_icon_mappings[i].value; i++) {
+  for (int i = 0; osm_icon_mappings[i].value; i++) {
     icons.insert(QString::fromUtf8(osm_icon_mappings[i].icon),
                  &osm_icon_mappings[i]);
   }
@@ -734,10 +724,8 @@ osm_write_tag(const QString& key, const QString& value)
 static void
 osm_disp_feature(const Waypoint* wpt)
 {
-  const osm_icon_mapping_t* map;
-
   if (icons.contains(wpt->icon_descr)) {
-    map = icons.value(wpt->icon_descr);
+    const osm_icon_mapping_t* map = icons.value(wpt->icon_descr);
     osm_write_tag(osm_features[map->key], map->value);
   }
 }
@@ -745,14 +733,14 @@ osm_disp_feature(const Waypoint* wpt)
 static void
 osm_write_opt_tag(const char* atag)
 {
-  char* tag, *cin, *ce;
+  char* cin;
 
   if (!atag) {
     return;
   }
 
-  tag = cin = xstrdup(atag);
-  ce = cin + strlen(cin);
+  char* tag = cin = xstrdup(atag);
+  char* ce = cin + strlen(cin);
 
   while (cin < ce) {
     char* sc, *dp;
@@ -775,9 +763,9 @@ static void
 osm_release_ids(const Waypoint* wpt)
 {
   if (wpt && wpt->extra_data) {
-    Waypoint* tmp = (Waypoint*)wpt;
+    Waypoint* tmp = const_cast<Waypoint*>(wpt);
     xfree(tmp->extra_data);
-    tmp->extra_data = NULL;
+    tmp->extra_data = nullptr;
   }
 }
 
@@ -802,11 +790,9 @@ osm_waypt_disp(const Waypoint* wpt)
 
   waypoints.insert(name, wpt);
 
-  int* id;
-
-  id = (int*) xmalloc(sizeof(*id));
+  int* id = (int*) xmalloc(sizeof(*id));
   *id = --node_id;
-  ((Waypoint*)(wpt))->extra_data = id;
+  (const_cast<Waypoint*>(wpt))->extra_data = id;
 
   gbfprintf(fout, "  <node id='%d' visible='true' lat='%0.7f' lon='%0.7f'", *id, wpt->latitude, wpt->longitude);
   if (wpt->creation_time.isValid()) {
@@ -885,14 +871,13 @@ static void
 osm_rtept_disp(const Waypoint* wpt_ref)
 {
   QString name = osm_name_from_wpt(wpt_ref);
-  const Waypoint* wpt;
 
   if (skip_rte) {
     return;
   }
 
   if (waypoints.contains(name)) {
-    wpt = waypoints.value(name);
+    const Waypoint* wpt = waypoints.value(name);
     int* id = (int*) wpt->extra_data;
     gbfprintf(fout, "    <nd ref='%d'/>\n", *id);
   }
@@ -937,7 +922,7 @@ osm_wr_init(const QString& fname)
 }
 
 static void
-osm_write(void)
+osm_write()
 {
   gbfprintf(fout, "<?xml version='1.0' encoding='UTF-8'?>\n");
   gbfprintf(fout, "<osm version='0.6' generator='GPSBabel");
@@ -947,8 +932,8 @@ osm_write(void)
   gbfprintf(fout, "'>\n");
 
   waypt_disp_all(osm_waypt_disp);
-  route_disp_all(NULL, NULL, osm_waypt_disp);
-  track_disp_all(NULL, NULL, osm_waypt_disp);
+  route_disp_all(nullptr, nullptr, osm_waypt_disp);
+  track_disp_all(nullptr, nullptr, osm_waypt_disp);
 
   route_disp_all(osm_rte_disp_head, osm_rte_disp_trail, osm_rtept_disp);
   track_disp_all(osm_rte_disp_head, osm_rte_disp_trail, osm_rtept_disp);
@@ -957,19 +942,19 @@ osm_write(void)
 }
 
 static void
-osm_wr_deinit(void)
+osm_wr_deinit()
 {
   gbfclose(fout);
 
   waypt_disp_all(osm_release_ids);
-  route_disp_all(NULL, NULL, osm_release_ids);
-  track_disp_all(NULL, NULL, osm_release_ids);
+  route_disp_all(nullptr, nullptr, osm_release_ids);
+  track_disp_all(nullptr, nullptr, osm_release_ids);
 
   waypoints.clear();
 }
 
 static void
-osm_exit(void)
+osm_exit()
 {
   keys.clear();
   values.clear();
@@ -994,4 +979,5 @@ ff_vecs_t osm_vecs = {
   osm_exit,
   osm_args,
   CET_CHARSET_UTF8, 0
-};
+  , NULL_POS_OPS,
+  nullptr};

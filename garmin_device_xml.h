@@ -43,7 +43,7 @@ typedef struct {
 } gdx_info;
 
 const gdx_info* gdx_read(const char* fname);
-const gdx_info* gdx_get_info(void);
+const gdx_info* gdx_get_info();
 const gdx_info* gdx_find_file(char** dirlist);
 
 // This is so gross.   By the time we know it's not a USB device
@@ -51,6 +51,6 @@ const gdx_info* gdx_find_file(char** dirlist);
 // that can't back out tracefully without bludgeoning most of the
 // (Mac|Lin|Win) x (USB|Serial) matrix.   Since we don't *really* want
 // to progress any further, we just longjump back to the caller...
-#include <setjmp.h>
+#include <csetjmp>
 extern jmp_buf gdx_jmp_buf;
 

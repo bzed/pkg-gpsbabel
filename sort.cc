@@ -18,94 +18,144 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
+
+#include <QtCore/QDateTime>     // for QDateTime
+#include <QtCore/QString>       // for operator<, QString
+
 #include "defs.h"
+#include "src/core/datetime.h"  // for DateTime
 #include "filterdefs.h"
-#include <stdlib.h>
+#include "sort.h"
 
 #if FILTERS_ENABLED
+#define MYNAME "sort"
 
-typedef enum {
-  sm_unknown = 0,
-  sm_gcid,
-  sm_shortname,
-  sm_description,
-  sm_time
-} sort_mode_;
 
-sort_mode_ sort_mode = sm_shortname;	/* How are we sorting these? */
-
-static char* opt_sm_gcid, *opt_sm_shortname, *opt_sm_description, *opt_sm_time;
-
-static
-arglist_t sort_args[] = {
-  {
-    "gcid", &opt_sm_gcid, "Sort by numeric geocache ID",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "shortname", &opt_sm_shortname, "Sort by waypoint short name",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "description", &opt_sm_description, "Sort by waypoint description",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "time", &opt_sm_time, "Sort by time",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
-static int
-sort_comp(const queue* a, const queue* b)
+bool SortFilter::sort_comp_wpt_by_description(const Waypoint* a, const Waypoint* b)
 {
-  const Waypoint* x1 = (Waypoint*)a;
-  const Waypoint* x2 = (Waypoint*)b;
+  return a->description < b->description;
+}
 
-  switch (sort_mode)  {
-  case sm_gcid:
-    return x1->gc_data->id - x2->gc_data->id;
-  case sm_shortname:
-    return x1->shortname.compare(x2->shortname);
-  case sm_description:
-    return x1->description.compare(x2->description);
-  case sm_time:
-    return x1->GetCreationTime().toTime_t() - x2->GetCreationTime().toTime_t();
-  default:
-    abort();
-    return 0; /* Internal caller error. */
+bool SortFilter::sort_comp_wpt_by_gcid(const Waypoint* a, const Waypoint* b)
+{
+  return a->gc_data->id < b->gc_data->id;
+}
+
+bool SortFilter::sort_comp_wpt_by_shortname(const Waypoint* a, const Waypoint* b)
+{
+  return a->shortname < b->shortname;
+}
+
+bool SortFilter::sort_comp_wpt_by_time(const Waypoint* a, const Waypoint* b)
+{
+  return a->GetCreationTime() < b->GetCreationTime();
+}
+
+bool SortFilter::sort_comp_rh_by_description(const route_head* a, const route_head* b)
+{
+  return a->rte_desc < b->rte_desc;
+}
+
+bool SortFilter::sort_comp_rh_by_name(const route_head* a, const route_head* b)
+{
+  return a->rte_name < b->rte_name;
+}
+
+bool SortFilter::sort_comp_rh_by_number(const route_head* a, const route_head* b)
+{
+  return a->rte_num < b->rte_num;
+}
+
+void SortFilter::process()
+{
+  if (wpt_sort_mode != SortModeWpt::none) {
+    switch (wpt_sort_mode) {
+    case SortModeWpt::description:
+      waypt_sort(sort_comp_wpt_by_description);
+      break;
+    case SortModeWpt::gcid:
+      waypt_sort(sort_comp_wpt_by_gcid);
+      break;
+    case SortModeWpt::shortname:
+      waypt_sort(sort_comp_wpt_by_shortname);
+      break;
+    case SortModeWpt::time:
+      waypt_sort(sort_comp_wpt_by_time);
+      break;
+    default:
+      fatal(MYNAME ": unknown waypoint sort mode.");
+    }
+  }
+  
+  if (rte_sort_mode != SortModeRteHd::none) {
+    switch (rte_sort_mode)  {
+    case SortModeRteHd::description:
+      route_sort(SortFilter::sort_comp_rh_by_description);
+      break;
+    case SortModeRteHd::name:
+      route_sort(sort_comp_rh_by_name);
+      break;
+    case SortModeRteHd::number:
+      route_sort(sort_comp_rh_by_number);
+      break;
+    default:
+      fatal(MYNAME ": unknown route sort mode.");
+    }
+  }
+  if (trk_sort_mode != SortModeRteHd::none) {
+    switch (trk_sort_mode)  {
+    case SortModeRteHd::description:
+      track_sort(sort_comp_rh_by_description);
+      break;
+    case SortModeRteHd::name:
+      track_sort(sort_comp_rh_by_name);
+      break;
+    case SortModeRteHd::number:
+      track_sort(sort_comp_rh_by_number);
+      break;
+    default:
+      fatal(MYNAME ": unknown track sort mode.");
+    }
   }
 }
 
-void
-sort_process(void)
+void SortFilter::init()
 {
-  sortqueue(&waypt_head, sort_comp);
-}
-
-void
-sort_init(const char* args)
-{
+  // sort waypts by
+  if (opt_sm_description) {
+    wpt_sort_mode = SortModeWpt::description;
+  }
   if (opt_sm_gcid) {
-    sort_mode = sm_gcid;
+    wpt_sort_mode = SortModeWpt::gcid;
   }
   if (opt_sm_shortname) {
-    sort_mode = sm_shortname;
-  }
-  if (opt_sm_description) {
-    sort_mode = sm_description;
+    wpt_sort_mode = SortModeWpt::shortname;
   }
   if (opt_sm_time) {
-    sort_mode = sm_time;
+    wpt_sort_mode = SortModeWpt::time;
+  }
+
+  // sort routes by
+  if (opt_sm_rtedesc) {
+    rte_sort_mode = SortModeRteHd::description;
+  }
+  if (opt_sm_rtename) {
+    rte_sort_mode = SortModeRteHd::name;
+  }
+  if (opt_sm_rtenum) {
+    rte_sort_mode = SortModeRteHd::number;
+  }
+
+  // sort tracks by
+  if (opt_sm_trkdesc) {
+    trk_sort_mode = SortModeRteHd::description;
+  }
+  if (opt_sm_trkname) {
+    trk_sort_mode = SortModeRteHd::name;
+  }
+  if (opt_sm_trknum) {
+    trk_sort_mode = SortModeRteHd::number;
   }
 }
 
-filter_vecs_t sort_vecs = {
-  sort_init,
-  sort_process,
-  NULL,
-  NULL,
-  sort_args
-};
 #endif // FILTERS_ENABLED

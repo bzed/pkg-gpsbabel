@@ -20,22 +20,30 @@
 
  */
 
+#include <cctype>                  // for isspace
+#include <cstdio>                  // for snprintf
+#include <cstdlib>                 // for atoi, atof, qsort, strtol
+#include <cstring>                 // for strcpy, strlen, memset, strncmp, strstr
+#include <ctime>                   // for mktime
+
+#include <QtCore/QString>          // for QString
+#include <QtCore/QtGlobal>         // for foreach
+
 #include "defs.h"
-#include "cet_util.h"
-#include "csv_util.h"
-#include <ctype.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include "cet_util.h"              // for cet_convert_init
+#include "csv_util.h"              // for csv_lineparse
+#include "gbfile.h"                // for gbfclose, gbfgetstr, gbfopen, gbfile
+
 
 static gbfile* file_in;
-static char* nseicon = NULL;
-static char* nsneicon = NULL;
-static char* seicon = NULL;
-static char* sneicon = NULL;
-static char* snmac = NULL;
+static char* nseicon = nullptr;
+static char* nsneicon = nullptr;
+static char* seicon = nullptr;
+static char* sneicon = nullptr;
+static char* snmac = nullptr;
 static int macstumbler;
 
-static void	fix_netstumbler_dupes(void);
+static void	fix_netstumbler_dupes();
 
 #define MYNAME "NETSTUMBLER"
 
@@ -43,23 +51,23 @@ static
 arglist_t netstumbler_args[] = {
   {
     "nseicon", &nseicon, "Non-stealth encrypted icon name",
-    "Red Square", ARGTYPE_STRING, ARG_NOMINMAX
+    "Red Square", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "nsneicon", &nsneicon, "Non-stealth non-encrypted icon name",
-    "Green Square", ARGTYPE_STRING, ARG_NOMINMAX
+    "Green Square", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "seicon", &seicon, "Stealth encrypted icon name",
-    "Red Diamond", ARGTYPE_STRING, ARG_NOMINMAX
+    "Red Diamond", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "sneicon", &sneicon, "Stealth non-encrypted icon name",
-    "Green Diamond", ARGTYPE_STRING, ARG_NOMINMAX
+    "Green Diamond", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
-    "snmac", &snmac, "Shortname is MAC address", NULL, ARGTYPE_BOOL,
-    ARG_NOMINMAX
+    "snmac", &snmac, "Shortname is MAC address", nullptr, ARGTYPE_BOOL,
+    ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -72,20 +80,19 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
 
 static void
-data_read(void)
+data_read()
 {
   char* ibuf;
   char ssid[2 + 32 + 2 + 1];			/* "( " + SSID + " )" + null */
   char mac[2 + 17 + 2 + 1];			/* "( " + MAC + " )" + null */
   char desc[sizeof ssid - 1 + 15 + 1];	/* room for channel/speed */
   double lat = 0, lon = 0;
-  Waypoint* wpt_tmp;
   int line_no = 0;
   int stealth_num = 0, whitespace_num = 0;
   long flags = 0;
@@ -96,8 +103,8 @@ data_read(void)
   memset(&tm, 0, sizeof(tm));
 
   while ((ibuf = gbfgetstr(file_in))) {
-    char* field;
-    int field_num, len, i, stealth = 0;
+    int len;
+    int stealth = 0;
 
     if ((line++ == 0) && file_in->unicode) {
       cet_convert_init(CET_CHARSET_UTF8, 1);
@@ -125,9 +132,9 @@ data_read(void)
       continue;
     }
 
-    field_num = 0;
+    int field_num = 0;
     line_no++;
-    field = csv_lineparse(ibuf, "\t", "", line_no);
+    char* field = csv_lineparse(ibuf, "\t", "", line_no);
 
     while (field) {
       switch (field_num) {
@@ -160,7 +167,7 @@ data_read(void)
         if (!snmac) {
           int found = 0;
           /* check for all whitespace */
-          for (i = 0; i < len && !found; i++) {
+          for (int i = 0; i < len && !found; i++) {
             if (!isspace(ssid[i])) {
               found = 1;
             }
@@ -184,7 +191,7 @@ data_read(void)
         break;
 
       case 8:					/* flags */
-        flags = strtol(field, NULL, 16);
+        flags = strtol(field, nullptr, 16);
         break;
 
       case 11:				/* data rate */
@@ -205,14 +212,14 @@ data_read(void)
       }
 
       field_num++;
-      field = csv_lineparse(NULL, "\t", "", line_no);
+      field = csv_lineparse(nullptr, "\t", "", line_no);
     }
 
     if (lat == 0 && lon == 0) {	/* skip records with no GPS data */
       continue;
     }
 
-    wpt_tmp = new Waypoint;
+    Waypoint* wpt_tmp = new Waypoint;
 
     if (stealth) {
       if (!snmac) {
@@ -290,28 +297,20 @@ compare(const void* a, const void* b)
 
 static
 void
-fix_netstumbler_dupes(void)
+fix_netstumbler_dupes()
 {
-  int i, ct = waypt_count(), serial = 0;
-  htable_t* htable, *bh;
+  int ct = waypt_count(), serial = 0;
   unsigned long last_crc;
 
-  htable = (htable_t*) xmalloc(ct * sizeof *htable);
-  bh = htable;
+  htable_t* htable = (htable_t*) xmalloc(ct * sizeof *htable);
+  htable_t* bh = htable;
 
-  i = 0;
-#if NEWQ
+  int i = 0;
   // Why, oh, why is this format running over the entire waypoint list and
   // modifying it?  This seems wrong.
-  extern QList<Waypoint*> waypt_list;
-  foreach(Waypoint* waypointp, waypt_list) {
+  extern WaypointList* global_waypoint_list;
+  foreach(Waypoint* waypointp, *global_waypoint_list) {
     bh->wpt = waypointp;
-#else
-  queue* elem, *tmp;
-  extern queue waypt_head;
-  QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-    bh->wpt = (Waypoint*) elem;
-#endif
     QString snptr = bh->wpt->shortname;
     QString tmp_sn = snptr.toLower();
     bh->crc = get_crc32(CSTR(tmp_sn), tmp_sn.length());
@@ -338,12 +337,14 @@ ff_vecs_t netstumbler_vecs = {
   ff_type_file,
   { ff_cap_read, ff_cap_none, ff_cap_none },
   rd_init,
-  NULL,
+  nullptr,
   rd_deinit,
-  NULL,
+  nullptr,
   data_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   netstumbler_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

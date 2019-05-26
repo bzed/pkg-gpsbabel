@@ -20,7 +20,7 @@
 
 
 #include "defs.h"
-#include <stdio.h>
+#include <cstdio>
 
 static gbfile* file_in;
 static gbfile* file_out;
@@ -39,23 +39,22 @@ arglist_t easygps_args[] = {
 static void
 rd_init(const QString& fname)
 {
-  int sz;
   char ibuf[100] = {'0'} ;
   const char* ezsig = "TerraByte Location File";
 
   file_in = gbfopen_le(fname, "rb", MYNAME);
 
-  sz = gbfread(ibuf, 1, 52, file_in);
+  int sz = gbfread(ibuf, 1, 52, file_in);
 
   if ((sz < 52) ||
-      strncmp(ibuf, ezsig, sizeof(ezsig)-1) ||
+      strncmp(ibuf, ezsig, strlen(ezsig)) != 0 ||
       (ibuf[51] != 'W')) {
     fatal(MYNAME ": %s is not an EasyGPS file.\n", qPrintable(fname));
   }
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
@@ -68,25 +67,22 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
   mkshort_del_handle(&mkshort_handle);
 }
 
 static void
-data_read(void)
+data_read()
 {
-  char p;
+  int p;
   char ibuf[10];
   do {
-    unsigned char tag;
-    Waypoint* wpt_tmp;
-
-    wpt_tmp = new Waypoint;
+    Waypoint* wpt_tmp = new Waypoint;
     UrlLink link;
 
-    for (tag = gbfgetc(file_in); tag != 0xff; tag = gbfgetc(file_in)) {
+    for (int tag = gbfgetc(file_in); tag != 0xff; tag = gbfgetc(file_in)) {
       switch (tag) {
       case 1:
         wpt_tmp->shortname = gbfgetpstr(file_in);
@@ -192,7 +188,7 @@ ez_disp(const Waypoint* wpt)
 }
 
 static void
-data_write(void)
+data_write()
 {
   setshort_length(mkshort_handle, 6);
 
@@ -221,7 +217,9 @@ ff_vecs_t easygps_vecs = {
   wr_deinit,
   data_read,
   data_write,
-  NULL,
+  nullptr,
   easygps_args,
   CET_CHARSET_ASCII, 0	/* CET REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

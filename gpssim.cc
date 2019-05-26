@@ -21,9 +21,9 @@
 
 
 #include "defs.h"
-#include <math.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 #define MYNAME "gpssim"
 
@@ -39,11 +39,11 @@ static
 arglist_t gpssim_args[] = {
   {
     "wayptspd", &wayptspd, "Default speed for waypoints (knots/hr)",
-    NULL, ARGTYPE_FLOAT, ARG_NOMINMAX
+    nullptr, ARGTYPE_FLOAT, ARG_NOMINMAX, nullptr
   },
   {
     "split", &splitfiles_opt, "Split input into separate files",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
+    "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -73,11 +73,11 @@ gpssim_wr_init(const QString& fname)
 }
 
 static void
-gpssim_wr_deinit(void)
+gpssim_wr_deinit()
 {
   if (fout) {
     gbfclose(fout);
-    fout = NULL;
+    fout = nullptr;
   }
 
   fnamestr.clear();
@@ -108,14 +108,13 @@ static void
 gpssim_write_pt(const Waypoint* wpt)
 {
   char obuf[1024];
-  double lat, lon;
 
   if WAYPT_HAS(wpt, speed) {
     gpssim_write_spd(MPS_TO_KNOTS(wpt->speed));
   }
 
-  lat = degrees2ddmm(wpt->latitude);
-  lon = degrees2ddmm(wpt->longitude);
+  double lat = degrees2ddmm(wpt->latitude);
+  double lon = degrees2ddmm(wpt->longitude);
 
   snprintf(obuf, sizeof(obuf), "FRWPT,%10.5f,%c,%011.5f,%c,%.1f",
            fabs(lat), lat < 0 ? 'S' : 'N',
@@ -125,13 +124,11 @@ gpssim_write_pt(const Waypoint* wpt)
 
   if (wpt->creation_time.isValid()) {
     char tbuf[20];
-    int hms, ymd;
-    struct tm* tm;
 
     const time_t tt = wpt->GetCreationTime().toTime_t();
-    tm = gmtime(&tt);
-    hms = tm->tm_hour * 10000 + tm->tm_min * 100 + tm->tm_sec;
-    ymd = tm->tm_mday * 10000 + tm->tm_mon * 100 + tm->tm_year;
+    struct tm* tm = gmtime(&tt);
+    int hms = tm->tm_hour * 10000 + tm->tm_min * 100 + tm->tm_sec;
+    int ymd = tm->tm_mday * 10000 + tm->tm_mon * 100 + tm->tm_year;
 
     snprintf(tbuf, sizeof(tbuf), ",%d,%d",ymd, hms);
     strcat(obuf, tbuf);
@@ -149,23 +146,23 @@ gpssim_trk_hdr(const route_head* rh)
       fatal(MYNAME ": output file already open.\n");
     }
 
-    QString ofname = QString("%1%2%3.gpssim").arg(fnamestr).arg(doing_tracks ? "-track" : "-route").arg(trk_count++, 4, 10, QChar('0'));
+    QString ofname = QString("%1%2%3.gpssim").arg(fnamestr, doing_tracks ? "-track" : "-route").arg(trk_count++, 4, 10, QChar('0'));
     fout = gbfopen(ofname, "wb", MYNAME);
   }
-  track_recompute(rh, NULL);
+  (void) track_recompute(rh);
 }
 
 static void
-gpssim_trk_ftr(const route_head* rh)
+gpssim_trk_ftr(const route_head*)
 {
   if (splitfiles) {
     gbfclose(fout);
-    fout = NULL;
+    fout = nullptr;
   }
 }
 
 static void
-gpssim_write(void)
+gpssim_write()
 {
   if (waypt_count()) {
     if (splitfiles) {
@@ -178,7 +175,7 @@ gpssim_write(void)
     waypt_disp_all(gpssim_write_pt);
     if (splitfiles) {
       gbfclose(fout);
-      fout = NULL;
+      fout = nullptr;
     }
   }
 
@@ -194,13 +191,15 @@ gpssim_write(void)
 ff_vecs_t gpssim_vecs = {
   ff_type_file,
   { ff_cap_write, ff_cap_write, ff_cap_write },
-  NULL,
+  nullptr,
   gpssim_wr_init,
-  NULL,
+  nullptr,
   gpssim_wr_deinit,
-  NULL,
+  nullptr,
   gpssim_write,
-  NULL,
+  nullptr,
   gpssim_args,
   CET_CHARSET_ASCII, 0
+  , NULL_POS_OPS,
+  nullptr
 };

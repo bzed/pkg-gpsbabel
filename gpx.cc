@@ -19,33 +19,52 @@
 
  */
 
+#include <cmath>                                   // for lround
+#include <cstdio>                                  // for sscanf
+#include <cstdlib>                                 // for atoi, strtod
+#include <cstring>                                 // for strchr, strncpy
+
+#include <QtCore/QDate>                            // for QDate
+#include <QtCore/QDateTime>                        // for QDateTime
+#include <QtCore/QHash>                            // for QHash
+#include <QtCore/QIODevice>                        // for QIODevice, operator|, QIODevice::ReadOnly, QIODevice::Text, QIODevice::WriteOnly
+#include <QtCore/QLatin1String>                    // for QLatin1String
+#include <QtCore/QStaticStringData>                // for QStaticStringData
+#include <QtCore/QString>                          // for QString, QStringLiteral, operator+, operator==
+#include <QtCore/QStringList>                      // for QStringList
+#include <QtCore/QStringRef>                       // for QStringRef
+#include <QtCore/QTime>                            // for QTime
+#include <QtCore/QVector>                          // for QVector
+#include <QtCore/QXmlStreamAttribute>              // for QXmlStreamAttribute
+#include <QtCore/QXmlStreamAttributes>             // for QXmlStreamAttributes
+#include <QtCore/QXmlStreamNamespaceDeclaration>   // for QXmlStreamNamespaceDeclaration
+#include <QtCore/QXmlStreamNamespaceDeclarations>  // for QXmlStreamNamespaceDeclarations
+#include <QtCore/QXmlStreamReader>                 // for QXmlStreamReader, QXmlStreamReader::Characters, QXmlStreamReader::EndDocument, QXmlStreamReader::EndElement, QXmlStreamReader::Invalid, QXmlStreamReader::StartElement
+#include <QtCore/Qt>                               // for CaseInsensitive, UTC
+#include <QtCore/QtGlobal>                         // for qAsConst, QAddConst<>::Type
+
 #include "defs.h"
-#include "cet_util.h"
 #include "garmin_fs.h"
 #include "garmin_tables.h"
-#include "src/core/logging.h"
+#include "src/core/datetime.h"
 #include "src/core/file.h"
+#include "src/core/logging.h"
 #include "src/core/xmlstreamwriter.h"
 #include "src/core/xmltag.h"
-
-#include <QtCore/QXmlStreamReader>
-#include <QtCore/QRegExp>
-#include <QtCore/QDateTime>
-#include <QtCore/QDebug>
-
-#include <math.h>
 
 
 static QXmlStreamReader* reader;
 static xml_tag* cur_tag;
 static QString cdatastr;
-static char* opt_logpoint = NULL;
-static char* opt_humminbirdext = NULL;
-static char* opt_garminext = NULL;
+static char* opt_logpoint = nullptr;
+static char* opt_humminbirdext = nullptr;
+static char* opt_garminext = nullptr;
+static char* opt_elevation_precision = nullptr;
 static int logpoint_ct = 0;
+static int elevation_precision;
 
 // static char* gpx_version = NULL;
-QString gpx_version;
+static QString gpx_version;
 static char* gpx_wversion;
 static int gpx_wversion_num;
 static QXmlStreamAttributes gpx_namespace_attribute;
@@ -54,7 +73,8 @@ static QString current_tag;
 
 static Waypoint* wpt_tmp;
 static UrlLink* link_;
-static int cache_descr_is_html;
+static UrlLink* rh_link_;
+static bool cache_descr_is_html;
 static gpsbabel::File* iqfile;
 static gpsbabel::File* oqfile;
 static gpsbabel::XmlStreamWriter* writer;
@@ -64,9 +84,9 @@ static QString link_text;
 static QString link_type;
 
 
-static char* snlen = NULL;
-static char* suppresswhite = NULL;
-static char* urlbase = NULL;
+static char* snlen = nullptr;
+static char* suppresswhite = nullptr;
+static char* urlbase = nullptr;
 static route_head* trk_head;
 static route_head* rte_head;
 static const route_head* current_trk_head;		// Output.
@@ -100,6 +120,9 @@ typedef enum  {
   tt_url,
   tt_urlname,
   tt_keywords,
+  tt_link,
+  tt_link_text,
+  tt_link_type,
 
   tt_wpt,
   tt_wpttype_ele,
@@ -156,6 +179,11 @@ typedef enum  {
   tt_rte_name,
   tt_rte_desc,
   tt_rte_cmt,
+  tt_rte_url,		/* Not in GPX 1.1 */
+  tt_rte_urlname,	/* Not in GPX 1.1 */
+  tt_rte_link,		/* New in GPX 1.1 */
+  tt_rte_link_text,	/* New in GPX 1.1 */
+  tt_rte_link_type,	/* New in GPX 1.1 */
   tt_rte_number,
   tt_garmin_rte_display_color,
   tt_rte_rtept,
@@ -163,6 +191,11 @@ typedef enum  {
   tt_trk_desc,
   tt_trk_name,
   tt_trk_trkseg,
+  tt_trk_url,		/* Not in GPX 1.1 */
+  tt_trk_urlname,	/* Not in GPX 1.1 */
+  tt_trk_link,		/* New in GPX 1.1 */
+  tt_trk_link_text,	/* New in GPX 1.1 */
+  tt_trk_link_type,	/* New in GPX 1.1 */
   tt_trk_number,
   tt_garmin_trk_display_color,
   tt_trk_trkseg_trkpt,
@@ -176,54 +209,35 @@ typedef enum  {
   tt_humminbird_trk_trkseg_trkpt_depth,
 } tag_type;
 
-typedef struct {
-  struct queue queue;
-  char* tagdata;
-} gpx_global_entry;
-
 /*
  * The file-level information.
+ * This works for gpx 1.0, but does not handle all gpx 1.1 metadata.
+ * TODO: gpx 1.1 metadata elements author, copyright, extensions,
+ * all of which have more complicated content.
+ * Note that all gpx 1.0 "global data" has a maxOccurs limit of one,
+ * which is the default if maxOccurs is not in the xsd.
+ * The only gpx 1.1 metadata that has a maxOccurs limit > one is link.
+ * However, multiple gpx files may be read, and their global/metadata
+ * combined, by this implementation.
  */
-static
-struct gpx_global {
-  gpx_global_entry name;
-  gpx_global_entry desc;
-  gpx_global_entry author;
-  gpx_global_entry email;
-  gpx_global_entry url;
-  gpx_global_entry urlname;
-  gpx_global_entry keywords;
+struct GpxGlobal {
+  QStringList name;
+  QStringList desc;
+  QStringList author;
+  QStringList email;
+  QStringList url;
+  QStringList urlname;
+  QStringList keywords;
+  UrlList link;
   /* time and bounds aren't here; they're recomputed. */
-}* gpx_global ;
+};
+static GpxGlobal* gpx_global = nullptr;
 
 static void
-gpx_add_to_global(gpx_global_entry* ge, const QString& s)
+gpx_add_to_global(QStringList& ge, const QString& s)
 {
-  queue* elem, *tmp;
-  gpx_global_entry* gep;
-
-  QUEUE_FOR_EACH(&ge->queue, elem, tmp) {
-    gep = BASE_STRUCT(elem, gpx_global_entry, queue);
-    if (0 == s.compare(gep->tagdata)) {
-      return;
-    }
-  }
-
-  gep = (gpx_global_entry*) xcalloc(sizeof(*gep), 1);
-  QUEUE_INIT(&gep->queue);
-  gep->tagdata = xstrdup(s);
-  ENQUEUE_TAIL(&ge->queue, &gep->queue);
-}
-
-static void
-gpx_rm_from_global(gpx_global_entry* ge)
-{
-  queue* elem, *tmp;
-
-  QUEUE_FOR_EACH(&ge->queue, elem, tmp) {
-    gpx_global_entry* g = (gpx_global_entry*) dequeue(elem);
-    xfree(g->tagdata);
-    xfree(g);
+  if (!ge.contains(s)) {
+    ge.append(s);
   }
 }
 
@@ -246,9 +260,9 @@ static inline QString toString(float f)
  * this allows gpx:wpt names to overlap gpx:rtept names, etc.
  */
 static void
-gpx_reset_short_handle(void)
+gpx_reset_short_handle()
 {
-  if (mkshort_handle != NULL) {
+  if (mkshort_handle != nullptr) {
     mkshort_del_handle(&mkshort_handle);
   }
 
@@ -262,25 +276,25 @@ gpx_reset_short_handle(void)
 }
 
 static void
-gpx_write_gdata(gpx_global_entry* ge, const char* tag)
+gpx_write_gdata(const QStringList& ge, const QString& tag)
 {
-  queue* elem, *tmp;
-  gpx_global_entry* gep;
-
-  if (!gpx_global || QUEUE_EMPTY(&ge->queue)) {
-    return;
-  }
-  writer->writeStartElement(tag);
-  QUEUE_FOR_EACH(&ge->queue, elem, tmp) {
-    gep = BASE_STRUCT(elem, gpx_global_entry, queue);
-    writer->writeCharacters(gep->tagdata);
-    /* Some tags we just output once. */
-    if ((0 == strcmp(tag, "url")) ||
-        (0 == strcmp(tag, "email"))) {
-      break;
+  if (!ge.isEmpty()) {
+    writer->writeStartElement(tag);
+    // TODO: This seems questionable.
+    // We concatenate element content from multiple elements,
+    // possibly from muliple input files, into one element.
+    // This is necessary to comply with the schema as
+    // these elements have maxOccurs limits of 1.
+    for (const auto& str : ge) {
+      writer->writeCharacters(str);
+      /* Some tags we just output once. */
+      if ((tag == QLatin1String("url")) ||
+          (tag == QLatin1String("email"))) {
+        break;
+      }
     }
+    writer->writeEndElement();
   }
-  writer->writeEndElement();
 }
 
 
@@ -301,7 +315,7 @@ typedef struct tag_mapping {
   {type, 0, "/gpx/" name}, \
   {type, 0, "/gpx/metadata/" name}
 
-tag_mapping tag_path_map[] = {
+static tag_mapping tag_path_map[] = {
   { tt_gpx, 0, "/gpx" },
   METATAG(tt_name, "name"),
   METATAG(tt_desc, "desc"),
@@ -310,6 +324,9 @@ tag_mapping tag_path_map[] = {
   { tt_url, 0, "/gpx/url" },
   { tt_urlname, 0, "/gpx/urlname" },
   METATAG(tt_keywords, "keywords"),
+  { tt_link, 0, "/gpx/metadata/link" },
+  { tt_link_text, 0, "/gpx/metadata/link/text" },
+  { tt_link_type, 0, "/gpx/metadata/link/type" },
 
   { tt_wpt, 0, "/gpx/wpt" },
 
@@ -374,6 +391,11 @@ tag_mapping tag_path_map[] = {
   { tt_rte, 0, "/gpx/rte" },
   { tt_rte_name, 0, "/gpx/rte/name" },
   { tt_rte_desc, 0, "/gpx/rte/desc" },
+  { tt_rte_url, 0, "/gpx/rte/url"},				/* GPX 1.0 */
+  { tt_rte_urlname, 0, "/gpx/rte/urlname"},		/* GPX 1.0 */
+  { tt_rte_link, 0, "/gpx/rte/link"},			/* GPX 1.1 */
+  { tt_rte_link_text, 0, "/gpx/rte/link/text"},	/* GPX 1.1 */
+  { tt_rte_link_type, 0, "/gpx/rte/link/type"},	/* GPX 1.1 */
   { tt_rte_number, 0, "/gpx/rte/number" },
   { tt_garmin_rte_display_color, 1, GARMIN_RTE_EXT "/gpxx:DisplayColor"},
 
@@ -383,6 +405,11 @@ tag_mapping tag_path_map[] = {
   { tt_trk_name, 0, "/gpx/trk/name" },
   { tt_trk_desc, 0, "/gpx/trk/desc" },
   { tt_trk_trkseg, 0, "/gpx/trk/trkseg" },
+  { tt_trk_url, 0, "/gpx/trk/url"},				/* GPX 1.0 */
+  { tt_trk_urlname, 0, "/gpx/trk/urlname"},		/* GPX 1.0 */
+  { tt_trk_link, 0, "/gpx/trk/link"},			/* GPX 1.1 */
+  { tt_trk_link_text, 0, "/gpx/trk/link/text"},	/* GPX 1.1 */
+  { tt_trk_link_type, 0, "/gpx/trk/link/type"},	/* GPX 1.1 */
   { tt_trk_number, 0, "/gpx/trk/number" },
   { tt_garmin_trk_display_color, 1, GARMIN_TRK_EXT "/gpxx:DisplayColor"},
 
@@ -417,11 +444,11 @@ tag_mapping tag_path_map[] = {
   GPXWPTTYPETAG(tt_wpttype_vdop, 0, "vdop"),
   GPXWPTTYPETAG(tt_wpttype_pdop, 0, "pdop"),
 
-  {(tag_type)0, 0, NULL}
+  {(tag_type)0, 0, nullptr}
 };
 
 // Maintain a fast mapping from full tag names to the struct above.
-QHash<QString, tag_mapping*> hash;
+static QHash<QString, tag_mapping*> hash;
 
 static tag_type
 get_tag(const QString& t, int* passthrough)
@@ -436,10 +463,9 @@ get_tag(const QString& t, int* passthrough)
 }
 
 static void
-prescan_tags(void)
+prescan_tags()
 {
-  tag_mapping* tm;
-  for (tm = tag_path_map; tm->tag_type_ != 0; tm++) {
+  for (tag_mapping* tm = tag_path_map; tm->tag_type_ != 0; tm++) {
     hash[tm->tag_name] = tm;
   }
 }
@@ -461,9 +487,9 @@ tag_gpx(const QXmlStreamAttributes& attr)
    * that use them to the writer.
    */
   const QXmlStreamNamespaceDeclarations ns = reader->namespaceDeclarations();
-  for (int i = 0; i < ns.size(); ++i) {
-    QString prefix = ns[i].prefix().toString();
-    QString namespaceUri = ns[i].namespaceUri().toString();
+  for (const auto& n : ns) {
+    QString prefix = n.prefix().toString();
+    QString namespaceUri = n.namespaceUri().toString();
     /* don't toss any xsi declaration, it might used for tt_unknown or passthrough. */
     if (!prefix.isEmpty()) {
       if (! gpx_namespace_attribute.hasAttribute(prefix.prepend("xmlns:"))) {
@@ -479,7 +505,7 @@ tag_wpt(const QXmlStreamAttributes& attr)
   wpt_tmp = new Waypoint;
   link_ = new UrlLink;
 
-  cur_tag = NULL;
+  cur_tag = nullptr;
   if (attr.hasAttribute("lat")) {
     wpt_tmp->latitude = attr.value("lat").toString().toDouble();
   }
@@ -492,10 +518,10 @@ tag_wpt(const QXmlStreamAttributes& attr)
 static void
 tag_cache_desc(const QXmlStreamAttributes& attr)
 {
-  cache_descr_is_html = 0;
+  cache_descr_is_html = false;
   if (attr.hasAttribute("html")) {
-    if (attr.value("html").toString().compare("True") == 0) {
-      cache_descr_is_html = 1;
+    if (attr.value("html").compare(QLatin1String("True")) == 0) {
+      cache_descr_is_html = true;
     }
   }
 }
@@ -509,41 +535,36 @@ tag_gs_cache(const QXmlStreamAttributes& attr)
     gc_data->id = attr.value("id").toString().toInt();
   }
   if (attr.hasAttribute("available")) {
-    if (attr.value("available").toString().compare("True", Qt::CaseInsensitive) == 0) {
+    if (attr.value("available").compare(QLatin1String("True"), Qt::CaseInsensitive) == 0) {
       gc_data->is_available = status_true;
-    } else if (attr.value("available").toString().compare("False", Qt::CaseInsensitive) == 0) {
+    } else if (attr.value("available").compare(QLatin1String("False"), Qt::CaseInsensitive) == 0) {
       gc_data->is_available = status_false;
     }
   }
   if (attr.hasAttribute("archived")) {
-    if (attr.value("archived").toString().compare("True", Qt::CaseInsensitive) == 0) {
+    if (attr.value("archived").compare(QLatin1String("True"), Qt::CaseInsensitive) == 0) {
       gc_data->is_archived = status_true;
-    } else if (attr.value("archived").toString().compare("False", Qt::CaseInsensitive) == 0) {
+    } else if (attr.value("archived").compare(QLatin1String("False"), Qt::CaseInsensitive) == 0) {
       gc_data->is_archived = status_false;
     }
   }
 }
 
 static void
-start_something_else(const QString el, const QXmlStreamAttributes& attr)
+start_something_else(const QString& el, const QXmlStreamAttributes& attr)
 {
-  char** avcp;
-  int attr_count;
-  xml_tag* new_tag;
-  fs_xml* fs_gpx;
-
   if (!fs_ptr) {
     return;
   }
 
-  new_tag = new xml_tag;
+  xml_tag* new_tag = new xml_tag;
   new_tag->tagname = el;
 
-  attr_count = attr.size();
+  int attr_count = attr.size();
   const QXmlStreamNamespaceDeclarations nsdecl = reader->namespaceDeclarations();
   const int ns_count = nsdecl.size();
   new_tag->attributes = (char**)xcalloc(sizeof(char*),2*(attr_count+ns_count)+1);
-  avcp = new_tag->attributes;
+  char** avcp = new_tag->attributes;
   for (int i = 0; i < attr_count; i++)  {
     *avcp = xstrdup(attr[i].qualifiedName().toString());
     avcp++;
@@ -557,7 +578,7 @@ start_something_else(const QString el, const QXmlStreamAttributes& attr)
     avcp++;
   }
 
-  *avcp = NULL; // this indicates the end of the attribute name value pairs.
+  *avcp = nullptr; // this indicates the end of the attribute name value pairs.
 
   if (cur_tag) {
     if (cur_tag->child) {
@@ -572,7 +593,7 @@ start_something_else(const QString el, const QXmlStreamAttributes& attr)
       new_tag->parent = cur_tag;
     }
   } else {
-    fs_gpx = (fs_xml*)fs_chain_find(*fs_ptr, FS_GPX);
+    fs_xml* fs_gpx = (fs_xml*)fs_chain_find(*fs_ptr, FS_GPX);
 
     if (fs_gpx && fs_gpx->tag) {
       cur_tag = fs_gpx->tag;
@@ -580,12 +601,12 @@ start_something_else(const QString el, const QXmlStreamAttributes& attr)
         cur_tag = cur_tag->sibling;
       }
       cur_tag->sibling = new_tag;
-      new_tag->parent = NULL;
+      new_tag->parent = nullptr;
     } else {
       fs_gpx = fs_xml_alloc(FS_GPX);
       fs_gpx->tag = new_tag;
       fs_chain_add(fs_ptr, (format_specific_data*)fs_gpx);
-      new_tag->parent = NULL;
+      new_tag->parent = nullptr;
     }
   }
   cur_tag = new_tag;
@@ -638,17 +659,21 @@ static void
 gpx_start(const QString& el, const QXmlStreamAttributes& attr)
 {
   int passthrough;
-  int tag;
 
   /*
    * Reset end-of-string without actually emptying/reallocing cdatastr.
    */
   cdatastr = QString();
 
-  tag = get_tag(current_tag, &passthrough);
+  int tag = get_tag(current_tag, &passthrough);
   switch (tag) {
   case tt_gpx:
     tag_gpx(attr);
+    break;
+  case tt_link:
+    if (attr.hasAttribute("href")) {
+      link_url = attr.value("href").toString();
+    }
     break;
   case tt_wpt:
     tag_wpt(attr);
@@ -661,6 +686,7 @@ gpx_start(const QString& el, const QXmlStreamAttributes& attr)
   case tt_rte:
     rte_head = route_head_alloc();
     route_add_head(rte_head);
+    rh_link_ = new UrlLink;
     fs_ptr = &rte_head->fs;
     break;
   case tt_rte_rtept:
@@ -669,6 +695,7 @@ gpx_start(const QString& el, const QXmlStreamAttributes& attr)
   case tt_trk:
     trk_head = route_head_alloc();
     track_add_head(trk_head);
+    rh_link_ = new UrlLink;
     fs_ptr = &trk_head->fs;
     break;
   case tt_trk_trkseg_trkpt:
@@ -676,6 +703,12 @@ gpx_start(const QString& el, const QXmlStreamAttributes& attr)
     if (next_trkpt_is_new_seg) {
       wpt_tmp->wpt_flags.new_trkseg = 1;
       next_trkpt_is_new_seg = 0;
+    }
+    break;
+  case tt_rte_link:
+  case tt_trk_link:
+    if (attr.hasAttribute("href")) {
+      link_url = attr.value("href").toString();
     }
     break;
   case tt_unknown:
@@ -706,7 +739,7 @@ gpx_start(const QString& el, const QXmlStreamAttributes& attr)
 }
 
 struct
-    gs_type_mapping {
+  gs_type_mapping {
   geocache_type type;
   const char* name;
 } gs_type_map[] = {
@@ -734,7 +767,7 @@ struct
 };
 
 struct
-    gs_container_mapping {
+  gs_container_mapping {
   geocache_container type;
   const char* name;
 } gs_container_map[] = {
@@ -750,10 +783,9 @@ struct
 geocache_type
 gs_mktype(const QString& t)
 {
-  int i;
   int sz = sizeof(gs_type_map) / sizeof(gs_type_map[0]);
 
-  for (i = 0; i < sz; i++) {
+  for (int i = 0; i < sz; i++) {
     if (!t.compare(gs_type_map[i].name,Qt::CaseInsensitive)) {
       return gs_type_map[i].type;
     }
@@ -764,10 +796,9 @@ gs_mktype(const QString& t)
 const char*
 gs_get_cachetype(geocache_type t)
 {
-  int i;
   int sz = sizeof(gs_type_map) / sizeof(gs_type_map[0]);
 
-  for (i = 0; i < sz; i++) {
+  for (int i = 0; i < sz; i++) {
     if (t == gs_type_map[i].type) {
       return gs_type_map[i].name;
     }
@@ -778,10 +809,9 @@ gs_get_cachetype(geocache_type t)
 geocache_container
 gs_mkcont(const QString& t)
 {
-  int i;
   int sz = sizeof(gs_container_map) / sizeof(gs_container_map[0]);
 
-  for (i = 0; i < sz; i++) {
+  for (int i = 0; i < sz; i++) {
     if (!t.compare(gs_container_map[i].name,Qt::CaseInsensitive)) {
       return gs_container_map[i].type;
     }
@@ -792,10 +822,9 @@ gs_mkcont(const QString& t)
 const char*
 gs_get_container(geocache_container t)
 {
-  int i;
   int sz = sizeof(gs_container_map) / sizeof(gs_container_map[0]);
 
-  for (i = 0; i < sz; i++) {
+  for (int i = 0; i < sz; i++) {
     if (t == gs_container_map[i].type) {
       return gs_container_map[i].name;
     }
@@ -809,11 +838,9 @@ xml_parse_time(const QString& dateTimeString)
   int off_hr = 0;
   int off_min = 0;
   int off_sign = 1;
-  char* offsetstr = NULL;
-  char* pointstr = NULL;
   char* timestr = xstrdup(dateTimeString);
 
-  offsetstr = strchr(timestr, 'Z');
+  char* offsetstr = strchr(timestr, 'Z');
   if (offsetstr) {
     /* zulu time; offsets stay at defaults */
     *offsetstr = '\0';
@@ -838,7 +865,7 @@ xml_parse_time(const QString& dateTimeString)
   }
 
   double fsec = 0;
-  pointstr = strchr(timestr, '.');
+  char* pointstr = strchr(timestr, '.');
   if (pointstr) {
     sscanf(pointstr, "%le", &fsec);
 #if 0
@@ -874,59 +901,70 @@ xml_parse_time(const QString& dateTimeString)
 }
 
 static void
-gpx_end(const QString& el)
+gpx_end(const QString&)
 {
   float x;
   int passthrough;
   static QDateTime gc_log_date;
-  tag_type tag;
 
   // Remove leading, trailing whitespace.
   cdatastr = cdatastr.trimmed();
 
-  tag = get_tag(current_tag, &passthrough);
+  tag_type tag = get_tag(current_tag, &passthrough);
 
   switch (tag) {
-    /*
-     * First, the tags that are file-global.
-     */
+  /*
+   * First, the tags that are file-global.
+   */
   case tt_name:
-    gpx_add_to_global(&gpx_global->name, cdatastr);
+    gpx_add_to_global(gpx_global->name, cdatastr);
     break;
   case tt_desc:
-    gpx_add_to_global(&gpx_global->desc, cdatastr);
+    gpx_add_to_global(gpx_global->desc, cdatastr);
     break;
   case tt_author:
-    gpx_add_to_global(&gpx_global->author, cdatastr);
+    gpx_add_to_global(gpx_global->author, cdatastr);
     break;
   case tt_email:
-    gpx_add_to_global(&gpx_global->email, cdatastr);
+    gpx_add_to_global(gpx_global->email, cdatastr);
     break;
   case tt_url:
-    gpx_add_to_global(&gpx_global->url, cdatastr);
+    gpx_add_to_global(gpx_global->url, cdatastr);
     break;
   case tt_urlname:
-    gpx_add_to_global(&gpx_global->urlname, cdatastr);
+    gpx_add_to_global(gpx_global->urlname, cdatastr);
     break;
   case tt_keywords:
-    gpx_add_to_global(&gpx_global->keywords, cdatastr);
+    gpx_add_to_global(gpx_global->keywords, cdatastr);
+    break;
+  case tt_link:
+    (gpx_global->link).AddUrlLink(UrlLink(link_url, link_text, link_type));
+    link_type.clear();
+    link_text.clear();
+    link_url.clear();
+    break;
+  case tt_link_text:
+    link_text = cdatastr;
+    break;
+  case tt_link_type:
+    link_type = cdatastr;
     break;
 
-    /*
-     * Waypoint-specific tags.
-     */
+  /*
+   * Waypoint-specific tags.
+   */
   case tt_wpt:
     if (link_) {
       if (!link_->url_.isEmpty()) {
         wpt_tmp->AddUrlLink(*link_);
       }
       delete link_;
-      link_ = NULL;
+      link_ = nullptr;
     }
     waypt_add(wpt_tmp);
     logpoint_ct = 0;
-    cur_tag = NULL;
-    wpt_tmp = NULL;
+    cur_tag = nullptr;
+    wpt_tmp = nullptr;
     break;
   case tt_cache_name:
     wpt_tmp->notes = cdatastr;
@@ -966,13 +1004,13 @@ gpx_end(const QString& el)
   case tt_cache_log_date:
     gc_log_date = xml_parse_time(cdatastr);
     break;
-    /*
-     * "Found it" logs follow the date according to the schema,
-     * if this is the first "found it" for this waypt, just use the
-     * last date we saw in this log.
-     */
+  /*
+   * "Found it" logs follow the date according to the schema,
+   * if this is the first "found it" for this waypt, just use the
+   * last date we saw in this log.
+   */
   case tt_cache_log_type:
-    if ((cdatastr.compare("Found it") == 0) &&
+    if ((cdatastr.compare(QLatin1String("Found it")) == 0) &&
         (0 == wpt_tmp->gc_data->last_found.toTime_t())) {
       wpt_tmp->AllocGCData()->last_found = gc_log_date;
     }
@@ -985,9 +1023,9 @@ gpx_end(const QString& el)
     wpt_tmp->AllocGCData()->personal_note  = cdatastr;
     break;
 
-    /*
-     * Garmin-waypoint-specific tags.
-     */
+  /*
+   * Garmin-waypoint-specific tags.
+   */
   case tt_garmin_wpt_proximity:
   case tt_garmin_wpt_temperature:
   case tt_garmin_wpt_depth:
@@ -1002,20 +1040,27 @@ gpx_end(const QString& el)
     garmin_fs_xml_convert(tt_garmin_wpt_extensions, tag, cdatastr, wpt_tmp);
     break;
 
-    /*
-     * Humminbird-waypoint-specific tags.
-     */
+  /*
+   * Humminbird-waypoint-specific tags.
+   */
   case tt_humminbird_wpt_depth:
   case tt_humminbird_trk_trkseg_trkpt_depth:
     WAYPT_SET(wpt_tmp, depth, cdatastr.toDouble() / 100.0)
     break;
-    /*
-     * Route-specific tags.
-     */
+  /*
+   * Route-specific tags.
+   */
   case tt_rte_name:
     rte_head->rte_name = cdatastr;
     break;
   case tt_rte:
+    if (rh_link_) {
+      if (!rh_link_->url_.isEmpty()) {
+        rte_head->rte_urls.AddUrlLink(*rh_link_);
+      }
+      delete rh_link_;
+      rh_link_ = nullptr;
+    }
     break;
   case tt_rte_rtept:
     if (link_) {
@@ -1023,10 +1068,10 @@ gpx_end(const QString& el)
         wpt_tmp->AddUrlLink(*link_);
       }
       delete link_;
-      link_ = NULL;
+      link_ = nullptr;
     }
     route_add_wpt(rte_head, wpt_tmp);
-    wpt_tmp = NULL;
+    wpt_tmp = nullptr;
     break;
   case tt_rte_desc:
     rte_head->rte_desc = cdatastr;
@@ -1034,16 +1079,29 @@ gpx_end(const QString& el)
   case tt_garmin_rte_display_color:
     rte_head->line_color.bbggrr = gt_color_value_by_name(cdatastr);
     break;
+  case tt_rte_link:
+    rte_head->rte_urls.AddUrlLink(UrlLink(link_url, link_text, link_type));
+    link_type.clear();
+    link_text.clear();
+    link_url.clear();
+    break;
   case tt_rte_number:
     rte_head->rte_num = cdatastr.toInt();
     break;
-    /*
-     * Track-specific tags.
-     */
+  /*
+   * Track-specific tags.
+   */
   case tt_trk_name:
     trk_head->rte_name = cdatastr;
     break;
   case tt_trk:
+    if (rh_link_) {
+      if (!rh_link_->url_.isEmpty()) {
+        trk_head->rte_urls.AddUrlLink(*rh_link_);
+      }
+      delete rh_link_;
+      rh_link_ = nullptr;
+    }
     break;
   case tt_trk_trkseg:
     next_trkpt_is_new_seg = 1;
@@ -1054,16 +1112,22 @@ gpx_end(const QString& el)
         wpt_tmp->AddUrlLink(*link_);
       }
       delete link_;
-      link_ = NULL;
+      link_ = nullptr;
     }
     track_add_wpt(trk_head, wpt_tmp);
-    wpt_tmp = NULL;
+    wpt_tmp = nullptr;
     break;
   case tt_trk_desc:
     trk_head->rte_desc = cdatastr;
     break;
   case tt_garmin_trk_display_color:
     trk_head->line_color.bbggrr = gt_color_value_by_name(cdatastr);
+    break;
+  case tt_trk_link:
+    trk_head->rte_urls.AddUrlLink(UrlLink(link_url, link_text, link_type));
+    link_type.clear();
+    link_text.clear();
+    link_url.clear();
     break;
   case tt_trk_number:
     trk_head->rte_num = cdatastr.toInt();
@@ -1081,9 +1145,25 @@ gpx_end(const QString& el)
     wpt_tmp->cadence = cdatastr.toDouble();
     break;
 
-    /*
-     * Items that are actually in multiple categories.
-     */
+  /*
+   * Items that are actually in multiple categories.
+   */
+  case tt_rte_url:
+  case tt_trk_url:
+    rh_link_->url_ = cdatastr;
+    break;
+  case tt_rte_urlname:
+  case tt_trk_urlname:
+    rh_link_->url_link_text_ = cdatastr;
+    break;
+  case tt_rte_link_text:
+  case tt_trk_link_text:
+    link_text = cdatastr;
+    break;
+  case tt_rte_link_type:
+  case tt_trk_link_type:
+    link_type = cdatastr;
+    break;
   case tt_wpttype_ele:
     wpt_tmp->altitude = cdatastr.toDouble();
     break;
@@ -1140,9 +1220,9 @@ gpx_end(const QString& el)
     break;
   case tt_wpttype_link:
     waypt_add_url(wpt_tmp, link_url, link_text, link_type);
-    link_type = QString();
-    link_text = QString();
-    link_url = QString();
+    link_type.clear();
+    link_text.clear();
+    link_url.clear();
     break;
   case tt_wpttype_link_text:
     link_text = cdatastr;
@@ -1168,7 +1248,6 @@ static void
 gpx_cdata(const QString& s)
 {
   QString* cdata;
-  xml_tag* tmp_tag;
   cdatastr += s;
 
   if (!cur_tag) {
@@ -1176,7 +1255,7 @@ gpx_cdata(const QString& s)
   }
 
   if (cur_tag->child) {
-    tmp_tag = cur_tag->child;
+    xml_tag* tmp_tag = cur_tag->child;
     while (tmp_tag->sibling) {
       tmp_tag = tmp_tag->sibling;
     }
@@ -1200,37 +1279,30 @@ gpx_rd_init(const QString& fname)
 
   cdatastr = QString();
 
-  if (NULL == gpx_global) {
-    gpx_global = (struct gpx_global*) xcalloc(sizeof(*gpx_global), 1);
-    QUEUE_INIT(&gpx_global->name.queue);
-    QUEUE_INIT(&gpx_global->desc.queue);
-    QUEUE_INIT(&gpx_global->author.queue);
-    QUEUE_INIT(&gpx_global->email.queue);
-    QUEUE_INIT(&gpx_global->url.queue);
-    QUEUE_INIT(&gpx_global->urlname.queue);
-    QUEUE_INIT(&gpx_global->keywords.queue);
+  if (nullptr == gpx_global) {
+    gpx_global = new GpxGlobal;
   }
 
-  fs_ptr = NULL;
+  fs_ptr = nullptr;
 }
 
 static
 void
-gpx_rd_deinit(void)
+gpx_rd_deinit()
 {
   delete reader;
-  reader = NULL;
+  reader = nullptr;
   iqfile->close();
   delete iqfile;
-  iqfile = NULL;
-  wpt_tmp = NULL;
-  cur_tag = NULL;
+  iqfile = nullptr;
+  wpt_tmp = nullptr;
+  cur_tag = nullptr;
 }
 
 static void
 gpx_wr_init(const QString& fname)
 {
-  mkshort_handle = NULL;
+  mkshort_handle = nullptr;
   oqfile = new gpsbabel::File(fname);
   oqfile->open(QIODevice::WriteOnly | QIODevice::Text);
 
@@ -1238,9 +1310,9 @@ gpx_wr_init(const QString& fname)
   writer->setAutoFormattingIndent(2);
   writer->writeStartDocument();
 
-   /* if an output version is not specified and an input version is
-   * available use it, otherwise use the default.
-   */
+  /* if an output version is not specified and an input version is
+  * available use it, otherwise use the default.
+  */
 
   if (!gpx_wversion) {
     if (gpx_version.isEmpty()) {
@@ -1261,7 +1333,7 @@ gpx_wr_init(const QString& fname)
     gpx_wversion = (char*)"1.1";
   }
 
-  gpx_wversion_num = strtod(gpx_wversion, NULL) * 10;
+  gpx_wversion_num = strtod(gpx_wversion, nullptr) * 10;
 
   if (gpx_wversion_num <= 0) {
     Fatal() << MYNAME << ": gpx version number of "
@@ -1272,57 +1344,72 @@ gpx_wr_init(const QString& fname)
   // to include just enough whitespace between <xml/> and <gpx...> to pass
   // diff -w.  It's here for now to shim compatibility with our zillion
   // reference files, but this blank link can go away some day.
-  writer->writeCharacters("\n");
+  writer->writeCharacters(QStringLiteral("\n"));
 
   writer->setAutoFormatting(true);
-  writer->writeStartElement("gpx");
-  writer->writeAttribute("version", gpx_wversion);
-  writer->writeAttribute("creator", CREATOR_NAME_URL);
-  writer->writeAttribute("xmlns", QString("http://www.topografix.com/GPX/%1/%2").arg(gpx_wversion[0]).arg(gpx_wversion[2]));
+  writer->writeStartElement(QStringLiteral("gpx"));
+  writer->writeAttribute(QStringLiteral("version"), gpx_wversion);
+  writer->writeAttribute(QStringLiteral("creator"), CREATOR_NAME_URL);
+  writer->writeAttribute(QStringLiteral("xmlns"), QStringLiteral("http://www.topografix.com/GPX/%1/%2").arg(gpx_wversion[0]).arg(gpx_wversion[2]));
   if (opt_humminbirdext || opt_garminext) {
     if (opt_humminbirdext) {
-      writer->writeAttribute("xmlns:h","http://humminbird.com");
+      writer->writeAttribute(QStringLiteral("xmlns:h"), QStringLiteral("http://humminbird.com"));
     }
     if (opt_garminext) {
-      writer->writeAttribute("xmlns:gpxx", "http://www.garmin.com/xmlschemas/GpxExtensions/v3");
-      writer->writeAttribute("xmlns:gpxtpx", "http://www.garmin.com/xmlschemas/TrackPointExtension/v1");
+      writer->writeAttribute(QStringLiteral("xmlns:gpxx"), QStringLiteral("http://www.garmin.com/xmlschemas/GpxExtensions/v3"));
+      writer->writeAttribute(QStringLiteral("xmlns:gpxtpx"), QStringLiteral("http://www.garmin.com/xmlschemas/TrackPointExtension/v1"));
     }
   } else {
     writer->writeAttributes(gpx_namespace_attribute);
   }
 
   if (gpx_wversion_num > 10) {
-    writer->writeStartElement("metadata");
+    writer->writeStartElement(QStringLiteral("metadata"));
   }
   if (gpx_global) {
-    gpx_write_gdata(&gpx_global->name, "name");
-    gpx_write_gdata(&gpx_global->desc, "desc");
+    gpx_write_gdata(gpx_global->name, "name");
+    gpx_write_gdata(gpx_global->desc, "desc");
   }
   /* In GPX 1.1, author changed from a string to a PersonType.
    * since it's optional, we just drop it instead of rewriting it.
    */
   if (gpx_wversion_num < 11) {
     if (gpx_global) {
-      gpx_write_gdata(&gpx_global->author, "author");
+      gpx_write_gdata(gpx_global->author, "author");
     }
-  }
+  } // else {
+  // TODO: gpx 1.1 author goes here.
+  //}
   /* In GPX 1.1 email, url, urlname aren't allowed. */
   if (gpx_wversion_num < 11) {
     if (gpx_global) {
-      gpx_write_gdata(&gpx_global->email, "email");
-      gpx_write_gdata(&gpx_global->url, "url");
-      gpx_write_gdata(&gpx_global->urlname, "urlname");
+      gpx_write_gdata(gpx_global->email, "email");
+      gpx_write_gdata(gpx_global->url, "url");
+      gpx_write_gdata(gpx_global->urlname, "urlname");
+    }
+  } else {
+    if (gpx_global) {
+      // TODO: gpx 1.1 copyright goes here
+      for (const auto& l : qAsConst(gpx_global->link)) {
+        writer->writeStartElement(QStringLiteral("link"));
+        writer->writeAttribute(QStringLiteral("href"), l.url_);
+        writer->writeOptionalTextElement(QStringLiteral("text"), l.url_link_text_);
+        writer->writeOptionalTextElement(QStringLiteral("type"), l.url_link_type_);
+        writer->writeEndElement();
+      }
     }
   }
 
   gpsbabel::DateTime now = current_time();
-  writer->writeTextElement("time", now.toPrettyString());
+  writer->writeTextElement(QStringLiteral("time"), now.toPrettyString());
 
   if (gpx_global) {
-    gpx_write_gdata(&gpx_global->keywords, "keywords");
+    gpx_write_gdata(gpx_global->keywords, "keywords");
   }
 
   gpx_write_bounds();
+
+  // TODO: gpx 1.1 extensions go here.
 
   if (gpx_wversion_num > 10) {
     writer->writeEndElement();
@@ -1331,20 +1418,20 @@ gpx_wr_init(const QString& fname)
 }
 
 static void
-gpx_wr_deinit(void)
+gpx_wr_deinit()
 {
   writer->writeEndDocument();
   delete writer;
-  writer = NULL;
+  writer = nullptr;
   oqfile->close();
   delete oqfile;
-  oqfile = NULL;
+  oqfile = nullptr;
 
   mkshort_del_handle(&mkshort_handle);
 }
 
-void
-gpx_read(void)
+static void
+gpx_read()
 {
   for (bool atEnd = false; !reader->atEnd() && !atEnd;)  {
     reader->readNext();
@@ -1373,6 +1460,24 @@ gpx_read(void)
       gpx_cdata(reader->text().toString());
       break;
 
+//  On windows with input redirection we can read an Invalid token
+//  after the EndDocument token.  This also will set an error
+//  "Premature end of document." that we will fatal on below.
+//  This occurs with Qt 5.9.2 on windows when the file being
+//  sent to stdin has dos line endings.
+//  This does NOT occur with Qt 5.9.2 on windows when the file being
+//  sent to stdin has unix line endings.
+//  This does NOT occur with Qt 5.9.2 on windows with either line
+//  endings if the file is read directly, i.e. not sent through stdin.
+//  An example of a problematic file is reference/basecamp.gpx,
+//  which fails on windows with this invocation from a command prompt:
+//  .\GPSBabel.exe -i gpx -f - < reference\basecamp.gpx
+//  This was demonstrated on 64 bit windows 10.  Other versions of
+//  windows and Qt likely fail as well.
+//  To avoid this we quit reading when we see the EndDocument.
+//  This does not prevent us from correctly detecting the error
+//  "Extra content at end of document."
+    case QXmlStreamReader::EndDocument:
     case QXmlStreamReader::Invalid:
       atEnd = true;
       break;
@@ -1393,8 +1498,7 @@ gpx_read(void)
 static void
 write_tag_attributes(xml_tag* tag)
 {
-  char** pa;
-  pa = tag->attributes;
+  char** pa = tag->attributes;
   if (pa) {
     while (*pa) {
       writer->writeAttribute(pa[0], pa[1]);
@@ -1423,8 +1527,8 @@ fprint_xml_chain(xml_tag* tag, const Waypoint* wpt)
         fprint_xml_chain(tag->child, wpt);
       }
       if (wpt && wpt->gc_data->exported.isValid() &&
-          tag->tagname.compare("groundspeak:cache") == 0) {
-        writer->writeTextElement("time",
+          tag->tagname.compare(QLatin1String("groundspeak:cache")) == 0) {
+        writer->writeTextElement(QStringLiteral("time"),
                                  wpt->gc_data->exported.toPrettyString());
       }
       writer->writeEndElement();
@@ -1440,15 +1544,12 @@ fprint_xml_chain(xml_tag* tag, const Waypoint* wpt)
 
 void free_gpx_extras(xml_tag* tag)
 {
-  xml_tag* next = NULL;
-  char** ap;
-
   while (tag) {
     if (tag->child) {
       free_gpx_extras(tag->child);
     }
     if (tag->attributes) {
-      ap = tag->attributes;
+      char** ap = tag->attributes;
 
       while (*ap) {
         xfree(*ap++);
@@ -1457,7 +1558,7 @@ void free_gpx_extras(xml_tag* tag)
       xfree(tag->attributes);
     }
 
-    next = tag->sibling;
+    xml_tag* next = tag->sibling;
     delete tag;
     tag = next;
   }
@@ -1467,25 +1568,41 @@ void free_gpx_extras(xml_tag* tag)
  * Handle the grossness of GPX 1.0 vs. 1.1 handling of linky links.
  */
 static void
+write_gpx_url(const UrlList& urls)
+{
+  if (gpx_wversion_num > 10) {
+    for (const auto& l : urls) {
+      if (!l.url_.isEmpty()) {
+        writer->writeStartElement(QStringLiteral("link"));
+        writer->writeAttribute(QStringLiteral("href"), l.url_);
+        writer->writeOptionalTextElement(QStringLiteral("text"), l.url_link_text_);
+        writer->writeOptionalTextElement(QStringLiteral("type"), l.url_link_type_);
+        writer->writeEndElement();
+      }
+    }
+  } else {
+    UrlLink l = urls.GetUrlLink();
+    if (!l.url_.isEmpty()) {
+      writer->writeTextElement(QStringLiteral("url"), QString(urlbase) + l.url_);
+      writer->writeOptionalTextElement(QStringLiteral("urlname"), l.url_link_text_);
+    }
+  }
+}
+
+static void
 write_gpx_url(const Waypoint* waypointp)
 {
-  if (!waypointp->HasUrlLink()) {
-    return;
+  if (waypointp->HasUrlLink()) {
+    write_gpx_url(waypointp->urls);
   }
+}
 
-  if (gpx_wversion_num > 10) {
-    foreach(UrlLink l, waypointp->GetUrlLinks()) {
-      writer->writeStartElement("link");
-      writer->writeAttribute("href", l.url_);
-      writer->writeOptionalTextElement("text", l.url_link_text_);
-      writer->writeOptionalTextElement("type", l.url_link_type_);
-      writer->writeEndElement();
-    }
-    return;
+static void
+write_gpx_url(const route_head* rh)
+{
+  if (rh->rte_urls.HasUrlLink()) {
+    write_gpx_url(rh->rte_urls);
   }
-  UrlLink l = waypointp->GetUrlLink();
-  writer->writeTextElement("url", QString(urlbase) + QString(l.url_));
-  writer->writeOptionalTextElement("urlname", QString(l.url_link_text_));
 }
 
 /*
@@ -1496,7 +1613,7 @@ write_gpx_url(const Waypoint* waypointp)
 static void
 gpx_write_common_acc(const Waypoint* waypointp)
 {
-  const char* fix = NULL;
+  const char* fix = nullptr;
 
   switch (waypointp->fix) {
   case fix_2d:
@@ -1514,26 +1631,26 @@ gpx_write_common_acc(const Waypoint* waypointp)
   case fix_none:
     fix = "none";
     break;
-    /* GPX spec says omit if we don't know. */
+  /* GPX spec says omit if we don't know. */
   case fix_unknown:
   default:
     break;
   }
 
   if (fix) {
-    writer->writeTextElement("fix", fix);
+    writer->writeTextElement(QStringLiteral("fix"), fix);
   }
   if (waypointp->sat > 0) {
-    writer->writeTextElement("sat", QString::number(waypointp->sat));
+    writer->writeTextElement(QStringLiteral("sat"), QString::number(waypointp->sat));
   }
   if (waypointp->hdop) {
-    writer->writeTextElement("hdop", toString(waypointp->hdop));
+    writer->writeTextElement(QStringLiteral("hdop"), toString(waypointp->hdop));
   }
   if (waypointp->vdop) {
-    writer->writeTextElement("vdop", toString(waypointp->vdop));
+    writer->writeTextElement(QStringLiteral("vdop"), toString(waypointp->vdop));
   }
   if (waypointp->pdop) {
-    writer->writeTextElement("pdop", toString(waypointp->pdop));
+    writer->writeTextElement(QStringLiteral("pdop"), toString(waypointp->pdop));
   }
   /* TODO: ageofdgpsdata should go here */
   /* TODO: dgpsid should go here */
@@ -1544,22 +1661,22 @@ static void
 gpx_write_common_position(const Waypoint* waypointp, const gpx_point_type point_type)
 {
   if (waypointp->altitude != unknown_alt) {
-    writer->writeTextElement("ele", QString::number(waypointp->altitude, 'f', 6));
+    writer->writeTextElement(QStringLiteral("ele"), QString::number(waypointp->altitude, 'f', elevation_precision));
   }
   QString t = waypointp->CreationTimeXML();
-  writer->writeOptionalTextElement("time", t);
+  writer->writeOptionalTextElement(QStringLiteral("time"), t);
   if (gpxpt_track==point_type && 10 == gpx_wversion_num) {
     /* These were accidentally removed from 1.1, and were only a part of trkpts in 1.0 */
     if WAYPT_HAS(waypointp, course) {
-      writer->writeTextElement("course", toString(waypointp->course));
+      writer->writeTextElement(QStringLiteral("course"), toString(waypointp->course));
     }
     if WAYPT_HAS(waypointp, speed) {
-      writer->writeTextElement("speed", toString(waypointp->speed));
+      writer->writeTextElement(QStringLiteral("speed"), toString(waypointp->speed));
     }
   }
   /* TODO:  magvar should go here */
   if (WAYPT_HAS(waypointp, geoidheight)) {
-    writer->writeOptionalTextElement("geoidheight",QString::number(waypointp->geoidheight, 'f', 1));
+    writer->writeOptionalTextElement(QStringLiteral("geoidheight"),QString::number(waypointp->geoidheight, 'f', 1));
   }
 }
 
@@ -1570,14 +1687,14 @@ gpx_write_common_extensions(const Waypoint* waypointp, const gpx_point_type poin
   if ((opt_humminbirdext && (WAYPT_HAS(waypointp, depth) || WAYPT_HAS(waypointp, temperature))) ||
       (opt_garminext && gpxpt_waypoint==point_type && (WAYPT_HAS(waypointp, proximity) || WAYPT_HAS(waypointp, temperature) || WAYPT_HAS(waypointp, depth))) ||
       (opt_garminext && gpxpt_track==point_type && (WAYPT_HAS(waypointp, temperature) || WAYPT_HAS(waypointp, depth) || waypointp->heartrate != 0 || waypointp->cadence != 0))) {
-    writer->writeStartElement("extensions");
+    writer->writeStartElement(QStringLiteral("extensions"));
 
     if (opt_humminbirdext) {
       if (WAYPT_HAS(waypointp, depth)) {
-        writer->writeTextElement("h:depth", toString(waypointp->depth * 100.0));
+        writer->writeTextElement(QStringLiteral("h:depth"), toString(waypointp->depth * 100.0));
       }
       if (WAYPT_HAS(waypointp, temperature)) {
-        writer->writeTextElement("h:temperature", toString(waypointp->temperature));
+        writer->writeTextElement(QStringLiteral("h:temperature"), toString(waypointp->temperature));
       }
     }
 
@@ -1589,15 +1706,15 @@ gpx_write_common_extensions(const Waypoint* waypointp, const gpx_point_type poin
       switch (point_type) {
       case gpxpt_waypoint:
         if (WAYPT_HAS(waypointp, proximity) || WAYPT_HAS(waypointp, temperature) || WAYPT_HAS(waypointp, depth)) {
-          writer->writeStartElement("gpxx:WaypointExtension");
+          writer->writeStartElement(QStringLiteral("gpxx:WaypointExtension"));
           if (WAYPT_HAS(waypointp, proximity)) {
-            writer->writeTextElement("gpxx:Proximity", toString(waypointp->proximity));
+            writer->writeTextElement(QStringLiteral("gpxx:Proximity"), toString(waypointp->proximity));
           }
           if (WAYPT_HAS(waypointp, temperature)) {
-            writer->writeTextElement("gpxx:Temperature", toString(waypointp->temperature));
+            writer->writeTextElement(QStringLiteral("gpxx:Temperature"), toString(waypointp->temperature));
           }
           if (WAYPT_HAS(waypointp, depth)) {
-            writer->writeTextElement("gpxx:Depth", toString(waypointp->depth));
+            writer->writeTextElement(QStringLiteral("gpxx:Depth"), toString(waypointp->depth));
           }
           writer->writeEndElement(); // "gpxx:WaypointExtension"
         }
@@ -1608,18 +1725,18 @@ gpx_write_common_extensions(const Waypoint* waypointp, const gpx_point_type poin
       case gpxpt_track:
         if (WAYPT_HAS(waypointp, temperature) || WAYPT_HAS(waypointp, depth) || waypointp->heartrate != 0 || waypointp->cadence != 0) {
           // gpxtpx:TrackPointExtension is a replacement for gpxx:TrackPointExtension.
-          writer->writeStartElement("gpxtpx:TrackPointExtension");
+          writer->writeStartElement(QStringLiteral("gpxtpx:TrackPointExtension"));
           if (WAYPT_HAS(waypointp, temperature)) {
-            writer->writeTextElement("gpxtpx:atemp", toString(waypointp->temperature));
+            writer->writeTextElement(QStringLiteral("gpxtpx:atemp"), toString(waypointp->temperature));
           }
           if (WAYPT_HAS(waypointp, depth)) {
-            writer->writeTextElement("gpxtpx:depth", toString(waypointp->depth));
+            writer->writeTextElement(QStringLiteral("gpxtpx:depth"), toString(waypointp->depth));
           }
           if (waypointp->heartrate != 0) {
-            writer->writeTextElement("gpxtpx:hr", QString::number(waypointp->heartrate));
+            writer->writeTextElement(QStringLiteral("gpxtpx:hr"), QString::number(waypointp->heartrate));
           }
           if (waypointp->cadence != 0) {
-            writer->writeTextElement("gpxtpx:cad", QString::number(waypointp->cadence));
+            writer->writeTextElement(QStringLiteral("gpxtpx:cad"), QString::number(waypointp->cadence));
           }
           writer->writeEndElement(); // "gpxtpx:TrackPointExtension"
         }
@@ -1632,43 +1749,39 @@ gpx_write_common_extensions(const Waypoint* waypointp, const gpx_point_type poin
 }
 
 static void
-gpx_write_common_description(const Waypoint* waypointp, QString oname)
+gpx_write_common_description(const Waypoint* waypointp, const QString& oname)
 {
-  writer->writeOptionalTextElement("name", oname);
+  writer->writeOptionalTextElement(QStringLiteral("name"), oname);
 
-  writer->writeOptionalTextElement("cmt", waypointp->description);
+  writer->writeOptionalTextElement(QStringLiteral("cmt"), waypointp->description);
   if (!waypointp->notes.isEmpty()) {
-    writer->writeTextElement("desc", waypointp->notes);
+    writer->writeTextElement(QStringLiteral("desc"), waypointp->notes);
   } else {
-    writer->writeOptionalTextElement("desc", waypointp->description);
+    writer->writeOptionalTextElement(QStringLiteral("desc"), waypointp->description);
   }
   /* TODO: src should go here */
   write_gpx_url(waypointp);
-  writer->writeOptionalTextElement("sym", waypointp->icon_descr);
+  writer->writeOptionalTextElement(QStringLiteral("sym"), waypointp->icon_descr);
   /* TODO: type should go here */
 }
 
 static void
 gpx_waypt_pr(const Waypoint* waypointp)
 {
-  QString oname;
-  fs_xml* fs_gpx;
-  garmin_fs_t* gmsd;	/* gARmIN sPECIAL dATA */
+  writer->writeStartElement(QStringLiteral("wpt"));
+  writer->writeAttribute(QStringLiteral("lat"), toString(waypointp->latitude));
+  writer->writeAttribute(QStringLiteral("lon"), toString(waypointp->longitude));
 
-  writer->writeStartElement("wpt");
-  writer->writeAttribute("lat", toString(waypointp->latitude));
-  writer->writeAttribute("lon", toString(waypointp->longitude));
-
-  oname = global_opts.synthesize_shortnames ?
-          mkshort_from_wpt(mkshort_handle, waypointp) :
-          waypointp->shortname;
+  QString oname = global_opts.synthesize_shortnames ?
+                  mkshort_from_wpt(mkshort_handle, waypointp) :
+                  waypointp->shortname;
   gpx_write_common_position(waypointp, gpxpt_waypoint);
   gpx_write_common_description(waypointp, oname);
   gpx_write_common_acc(waypointp);
 
   if (!(opt_humminbirdext || opt_garminext)) {
-    fs_gpx = (fs_xml*)fs_chain_find(waypointp->fs, FS_GPX);
-    gmsd = GMSD_FIND(waypointp);
+    fs_xml* fs_gpx = (fs_xml*)fs_chain_find(waypointp->fs, FS_GPX);
+    garmin_fs_t* gmsd = GMSD_FIND(waypointp); /* gARmIN sPECIAL dATA */
     if (fs_gpx) {
       if (! gmsd) {
         fprint_xml_chain(fs_gpx->tag, waypointp);
@@ -1687,30 +1800,30 @@ gpx_waypt_pr(const Waypoint* waypointp)
 static void
 gpx_track_hdr(const route_head* rte)
 {
-  fs_xml* fs_gpx;
   current_trk_head = rte;
 
-  writer->writeStartElement("trk");
-  writer->writeOptionalTextElement("name", rte->rte_name);
-  writer->writeOptionalTextElement("desc", rte->rte_desc);
+  writer->writeStartElement(QStringLiteral("trk"));
+  writer->writeOptionalTextElement(QStringLiteral("name"), rte->rte_name);
+  writer->writeOptionalTextElement(QStringLiteral("desc"), rte->rte_desc);
+  write_gpx_url(rte);
 
   if (rte->rte_num) {
-    writer->writeTextElement("number", QString::number(rte->rte_num));
+    writer->writeTextElement(QStringLiteral("number"), QString::number(rte->rte_num));
   }
 
   if (gpx_wversion_num > 10) {
     if (!(opt_humminbirdext || opt_garminext)) {
-      fs_gpx = (fs_xml*)fs_chain_find(rte->fs, FS_GPX);
+      fs_xml* fs_gpx = (fs_xml*)fs_chain_find(rte->fs, FS_GPX);
       if (fs_gpx) {
-        fprint_xml_chain(fs_gpx->tag, NULL);
+        fprint_xml_chain(fs_gpx->tag, nullptr);
       }
     } else if (opt_garminext) {
       if (rte->line_color.bbggrr > unknown_color) {
         int ci = gt_color_index_by_rgb(rte->line_color.bbggrr);
         if (ci > 0) {
-          writer->writeStartElement("extensions");
-          writer->writeStartElement("gpxx:TrackExtension");
-          writer->writeTextElement("gpxx:DisplayColor", QString("%1")
+          writer->writeStartElement(QStringLiteral("extensions"));
+          writer->writeStartElement(QStringLiteral("gpxx:TrackExtension"));
+          writer->writeTextElement(QStringLiteral("gpxx:DisplayColor"), QStringLiteral("%1")
                                    .arg(gt_color_name(ci)));
           writer->writeEndElement(); // Close gpxx:TrackExtension tag
           writer->writeEndElement(); // Close extensions tag
@@ -1723,37 +1836,31 @@ gpx_track_hdr(const route_head* rte)
 static void
 gpx_track_disp(const Waypoint* waypointp)
 {
-  fs_xml* fs_gpx;
-  int first_in_trk;
-  first_in_trk = waypointp->Q.prev == &current_trk_head->waypoint_list;
+  bool first_in_trk = waypointp == current_trk_head->waypoint_list.front();
 
   if (waypointp->wpt_flags.new_trkseg) {
     if (!first_in_trk) {
       writer->writeEndElement();
     }
-    writer->writeStartElement("trkseg");
+    writer->writeStartElement(QStringLiteral("trkseg"));
   }
 
-  writer->writeStartElement("trkpt");
-  writer->writeAttribute("lat", toString(waypointp->latitude));
-  writer->writeAttribute("lon", toString(waypointp->longitude));
+  writer->writeStartElement(QStringLiteral("trkpt"));
+  writer->writeAttribute(QStringLiteral("lat"), toString(waypointp->latitude));
+  writer->writeAttribute(QStringLiteral("lon"), toString(waypointp->longitude));
 
   gpx_write_common_position(waypointp, gpxpt_track);
 
-  /* GPX doesn't require a name on output, so if we made one up
-   * on input, we might as well say nothing.
-   */
-  QString oname;
-  oname = global_opts.synthesize_shortnames ?
-          mkshort_from_wpt(mkshort_handle, waypointp) :
-          waypointp->shortname;
+  QString oname = global_opts.synthesize_shortnames ?
+                  mkshort_from_wpt(mkshort_handle, waypointp) :
+                  waypointp->shortname;
   gpx_write_common_description(waypointp,
                                waypointp->wpt_flags.shortname_is_synthetic ?
-                               NULL : oname);
+                               nullptr : oname);
   gpx_write_common_acc(waypointp);
 
   if (!(opt_humminbirdext || opt_garminext)) {
-    fs_gpx = (fs_xml*)fs_chain_find(waypointp->fs, FS_GPX);
+    fs_xml* fs_gpx = (fs_xml*)fs_chain_find(waypointp->fs, FS_GPX);
     if (fs_gpx) {
       fprint_xml_chain(fs_gpx->tag, waypointp);
     }
@@ -1766,13 +1873,13 @@ gpx_track_disp(const Waypoint* waypointp)
 static void
 gpx_track_tlr(const route_head*)
 {
-  if (!QUEUE_EMPTY(&current_trk_head->waypoint_list)) {
+  if (!current_trk_head->waypoint_list.empty()) {
     writer->writeEndElement();
   }
 
   writer->writeEndElement();
 
-  current_trk_head = NULL;
+  current_trk_head = nullptr;
 }
 
 static
@@ -1784,31 +1891,30 @@ void gpx_track_pr()
 static void
 gpx_route_hdr(const route_head* rte)
 {
-  fs_xml* fs_gpx;
-
-  writer->writeStartElement("rte");
-  writer->writeOptionalTextElement("name", rte->rte_name);
-  writer->writeOptionalTextElement("desc", rte->rte_desc);
+  writer->writeStartElement(QStringLiteral("rte"));
+  writer->writeOptionalTextElement(QStringLiteral("name"), rte->rte_name);
+  writer->writeOptionalTextElement(QStringLiteral("desc"), rte->rte_desc);
+  write_gpx_url(rte);
 
   if (rte->rte_num) {
-    writer->writeTextElement("number", QString::number(rte->rte_num));
+    writer->writeTextElement(QStringLiteral("number"), QString::number(rte->rte_num));
   }
 
   if (gpx_wversion_num > 10) {
     if (!(opt_humminbirdext || opt_garminext)) {
-      fs_gpx = (fs_xml*)fs_chain_find(rte->fs, FS_GPX);
+      fs_xml* fs_gpx = (fs_xml*)fs_chain_find(rte->fs, FS_GPX);
       if (fs_gpx) {
-        fprint_xml_chain(fs_gpx->tag, NULL);
+        fprint_xml_chain(fs_gpx->tag, nullptr);
       }
     } else if (opt_garminext) {
       if (rte->line_color.bbggrr > unknown_color) {
         int ci = gt_color_index_by_rgb(rte->line_color.bbggrr);
         if (ci > 0) {
-          writer->writeStartElement("extensions");
-          writer->writeStartElement("gpxx:RouteExtension");
+          writer->writeStartElement(QStringLiteral("extensions"));
+          writer->writeStartElement(QStringLiteral("gpxx:RouteExtension"));
           // FIXME: the value to use for IsAutoNamed is questionable.
-          writer->writeTextElement("gpxx:IsAutoNamed", rte->rte_name.isEmpty()? "true" : "false"); // Required element
-          writer->writeTextElement("gpxx:DisplayColor", QString("%1")
+          writer->writeTextElement(QStringLiteral("gpxx:IsAutoNamed"), rte->rte_name.isEmpty()? QStringLiteral("true") : QStringLiteral("false")); // Required element
+          writer->writeTextElement(QStringLiteral("gpxx:DisplayColor"), QStringLiteral("%1")
                                    .arg(gt_color_name(ci)));
           writer->writeEndElement(); // Close gpxx:RouteExtension tag
           writer->writeEndElement(); // Close extensions tag
@@ -1821,21 +1927,19 @@ gpx_route_hdr(const route_head* rte)
 static void
 gpx_route_disp(const Waypoint* waypointp)
 {
-  QString oname;
-  fs_xml* fs_gpx;
-  writer->writeStartElement("rtept");
-  writer->writeAttribute("lat", toString(waypointp->latitude));
-  writer->writeAttribute("lon", toString(waypointp->longitude));
+  writer->writeStartElement(QStringLiteral("rtept"));
+  writer->writeAttribute(QStringLiteral("lat"), toString(waypointp->latitude));
+  writer->writeAttribute(QStringLiteral("lon"), toString(waypointp->longitude));
 
-  oname = global_opts.synthesize_shortnames ?
-          mkshort_from_wpt(mkshort_handle, waypointp) :
-          waypointp->shortname;
+  QString oname = global_opts.synthesize_shortnames ?
+                  mkshort_from_wpt(mkshort_handle, waypointp) :
+                  waypointp->shortname;
   gpx_write_common_position(waypointp, gpxpt_route);
   gpx_write_common_description(waypointp, oname);
   gpx_write_common_acc(waypointp);
 
   if (!(opt_humminbirdext || opt_garminext)) {
-    fs_gpx = (fs_xml*)fs_chain_find(waypointp->fs, FS_GPX);
+    fs_xml* fs_gpx = (fs_xml*)fs_chain_find(waypointp->fs, FS_GPX);
     if (fs_gpx) {
       fprint_xml_chain(fs_gpx->tag, waypointp);
     }
@@ -1865,28 +1969,30 @@ gpx_waypt_bound_calc(const Waypoint* waypointp)
 }
 
 static void
-gpx_write_bounds(void)
+gpx_write_bounds()
 {
   waypt_init_bounds(&all_bounds);
 
   waypt_disp_all(gpx_waypt_bound_calc);
-  route_disp_all(NULL, NULL, gpx_waypt_bound_calc);
-  track_disp_all(NULL, NULL, gpx_waypt_bound_calc);
+  route_disp_all(nullptr, nullptr, gpx_waypt_bound_calc);
+  track_disp_all(nullptr, nullptr, gpx_waypt_bound_calc);
 
   if (waypt_bounds_valid(&all_bounds)) {
-    writer->writeStartElement("bounds");
-    writer->writeAttribute("minlat", toString(all_bounds.min_lat));
-    writer->writeAttribute("minlon", toString(all_bounds.min_lon));
-    writer->writeAttribute("maxlat", toString(all_bounds.max_lat));
-    writer->writeAttribute("maxlon", toString(all_bounds.max_lon));
+    writer->writeStartElement(QStringLiteral("bounds"));
+    writer->writeAttribute(QStringLiteral("minlat"), toString(all_bounds.min_lat));
+    writer->writeAttribute(QStringLiteral("minlon"), toString(all_bounds.min_lon));
+    writer->writeAttribute(QStringLiteral("maxlat"), toString(all_bounds.max_lat));
+    writer->writeAttribute(QStringLiteral("maxlon"), toString(all_bounds.max_lon));
     writer->writeEndElement();
   }
 }
 
 static void
-gpx_write(void)
+gpx_write()
 {
- 
+
+  elevation_precision = atoi(opt_elevation_precision);
+
   gpx_reset_short_handle();
   waypt_disp_all(gpx_waypt_pr);
   gpx_reset_short_handle();
@@ -1896,66 +2002,55 @@ gpx_write(void)
   writer->writeEndElement(); // Close gpx tag.
 }
 
-
 static void
-gpx_free_gpx_global(void)
-{
-  gpx_rm_from_global(&gpx_global->name);
-  gpx_rm_from_global(&gpx_global->desc);
-  gpx_rm_from_global(&gpx_global->author);
-  gpx_rm_from_global(&gpx_global->email);
-  gpx_rm_from_global(&gpx_global->url);
-  gpx_rm_from_global(&gpx_global->urlname);
-  gpx_rm_from_global(&gpx_global->keywords);
-  xfree(gpx_global);
-}
-
-static void
-gpx_exit(void)
+gpx_exit()
 {
   gpx_version.clear();
 
   gpx_namespace_attribute.clear();
 
-  if (gpx_global) {
-    gpx_free_gpx_global();
-    gpx_global = NULL;
-  }
+  delete gpx_global;
+  gpx_global = nullptr;
 }
 
 static
 arglist_t gpx_args[] = {
   {
     "snlen", &snlen, "Length of generated shortnames",
-    "32", ARGTYPE_INT, "1", NULL, NULL
+    "32", ARGTYPE_INT, "1", nullptr, nullptr
   },
   {
     "suppresswhite", &suppresswhite,
     "No whitespace in generated shortnames",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX, NULL
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "logpoint", &opt_logpoint,
     "Create waypoints from geocache log entries",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX, NULL
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "urlbase", &urlbase, "Base URL for link tag in output",
-    NULL, ARGTYPE_STRING, ARG_NOMINMAX, NULL
+    nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "gpxver", &gpx_wversion, "Target GPX version for output",
-    NULL, ARGTYPE_STRING, ARG_NOMINMAX, NULL
+    nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "humminbirdextensions", &opt_humminbirdext,
     "Add info (depth) as Humminbird extension",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX, NULL
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "garminextensions", &opt_garminext,
     "Add info (depth) as Garmin extension",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX, NULL
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
+  },
+  {
+    "elevprec", &opt_elevation_precision,
+    "Precision of elevations, number of decimals",
+    "3", ARGTYPE_INT, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -1973,5 +2068,5 @@ ff_vecs_t gpx_vecs = {
   gpx_args,
   CET_CHARSET_UTF8, 0,	/* non-fixed to create non UTF-8 XML's for testing | CET-REVIEW */
   NULL_POS_OPS,
-  NULL,
+  nullptr,
 };

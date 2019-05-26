@@ -21,9 +21,9 @@
  */
 
 #include "garmin_tables.h"
-#include "src/core/logging.h"
 #include "jeeps/gpsmath.h"
-#include <stdlib.h> // qsort
+#include "src/core/logging.h"
+#include <cstdlib> // qsort
 
 #define MYNAME "garmin_tables"
 
@@ -337,7 +337,7 @@ icon_mapping_t garmin_icon_table[] = {
   { 248, -1, "Water Source" },
 
 
-  {    -1,    -1, NULL },
+  {    -1,    -1, nullptr },
 };
 
 icon_mapping_t garmin_smart_icon_table[] = {
@@ -350,12 +350,12 @@ icon_mapping_t garmin_smart_icon_table[] = {
   {    83,  8214, "Post Office" },  	/* Icon for "Post Office" */
   {    47,   160, "Event Cache" }, 	/* Icon for "Event" */
   {    90,  8221, "Webcam Cache" }, 	/* Icon for "Live Theatre" */
-  {    -1,    -1, NULL }
+  {    -1,    -1, nullptr }
 };
 
-/* ICAO coutry code table */
+/* ICAO country code table */
 
-/* source: http://en.wikipedia.org/wiki/ICAO_airport_code */
+/* source: https://en.wikipedia.org/wiki/ICAO_airport_code */
 
 gt_country_code_t gt_country_codes[] = {
   { "ZM,", "Mongolia" },
@@ -363,9 +363,11 @@ gt_country_code_t gt_country_codes[] = {
   { "Z*,", "China" },
   { "Y*,", "Australia" },
   { "WS,", "Singapore" },
-  { "WM,", "Brunei/Malaysia" },
-  { "WB,", "Malaysia" },
+  { "WP,", "Timor-Leste" },
+  { "WM,", "Malaysia (Peninsular Malaysia)" },
+  { "WB,", "Brunei, Malaysia (East Malaysia)" },
   { "WA,WI,WQ,WR,", "Indonesia" },
+  { "VY,", "Myanmar" },
   { "VV,", "Vietnam" },
   { "VT,", "Thailand" },
   { "VR,", "Maldives" },
@@ -375,60 +377,66 @@ gt_country_code_t gt_country_codes[] = {
   { "VL,", "Laos" },
   { "VH,", "Hong Kong" },
   { "VG,", "Bangladesh" },
-  { "VD,", "Kampuchea" },
+  { "VD,", "Cambodia" },
   { "VC,", "Sri Lanka" },
-  { "VB,VY,", "Myanmar/Burma" },
   { "VA,VE,VI,VO,", "India" },
-  { "UR,", "Kazakhstan/Russia" },
-  { "UT,", "Kazakhstan/Tadzhikistan/Turkmenistan/Uzbekistan" },
-  { "UM,", "Belorussia/Russia" },
+  { "UT,", "Tajikistan, Turkmenistan, Uzbekistan" },
+  { "UM,", "Belarus and Russia (Kaliningrad Oblast)" },
   { "UK,", "Ukraine" },
+  { "UG,", "Georgia" },
+  { "UD,", "Armenia" },
+  { "UC,", "Kyrgyzstan" },
   { "UB,", "Azerbaijan" },
-  { "UA,", "Kazakhstan/Kirgizia" },
+  { "UA,", "Kazakhstan" },
   { "U*,", "Russia" },
-  { "TX,", "Bermuda" },
-  { "TV,", "St Vincent and the Grenadines" },
-  { "TU,", "British Virgin Islands" },
+  { "TX,", "UK (Bermuda)" },
+  { "TV,", "Saint Vincent and the Grenadines" },
+  { "TU,", "UK (British Virgin Islands)" },
   { "TT,", "Trinidad and Tobago" },
-  { "TR,", "Montserrat Island" },
-  { "TQ,", "Anguilla" },
-  { "TN,", "Aruba/Neth Antilles" },
-  { "TL,", "St Lucia" },
-  { "TK,", "St Kitts/Nevis Islands" },
-  { "TJ,", "Puerto Rico" },
+  { "TR,", "UK (Montserrat)" },
+  { "TQ,", "UK (Anguilla)" },
+  { "TN,", "Caribbean Netherlands, Aruba, Curaçao, Sint Maarten" },
+  { "TL,", "Saint Lucia" },
+  { "TK,", "Saint Kitts and Nevis" },
+  { "TJ,", "USA (Puerto Rico)" },
+  { "TI,", "USA (U.S. Virgin Islands)" },
   { "TG,", "Grenada" },
-  { "TF,", "Guadeloupe/Martinique" },
+  { "TF,", "France (Guadeloupe, Martinique, Saint Barthélemy, Saint Martin)" },
   { "TD,", "Dominica" },
   { "TB,", "Barbados" },
-  { "TA,", "Antigua" },
+  { "TA,", "Antigua and Barbuda" },
   { "SY,", "Guyana" },
   { "SV,", "Venezuela" },
   { "SU,", "Uruguay" },
   { "SP,", "Peru" },
-  { "SO,", "French Guiana" },
+  { "SO,", "France (French Guiana)" },
   { "SM,", "Suriname" },
   { "SL,", "Bolivia" },
-  { "SK,", "Colombia/San Andres" },
+  { "SK,", "Colombia" },
+  { "SH,", "Chile" },
   { "SG,", "Paraguay" },
-  { "SF,", "Falkland Islands" },
+  { "SF,", "United Kingdom (Falkland Islands)" },
   { "SE,", "Ecuador" },
-  { "SC,", "Chile/Easter Island" },
-  { "SB,SD,SN,SS,SW,", "Brazil" },
+  { "SC,", "Chile (including Easter Island)" },
+  { "SB,SI,SJ,", "Brazil" },
   { "SA,", "Argentina" },
-  { "S1,", "Antarctica (Argentina/Chile)" },
   { "RP,", "Philippines" },
+  { "RO,", "Japan (Okinawa)" },
   { "RK,", "South Korea" },
-  { "RJ,", "Japan" },
+  { "RJ,", "Japan (Mainland)" },
   { "RC,", "Taiwan" },
-  { "PW,", "Wake Island" },
-  { "PT,", "Caroline Islands/Micronesia/Palau" },
-  { "PM,", "Midway Islands" },
+  { "PW,", "USA (Wake Island)" },
+  { "PT,", "Federated States of Micronesia, Palau" },
+  { "PM,", "USA (Midway Island)" },
+  { "PL,", "Kiribati (Line Islands)" },
   { "PK,", "Marshall Islands" },
-  { "PJ,", "Johnston Atoll" },
-  { "PG,", "Guam/Mariana Islands/Northern Mariana Islands" },
-  { "PC,", "Kiribati" },
-  { "P",   "Oakland Octa" },
-  { "OY,", "Yemen Arab Rep" },
+  { "PJ,", "USA (Johnston Atoll)" },
+  { "PH,", "USA (Hawaii)" },
+  { "PG,", "USA (Guam, Northern Mariana Islands)" },
+  { "PC,", "Kiribati (Canton Airfield, Phoenix Islands)" },
+  { "PB,", "USA (Baker Island)" },
+  { "PA,PF,PO,PP,", "USA (Alaska)" },
+  { "OY,", "Yemen" },
   { "OT,", "Qatar" },
   { "OS,", "Syria" },
   { "OR,", "Iraq" },
@@ -437,20 +445,20 @@ gt_country_code_t gt_country_codes[] = {
   { "OM,", "United Arab Emirates" },
   { "OL,", "Lebanon" },
   { "OK,", "Kuwait" },
-  { "OJ,", "Jordan" },
+  { "OJ,", "Jordan and the West Bank" },
   { "OI,", "Iran" },
   { "OE,", "Saudi Arabia" },
   { "OB,", "Bahrain" },
   { "OA,", "Afghanistan" },
-  { "NZ,PL,", "New Zealand" },
-  { "NW,", "New Caledonia" },
+  { "NZ,", "New Zealand, Antarctica" },
+  { "NW,", "France (New Caledonia)" },
   { "NV,", "Vanuatu" },
-  { "NT,", "French Polynesia/Society Islands/Tuamotu Islands" },
-  { "NS,", "American Samoa/Western Samoa" },
-  { "NL,", "Futuna Island/Wallis Island" },
+  { "NT,", "France (French Polynesia)" },
+  { "NS,", "Samoa, United States (American Samoa)" },
+  { "NL,", "France (Wallis and Futuna)" },
   { "NI,", "Niue" },
-  { "NG,", "Kiribati/Tuvalu" },
-  { "NF,", "Fiji Island/Tonga" },
+  { "NG,", "Kiribati (Gilbert Islands), Tuvalu" },
+  { "NF,", "Fiji, Tonga" },
   { "NC,", "Cook Islands" },
   { "MZ,", "Belize" },
   { "MY,", "Bahamas" },
@@ -458,69 +466,68 @@ gt_country_code_t gt_country_codes[] = {
   { "MU,", "Cuba" },
   { "MT,", "Haiti" },
   { "MS,", "El Salvador" },
-  { "MR,", "Costa rica" },
+  { "MR,", "Costa Rica" },
   { "MP,", "Panama" },
   { "MN,", "Nicaragua" },
   { "MM,", "Mexico" },
   { "MK,", "Jamaica" },
-  { "MI,TI,", "Virgin Islands (U.S.)" },
   { "MH,", "Honduras" },
   { "MG,", "Guatemala" },
   { "MD,", "Dominican Republic" },
-  { "MB,", "Turks Island/Caicos Island" },
+  { "MB,", "Turks and Caicos Islands" },
   { "LZ,", "Slovakia" },
-  { "LY,", "Yugoslavia" },
+  { "LY,", "Serbia and Montenegro" },
   { "LX,", "Gibraltar" },
   { "LW,", "Macedonia" },
-  { "LV,", "Gaza" },
+  { "LV,", "Palestinian Territories" },
   { "LU,", "Moldova" },
   { "LT,", "Turkey" },
   { "LS,", "Switzerland" },
   { "LR,", "Romania" },
-  { "LQ,", "Bosnia-Herzegovina" },
-  { "LP,", "Portugal/Azores/Madeira Islands" },
+  { "LQ,", "Bosnia and Herzegovina" },
+  { "LP,", "Portugal (including the Azores and Madeira)" },
   { "LO,", "Austria" },
   { "LN,", "Monaco" },
   { "LM,", "Malta" },
-  { "LL,", "Israel/Jerusalem" },
-  { "LK,", "Czech" },
+  { "LL,", "Israel" },
+  { "LK,", "Czech Republic" },
+  { "LJ,", "Slovenia" },
   { "LI,", "Italy" },
   { "LH,", "Hungary" },
-  { "LG,", "Slovenia" },
   { "LG,", "Greece" },
-  { "LF,", "France" },
-  { "LF,", "Miquelon Island/St Pierre Island" },
-  { "LE,", "Spain" },
+  { "LF,", "France (Metropolitan France; including Saint-Pierre and Miquelon)" },
+  { "LE,", "Spain (mainland section and Balearic Islands)" },
   { "LD,", "Croatia" },
-  { "LC,", "Cyprus/Turkey (Northern Cyprus)" },
+  { "LC,", "Cyprus" },
   { "LB,", "Bulgaria" },
   { "LA,", "Albania" },
-  { "K*,X*,PA,PB,PF,PJ,PL,PM,PO,PP,PH,PW,", "United States of America" },
+  { "K*,", "United States of America" },
   { "HU,", "Uganda" },
   { "HT,", "Tanzania" },
-  { "HS,", "Sudan" },
+  { "HS,", "Sudan and South Sudan" },
   { "HR,", "Rwanda" },
-  { "HL,", "Libya, Spa Jamahiriya" },
+  { "HL,", "Libya" },
   { "HK,", "Kenya" },
   { "HH,", "Eritrea" },
   { "HE,", "Egypt" },
-  { "HD,HF,", "Djibouti" },
-  { "HC,", "Somalia" },
+  { "HD,", "Djibouti" },
+  { "HC,", "Somalia (including Somaliland)" },
   { "HB,", "Burundi" },
   { "HA,", "Ethiopia" },
   { "GV,", "Cape Verde" },
-  { "GU,", "Guinea Tepublic" },
+  { "GU,", "Guinea" },
+  { "GS,", "Western Sahara" },
   { "GQ,", "Mauritania" },
   { "GO,", "Senegal" },
-  { "GM,", "Morocco/Ad Dakhla/La'Youn" },
+  { "GM,", "Morocco" },
   { "GL,", "Liberia" },
   { "GG,", "Guinea-Bissau" },
   { "GF,", "Sierra Leone" },
-  { "GE,", "Melilla" },
-  { "GC,", "Canary Island" },
-  { "GB,", "Gambia" },
+  { "GE,", "Spain (Ceuta and Melilla)" },
+  { "GC,", "Spain (Canary Islands)" },
+  { "GB,", "The Gambia" },
   { "GA,", "Mali" },
-  { "FZ,", "Democratic Republic of Congo" },
+  { "FZ,", "Democratic Republic of the Congo" },
   { "FY,", "Namibia" },
   { "FX,", "Lesotho" },
   { "FW,", "Malawi" },
@@ -528,51 +535,53 @@ gt_country_code_t gt_country_codes[] = {
   { "FT,", "Chad" },
   { "FS,", "Seychelles" },
   { "FQ,", "Mozambique" },
-  { "FP,", "Sao Tome & Principe" },
+  { "FP,", "São Tomé and Príncipe" },
   { "FO,", "Gabon" },
   { "FN,", "Angola" },
-  { "FM,", "Madagascar/Comoros/Reunion/Mayotte Islands" },
+  { "FM,", "Comoros, France (Mayotte and Réunion), and Madagascar" },
   { "FL,", "Zambia" },
   { "FK,", "Cameroon" },
-  { "FJ,", "Chagos Archipelago/British Indian Ocean Territory" },
+  { "FJ,", "British Indian Ocean Territory" },
   { "FI,", "Mauritius" },
-  { "FH,", "Ascension Island/St Helena Island" },
-  { "FG,", "Equitorial Guinea" },
+  { "FH,", "Saint Helena, Ascension and Tristan da Cunha" },
+  { "FG,", "Equatorial Guinea" },
   { "FE,", "Central African Republic" },
   { "FD,", "Swaziland" },
-  { "FC,", "Congo" },
+  { "FC,", "Republic of the Congo" },
   { "FB,", "Botswana" },
-  { "FA,", "South African Republic" },
+  { "FA,", "South Africa" },
   { "EY,", "Lithuania" },
   { "EV,", "Latvia" },
+  { "ET,", "Germany (military)" },
   { "ES,", "Sweden" },
   { "EP,", "Poland" },
   { "EN,", "Norway" },
   { "EL,", "Luxembourg" },
-  { "EK,", "Denmark/Faroe Island" },
+  { "EK,", "Denmark and the Faroe Islands" },
   { "EI,", "Ireland" },
   { "EH,", "Netherlands" },
-  { "EG,LX,", "United Kingdom" },
+  { "EG,", "United Kingdom (and Crown dependencies)" },
   { "EF,", "Finland" },
   { "EE,", "Estonia" },
-  { "ED,ET,", "Germany" },
+  { "ED,", "Germany (civil)" },
   { "EB,", "Belgium" },
   { "DX,", "Togo" },
   { "DT,", "Tunisia" },
   { "DR,", "Niger" },
   { "DN,", "Nigeria" },
-  { "DI,", "Ivory Coast" },
+  { "DI,", "Côte d'Ivoire" },
   { "DG,", "Ghana" },
   { "DF,", "Burkina Faso" },
   { "DB,", "Benin" },
   { "DA,", "Algeria" },
   { "C*,", "Canada" },
+  { "BK,", "Kosovo" },
   { "BI,", "Iceland" },
   { "BG,", "Greenland" },
   { "AY,", "Papua New Guinea" },
   { "AN,", "Nauru" },
-  { "AG,", "Solomon Island" },
-  { NULL, NULL }
+  { "AG,", "Solomon Islands" },
+  { nullptr, nullptr }
 };
 
 /* gt_waypt_classes: gdb internal order */
@@ -590,7 +599,7 @@ const char* gt_waypt_class_names[] = {
   "Map Intersection",
   "Map Address",
   "Map Line",
-  NULL
+  nullptr
 };
 
 /* gt_display_mode_names: this order is used by most devices */
@@ -615,7 +624,7 @@ grid_mapping_t gt_mps_grid_names[] = {
   { "bng",	"British National Grid",	grid_bng },
   { "utm",	"UTM",				grid_utm },
   { "swiss",	"Swiss grid",			grid_swiss },
-  { NULL,	NULL,	(grid_type) 0 }
+  { nullptr,	nullptr,	(grid_type) 0 }
 };
 
 /* gt_mps_datum_names: */
@@ -639,7 +648,7 @@ static datum_mapping_t gt_mps_datum_names[] = {
   { "Mexico NAD27",	"NAD27 Mexico" },
   { "North America 83",	"NAD83" },
   { "OSGB36",		"Ord Srvy Grt Britn" },
-  { NULL,	NULL }
+  { nullptr,	nullptr }
 };
 
 typedef struct garmin_color_s {
@@ -666,7 +675,7 @@ static garmin_color_t gt_colors[] = {
   { "Cyan",		0xFFFF00 },
   { "White",		0xFFFFFF },
   { "Transparent",	unknown_color }, /* Currently not handled */
-  { NULL, 0 }
+  { nullptr, 0 }
 };
 
 #define GT_COLORS_CT ((sizeof(gt_colors) / sizeof(gt_colors[0])) - 1)
@@ -729,7 +738,7 @@ gt_switch_display_mode_value(const unsigned char display_mode, const int protoid
   }
 }
 
-const QString 
+const QString
 gt_find_desc_from_icon_number(const int icon, garmin_formats_e garmin_format)
 {
   if ((garmin_format == GDB) && (icon >= 500) && (icon <= 563)) {
@@ -766,7 +775,6 @@ int gt_find_icon_number_from_desc(const QString& desc, garmin_formats_e garmin_f
   static int find_flag = 0;
   icon_mapping_t* i;
   int def_icon = DEFAULT_ICON_VALUE;
-  int n;
 
   if (desc.isNull()) {
     return def_icon;
@@ -776,7 +784,7 @@ int gt_find_icon_number_from_desc(const QString& desc, garmin_formats_e garmin_f
    * If we were given a numeric icon number as a description
    * (i.e. 8255), just return that.
    */
-  n = desc.toInt();
+  int n = desc.toInt();
   if (n)  {
     return n;
   }
@@ -790,7 +798,7 @@ int gt_find_icon_number_from_desc(const QString& desc, garmin_formats_e garmin_f
       base = 7680;
     }
     if (base) {
-      n = desc.mid(7).toInt();
+      n = desc.midRef(7).toInt();
       return n + base;
     }
   }
@@ -830,12 +838,11 @@ int gt_find_icon_number_from_desc(const QString& desc, garmin_formats_e garmin_f
    */
 
   if (find_flag == 0) {
-    const char** prefix;
     const char* prefixes[] = {
-      "White ", "Red ", "Green ", "Blue ", "Black ", NULL
+      "White ", "Red ", "Green ", "Blue ", "Black ", nullptr
     };
     // Rewrite "Green Square" to "Square, Green".
-    for (prefix = prefixes; *prefix != NULL; prefix++) {
+    for (const char** prefix = prefixes; *prefix != nullptr; prefix++) {
       if (desc.startsWith(*prefix, Qt::CaseInsensitive)) {
         QString buff = desc;
         buff.replace(*prefix, "");
@@ -860,13 +867,13 @@ gt_get_icao_country(const QString& cc)
   gt_country_code_t* x = &gt_country_codes[0];
 
   if (cc.isEmpty()) {
-    return NULL;
+    return nullptr;
   }
 
   do {
     const char* ccx = x->cc;
     const QString qccx = x->cc;
-    while (ccx != NULL) {
+    while (ccx != nullptr) {
       if (qccx.left(2) == cc) {
         return x->country;
       }
@@ -874,14 +881,14 @@ gt_get_icao_country(const QString& cc)
         return x->country;
       }
       ccx = strchr(ccx, ',');
-      if (ccx == NULL) {
+      if (ccx == nullptr) {
         break;
       }
       ccx++;
     }
     x++;
-  } while (x->cc != NULL);
-  return NULL;
+  } while (x->cc != nullptr);
+  return nullptr;
 }
 
 const char*
@@ -891,9 +898,8 @@ gt_get_icao_cc(const QString& country, const QString& shortname)
   gt_country_code_t* x = &gt_country_codes[0];
 
   if (country.isEmpty()) {
-    const char* test;
-    if (shortname == NULL) {
-      return NULL;
+    if (shortname == nullptr) {
+      return nullptr;
     }
     switch (shortname.length()) {
     case 3:
@@ -903,13 +909,13 @@ gt_get_icao_cc(const QString& country, const QString& shortname)
       strncpy(res, CSTR(shortname), 2);
       break;
     default:
-      return NULL;
+      return nullptr;
     }
-    test = gt_get_icao_country(res);
-    if (test != NULL) {
+    const char* test = gt_get_icao_country(res);
+    if (test != nullptr) {
       return res;
     } else {
-      return NULL;
+      return nullptr;
     }
   }
 
@@ -933,7 +939,7 @@ gt_get_icao_cc(const QString& country, const QString& shortname)
 
       strncpy(res, CSTR(shortname), 2);
       res[2] = '\0';
-      while (ccx != NULL) {
+      while (ccx != nullptr) {
         if (strncmp(ccx, res, 2) == 0) {
           return res;
         }
@@ -941,30 +947,28 @@ gt_get_icao_cc(const QString& country, const QString& shortname)
           return res;
         }
         ccx = strchr(ccx, ',');
-        if (ccx == NULL) {
+        if (ccx == nullptr) {
           break;
         }
         ccx++;
       }
     }
-    return NULL;
-  } while (x->country != NULL);
-  return NULL;
+    return nullptr;
+  } while (x->country != nullptr);
+  return nullptr;
 }
 
 grid_type
 gt_lookup_grid_type(const char* grid_name, const QString& module)
 {
-  grid_mapping_t* g;
-
-  for (g = gt_mps_grid_names; (g->shortname); g++) {
+  for (grid_mapping_t* g = gt_mps_grid_names; (g->shortname); g++) {
     if (QString::compare(grid_name, g->shortname, Qt::CaseInsensitive) == 0 ||
         QString::compare(grid_name, g->longname,Qt::CaseInsensitive) == 0) {
       return g->grid;
     }
   }
 
-  Fatal() << module << ": Unsupported grid (" << grid_name << 
+  Fatal() << module << ": Unsupported grid (" << grid_name <<
                        ". See GPSBabel help for supported grids.\n";
 
   return grid_unknown;	/* (warnings) */
@@ -983,12 +987,9 @@ gt_get_mps_grid_longname(const grid_type grid, const char* module)
 const char*
 gt_get_mps_datum_name(const int datum_index)
 {
-  const char* result;
-  datum_mapping_t* d;
+  const char* result = GPS_Math_Get_Datum_Name(datum_index);
 
-  result = GPS_Math_Get_Datum_Name(datum_index);
-
-  for (d = gt_mps_datum_names; (d->jeeps_name); d++)
+  for (datum_mapping_t* d = gt_mps_datum_names; (d->jeeps_name); d++)
     if (QString::compare(result, d->jeeps_name, Qt::CaseInsensitive) == 0) {
       return d->mps_name;
     }
@@ -999,18 +1000,16 @@ gt_get_mps_datum_name(const int datum_index)
 int
 gt_lookup_datum_index(const char* datum_str, const QString& module)
 {
-  datum_mapping_t* d;
-  int result;
   const char* name = datum_str;
 
-  for (d = gt_mps_datum_names; (d->jeeps_name); d++) {
+  for (datum_mapping_t* d = gt_mps_datum_names; (d->jeeps_name); d++) {
     if (QString::compare(name, d->mps_name, Qt::CaseInsensitive) == 0) {
       name = d->jeeps_name;
       break;
     }
   }
 
-  result = GPS_Lookup_Datum_Index(name);
+  int result = GPS_Lookup_Datum_Index(name);
 
   // Didn't get a hit?  Try again after modifying the lookup.
   if (result < 0) {
@@ -1019,7 +1018,7 @@ gt_lookup_datum_index(const char* datum_str, const QString& module)
   }
 
   if (result < 0) {
-    Fatal() << module << ": Unsupported datum (" << datum_str << 
+    Fatal() << module << ": Unsupported datum (" << datum_str <<
                          "). See GPSBabel help for supported datums.";
   }
   return result;
@@ -1038,9 +1037,7 @@ gt_color_value(const unsigned int garmin_index)
 uint32_t
 gt_color_value_by_name(const QString& name)
 {
-  unsigned int i;
-
-  for (i = 0; i < GT_COLORS_CT; i++)
+  for (unsigned int i = 0; i < GT_COLORS_CT; i++)
     if (QString::compare(gt_colors[i].name, name, Qt::CaseInsensitive) == 0) {
       return gt_colors[i].rgb;
     }
@@ -1051,9 +1048,7 @@ gt_color_value_by_name(const QString& name)
 int
 gt_color_index_by_name(const QString& name)
 {
-  unsigned int i;
-
-  for (i = 0; i < GT_COLORS_CT; i++)
+  for (unsigned int i = 0; i < GT_COLORS_CT; i++)
     if (QString::compare(gt_colors[i].name, name, Qt::CaseInsensitive) == 0) {
       return i;
     }
@@ -1064,9 +1059,7 @@ gt_color_index_by_name(const QString& name)
 int
 gt_color_index_by_rgb(const int rgb)
 {
-  unsigned int i;
-
-  for (i = 0; i < GT_COLORS_CT; i++)
+  for (unsigned int i = 0; i < GT_COLORS_CT; i++)
     if (rgb == gt_colors[i].rgb) {
       return i;
     }

@@ -39,9 +39,9 @@ Example usage::
 
 #include "defs.h"
 #include "gbser.h"
-#include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
 
 static route_head* track;
 
@@ -51,18 +51,18 @@ static char* opt_erase;
 static char* opt_status;
 static char* opt_enable;
 
-arglist_t mtk_locus_args[] = {
-  {"baudrate", &opt_baudrate, "Speed in bits per second of serial port (autodetect=0)", "0", ARGTYPE_INT, ARG_NOMINMAX },
-  {"download", &opt_download, "Download logged fixes", "1", ARGTYPE_BOOL, ARG_NOMINMAX },
-  {"erase", &opt_erase, "Erase device data after download", "0", ARGTYPE_BOOL, ARG_NOMINMAX },
-  {"status", &opt_status, "Show device status", "0", ARGTYPE_BOOL, ARG_NOMINMAX },
-  {"enable", &opt_enable, "Enable logging after download", "0", ARGTYPE_BOOL, ARG_NOMINMAX },
+static arglist_t mtk_locus_args[] = {
+  {"baudrate", &opt_baudrate, "Speed in bits per second of serial port (autodetect=0)", "0", ARGTYPE_INT, ARG_NOMINMAX , nullptr},
+  {"download", &opt_download, "Download logged fixes", "1", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
+  {"erase", &opt_erase, "Erase device data after download", "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
+  {"status", &opt_status, "Show device status", "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
+  {"enable", &opt_enable, "Enable logging after download", "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
   ARG_TERMINATOR
 };
 
 static void mtk_locus_rd_init(const QString& fname);
-static void mtk_locus_rd_deinit(void);
-static void mtk_locus_read(void);
+static void mtk_locus_rd_deinit();
+static void mtk_locus_read();
 
 ff_vecs_t mtk_locus_vecs = {
   ff_type_file,
@@ -72,14 +72,16 @@ ff_vecs_t mtk_locus_vecs = {
     ff_cap_none /* routes */
   },
   mtk_locus_rd_init,
-  NULL,  // write init
+  nullptr,  // write init
   mtk_locus_rd_deinit,
-  NULL,  // write deinit
+  nullptr,  // write deinit
   mtk_locus_read,
-  NULL,  // write
-  NULL, // exit
+  nullptr,  // write
+  nullptr, // exit
   mtk_locus_args,
   CET_CHARSET_ASCII, 0 /* ascii is the expected character set */
+  , NULL_POS_OPS,
+  nullptr
 };
 
 #define MYNAME "mtk_locus"
@@ -106,14 +108,14 @@ static int last_loxsequence;
 static char waiting_for[20];
 
 
-static void set_baudrate(void);
-static void read_line(void);
-static void process_packet(void);
-static void process_pmtklox(void);
-static void process_pmtklog(void);
-static void process_pmtk001(void);
-static void process_pmtk705(void);
-static void send_command(const char* s, const char* waitfor);
+static void set_baudrate();
+static void read_line();
+static void process_packet();
+static void process_pmtklox();
+static void process_pmtklog();
+static void process_pmtk001();
+static void process_pmtk705();
+static void send_command(const char* s, const char*wait_for);
 static int calculate_checksum(const char* s, int length);
 static void dbg(int l, const char* msg, ...);
 
@@ -126,7 +128,7 @@ mtk_locus_rd_init(const QString& fname)
 
     dbg(1, "Input is a serial port\n");
     read_mode = rm_serial;
-    if ((sfd = gbser_init(qPrintable(fname))) == NULL) {
+    if ((sfd = gbser_init(qPrintable(fname))) == nullptr) {
       fatal(MYNAME ": Can't initialise port \"%s\" (%s)\n", qPrintable(fname), strerror(errno));
     }
     set_baudrate();
@@ -136,7 +138,7 @@ mtk_locus_rd_init(const QString& fname)
 
     dbg(1, "Input is a normal file\n");
     read_mode = rm_file;
-    if ((ffd = gbfopen(fname, "rb", MYNAME)) == NULL) {
+    if ((ffd = gbfopen(fname, "rb", MYNAME)) == nullptr) {
       fatal(MYNAME ": Can't initialise port \"%s\" (%s)\n", qPrintable(fname), strerror(errno));
     }
   }
@@ -145,7 +147,7 @@ mtk_locus_rd_init(const QString& fname)
 }
 
 static void
-mtk_locus_rd_deinit(void)
+mtk_locus_rd_deinit()
 {
   if (read_mode == rm_serial) {
     gbser_deinit(sfd);
@@ -155,10 +157,8 @@ mtk_locus_rd_deinit(void)
 }
 
 static void
-mtk_locus_read(void)
+mtk_locus_read()
 {
-  int i;
-
   track = route_head_alloc();
   track_add_head(track);
   dbg(1, "Track initialized\n");
@@ -172,7 +172,7 @@ mtk_locus_read(void)
 
   read_line();
   // initial serial buffer may contain garbage, so read until valid packet found
-  for (i=0; i<10; i++) {
+  for (int i = 0; i<10; i++) {
     process_packet();
     read_line();
     if (valid_packet_found) {
@@ -185,7 +185,7 @@ mtk_locus_read(void)
   }
 
   if (strcmp(opt_download, "1") == 0) {
-    send_command(PMTK_Q_LOCUS_DATA ",1", NULL);
+    send_command(PMTK_Q_LOCUS_DATA ",1", nullptr);
 
     while (! download_complete) {
       process_packet();
@@ -218,7 +218,6 @@ mtk_locus_read(void)
 void
 set_baudrate()
 {
-  int i;
   int rc;
   int baudrates[] = { 4800, 9600, 14400, 19200, 38400, 57600, 115200, 0 };
   int baudrate;
@@ -234,7 +233,7 @@ set_baudrate()
   } else {
 
     dbg(1, "Probing for baudrate...\n");
-    for (i=0;; i++) {
+    for (int i=0;; i++) {
       baudrate = baudrates[i];
       if (baudrate == 0) {
         fatal(MYNAME ": Autobaud connection failed\n");
@@ -260,23 +259,20 @@ set_baudrate()
 }
 
 void
-read_line(void)
+read_line()
 {
-  int rc;
-  char* s;
-
   line[0] = '\0';
 
   if (read_mode == rm_file) {
-    s = gbfgetstr(ffd);
-    if (s == NULL) {
+    char* s = gbfgetstr(ffd);
+    if (s == nullptr) {
       dbg(1, "EOF reached\n");
       download_complete = 1;
       return;
     }
     strncat(line, s, sizeof(line)-1);
   } else {
-    rc = gbser_read_line(sfd, line, sizeof(line)-1, TIMEOUT, 0x0A, 0x0D);
+    int rc = gbser_read_line(sfd, line, sizeof(line)-1, TIMEOUT, 0x0A, 0x0D);
     if (rc != gbser_OK) {
       fatal(MYNAME "Serial read failed: %i\n", rc);
     }
@@ -284,14 +280,11 @@ read_line(void)
 
   packetnum++;
   dbg(1, "Line %i: %s\n", packetnum, line);
-  return;
 }
 
 void
 process_packet()
 {
-
-  int calculated_checksum;
   int given_checksum;
 
   if ((strlen(line) < 3) || (line[0] != '$') || (line[strlen(line)-3] != '*')) {
@@ -299,7 +292,7 @@ process_packet()
     return;
   }
 
-  calculated_checksum = calculate_checksum(&line[1], strlen(line) - 1 - 3);
+  int calculated_checksum = calculate_checksum(&line[1], strlen(line) - 1 - 3);
   sscanf(&line[strlen(line) - 2], "%02x", &given_checksum);
   if (calculated_checksum != given_checksum) {
     dbg(1, "Line %i: NMEA Checksum incorrect, expecting %02X\n", packetnum, calculated_checksum);
@@ -332,39 +325,24 @@ process_packet()
 void
 process_pmtklox()
 {
-
-  char* token;
-  char* loxtype;
-  int loxsequence;
-  uint32_t timestamp;
-  char fixtype;
-  float latitude;
-  float longitude;
-  int height;
-  uint8_t calculated_checksum;
-  int hexval;
   uint8_t fixbytes[16];
-  int i;
-  int wordnum;
-  int bytenum;
-  int fixnum;
   static Waypoint* trkpt;
   static Waypoint* waypt;
 
-  token = strtok(line, ",");
-  if ((token == NULL) || (strcmp(token, "$PMTKLOX") != 0)) {
+  char* token = strtok(line, ",");
+  if ((token == nullptr) || (strcmp(token, "$PMTKLOX") != 0)) {
     warning("Line %i: Invalid packet id\n", packetnum);
     return;
   }
 
-  loxtype = strtok(NULL, ",");
-  if (loxtype == NULL) {
+  char* loxtype = strtok(nullptr, ",");
+  if (loxtype == nullptr) {
     warning("Line %i: Missing lox type\n", packetnum);
     return;
   }
 
   if (strcmp(loxtype, "0") == 0) {
-    last_loxsequence = atoi(strtok(NULL, "*")) - 1;
+    last_loxsequence = atoi(strtok(nullptr, "*")) - 1;
     dbg(1, "Line %i: last sequence will be %i\n", packetnum, last_loxsequence);
     return;
   }
@@ -380,7 +358,7 @@ process_pmtklox()
     return;
   }
 
-  loxsequence = atoi(strtok(NULL, ","));
+  int loxsequence = atoi(strtok(nullptr, ","));
 
   if (first_loxsequence == -1) {
     first_loxsequence = loxsequence;
@@ -393,23 +371,24 @@ process_pmtklox()
     printf("Downloading packet %i of %i\r", loxsequence, last_loxsequence);
   }
 
-  token = strtok(NULL, ",");
-  fixnum = 0;
-  while (token != NULL) {
+  token = strtok(nullptr, ",");
+  int fixnum = 0;
+  while (token != nullptr) {
     fixnum++;
-    bytenum = 0;
-    calculated_checksum = 0;
-    for (wordnum=0; wordnum<4; wordnum++) {  // 4 8-byte hex strings per fix
-      if (token == NULL) {
+    int bytenum = 0;
+    uint8_t calculated_checksum = 0;
+    for (int wordnum = 0; wordnum<4; wordnum++) {  // 4 8-byte hex strings per fix
+      if (token == nullptr) {
         dbg(1, "Line %i: Fix %i incomplete data\n", packetnum, fixnum);
         return;
       }
-      for (i=0; i<4; i++) {
+      for (int i = 0; i<4; i++) {
+        unsigned int hexval;
         sscanf(&token[i * 2], "%2x", &hexval);
         fixbytes[bytenum++] = hexval;
         calculated_checksum ^= hexval;
       }
-      token = strtok(NULL, ",");
+      token = strtok(nullptr, ",");
     }
 
     if (calculated_checksum != 0) {
@@ -417,11 +396,11 @@ process_pmtklox()
       continue;
     }
 
-    timestamp = le_read32(&fixbytes[0]);
-    fixtype = fixbytes[4];
-    latitude = le_read_float(&fixbytes[5]);
-    longitude = le_read_float(&fixbytes[9]);
-    height = le_read16(&fixbytes[13]);
+    uint32_t timestamp = le_read32(&fixbytes[0]);
+    char fixtype = fixbytes[4];
+    float latitude = le_read_float(&fixbytes[5]);
+    float longitude = le_read_float(&fixbytes[9]);
+    int height = le_read16(&fixbytes[13]);
 
     if (fixtype != '\x02') {
       dbg(1, "line %i: Fix %i Invalid fix type: %02X\n", packetnum, fixnum, fixtype);
@@ -468,46 +447,40 @@ process_pmtklox()
 void
 process_pmtklog()
 {
-  int status;
-  int type;
-
   strtok(line, ",");
 
-  printf("Serial#:  %s\n", strtok(NULL, ","));
+  printf("Serial#:  %s\n", strtok(nullptr, ","));
 
-  type = atoi(strtok(NULL, ","));
+  int type = atoi(strtok(nullptr, ","));
   if (type == 0) {
     printf("Type:     %i (wrap around when full)\n", type);
   } else {
     printf("Type:     %i (stop when full)\n", type);
   }
 
-  printf("Mode:     0x%02X\n", atoi(strtok(NULL, ",")));
-  printf("Content:  %s\n", strtok(NULL, ","));
-  printf("Interval: %s seconds\n", strtok(NULL, ","));
-  printf("Distance: %s\n", strtok(NULL, ","));
-  printf("Speed:    %s\n", strtok(NULL, ","));
+  printf("Mode:     0x%02X\n", atoi(strtok(nullptr, ",")));
+  printf("Content:  %s\n", strtok(nullptr, ","));
+  printf("Interval: %s seconds\n", strtok(nullptr, ","));
+  printf("Distance: %s\n", strtok(nullptr, ","));
+  printf("Speed:    %s\n", strtok(nullptr, ","));
 
-  status = atoi(strtok(NULL, ","));
+  int status = atoi(strtok(nullptr, ","));
   if (status == 0) {
     printf("Status:   %i (enabled)\n", status);
   } else {
     printf("Status:   %i (disabled)\n", status);
   }
 
-  printf("Number:   %s fixes available\n", strtok(NULL, ","));
-  printf("Percent:  %s%% used\n", strtok(NULL, ","));
+  printf("Number:   %s fixes available\n", strtok(nullptr, ","));
+  printf("Percent:  %s%% used\n", strtok(nullptr, ","));
 }
 
 void
 process_pmtk001()
 {
-  char* cmd;
-  char* flag;
-
   strtok(line, ",");
-  cmd = strtok(NULL,",");
-  flag = strtok(NULL,",");
+  char* cmd = strtok(nullptr,",");
+  char* flag = strtok(nullptr,",");
 
   switch (atoi(flag)) {
   case 0:
@@ -531,10 +504,8 @@ process_pmtk001()
 void
 process_pmtk705()
 {
-  char* token;
-
-  token = strtok(line, ",");
-  token = strtok(NULL,",");
+  char* token = strtok(line, ",");
+  token = strtok(nullptr,",");
 
   printf("Firmware: %s\n", token);
 }
@@ -542,28 +513,26 @@ process_pmtk705()
 void
 send_command(const char* s, const char* wait_for)
 {
-  int rc;
   time_t starttime;
   time_t currtime;
   char cmd[100];
-  int checksum;
 
   if (read_mode == rm_file) {
     dbg(1, "Sending device commands ignored when using file input: %s\n", s);
     return;
   }
 
-  checksum = calculate_checksum(&s[1], strlen(s)-1);
+  int checksum = calculate_checksum(&s[1], strlen(s)-1);
   snprintf(cmd, sizeof(cmd)-1, "%s*%02X\r\n", s, checksum);
 
-  rc = gbser_print(sfd, cmd);
+  int rc = gbser_print(sfd, cmd);
   if (rc != gbser_OK) {
     fatal(MYNAME ": Write error (%d)\n", rc);
   }
 
   dbg(1, "Sent command: %s\n", cmd);
 
-  if (wait_for == NULL) {
+  if (wait_for == nullptr) {
     waiting_for[0] = '\0';
     return;
   }
@@ -589,11 +558,9 @@ send_command(const char* s, const char* wait_for)
 int
 calculate_checksum(const char* s, int length)
 {
-  int i;
-  int sum;
-  sum = 0;
+  int sum = 0;
 
-  for (i=0; i<length; i++) {
+  for (int i = 0; i<length; i++) {
     sum ^= *s++;
   }
   return sum;

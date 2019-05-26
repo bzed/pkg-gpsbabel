@@ -26,10 +26,11 @@
 
 
 #include "defs.h"
-#include "xmlgeneric.h"
 #include "garmin_device_xml.h"
+#include "xmlgeneric.h"
 #include <QtCore/QXmlStreamAttributes>
-#include <stdio.h>
+#include <QtCore/QFile>
+#include <cstdio>
 
 #define MYNAME "whatever"
 
@@ -39,9 +40,9 @@ static char* mountpoint, *base, *path, *ext;
 static xg_callback device_s, id_s, path_s, ext_s, base_s, dir_s;
 jmp_buf gdx_jmp_buf;
 
-void type_s(xg_string args, const QXmlStreamAttributes*)
+static void type_s(xg_string args, const QXmlStreamAttributes*)
 {
-  type = args.compare("GPSData");
+  type = args.compare(QLatin1String("GPSData"));
 }
 
 void device_s(xg_string args, const QXmlStreamAttributes*)
@@ -99,17 +100,17 @@ void dir_s(xg_string args, const QXmlStreamAttributes*)
   if (base) {
     xfree(base) ;
   }
-  base = NULL;
+  base = nullptr;
 
   if (ext) {
     xfree(ext) ;
   }
-  ext = NULL;
+  ext = nullptr;
 
   if (path) {
     xfree(path) ;
   }
-  path = NULL;
+  path = nullptr;
 }
 
 static xg_tag_mapping gdx_map[] = {
@@ -120,18 +121,15 @@ static xg_tag_mapping gdx_map[] = {
   { ext_s, cb_cdata, "/Device/MassStorageMode/DataType/File/Location/FileExtension" },
   { base_s, cb_cdata, "/Device/MassStorageMode/DataType/File/Location/BaseName" },
   { dir_s, cb_cdata, "/Device/MassStorageMode/DataType/File/TransferDirection" },
-  { 0, (xg_cb_type) 0, NULL }
+  { nullptr, (xg_cb_type) 0, nullptr }
 };
 
 const gdx_info*
 gdx_read(const char* fname)
 {
   // Test file open-able before gb_open gets a chance to fatal().
-  FILE* fin = fopen(fname, "r");
-
-  if (fin) {
-    fclose(fin);
-    xml_init(fname, gdx_map, NULL);
+  if (QFile(fname).open(QIODevice::ReadOnly)) {
+    xml_init(fname, gdx_map, nullptr);
     xml_read();
     xml_deinit();
   }
@@ -144,19 +142,18 @@ gdx_read(const char* fname)
 const gdx_info*
 gdx_find_file(char** dirlist)
 {
-  const gdx_info* gdx;
   while (dirlist && *dirlist) {
     char* tbuf;
     xasprintf(&tbuf, "%s/%s", *dirlist, "/Garmin/GarminDevice.xml");
     mountpoint = *dirlist;
-    gdx = gdx_read(tbuf);
+    const gdx_info* gdx = gdx_read(tbuf);
     xfree(tbuf);
     if (gdx) {
       longjmp(gdx_jmp_buf, 1);
     }
     dirlist++;
   }
-  return NULL;
+  return nullptr;
 }
 
 const gdx_info*

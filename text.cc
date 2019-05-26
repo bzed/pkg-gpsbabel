@@ -23,18 +23,18 @@
 #include "defs.h"
 #include "jeeps/gpsmath.h"
 #include "src/core/xmltag.h"
-#include <ctype.h>
-#include <stdlib.h>
+#include <cctype>
+#include <cstdlib>
 
 static gbfile* file_out;
 static short_handle mkshort_handle;
 
-static char* suppresssep = NULL;
-static char* txt_encrypt = NULL;
-static char* includelogs = NULL;
-static char* degformat = NULL;
-static char* altunits = NULL;
-static char* split_output = NULL;
+static char* suppresssep = nullptr;
+static char* txt_encrypt = nullptr;
+static char* includelogs = nullptr;
+static char* degformat = nullptr;
+static char* altunits = nullptr;
+static char* split_output = nullptr;
 static int waypoint_count;
 static QString output_name;
 
@@ -45,27 +45,27 @@ arglist_t text_args[] = {
   {
     "nosep", &suppresssep,
     "Suppress separator lines between waypoints",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "encrypt", &txt_encrypt,
-    "Encrypt hints using ROT13", NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    "Encrypt hints using ROT13", nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "logs", &includelogs,
-    "Include groundspeak logs if present", NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    "Include groundspeak logs if present", nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "degformat", &degformat,
-    "Degrees output as 'ddd', 'dmm'(default) or 'dms'", "dmm", ARGTYPE_STRING, ARG_NOMINMAX
+    "Degrees output as 'ddd', 'dmm'(default) or 'dms'", "dmm", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "altunits", &altunits,
-    "Units for altitude (f)eet or (m)etres", "m", ARGTYPE_STRING, ARG_NOMINMAX
+    "Units for altitude (f)eet or (m)etres", "m", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "splitoutput", &split_output,
-    "Write each waypoint in a separate file", NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    "Write each waypoint in a separate file", nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
 
   ARG_TERMINATOR
@@ -85,7 +85,7 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   if (!split_output) {
     gbfclose(file_out);
@@ -100,9 +100,8 @@ text_disp(const Waypoint* wpt)
   int32_t utmz;
   double utme, utmn;
   char utmzc;
-  char* tmpout1, *tmpout2;
+  char* tmpout2;
   char* altout;
-  fs_xml* fs_gpx;
 
   waypoint_count++;
 
@@ -114,7 +113,7 @@ text_disp(const Waypoint* wpt)
 
   GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude,
                            &utme, &utmn, &utmz, &utmzc);
-  tmpout1 = pretty_deg_format(wpt->latitude, wpt->longitude, degformat[2], " ", 0);
+  char* tmpout1 = pretty_deg_format(wpt->latitude, wpt->longitude, degformat[2], " ", 0);
   if (wpt->altitude != unknown_alt) {
     xasprintf(&altout, " alt:%d", (int)((altunits[0]=='f')?METERS_TO_FEET(wpt->altitude):wpt->altitude));
   } else {
@@ -167,22 +166,19 @@ text_disp(const Waypoint* wpt)
     gbfputs("\n", file_out);
   }
 
-  fs_gpx = NULL;
+  fs_xml* fs_gpx = nullptr;
   if (includelogs) {
     fs_gpx = (fs_xml*)fs_chain_find(wpt->fs, FS_GPX);
   }
 
   if (fs_gpx && fs_gpx->tag) {
     xml_tag* root = fs_gpx->tag;
-    xml_tag* curlog = NULL;
-    xml_tag* logpart = NULL;
-    curlog = xml_findfirst(root, "groundspeak:log");
+    xml_tag* curlog = xml_findfirst(root, "groundspeak:log");
     while (curlog) {
       time_t logtime = 0;
-      struct tm* logtm = NULL;
       gbfprintf(file_out, "\n");
 
-      logpart = xml_findfirst(curlog, "groundspeak:type");
+      xml_tag* logpart = xml_findfirst(curlog, "groundspeak:type");
       if (logpart) {
         gbfputs(logpart->cdata, file_out);
         gbfputs(" by ", file_out);
@@ -197,7 +193,7 @@ text_disp(const Waypoint* wpt)
       logpart = xml_findfirst(curlog, "groundspeak:date");
       if (logpart) {
         logtime = xml_parse_time(logpart->cdata).toTime_t();
-        logtm = localtime(&logtime);
+        struct tm* logtm = localtime(&logtime);
         if (logtm) {
           gbfprintf(file_out,
                     "%4.4d-%2.2d-%2.2d\n",
@@ -209,10 +205,9 @@ text_disp(const Waypoint* wpt)
 
       logpart = xml_findfirst(curlog, "groundspeak:log_wpt");
       if (logpart) {
-        char* coordstr = NULL;
         double lat = 0;
         double lon = 0;
-        coordstr = xml_attribute(logpart, "lat");
+        char* coordstr = xml_attribute(logpart, "lat");
         if (coordstr) {
           lat = atof(coordstr);
         }
@@ -227,10 +222,8 @@ text_disp(const Waypoint* wpt)
 
       logpart = xml_findfirst(curlog, "groundspeak:text");
       if (logpart) {
-        char* encstr = NULL;
-        int encoded = 0;
-        encstr = xml_attribute(logpart, "encoded");
-        encoded = (toupper(encstr[0]) != 'F');
+        char* encstr = xml_attribute(logpart, "encoded");
+        int encoded = (toupper(encstr[0]) != 'F');
 
         QString s;
         if (txt_encrypt && encoded) {
@@ -254,12 +247,12 @@ text_disp(const Waypoint* wpt)
 
   if (split_output) {
     gbfclose(file_out);
-    file_out = NULL;
+    file_out = nullptr;
   }
 }
 
 static void
-data_write(void)
+data_write()
 {
   if (! suppresssep && !split_output) {
     gbfprintf(file_out, "-----------------------------------------------------------------------------\n");
@@ -272,14 +265,16 @@ data_write(void)
 ff_vecs_t text_vecs = {
   ff_type_file,
   { ff_cap_write, ff_cap_none, ff_cap_none},
-  NULL,
+  nullptr,
   wr_init,
-  NULL,
+  nullptr,
   wr_deinit,
-  NULL,
+  nullptr,
   data_write,
-  NULL,
+  nullptr,
   text_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 
 };

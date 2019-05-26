@@ -20,9 +20,9 @@
  */
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -87,7 +87,7 @@ static
 char** os_get_garmin_mountpoints()
 {
   // Hacked for testing.
-  return NULL;
+  return nullptr;
 }
 #elif __APPLE__
 // In fantasy land, we'd query iokit for enumerated devices of the Garmin
@@ -98,7 +98,7 @@ char** os_get_garmin_mountpoints()
 {
   char** dlist = (char**) xcalloc(2, sizeof *dlist);
   dlist[0] = xstrdup("/Volumes/GARMIN");
-  dlist[1] = NULL;
+  dlist[1] = nullptr;
   return dlist;
 }
 #else
@@ -116,7 +116,7 @@ gusb_libusb_send(const garmin_usb_packet* opkt, size_t sz)
   r = usb_bulk_write(udev, gusb_bulk_out_ep, (char*)(void*)opkt->dbuf, sz, TMOUT_B);
 
   if (r != (int) sz) {
-    fprintf(stderr, "Bad cmdsend r %d sz %ld\n", r, (unsigned long) sz);
+    fprintf(stderr, "Bad cmdsend r %d sz %lud\n", r, (unsigned long) sz);
     if (r < 0) {
       fatal("usb_bulk_write failed. '%s'\n",
             usb_strerror());
@@ -158,18 +158,18 @@ gusb_teardown(gpsdevh* dh)
      * when called via the atexit handler.  That's not too
      * terrible.
      */
-    if (NULL != dh) {
+    if (nullptr != dh) {
       xfree(dh);
     }
-    udev = NULL;
+    udev = nullptr;
   }
   return 0;
 }
 
 static void
-gusb_atexit_teardown(void)
+gusb_atexit_teardown()
 {
-  gusb_teardown(NULL);
+  gusb_teardown(nullptr);
 }
 
 
@@ -208,7 +208,7 @@ gusb_atexit_teardown(void)
  * Grrrr!
  */
 unsigned
-gusb_reset_toggles(void)
+gusb_reset_toggles()
 {
   static const unsigned char  oinit[12] =
   {0, 0, 0, 0, GUSB_SESSION_START, 0, 0, 0, 0, 0, 0, 0};
@@ -231,7 +231,7 @@ gusb_reset_toggles(void)
   gusb_cmd_send((const garmin_usb_packet*) oinit, sizeof(oinit));
 
   t = 10;
-  while (1) {
+  while (true) {
     le_write16(&iresp.gusb_pkt.pkt_id, 0);
     le_write32(&iresp.gusb_pkt.datasz, 0);
     le_write32(&iresp.gusb_pkt.databuf, 0);
@@ -256,7 +256,7 @@ gusb_reset_toggles(void)
 
   t = 10;
   gusb_cmd_send((const garmin_usb_packet*) oid, sizeof(oid));
-  while (1) {
+  while (true) {
     le_write16(&iresp.gusb_pkt.pkt_id, 0);
     le_write32(&iresp.gusb_pkt.datasz, 0);
     le_write32(&iresp.gusb_pkt.databuf, 0);
@@ -427,7 +427,7 @@ int garmin_usb_scan(libusb_unit_data* lud, int req_unit_number)
           	 * may have a "dangling" packet that
            * needs to be drained.
            */
-          gusb_close(NULL);
+          gusb_close(nullptr);
         } else if (req_unit_number == found_devices) {
           garmin_usb_start(dev, lud);
         }

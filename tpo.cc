@@ -70,19 +70,29 @@
     3.x     "recreation"
 */
 
+#include <cassert>                     // for assert
+#include <cmath>                       // for cos, sqrt
+#include <cstdio>                      // for printf, sprintf, SEEK_CUR, SEEK_SET
+#include <cstdint>
+#include <cstring>                     // for strncmp, strlen, memset
+#include <vector>                      // for vector
+
+#include <QtCore/QByteArray>           // for QByteArray
+#include <QtCore/QChar>                // for operator==, QChar
+#include <QtCore/QCharRef>             // for QCharRef
+#include <QtCore/QScopedArrayPointer>  // for QScopedArrayPointer
+#include <QtCore/QString>              // for QString
+#include <QtCore/QtGlobal>             // for qPrintable, Q_UNUSED
 
 #include "defs.h"
-#include "jeeps/gpsmath.h" /* for datum conversions */
-#include <cmath>
-#include <stdio.h>
-#include <stdlib.h>
-#include <vector>
-#include <QtCore/QScopedArrayPointer> // Wish we could use c++11...
+#include "gbfile.h"                    // for gbfread, gbfgetc, gbfgetint32, gbfwrite, gbfputint16, gbfseek, gbfgetdbl, gbfgetint16, gbfputdbl, gbfclose, gbfputint32, gbfile, gbfopen_le, gbfgetuint16
+#include "jeeps/gpsmath.h"             // for GPS_Math_WGS84LatLonH_To_XYZ, GPS_Math_WGS84_To_Known_Datum_M, GPS_Math_Deg_To_Rad, GPS_Math_Known_Datum_To_WGS84_M
+
 
 #define MYNAME	"TPO"
 
-static char* dumpheader = NULL;
-static char* output_state = NULL;
+static char* dumpheader = nullptr;
+static char* output_state = nullptr;
 
 /*
 static
@@ -132,7 +142,7 @@ static double last_waypoint_z;
 /*******************************************************************************/
 
 /* Define a global here that we can query from multiple places */
-float tpo_version = 0.0;
+static float tpo_version = 0.0;
 
 /* tpo_check_version_string()
    Check the first bytes of the file for a version 3.0 header. */
@@ -141,12 +151,11 @@ tpo_check_version_string()
 {
 
   unsigned char string_size;
-  char* string_buffer;
   const char* v3_id_string = "TOPO! Ver";
 
   /* read the id string */
   gbfread(&string_size, 1, 1, tpo_file_in);
-  string_buffer = (char*) xmalloc(string_size+1);
+  char* string_buffer = (char*) xmalloc(string_size+1);
   gbfread(string_buffer, 1, string_size, tpo_file_in);
 
   /* terminate the string */
@@ -179,14 +188,13 @@ static void
    as a C array definition. */
 tpo_dump_header_bytes(int header_size)
 {
-  int i;
   unsigned char* buffer = (unsigned char*) xmalloc(header_size);
 
   gbfread(buffer, 1, header_size, tpo_file_in);
 
   printf("unsigned char header_bytes[] = {\n");
 
-  for (i=0; i<header_size; i++) {
+  for (int i = 0; i < header_size; i++) {
     if (i%8 == 0) {
       printf("    ");
     }
@@ -215,7 +223,7 @@ tpo_read_until_section(const char* section_name, int seek_bytes)
   unsigned int match_index = 0;
   int header_size = 0;
 
-  while (1) {
+  while (true) {
     if (gbfread(&byte, 1, 1, tpo_file_in) < 1) {
       fatal(MYNAME ": malformed input file - attempt to read past end");
     }
@@ -256,17 +264,12 @@ tpo_read_until_section(const char* section_name, int seek_bytes)
 // that is the only type of data available in the version 2.x TPO
 // files.
 //
-void tpo_read_2_x(void)
+static void tpo_read_2_x()
 {
   char buff[16];
-  short track_count, waypoint_count;
-  double first_lat, first_lon, lat_scale, lon_scale, amt;
-  int i, j;
-  route_head* track_temp;
-  Waypoint* waypoint_temp;
 
   /* track count */
-  track_count = gbfgetint16(tpo_file_in);
+  short track_count = gbfgetint16(tpo_file_in);
 
   /*fprintf(stderr,"track_count:%d\n", track_count);*/
 
@@ -276,14 +279,13 @@ void tpo_read_2_x(void)
   /* chunk name: "CTopoRoute" */
   gbfread(&buff[0], 1, 12, tpo_file_in);
 
-  for (i=0; i<track_count; i++) {
+  for (int i = 0; i < track_count; i++) {
 
-    track_temp = route_head_alloc();
+    route_head* track_temp = route_head_alloc();
     track_add_head(track_temp);
 
     /* generate a generic track name */
-    sprintf(buff, "Track %d", i+1);
-    track_temp->rte_name = buff;
+    track_temp->rte_name = QString("Track %1").arg(i+1);
 
     /* zoom level 1-5 visibility flags */
     gbfread(&buff[0], 1, 10, tpo_file_in);
@@ -299,10 +301,10 @@ void tpo_read_2_x(void)
     /* coordinates are in NAD27/CONUS datum                     */
 
     /* 8 bytes - longitude, sign swapped  */
-    first_lon = gbfgetdbl(tpo_file_in);
+    double first_lon = gbfgetdbl(tpo_file_in);
 
     /* 8 bytes - latitude */
-    first_lat = gbfgetdbl(tpo_file_in);
+    double first_lat = gbfgetdbl(tpo_file_in);
 
     /* swap sign before we do datum conversions */
     first_lon *= -1.0;
@@ -311,13 +313,13 @@ void tpo_read_2_x(void)
     gbfread(&buff[0], 1, 8, tpo_file_in);
 
     /* number of route points */
-    waypoint_count = gbfgetint16(tpo_file_in);
+    short waypoint_count = gbfgetint16(tpo_file_in);
 
     /* allocate temporary memory for the waypoint deltas */
     std::vector<short> lat_delta(waypoint_count);
     std::vector<short> lon_delta(waypoint_count);
 
-    for (j = 0; j < waypoint_count; j++) {
+    for (int j = 0; j < waypoint_count; j++) {
 
       /* get this point's longitude delta from the first waypoint */
       lon_delta[j] = gbfgetint16(tpo_file_in);
@@ -327,10 +329,10 @@ void tpo_read_2_x(void)
     }
 
     /* 8 bytes - longitude delta to degrees scale  */
-    lon_scale = gbfgetdbl(tpo_file_in);
+    double lon_scale = gbfgetdbl(tpo_file_in);
 
     /* 8 bytes - latitude delta to degrees scale */
-    lat_scale = gbfgetdbl(tpo_file_in);
+    double lat_scale = gbfgetdbl(tpo_file_in);
 
     /* 4 bytes: the total length of the route in feet*/
     gbfread(&buff[0], 1, 4, tpo_file_in);
@@ -342,14 +344,14 @@ void tpo_read_2_x(void)
     gbfread(&buff[0], 1, 2, tpo_file_in);
 
     /* multiply all the deltas by the scaling factors to determine the waypoint positions */
-    for (j = 0; j < waypoint_count; j++) {
+    for (int j = 0; j < waypoint_count; j++) {
 
-      waypoint_temp = new Waypoint;
-
+      Waypoint* waypoint_temp = new Waypoint;
+      double amt;
       /* convert incoming NAD27/CONUS coordinates to WGS84 */
       GPS_Math_Known_Datum_To_WGS84_M(
-        first_lat-lat_delta[j]*lat_scale,
-        first_lon+lon_delta[j]*lon_scale,
+        first_lat-lat_delta[j] * lat_scale,
+        first_lon+lon_delta[j] * lon_scale,
         0.0,
         &waypoint_temp->latitude,
         &waypoint_temp->longitude,
@@ -377,11 +379,9 @@ void tpo_read_2_x(void)
 //
 // For version 3.x files.
 //
-int tpo_read_int()
+static int tpo_read_int()
 {
-  unsigned char val;
-
-  val = (unsigned char) gbfgetc(tpo_file_in);
+  unsigned char val = (unsigned char) gbfgetc(tpo_file_in);
 
   switch (val) {
 
@@ -417,14 +417,13 @@ int tpo_read_int()
 //
 // For version 3.x files.
 //
-int tpo_find_block(unsigned int block_desired)
+static int tpo_find_block(unsigned int block_desired)
 {
   unsigned int block_type;
-  unsigned int block_offset;
 
 
   // Skip 512 byte fixed-length header
-  block_offset = 512;
+  unsigned int block_offset = 512;
 
   do {
 
@@ -454,17 +453,12 @@ int tpo_find_block(unsigned int block_desired)
 //
 // For version 3.x files.
 //
-Waypoint* tpo_convert_ll(int lat, int lon)
+static Waypoint* tpo_convert_ll(int lat, int lon)
 {
-  double latitude;
-  double longitude;
-  Waypoint* waypoint_temp;
+  Waypoint* waypoint_temp = new Waypoint;
 
-
-  waypoint_temp = new Waypoint;
-
-  latitude = (double)lat / 0x800000;
-  longitude = (double)lon / 0x800000;
+  double latitude = (double)lat / 0x800000;
+  double longitude = (double)lon / 0x800000;
 
 //printf("lat: %f\tlon: %f\n", latitude, longitude);
 
@@ -493,30 +487,20 @@ Waypoint* tpo_convert_ll(int lat, int lon)
   return(waypoint_temp);
 }
 
-#define TRACKNAMELENGTH 256
+#define TRACKNAMELENGTH 255
 class StyleInfo {
 public:
-  StyleInfo() {
-    name[0] = 0;
-    color[0] = 0;
-    color[1] = 0;
-    color[2] = 0;
-    wide = dash = 0;
-  }
-  char name[TRACKNAMELENGTH]; // some huge value
-  uint8_t color[3];  // keep R/G/B values separate because line_color needs BGR
-  uint8_t wide;
-  uint8_t dash;
+  QString name;
+  uint8_t color[3]{0, 0, 0};  // keep R/G/B values separate because line_color needs BGR
+  uint8_t wide{0};
+  uint8_t dash{0};
 };
 
 // Track decoder for version 3.x files.  This block contains tracks
 // (called "freehand routes" or just "routes" in Topo).
 //
-void tpo_process_tracks(void)
+static void tpo_process_tracks()
 {
-  unsigned int track_count, track_style_count;
-  unsigned int xx,ii,tmp;
-
   const int DEBUG = 0;
 
   if (DEBUG) {
@@ -528,39 +512,41 @@ void tpo_process_tracks(void)
     return;
   }
   // Read the number of track styles.
-  track_style_count = tpo_read_int(); // 8 bit value
+  unsigned int track_style_count = tpo_read_int(); // 8 bit value
 
   if (DEBUG) {
-    printf("Unpacking %d track styles...\n",track_style_count);
+    printf("Unpacking %u track styles...\n",track_style_count);
   }
 
   QScopedArrayPointer<StyleInfo> styles(new StyleInfo[track_style_count]);
 
-  for (ii = 0; ii < track_style_count; ii++) {
+  for (unsigned ii = 0; ii < track_style_count; ii++) {
 
     // clumsy way to skip two undefined bytes (compiler should unwind this)
-    for (xx = 0; xx < 2; xx++) {
-      tmp = (unsigned char) gbfgetc(tpo_file_in);
-      // printf("Skipping unknown (visibility?) byte 0x%x\n",tmp);
+    for (unsigned xx = 0; xx < 2; xx++) {
+      unsigned int skipped = (unsigned char) gbfgetc(tpo_file_in);
+      Q_UNUSED(skipped);
+      // printf("Skipping unknown (visibility?) byte 0x%x\n", skipped);
     }
 
     // next three bytes are RGB color, fourth is unknown
     // Topo and web uses rrggbb, also need line_color.bbggrr for KML
-    for (xx = 0; xx < 3; xx++) {
-      int col = (int)gbfgetc(tpo_file_in);
+    for (unsigned char &xx : styles[ii].color) {
+      int col = gbfgetc(tpo_file_in);
       if ((col < 0) || (col >255)) {
         col = 0; // assign black if out of range 0x00 to 0xff
       }
-      styles[ii].color[xx] = (uint8_t)col;
+        xx = (uint8_t)col;
     }
 
-    tmp = (unsigned char) gbfgetc(tpo_file_in);
+    unsigned char tmp = gbfgetc(tpo_file_in);
+    Q_UNUSED(tmp);
     // printf("Skipping unknown byte 0x%x after color\n",tmp);
 
     // byte for name length, then name
-    tmp = (unsigned char) gbfgetc(tpo_file_in);
+    tmp = gbfgetc(tpo_file_in);
     // wrong byte order?? tmp = tpo_read_int(); // 16 bit value
-    // printf("Track %d has %d-byte (0x%x) name\n",ii,tmp,tmp);
+    // printf("Track %d has %d-byte (0x%x) name\n", ii, tmp, tmp);
     if (tmp >= TRACKNAMELENGTH) {
       printf("ERROR! Found track style over TRACKNAMELENGTH chars, skipping all tracks!\n");
       return;
@@ -570,15 +556,15 @@ void tpo_process_tracks(void)
       gbfread(styles[ii].name, 1, tmp, tpo_file_in);
       styles[ii].name[tmp] = '\0';  // Terminator
     } else { // Assign a generic style name
-      sprintf(styles[ii].name, "STYLE %d", ii);
+      styles[ii].name = QString("STYLE %1").arg(ii);
     }
     //TBD: Should this be TRACKNAMELENGTH?
-    for (xx = 0; xx < 3; xx++) {
-      if (styles[ii].name[xx] == (char) ',') {
-        styles[ii].name[xx] = (char) '_';
+    for (unsigned xx = 0; xx < 3; xx++) {
+      if (styles[ii].name[xx] == ',') {
+        styles[ii].name[xx] = '_';
       }
-      if (styles[ii].name[xx] == (char) '=') {
-        styles[ii].name[xx] = (char) '_';
+      if (styles[ii].name[xx] == '=') {
+        styles[ii].name[xx] = '_';
       }
     }
 
@@ -587,18 +573,20 @@ void tpo_process_tracks(void)
     styles[ii].dash = (uint8_t) gbfgetc(tpo_file_in);
 
     // clumsy way to skip two undefined bytes
-    for (xx = 0; xx < 2; xx++) {
-      tmp = (unsigned char) gbfgetc(tpo_file_in);
-      // printf("Skipping final byte 0x%x\n",tmp);
+    for (unsigned xx = 0; xx < 2; xx++) {
+      tmp = gbfgetc(tpo_file_in);
+      // printf("Skipping final byte 0x%x\n", tmp);
     }
 
     if (DEBUG) {
-      printf("Track style %d: color=#%02x%02x%02x, width=%d, dashed=%d, name=%s\n",ii,styles[ii].color[0],styles[ii].color[1],styles[ii].color[2],styles[ii].wide,styles[ii].dash,styles[ii].name);
+      printf("Track style %u: color=#%02x%02x%02x, width=%d, dashed=%d, name=%s\n",
+             ii, styles[ii].color[0], styles[ii].color[1], styles[ii].color[2],
+             styles[ii].wide, styles[ii].dash, qPrintable(styles[ii].name));
     }
   }
 
   if (DEBUG) {
-    printf("Processing Tracks... found %d track styles\n",track_style_count);
+    printf("Processing Tracks... found %u track styles\n", track_style_count);
   }
 
   // Find block 0x060000 (free-hand routes) (original track code, pre-2012, without styles)
@@ -607,10 +595,10 @@ void tpo_process_tracks(void)
   }
 
   // Read the number of tracks.  Can be 8/16/32-bit value.
-  track_count = tpo_read_int();
+  unsigned int track_count = tpo_read_int();
 
   if (DEBUG) {
-    printf("Total Tracks: %d\n", track_count);
+    printf("Total Tracks: %u\n", track_count);
   }
 
   if (track_count == 0) {
@@ -619,39 +607,27 @@ void tpo_process_tracks(void)
 
   // Read/process each track in the file
   //
-  for (ii = 0; ii < track_count; ii++) {
-    unsigned int line_type;
-    unsigned int track_style;
-    unsigned int name_length;
-    unsigned int track_byte_count;
-    int llvalid;
-    unsigned char* buf;
-    int lonscale;
-    int latscale;
-    int waypoint_count = 0;
+  for (unsigned ii = 0; ii < track_count; ii++) {
     int lat = 0;
     int lon = 0;
-    unsigned int jj;
-    route_head* track_temp;
     char rgb[7],bgr[7];
-    int bbggrr = 0;
 
     // Allocate the track struct
-    track_temp = route_head_alloc();
+    route_head* track_temp = route_head_alloc();
     track_add_head(track_temp);
 
 //UNKNOWN DATA LENGTH
-    line_type = tpo_read_int(); // always zero??
+    unsigned int line_type = tpo_read_int(); // always zero??
 
     // Can be 8/16/32-bit value (defined in 2012, ignored before then)
-    track_style = tpo_read_int(); // index into freehand route styles defined in this .tpo file
+    unsigned int track_style = tpo_read_int(); // index into freehand route styles defined in this .tpo file
     track_style -= 1;  // STARTS AT 1, whereas style arrays start at 0
 
     // Can be 8/16/32-bit value - never used?
     track_length = tpo_read_int();
 
 //UNKNOWN DATA LENGTH
-    name_length = tpo_read_int();
+    unsigned int name_length = tpo_read_int();
     QString track_name;
     if (name_length) {
       gbfread(track_name, 1, name_length, tpo_file_in);
@@ -664,7 +640,7 @@ void tpo_process_tracks(void)
     // RGB line_color expressed for html=rrggbb and kml=bbggrr - not assigned before 2012
     sprintf(rgb,"%02x%02x%02x",styles[track_style].color[0],styles[track_style].color[1],styles[track_style].color[2]);
     sprintf(bgr,"%02x%02x%02x",styles[track_style].color[2],styles[track_style].color[1],styles[track_style].color[0]);
-    bbggrr = styles[track_style].color[2] << 16 | styles[track_style].color[1] << 8 | styles[track_style].color[0];
+    int bbggrr = styles[track_style].color[2] << 16 | styles[track_style].color[1] << 8 | styles[track_style].color[0];
     track_temp->line_color.bbggrr = bbggrr;
 
     // track texture (dashed=1, solid=0) mapped into opacity - not assigned before 2012
@@ -678,19 +654,24 @@ void tpo_process_tracks(void)
     track_temp->line_width = styles[track_style].wide;
 
     if (DEBUG) printf("Track Name: %s, ?Type?: %d, Style Name: %s, Width: %d, Dashed: %d, Color: #%s\n",
-                        qPrintable(track_name), line_type, styles[track_style].name, styles[track_style].wide, styles[track_style].dash,rgb);
+                        qPrintable(track_name), line_type, 
+                        qPrintable(styles[track_style].name),
+                        styles[track_style].wide,
+                        styles[track_style].dash,rgb);
 
     // Track description
     track_temp->rte_desc = 
-      QString().sprintf("Style=%s, Width=%d, Dashed=%d, Color=#%s",
-                         styles[track_style].name, styles[track_style].wide,
-                         styles[track_style].dash, rgb);
+      QString("Style=%1, Width=%2, Dashed=%3, Color=#%4")
+                         .arg(styles[track_style].name)
+                         .arg(styles[track_style].wide)
+                         .arg(styles[track_style].dash)
+                         .arg(rgb);
 
     // Route number
     track_temp->rte_num = ii + 1;
 
 //UNKNOWN DATA LENGTH
-    track_byte_count = tpo_read_int();
+    unsigned int track_byte_count = tpo_read_int();
 
     // Read the number of bytes specified for the track.  These
     // contain scaling factors, long/lat's, and offsets from
@@ -700,15 +681,15 @@ void tpo_process_tracks(void)
     // proper place for the next track.
 
     // Read the track bytes into a buffer
-    buf = (unsigned char*) xmalloc(track_byte_count);
+    unsigned char* buf = (unsigned char*) xmalloc(track_byte_count);
     gbfread(buf, 1, track_byte_count, tpo_file_in);
 
-    latscale=0;
-    lonscale=0;
+    int latscale = 0;
+    int lonscale = 0;
 
     // Process the track bytes
-    llvalid = 0;
-    for (jj = 0; jj < track_byte_count;) {
+    int llvalid = 0;
+    for (unsigned int jj = 0; jj < track_byte_count;) {
       Waypoint* waypoint_temp;
 
       // Time to read a new latlong?
@@ -752,7 +733,6 @@ void tpo_process_tracks(void)
 
         waypoint_temp = tpo_convert_ll(lat, lon);
         track_add_wpt(track_temp, waypoint_temp);
-        waypoint_count++;
       }
 
       // Check whether there's a lonlat coming up instead of
@@ -776,13 +756,11 @@ void tpo_process_tracks(void)
 
 
         if (buf[jj] == 0) {
-          printf("Found unexpected ZERO\n");
-          exit(1);
+          fatal(MYNAME ": Found unexpected ZERO\n");
         }
 
         if (latscale == 0 || lonscale == 0) {
-          printf("Found bad scales lonscale=0x%x latscale=0x%x\n", lonscale, latscale);
-          exit(1);
+          fatal(MYNAME ": Found bad scales lonscale=0x%x latscale=0x%x\n", lonscale, latscale);
         }
 
         lon+=lonscale*scarray[buf[jj]>>4];
@@ -792,7 +770,6 @@ void tpo_process_tracks(void)
 
         waypoint_temp = tpo_convert_ll(lat, lon);
         track_add_wpt(track_temp, waypoint_temp);
-        waypoint_count++;
       }
     }
 
@@ -809,18 +786,14 @@ void tpo_process_tracks(void)
 //
 // For version 3.x files.
 //
-Waypoint** tpo_wp_index;
-unsigned int tpo_index_ptr;
+static Waypoint** tpo_wp_index;
+static unsigned int tpo_index_ptr;
 
 // Waypoint decoder for version 3.x files.
 //
-void tpo_process_waypoints(void)
+static void tpo_process_waypoints()
 {
-  unsigned int waypoint_count;
-  unsigned int ii;
-
-
-//printf("Processing Waypoints...\n");
+  //printf("Processing Waypoints...\n");
 
   // Find block 0x0e0000 (GPS-Waypoints)
   if (tpo_find_block(0x0e0000)) {
@@ -828,7 +801,7 @@ void tpo_process_waypoints(void)
   }
 
   // Read the number of waypoints.  8/16/32-bit value.
-  waypoint_count = tpo_read_int();
+  unsigned int waypoint_count = tpo_read_int();
 
 //printf("Total Waypoints: %d\n", waypoint_count);
 
@@ -842,15 +815,8 @@ void tpo_process_waypoints(void)
   }
 
   // Read/process each waypoint in the file
-  for (ii = 0; ii < waypoint_count; ii++) {
-    Waypoint* waypoint_temp;
-    Waypoint* waypoint_temp2;
-    unsigned int name_length;
-    int lat;
-    int lon;
-    int altitude;
-
-//UNKNOWN DATA LENGTH
+  for (unsigned int ii = 0; ii < waypoint_count; ii++) {
+    //UNKNOWN DATA LENGTH
     (void)tpo_read_int(); // 0x00
 
 //UNKNOWN DATA LENGTH
@@ -858,7 +824,7 @@ void tpo_process_waypoints(void)
 
 //UNKNOWN DATA LENGTH
     // Fetch name length
-    name_length = tpo_read_int();
+    unsigned int name_length = tpo_read_int();
     QString waypoint_name;
     if (name_length) {
       gbfread(waypoint_name, 1, name_length, tpo_file_in);
@@ -870,17 +836,17 @@ void tpo_process_waypoints(void)
 //UNKNOWN DATA LENGTH
     (void)tpo_read_int();
 
-    lon = gbfgetint32(tpo_file_in);
-    lat = gbfgetint32(tpo_file_in);
+    int lon = gbfgetint32(tpo_file_in);
+    int lat = gbfgetint32(tpo_file_in);
 
     // Allocate space for waypoint and store lat/lon
-    waypoint_temp = tpo_convert_ll(lat, lon);
+    Waypoint* waypoint_temp = tpo_convert_ll(lat, lon);
 
     // Assign the waypoint name
     waypoint_temp->shortname = waypoint_name;
 
     // Grab the altitude in centimeters
-    altitude = gbfgetint32(tpo_file_in);
+    int altitude = gbfgetint32(tpo_file_in);
     // The original untested check for unknown altitude was for 0xfffd000c (-196596 cm),
     // but a test case submitted later used 0xffce0000 (-3276800 cm).
     if (altitude == -3276800) { // Unknown altitude
@@ -896,23 +862,14 @@ void tpo_process_waypoints(void)
     name_length = tpo_read_int();
 //printf("\tComment length: %d\n", name_length);
     if (name_length) {
-      char* comment;
-
-      comment = (char*) xmalloc(name_length+1);
-      comment[0] = '\0';
+      QString comment;
       gbfread(comment, 1, name_length, tpo_file_in);
-      comment[name_length] = '\0';  // Terminator
       waypoint_temp->description = comment;
-      xfree(comment);
     }
-
-//        waypoint_temp->notes = NULL;
-//        waypoint_temp->url = NULL;
-//        waypoint_temp->url_link_text = NULL;
 
     // For routes (later), we need a duplicate of each waypoint
     // indexed by the order we read them in.
-    waypoint_temp2 = new Waypoint(*waypoint_temp);
+    Waypoint* waypoint_temp2 = new Waypoint(*waypoint_temp);
 
     // Attach the copy to our index
     tpo_wp_index[tpo_index_ptr++] = waypoint_temp2;
@@ -944,13 +901,9 @@ void tpo_process_waypoints(void)
 
 // Map Notes decoder for version 3.x files.
 //
-void tpo_process_map_notes(void)
+static void tpo_process_map_notes()
 {
-  unsigned int waypoint_count;
-  unsigned int ii;
-
-
-//printf("Processing Map Notes...\n");
+  //printf("Processing Map Notes...\n");
 
   // Find block 0x090000 (Map Notes)
   if (tpo_find_block(0x090000)) {
@@ -958,7 +911,7 @@ void tpo_process_map_notes(void)
   }
 
   // Read the number of waypoints.  8/16/32-bit value.
-  waypoint_count = tpo_read_int();
+  unsigned int waypoint_count = tpo_read_int();
 
 //printf("Elements: %d\n", waypoint_count);
 
@@ -967,26 +920,18 @@ void tpo_process_map_notes(void)
   }
 
   // Process each waypoint
-  for (ii = 0; ii < waypoint_count; ii++) {
-    int lat;
-    int lon;
-    unsigned int name_length;
-    Waypoint* waypoint_temp;
-    unsigned int num_bytes;
-    unsigned int jj;
-
-
-//UNKNOWN DATA LENGTH
+  for (unsigned int ii = 0; ii < waypoint_count; ii++) {
+    //UNKNOWN DATA LENGTH
     (void)tpo_read_int();
 
-    lon = gbfgetint32(tpo_file_in);
-    lat = gbfgetint32(tpo_file_in);
+    int lon = gbfgetint32(tpo_file_in);
+    int lat = gbfgetint32(tpo_file_in);
 
     // Allocate space for waypoint and store lat/lon
-    waypoint_temp = tpo_convert_ll(lat, lon);
+    Waypoint* waypoint_temp = tpo_convert_ll(lat, lon);
 
     // Assign a generic waypoint name
-    waypoint_temp->shortname = QString().sprintf("NOTE %d", ii + 1);
+    waypoint_temp->shortname = QString("NOTE %1").arg(ii + 1);
 
 //UNKNOWN DATA LENGTH
     (void)tpo_read_int();
@@ -999,22 +944,13 @@ void tpo_process_map_notes(void)
 
 //UNKNOWN DATA LENGTH
     // Fetch comment length
-    name_length = tpo_read_int();
+    unsigned int name_length = tpo_read_int();
     if (name_length) {
-      char* comment;
+      QString comment;
 
-      comment = (char*) xmalloc(name_length+1);
-      comment[0] = '\0';
       gbfread(comment, 1, name_length, tpo_file_in);
-      comment[name_length] = '\0';  // Terminator
       waypoint_temp->description = comment;
-      xfree(comment);
-//printf("Comment: %s\n", comment);
-    } else {
-//            waypoint_temp->description = NULL;
     }
-
-//        waypoint_temp->url_link_text = NULL;
 
     // Length of text for external path.  If non-zero, skip past
     // the text.
@@ -1022,15 +958,10 @@ void tpo_process_map_notes(void)
     name_length = tpo_read_int();
 //printf("name_length: %x\n", name_length);
     if (name_length) {
-      char* notes;
+      QString notes;
 
-      notes = (char*) xmalloc(name_length+1);
-      notes[0] = '\0';
       gbfread(notes, 1, name_length, tpo_file_in);
-      notes[name_length] = '\0';  // Terminator
       waypoint_temp->AddUrlLink(notes);
-//printf("Notes: %s\n", notes);
-      xfree(notes);
     }
 
     // Length of text for image path.  If non-zero, skip past
@@ -1038,15 +969,10 @@ void tpo_process_map_notes(void)
 //UNKNOWN DATA LENGTH
     name_length = tpo_read_int();
     if (name_length) {
-      char* notes;
+      QString notes;
 
-      notes = (char*) xmalloc(name_length+1);
-      notes[0] = '\0';
       gbfread(notes, 1, name_length, tpo_file_in);
-      notes[name_length] = '\0';  // Terminator
       waypoint_temp->AddUrlLink(notes);
-//printf("Notes: %s\n", notes);
-      xfree(notes);
     }
 
 //UNKNOWN DATA LENGTH
@@ -1057,9 +983,9 @@ void tpo_process_map_notes(void)
 
     // Number of bytes to skip until next element or end of
     // block.  May be 8/16/32 bits.
-    num_bytes = tpo_read_int();
+    unsigned int num_bytes = tpo_read_int();
 //printf("num_bytes: %x\n", num_bytes);
-    for (jj = 0; jj < num_bytes; jj++) {
+    for (unsigned int jj = 0; jj < num_bytes; jj++) {
       (void) gbfgetc(tpo_file_in); // Skip bytes
     }
 
@@ -1080,13 +1006,9 @@ void tpo_process_map_notes(void)
 
 // Symbols decoder for version 3.x files.
 //
-void tpo_process_symbols(void)
+static void tpo_process_symbols()
 {
-  unsigned int waypoint_count;
-  unsigned int ii;
-
-
-//printf("Processing Symbols...\n");
+  //printf("Processing Symbols...\n");
 
   // Find block 0x040000 (Symbols)
   if (tpo_find_block(0x040000)) {
@@ -1094,7 +1016,7 @@ void tpo_process_symbols(void)
   }
 
   // Read the number of waypoints.  8/16/32-bit value.
-  waypoint_count = tpo_read_int();
+  unsigned int waypoint_count = tpo_read_int();
 
 //printf("Elements: %d\n", waypoint_count);
 
@@ -1103,31 +1025,21 @@ void tpo_process_symbols(void)
   }
 
   // Process each waypoint
-  for (ii = 0; ii < waypoint_count; ii++) {
-    int lat;
-    int lon;
-    Waypoint* waypoint_temp;
-
-
-//UNKNOWN DATA LENGTH
+  for (unsigned int ii = 0; ii < waypoint_count; ii++) {
+    //UNKNOWN DATA LENGTH
     (void)tpo_read_int();
 
 //UNKNOWN DATA LENGTH
     (void)tpo_read_int();
 
-    lon = gbfgetint32(tpo_file_in);
-    lat = gbfgetint32(tpo_file_in);
+    int lon = gbfgetint32(tpo_file_in);
+    int lat = gbfgetint32(tpo_file_in);
 
     // Allocate space for waypoint and store lat/lon
-    waypoint_temp = tpo_convert_ll(lat, lon);
+    Waypoint* waypoint_temp = tpo_convert_ll(lat, lon);
 
     // Assign a generic waypoint name
-    waypoint_temp->shortname = QString().sprintf("SYM %d", ii + 1);
-
-//        waypoint_temp->description = NULL;
-//        waypoint_temp->notes = NULL;
-//        waypoint_temp->url = NULL;
-//        waypoint_temp->url_link_text = NULL;
+    waypoint_temp->shortname = QString("SYM %1").arg(ii + 1);
 
     // Add the waypoint to the chain of waypoints
     waypt_add(waypoint_temp);
@@ -1140,13 +1052,9 @@ void tpo_process_symbols(void)
 
 // Text Labels decoder for version 3.x files.
 //
-void tpo_process_text_labels(void)
+static void tpo_process_text_labels()
 {
-  unsigned int waypoint_count;
-  unsigned int ii;
-
-
-//printf("Processing Text Labels...\n");
+  //printf("Processing Text Labels...\n");
 
   // Find block 0x080000 (Text Labels)
   if (tpo_find_block(0x080000)) {
@@ -1154,7 +1062,7 @@ void tpo_process_text_labels(void)
   }
 
   // Read the number of waypoints.  8/16/32-bit value.
-  waypoint_count = tpo_read_int();
+  unsigned int waypoint_count = tpo_read_int();
 
 //printf("Elements: %d\n", waypoint_count);
 
@@ -1163,54 +1071,35 @@ void tpo_process_text_labels(void)
   }
 
   // Process each waypoint
-  for (ii = 0; ii < waypoint_count; ii++) {
-    int jj;
-    int lat;
-    int lon;
-    unsigned int name_length;
-    Waypoint* waypoint_temp;
-
-
-//UNKNOWN DATA LENGTH
+  for (unsigned int ii = 0; ii < waypoint_count; ii++) {
+    //UNKNOWN DATA LENGTH
     (void)tpo_read_int();
 
 //UNKNOWN DATA LENGTH
     (void)tpo_read_int();
 
-    lon = gbfgetint32(tpo_file_in);
-    lat = gbfgetint32(tpo_file_in);
+    int lon = gbfgetint32(tpo_file_in);
+    int lat = gbfgetint32(tpo_file_in);
 
     // Allocate space for waypoint and store lat/lon
-    waypoint_temp = tpo_convert_ll(lat, lon);
+    Waypoint* waypoint_temp = tpo_convert_ll(lat, lon);
 
     // Assign a generic waypoint name
-    waypoint_temp->shortname = QString().sprintf("TXT %d", ii + 1);
+    waypoint_temp->shortname = QString("TXT %1").arg(ii + 1);
 
-    for (jj = 0; jj < 16; jj++) {
+    for (int jj = 0; jj < 16; jj++) {
 //UNKNOWN DATA LENGTH
       (void) gbfgetc(tpo_file_in);
     }
 
     // Fetch comment length
 //UNKNOWN DATA LENGTH
-    name_length = tpo_read_int();
+    unsigned int name_length = tpo_read_int();
     if (name_length) {
-      char* comment;
-
-      comment = (char*) xmalloc(name_length+1);
-      comment[0] = '\0';
+      QString comment;
       gbfread(comment, 1, name_length, tpo_file_in);
-      comment[name_length] = '\0';  // Terminator
       waypoint_temp->description = comment;
-      xfree(comment);
-//printf("Comment: %s\n", comment);
-    } else {
-//            waypoint_temp->description = NULL;
     }
-
-//        waypoint_temp->notes = NULL;
-//        waypoint_temp->url = NULL;
-//        waypoint_temp->url_link_text = NULL;
 
     // Add the waypoint to the chain of waypoints
     waypt_add(waypoint_temp);
@@ -1227,13 +1116,9 @@ void tpo_process_text_labels(void)
 // with pointers to waypoint objects by tpo_process_waypoints()
 // function above.
 //
-void tpo_process_routes(void)
+static void tpo_process_routes()
 {
-  unsigned int route_count;
-  unsigned int ii;
-
-
-//printf("Processing Routes...\n");
+  //printf("Processing Routes...\n");
 
   // Find block 0x0f0000 (GPS-Routes)
   if (tpo_find_block(0x0f0000)) {
@@ -1241,7 +1126,7 @@ void tpo_process_routes(void)
   }
 
   // Read the number of routes.  8/16/32-bit value
-  route_count = tpo_read_int();
+  unsigned int route_count = tpo_read_int();
 
 //printf("Total Routes: %d\n", route_count);
 
@@ -1251,15 +1136,9 @@ void tpo_process_routes(void)
 
   // Read/process each route in the file
   //
-  for (ii = 0; ii < route_count; ii++) {
-    unsigned int name_length = 0;
-    unsigned int jj;
-    unsigned int waypoint_cnt;
-    route_head* route_temp;
-
-
+  for (unsigned int ii = 0; ii < route_count; ii++) {
     // Allocate the route struct
-    route_temp = route_head_alloc();
+    route_head* route_temp = route_head_alloc();
     route_add_head(route_temp);
 
 //UNKNOWN DATA LENGTH
@@ -1270,13 +1149,10 @@ void tpo_process_routes(void)
 
 //UNKNOWN DATA LENGTH
     // Fetch name length
-    name_length = tpo_read_int();
+    unsigned int name_length = tpo_read_int();
     QString route_name;
     if (name_length) {
-      //route_name = (char*) xmalloc(name_length+1);
-      //route_name[0] = '\0';
       gbfread(route_name, 1, name_length, tpo_file_in);
-      //route_name[name_length] = '\0';  // Terminator
     } else { // Assign a generic route name
       route_name = "RTE ";
       route_name += QString::number(ii + 1);
@@ -1295,24 +1171,20 @@ void tpo_process_routes(void)
 
     // Fetch the number of waypoints in this route.  8/16/32-bit
     // value.
-    waypoint_cnt = tpo_read_int();
+    unsigned int waypoint_cnt = tpo_read_int();
 
 
     // Run through the list of waypoints, look up each in our
     // index, then add the waypoint to this route.
     //
-    for (jj = 0; jj < waypoint_cnt; jj++) {
-      Waypoint* waypoint_temp;
-      unsigned int val;
-
-
-//UNKNOWN DATA LENGTH
+    for (unsigned int jj = 0; jj < waypoint_cnt; jj++) {
+      //UNKNOWN DATA LENGTH
       // Fetch the index to the waypoint
-      val = tpo_read_int();
+      unsigned int val = tpo_read_int();
 //printf("val: %x\t\t", val);
 
       // Duplicate a waypoint from our index of waypoints.
-      waypoint_temp = new Waypoint(*tpo_wp_index[val-1]);
+      Waypoint* waypoint_temp = new Waypoint(*tpo_wp_index[val-1]);
 
       // Add the waypoint to the route
       route_add_wpt(route_temp, waypoint_temp);
@@ -1325,13 +1197,15 @@ void tpo_process_routes(void)
 
 
 
+#ifdef DEAD_CODE_IS_REBORN
 // Compass decoder for version 3.x files.
 //
-void tpo_process_compass(void)
+static void tpo_process_compass()
 {
 
   // Not implemented yet
 }
+#endif
 
 
 
@@ -1341,7 +1215,7 @@ void tpo_process_compass(void)
 // (called "freehand routes" or just "routes" in Topo), "waypoints",
 // and "gps-routes".  We intend to read all three types.
 //
-void tpo_read_3_x(void)
+static void tpo_read_3_x()
 {
 
   if (doing_trks) {
@@ -1404,7 +1278,7 @@ tpo_rd_init(const QString& fname)
   // preprare for an attempt to deallocate memory that may or may not get allocated
   // depending on the options used.
   tpo_index_ptr = 0;
-  tpo_wp_index = NULL;
+  tpo_wp_index = nullptr;
 
   tpo_file_in = gbfopen_le(fname, "rb", MYNAME);
   tpo_check_version_string();
@@ -1428,12 +1302,10 @@ tpo_rd_init(const QString& fname)
 }
 
 static void
-tpo_rd_deinit(void)
+tpo_rd_deinit()
 {
-  unsigned int i;
-
   // Free the waypoint index, we don't need it anymore.
-  for (i = 0; i < tpo_index_ptr; i++) {
+  for (unsigned int i = 0; i < tpo_index_ptr; i++) {
     delete tpo_wp_index[i];
   }
   tpo_index_ptr = 0;
@@ -1441,14 +1313,14 @@ tpo_rd_deinit(void)
   // Free the index array itself
   if (tpo_wp_index) {
     xfree(tpo_wp_index);
-    tpo_wp_index = NULL;
+    tpo_wp_index = nullptr;
   }
 
   gbfclose(tpo_file_in);
 }
 
 static void
-tpo_read(void)
+tpo_read()
 {
 
   if (tpo_version == 2.0) {
@@ -1502,6 +1374,10 @@ tpo_read(void)
 static void
 tpo_write_file_header()
 {
+  // this assertion will quiet gcc 7.3 warnings about output_state in the strncmp calls
+  // warning: argument 2 null where non-null expected [-Wnonnull]
+  assert(output_state != nullptr);
+
   /* force upper-case state name */
   strupper(output_state);
 
@@ -1747,7 +1623,7 @@ tpo_track_hdr(const route_head* rte)
   unsigned char unknown1[] = { 0xFF, 0x00, 0x00, 0x00 };
   unsigned char bounding_box[8] = { 0x00, 0x80, 0x00, 0x80, 0xFF, 0x7F, 0xFF, 0x7F };
 
-  Waypoint* first_track_waypoint = (Waypoint*) QUEUE_FIRST(&rte->waypoint_list);
+  Waypoint* first_track_waypoint = rte->waypoint_list.front();
 
   /* zoom level 1-5 visibility flags */
   gbfwrite(visibility_flags, 1, sizeof(visibility_flags), tpo_file_out);
@@ -1808,7 +1684,6 @@ static void
 tpo_track_disp(const Waypoint* waypointp)
 {
   double lat, lon, amt, x, y, z;
-  short lat_delta, lon_delta;
 
   /* fprintf(stderr, "%f/%f\n", waypointp->latitude, waypointp->longitude); */
 
@@ -1844,11 +1719,11 @@ tpo_track_disp(const Waypoint* waypointp)
   lon *= -1.0;
 
   /* longitude delta from first route point */
-  lon_delta = (short)((first_track_waypoint_lon - lon) / output_track_lon_scale);
+  short lon_delta = (short)((first_track_waypoint_lon - lon) / output_track_lon_scale);
   gbfputint16(lon_delta, tpo_file_out);
 
   /* latitude delta from first route point */
-  lat_delta = (short)((first_track_waypoint_lat - lat) / output_track_lat_scale);
+  short lat_delta = (short)((first_track_waypoint_lat - lat) / output_track_lat_scale);
   gbfputint16(lat_delta, tpo_file_out);
 
   /*
@@ -1858,12 +1733,12 @@ tpo_track_disp(const Waypoint* waypointp)
 }
 
 static void
-tpo_track_tlr(const route_head* rte)
+tpo_track_tlr(const route_head*)
 {
-  unsigned char unknown1[] = { 0x06, 0x00 };
+  static const unsigned char unknown1[] = { 0x06, 0x00 };
 
-  unsigned char continue_marker[] = { 0x01, 0x80 };
-  unsigned char end_marker[] = { 0x00, 0x00 };
+  static const unsigned char continue_marker[] = { 0x01, 0x80 };
+  static const unsigned char end_marker[] = { 0x00, 0x00 };
 
   /* pixel to degree scaling factors */
   gbfputdbl(output_track_lon_scale, tpo_file_out);
@@ -1896,7 +1771,7 @@ tpo_wr_init(const QString& fname)
 }
 
 static void
-tpo_wr_deinit(void)
+tpo_wr_deinit()
 {
   /* the file footer is six bytes of zeroes */
   unsigned char file_footer_bytes[6];
@@ -1907,7 +1782,7 @@ tpo_wr_deinit(void)
 }
 
 static void
-tpo_write(void)
+tpo_write()
 {
   unsigned char unknown1[] = { 0xFF, 0xFF, 0x01, 0x00 };
 
@@ -1939,9 +1814,11 @@ ff_vecs_t tpo2_vecs = {
   tpo_wr_deinit,
   tpo_read,
   tpo_write,
-  NULL,
+  nullptr,
   tpo2_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };
 
 /* TPO 3.x format can read waypoints/tracks/routes */
@@ -1954,7 +1831,9 @@ ff_vecs_t tpo3_vecs = {
   tpo_wr_deinit,
   tpo_read,
   tpo_write,
-  NULL,
+  nullptr,
   tpo3_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

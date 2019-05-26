@@ -32,8 +32,8 @@ struct
 */
 
 #include "defs.h"
-#include <stdlib.h>
-#include <math.h>
+#include <cmath>
+#include <cstdlib>
 
 #define MYNAME "vidaone"
 
@@ -47,7 +47,7 @@ arglist_t vidaone_args[] = {
   {
     VIDAONE_VER, &vidaone_opt_ver,
     "Version of VidaOne file to read or write (1 or 2)",
-    "1", ARGTYPE_INT, "1", "2"
+    "1", ARGTYPE_INT, "1", "2", nullptr
   },
   ARG_TERMINATOR
 };
@@ -66,15 +66,15 @@ vidaone_rd_init(const QString& fname)
 }
 
 static void
-vidaone_rd_deinit(void)
+vidaone_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-vidaone_read(void)
+vidaone_read()
 {
-  route_head* trk = NULL;
+  route_head* trk = nullptr;
 
   while (! gbfeof(fin)) {
     Waypoint* wpt = new Waypoint;
@@ -108,7 +108,7 @@ vidaone_wr_init(const QString& fname)
 }
 
 static void
-vidaone_wr_deinit(void)
+vidaone_wr_deinit()
 {
   gbfclose(fout);
 }
@@ -125,9 +125,9 @@ vidaone_trkpt(const Waypoint* wpt)
 }
 
 static void
-vidaone_write(void)
+vidaone_write()
 {
-  track_disp_all(NULL, NULL, vidaone_trkpt);
+  track_disp_all(nullptr, nullptr, vidaone_trkpt);
 }
 
 /**************************************************************************/
@@ -145,9 +145,11 @@ ff_vecs_t vidaone_vecs = {
   vidaone_wr_deinit,
   vidaone_read,
   vidaone_write,
-  NULL,
+  nullptr,
   vidaone_args,
   CET_CHARSET_UTF8, 1
+  , NULL_POS_OPS,
+  nullptr
 };
 
 /**************************************************************************/

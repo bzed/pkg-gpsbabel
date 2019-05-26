@@ -22,19 +22,60 @@
  */
 
 #include "defs.h"
-#include <stdio.h>
+#include <cstdio>
 
 #define MYNAME "fit"
 
-static char* opt_allpoints = NULL;
+// constants for global IDs
+const int kIdDeviceSettings = 0;
+const int kIdLap = 19;
+const int kIdRecord = 20;
+const int kIdEvent = 21;
+
+// constants for message fields
+// for all global IDs
+const int kFieldTimestamp = 253;
+// for global ID: device settings
+const int kFieldGlobalUtcOffset = 4;
+// for global ID: lap
+const int kFieldStartTime = 2;
+const int kFieldStartLatitude = 3;
+const int kFieldStartLongitude = 4;
+const int kFieldEndLatitude = 5;
+const int kFieldEndLongitude = 6;
+const int kFieldElapsedTime = 7;
+const int kFieldTotalDistance = 9;
+// for global ID: record
+const int kFieldLatitude = 0;
+const int kFieldLongitude = 1;
+const int kFieldAltitude = 2;
+const int kFieldHeartRate = 3;
+const int kFieldCadence = 4;
+const int kFieldDistance = 5;
+const int kFieldSpeed = 6;
+const int kFieldPower = 7;
+const int kFieldTemperature = 13;
+const int kFieldEnhancedSpeed = 73;
+const int kFieldEnhancedAltitude = 78;
+// for global ID: event
+const int kFieldEvent = 0;
+const int kEnumEventTimer = 0;
+const int kFieldEventType = 1;
+const int kEnumEventTypeStart = 0;
+
+// For developer fields as a non conflicting id
+const int kFieldInvalid = 255;
+
+static char* opt_allpoints = nullptr;
 static int lap_ct = 0;
+static bool new_trkseg = false;
 
 static
 arglist_t fit_args[] = {
   {
     "allpoints", &opt_allpoints,
     "Read all points even if latitude or longitude is missing",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX, NULL
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -57,6 +98,7 @@ static struct {
   int endian;
   route_head* track;
   uint32_t last_timestamp;
+  uint32_t global_utc_offset;
   fit_message_def message_def[16];
 } fit_data;
 
@@ -73,15 +115,13 @@ fit_rd_init(const QString& fname)
 }
 
 static void
-fit_rd_deinit(void)
+fit_rd_deinit()
 {
-  int local_id;
-
-  for (local_id=0; local_id<16; local_id++) {
-    fit_message_def* def = &fit_data.message_def[local_id];
+  for (auto &local_id : fit_data.message_def) {
+    fit_message_def* def = &local_id;
     if (def->fields) {
       xfree(def->fields);
-      def->fields = NULL;
+      def->fields = nullptr;
     }
   }
 
@@ -93,13 +133,11 @@ fit_rd_deinit(void)
 * fit_parse_header- parse the global FIT header
 *******************************************************************************/
 static void
-fit_parse_header(void)
+fit_parse_header()
 {
-  int len;
-  int ver;
   char sig[4];
 
-  len = gbfgetc(fin);
+  int len = gbfgetc(fin);
   if (len == EOF || len < 12) {
     fatal(MYNAME ": Bad header\n");
   }
@@ -107,8 +145,8 @@ fit_parse_header(void)
     debug_print(1,"%s: header len=%d\n", MYNAME, len);
   }
 
-  ver = gbfgetc(fin);
-  if (ver == EOF || (ver >> 4) > 1)
+  int ver = gbfgetc(fin);
+  if (ver == EOF || (ver >> 4) > 2)
     fatal(MYNAME ": Unsupported protocol version %d.%d\n",
           ver >> 4, ver & 0xf);
   if (global_opts.debug_level >= 1) {
@@ -135,13 +173,13 @@ fit_parse_header(void)
     // Unused according to Ingo Arndt
     gbfgetuint16(fin);
   }
+
+  fit_data.global_utc_offset = 0;
 }
 
 static uint8_t
-fit_getuint8(void)
+fit_getuint8()
 {
-  int val;
-
   if (fit_data.len == 0) {
     // fail gracefully for GARMIN Edge 800 with newest firmware, seems to write a wrong record length
     // for the last record.
@@ -151,7 +189,7 @@ fit_getuint8(void)
     }
     return 0;
   }
-  val = gbfgetc(fin);
+  int val = gbfgetc(fin);
   if (val == EOF) {
     fatal(MYNAME ": unexpected end of file with fit_data.len=%d\n",fit_data.len);
   }
@@ -161,7 +199,7 @@ fit_getuint8(void)
 }
 
 static uint16_t
-fit_getuint16(void)
+fit_getuint16()
 {
   char buf[2];
 
@@ -180,7 +218,7 @@ fit_getuint16(void)
 }
 
 static uint32_t
-fit_getuint32(void)
+fit_getuint32()
 {
   char buf[4];
 
@@ -203,7 +241,6 @@ fit_parse_definition_message(uint8_t header)
 {
   int local_id = header & 0x0f;
   fit_message_def* def = &fit_data.message_def[local_id];
-  int i;
 
   if (def->fields) {
     xfree(def->fields);
@@ -211,7 +248,7 @@ fit_parse_definition_message(uint8_t header)
 
   // first byte is reserved.  It's usually 0 and we don't know what it is,
   // but we've seen some files that are 0x40.  So we just read it and toss it.
-  i = fit_getuint8();
+  int i = fit_getuint8();
 
   // second byte is endianness
   def->endian = fit_getuint8();
@@ -230,19 +267,70 @@ fit_parse_definition_message(uint8_t header)
   }
   if (def->num_fields == 0) {
     def->fields = (fit_field_t*) xmalloc(sizeof(fit_field_t));
-    return;
   }
 
   // remainder of the definition message is data at one byte per field * 3 fields
-  def->fields = (fit_field_t*) xmalloc(def->num_fields * sizeof(fit_field_t));
-  for (i = 0; i < def->num_fields; i++) {
-    def->fields[i].id = fit_getuint8();
-    def->fields[i].size = fit_getuint8();
-    def->fields[i].type = fit_getuint8();
-    if (global_opts.debug_level >= 8) {
-      debug_print(8,"%s: record %d  ID: %d  SIZE: %d  TYPE: %d  fit_data.len=%d\n",
-                  MYNAME, i, def->fields[i].id, def->fields[i].size, def->fields[i].type,fit_data.len);
+  if (def->num_fields > 0) {
+    def->fields = (fit_field_t*) xmalloc(def->num_fields * sizeof(fit_field_t));
+    for (i = 0; i < def->num_fields; i++) {
+      def->fields[i].id   = fit_getuint8();
+      def->fields[i].size = fit_getuint8();
+      def->fields[i].type = fit_getuint8();
+      if (global_opts.debug_level >= 8) {
+        debug_print(8,"%s: record %d  ID: %d  SIZE: %d  TYPE: %d  fit_data.len=%d\n",
+                    MYNAME, i, def->fields[i].id, def->fields[i].size, def->fields[i].type,fit_data.len);
+      }
+
     }
+  }
+
+  // If we have developer fields (since version 2.0) they must be read too
+  // These is one byte containing the number of fields and 3 bytes for every field.
+  // So this is identical to the normal fields but the meaning of the content is different.
+  //
+  // Currently we just want to ignore the developer fields because they are not meant 
+  // to hold relevant data we need (currently handle) for the conversion.
+
+  // For simplicity using the existing infrastructure we do it in the following way:
+  //   * We read it in as normal fields 
+  //   * We set the field id to kFieldInvalid so that it do not interfere with valid id's from 
+  //     the normal fields.    
+  //       -In our opinion in practice this will not happen, because we do not expect 
+  //        developer fields e.g. inside lap or record records. But we want to be safe here.
+  //   * We do not have to change the type as we did for the id above, because fit_read_field()
+  //     already uses the size information to read the data, if the type does not match the size. 
+  //   
+  // If we want to change this or if we want to avoid the xrealloc call, we can change
+  // it in the future by e.g. extending the fit_message_def struct.
+
+  // Bit 5 of the header specify if we have developer fields in the data message 
+  bool hasDevFields = static_cast<bool>(header & 0x20);
+
+  if (hasDevFields) {
+    int numOfDevFields = fit_getuint8();
+    if (global_opts.debug_level >= 8) {
+      debug_print(8,"%s: definition message contains %d developer records\n",MYNAME, numOfDevFields);
+    }
+    if (numOfDevFields == 0) {
+      return;
+    }
+
+    int numOfFields = def->num_fields+numOfDevFields;
+    def->fields = (fit_field_t*) xrealloc(def->fields, numOfFields * sizeof(fit_field_t));
+    for (i = def->num_fields; i < numOfFields; i++) {
+      def->fields[i].id   = fit_getuint8();
+      def->fields[i].size = fit_getuint8();
+      def->fields[i].type = fit_getuint8();
+      if (global_opts.debug_level >= 8) {
+        debug_print(8,"%s: developer record %d  ID: %d  SIZE: %d  TYPE: %d  fit_data.len=%d\n",
+                    MYNAME, i-def->num_fields, def->fields[i].id, def->fields[i].size, def->fields[i].type,fit_data.len);
+      }
+      // Because we parse developer fields like normal fields and we do not want 
+      // that the field id interfere which valid id's from the normal fields
+      def->fields[i].id = kFieldInvalid;
+
+    }
+    def->num_fields = numOfFields;
   }
 }
 
@@ -265,6 +353,7 @@ fit_read_field(fit_field_t* f)
                 MYNAME, f->type, f->size, fit_data.len);
   }
   switch (f->type) {
+  case 0: // enum
   case 1: // sint8
   case 2: // uint8
     if (f->size == 1) {
@@ -318,9 +407,7 @@ fit_read_field(fit_field_t* f)
 static void
 fit_parse_data(fit_message_def* def, int time_offset)
 {
-  fit_field_t* f;
   uint32_t timestamp = fit_data.last_timestamp + time_offset;
-  uint32_t val;
   int32_t lat = 0x7fffffff;
   int32_t lon = 0x7fffffff;
   uint16_t alt = 0xffff;
@@ -329,127 +416,179 @@ fit_parse_data(fit_message_def* def, int time_offset)
   uint8_t cadence = 0xff;
   uint16_t power = 0xffff;
   int8_t temperature = 0x7f;
-  int i;
   Waypoint* waypt;
   int32_t startlat = 0x7fffffff;
   int32_t startlon = 0x7fffffff;
   int32_t endlat = 0x7fffffff;
   int32_t endlon = 0x7fffffff;
   uint32_t starttime = 0; // ??? default ?
+  uint8_t event = 0xff;
+  uint8_t eventtype = 0xff;
   char cbuf[10];
   Waypoint* lappt;  // WptPt in gpx
 
   if (global_opts.debug_level >= 7) {
     debug_print(7,"%s: parsing fit data ID %d with num_fields=%d\n", MYNAME, def->global_id, def->num_fields);
   }
-  for (i = 0; i < def->num_fields; i++) {
+  for (int i = 0; i < def->num_fields; i++) {
     if (global_opts.debug_level >= 7) {
       debug_print(7,"%s: parsing field %d\n", MYNAME, i);
     }
-    f = &def->fields[i];
-    val = fit_read_field(f);
-    if (f->id == 253) {
+    fit_field_t* f = &def->fields[i];
+    uint32_t val = fit_read_field(f);
+    if (f->id == kFieldTimestamp) {
       if (global_opts.debug_level >= 7) {
         debug_print(7,"%s: parsing fit data: timestamp=%d\n", MYNAME, val);
       }
-      fit_data.last_timestamp = timestamp = val;
+      timestamp = val;
+      // if the timestamp is < 0x10000000, this value represents
+      // system time; to convert it to UTC, add the global utc offset to it
+      if (timestamp < 0x10000000)
+        timestamp += fit_data.global_utc_offset;
+      fit_data.last_timestamp = timestamp;
     } else {
       switch (def->global_id) {
-      case 20: // record message - trkType is a track
+      case kIdDeviceSettings: // device settings message
         switch (f->id) {
-        case 0:
+        case kFieldGlobalUtcOffset:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: global utc_offset=%d\n", MYNAME, val);
+          }
+          fit_data.global_utc_offset = val;
+          break;
+        default:
+          if (global_opts.debug_level >= 1) {
+            debug_print(1, "%s: unrecognized data type in GARMIN FIT device settings: f->id=%d\n", MYNAME, f->id);
+          }
+          break;
+        } // switch (f->id)
+        // end of case def->global_id = kIdDeviceSettings
+        break;
+
+      case kIdRecord: // record message - trkType is a track
+        switch (f->id) {
+        case kFieldLatitude:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: lat=%d\n", MYNAME, val);
           }
           lat = val;
           break;
-        case 1:
+        case kFieldLongitude:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: lon=%d\n", MYNAME, val);
           }
           lon = val;
           break;
-        case 2:
+        case kFieldAltitude:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: alt=%d\n", MYNAME, val);
           }
-          alt = val;
+          if (val != 0xffff) {
+              alt = val;
+          }
           break;
-        case 3:
+        case kFieldHeartRate:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: heartrate=%d\n", MYNAME, val);
           }
           heartrate = val;
           break;
-        case 4:
+        case kFieldCadence:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: cadence=%d\n", MYNAME, val);
           }
           cadence = val;
           break;
-        case 5:
+        case kFieldDistance:
           // NOTE: 5 is DISTANCE in cm ... unused.
           if (global_opts.debug_level >= 7) {
             debug_print(7, "%s: unrecognized data type in GARMIN FIT record: f->id=%d\n", MYNAME, f->id);
           }
           break;
-        case 6:
+        case kFieldSpeed:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: speed=%d\n", MYNAME, val);
           }
-          speed = val;
+          if (val != 0xffff) {
+              speed = val;
+          }
           break;
-        case 7:
+        case kFieldPower:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: power=%d\n", MYNAME, val);
           }
           power = val;
           break;
-        case 13:
+        case kFieldTemperature:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: temperature=%d\n", MYNAME, val);
           }
           temperature = val;
           break;
-      case 19: // lap wptType , endlat+lon is wpt
+        case kFieldEnhancedSpeed:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: enhanced_speed=%d\n", MYNAME, val);
+          }
+          if (val != 0xffff) {
+              speed = val;
+          }
+          break;
+        case kFieldEnhancedAltitude:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: enhanced_altitude=%d\n", MYNAME, val);
+          }
+          if (val != 0xffff) {
+              alt = val;
+          }
+          break;
+        default:
+          if (global_opts.debug_level >= 1) {
+            debug_print(1, "%s: unrecognized data type in GARMIN FIT record: f->id=%d\n", MYNAME, f->id);
+          }
+          break;
+        } // switch (f->id)
+        // end of case def->global_id = kIdRecord
+        break;
+
+      case kIdLap: // lap wptType , endlat+lon is wpt
         switch (f->id) {
-        case 2:
+        case kFieldStartTime:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: starttime=%d\n", MYNAME, val);
           }
           starttime = val;
           break;
-        case 3:
+        case kFieldStartLatitude:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: startlat=%d\n", MYNAME, val);
           }
           startlat = val;
           break;
-        case 4:
+        case kFieldStartLongitude:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: startlon=%d\n", MYNAME, val);
           }
           startlon = val;
           break;
-        case 5:
+        case kFieldEndLatitude:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: endlat=%d\n", MYNAME, val);
           }
           endlat = val;
           break;
-        case 6:
+        case kFieldEndLongitude:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: endlon=%d\n", MYNAME, val);
           }
           endlon = val;
           break;
-        case 7:
+        case kFieldElapsedTime:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: elapsedtime=%d\n", MYNAME, val);
           }
           //elapsedtime = val;
           break;
-        case 9:
+        case kFieldTotalDistance:
           if (global_opts.debug_level >= 7) {
             debug_print(7,"%s: parsing fit data: totaldistance=%d\n", MYNAME, val);
           }
@@ -461,14 +600,32 @@ fit_parse_data(fit_message_def* def, int time_offset)
           }
           break;
         } // switch (f->id)
+        // end of case def->global_id = kIdLap
         break;
-        default:
-          if (global_opts.debug_level >= 1) {
-            debug_print(1, "%s: unrecognized data type in GARMIN FIT record: f->id=%d\n", MYNAME, f->id);
+
+      case kIdEvent:
+        switch (f->id) {
+        case kFieldEvent:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: event=%d\n", MYNAME, val);
           }
+          event = val;
           break;
+        case kFieldEventType:
+          if (global_opts.debug_level >= 7) {
+            debug_print(7,"%s: parsing fit data: eventtype=%d\n", MYNAME, val);
+          }
+          eventtype = val;
+          break;
+        } // switch (f->id)
+        // end of case def->global_id = kIdEvent
+        break;
+      default:
+        if (global_opts.debug_level >= 1) {
+          debug_print(1, "%s: unrecognized/unhandled global ID for GARMIN FIT: %d\n", MYNAME, def->global_id);
         }
-      }
+        break;
+      } // switch (def->global_id)
     }
   }
 
@@ -476,7 +633,7 @@ fit_parse_data(fit_message_def* def, int time_offset)
     debug_print(7,"%s: storing fit data with num_fields=%d\n", MYNAME, def->num_fields);
   }
   switch (def->global_id) {
-  case 19: // lap message
+  case kIdLap: // lap message
     if (endlat == 0x7fffffff || endlon == 0x7fffffff) {
       break;
     }
@@ -491,7 +648,7 @@ fit_parse_data(fit_message_def* def, int time_offset)
     lappt->shortname = cbuf;
     waypt_add(lappt);
     break;
-  case 20: // record message
+  case kIdRecord: // record message
     if ((lat == 0x7fffffff || lon == 0x7fffffff) && !opt_allpoints) {
       break;
     }
@@ -522,7 +679,20 @@ fit_parse_data(fit_message_def* def, int time_offset)
     if (temperature != 0x7f) {
       WAYPT_SET(waypt, temperature, temperature);
     }
+    if (new_trkseg) {
+      waypt->wpt_flags.new_trkseg = 1;
+      new_trkseg = false;
+    }
     track_add_wpt(fit_data.track, waypt);
+    break;
+  case kIdEvent: // event message
+    if (event == kEnumEventTimer && eventtype == kEnumEventTypeStart) {
+      // Start event, start new track segment. Note: We don't do this
+      // on stop events because some GPS devices seem to generate a last
+      // trackpoint after the stop event and that would erroneously get
+      // assigned to the next segment.
+      new_trkseg = true;
+    }
     break;
   }
 }
@@ -547,14 +717,16 @@ fit_parse_compressed_message(uint8_t header)
 * fit_parse_record- parse each record in the file
 *******************************************************************************/
 static void
-fit_parse_record(void)
+fit_parse_record()
 {
-  uint8_t header;
-
-  header = fit_getuint8();
+  uint8_t header = fit_getuint8();
   // high bit 7 set -> compressed message (0 for normal)
   // second bit 6 set -> 0 for data message, 1 for definition message
-  // bits 5, 4 -> reserved
+  // bit 5 -> message type specific 
+  //    definition message: Bit set means that we have additional Developer Field definitions 
+  //                        behind the field definitions inside the record content
+  //    data message: currently not used 
+  // bit 4 -> reserved
   // bits 3..0 -> local message type
   if (header & 0x80) {
     if (global_opts.debug_level >= 6) {
@@ -583,7 +755,7 @@ fit_parse_record(void)
 * - parse all the records in the file
 *******************************************************************************/
 static void
-fit_read(void)
+fit_read()
 {
   fit_parse_header();
 
@@ -610,14 +782,16 @@ ff_vecs_t format_fit_vecs = {
     ff_cap_none 		/* routes */
   },
   fit_rd_init,
-  NULL,
+  nullptr,
   fit_rd_deinit,
-  NULL,
+  nullptr,
   fit_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   fit_args,
   CET_CHARSET_ASCII, 0		/* ascii is the expected character set */
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };
 /**************************************************************************/

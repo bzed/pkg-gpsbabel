@@ -19,11 +19,14 @@
 */
 
 /*
- * Documentation can be found at http://www.trackmaker.com/download/ref_guide_eng.pdf
+ * Documentation can be found at
+ * https://www.trackmaker.com/download/ref_guide_eng.pdf
+ * https://www.trackmaker.com/download/GTM211_format.pdf
  */
 
 #include "defs.h"
 #include "jeeps/gpsmath.h"
+#include <QtCore/QList>
 
 static gbfile* file_in, *file_out;
 static int indatum;
@@ -72,17 +75,16 @@ fread_bool(gbfile* fd)
 #define fread_single(a) gbfgetflt(a)
 #define fread_double(a) gbfgetdbl(a)
 
-QString
+static QString
 fread_string(gbfile* fd)
 {
-  char* val;
   int len = fread_integer(fd);
 
   if (len == 0) {
-    return NULL;
+    return nullptr;
   }
 
-  val = (char*) xmalloc(len+1);
+  char* val = (char*) xmalloc(len+1);
   gbfread(val, 1, len, fd);
   while (len != 0 && val[len-1] == ' ') {
     len--;
@@ -99,7 +101,7 @@ fread_string_discard(gbfile* fd)
   fread_string(fd);
 }
 
-QString
+static QString
 fread_fixedstring(gbfile* fd, int len)
 {
   char* val = (char*) xmalloc(len+1);
@@ -155,7 +157,7 @@ fwrite_string(gbfile* fd, const QString& str)
   }
 }
 
-void
+static void
 fwrite_fixedstring(gbfile* fd, const char* str, int fieldlen)
 {
   int len = str ? strlen(str) : 0;
@@ -171,7 +173,7 @@ fwrite_fixedstring(gbfile* fd, const char* str, int fieldlen)
   }
 }
 
-void
+static void
 fwrite_fixedstring(gbfile* fd, const QString& str, int fieldlen)
 {
   fwrite_fixedstring(fd, CSTR(str), fieldlen);
@@ -323,7 +325,7 @@ static const int indatum_array[MAX_INDATUM_INDEX] = {
   116 // < 263 : Wake Eniwetok 1960
 };
 
-void set_datum(int n)
+static void set_datum(int n)
 {
   indatum = -1;
   if (n > 0 && n < MAX_INDATUM_INDEX) {
@@ -376,11 +378,11 @@ static const char* icon_descr[] = {
   "Deer Tracks", "Tree Stand", "Bridge", "Fence", "Intersection",
   "Non Direct Beacon", "VHF Omni Range", "Vor/Tacan", "Vor-Dme",
   "1st Approach Fix", "Localizer Outer", "Missed Appr. Pt", "Tacan",
-  "CheckPoint", NULL
+  "CheckPoint", nullptr
 };
 
 
-void convert_datum(double* lat, double* lon)
+static void convert_datum(double* lat, double* lon)
 {
   double amt;
   if (indatum != -1 && indatum != 118) {
@@ -394,9 +396,8 @@ void convert_datum(double* lat, double* lon)
 static void
 gtm_rd_init(const QString& fname)
 {
-  int version;
   file_in = gbfopen_le(fname, "rb", MYNAME);
-  version = fread_integer(file_in);
+  int version = fread_integer(file_in);
   QString name = fread_fixedstring(file_in, 10);
   if (version == -29921) {
     fatal(MYNAME ": Uncompress the file first\n");
@@ -431,16 +432,16 @@ gtm_rd_init(const QString& fname)
 }
 
 static void
-gtm_rd_deinit(void)
+gtm_rd_deinit()
 {
   gbfclose(file_in);
 }
 
-static void count_route_waypts(const Waypoint* wpt)
+static void count_route_waypts(const Waypoint*)
 {
   rt_count++;
 }
-static void count_track_waypts(const Waypoint* wpt)
+static void count_track_waypts(const Waypoint*)
 {
   tr_count++;
 }
@@ -449,8 +450,8 @@ static void
 gtm_wr_init(const QString& fname)
 {
   rt_count = tr_count = 0;
-  track_disp_all(NULL, NULL, count_track_waypts);
-  route_disp_all(NULL, NULL, count_route_waypts);
+  track_disp_all(nullptr, nullptr, count_track_waypts);
+  route_disp_all(nullptr, nullptr, count_route_waypts);
 
   file_out = gbfopen_le(fname, "wb", MYNAME);	/* little endian */
 
@@ -501,19 +502,18 @@ gtm_wr_init(const QString& fname)
 }
 
 static void
-gtm_wr_deinit(void)
+gtm_wr_deinit()
 {
   gbfclose(file_out);
 }
 
 static void
-gtm_read(void)
+gtm_read()
 {
-  route_head* first_trk_head = NULL;
-  route_head* trk_head = NULL;
-  route_head* rte_head = NULL;
+  route_head* trk_head = nullptr;
+  route_head* rte_head = nullptr;
   Waypoint* wpt;
-  int real_tr_count = 0;
+  QList<route_head*> real_track_list;
   unsigned int icon;
   int i;
 
@@ -577,20 +577,32 @@ gtm_read(void)
     if (start_new || !trk_head) {
       trk_head = route_head_alloc();
       track_add_head(trk_head);
-      real_tr_count++;
-      if (!first_trk_head) {
-        first_trk_head = trk_head;
-      }
+      real_track_list.append(trk_head);
     }
     track_add_wpt(trk_head, wpt);
   }
 
   /* Tracklog styles */
-  trk_head = first_trk_head;
-  for (i = 0; i != ts_count && i != real_tr_count; i++) {
-    trk_head->rte_name = fread_string(file_in);
+  // TODO: The format document states there are ts_count tracklog style entries,
+  //       and tr_count tracklog entries.
+  //       Some tracklog entries may be continuation entries, so we turn these
+  //       into real_track_list.size() <= tr_count tracks.
+  //       If ts_count != real_track_list.size() we don't know how to line up
+  //       the tracklogs, and the real tracks, with the tracklog styles.
+  if (ts_count != real_track_list.size()) {
+    warning(MYNAME ": The number of tracklog entries with the new flag "
+           "set doesn't match the number of tracklog style entries.\n"
+           "  This is unexpected and may indicate a malformed input file.\n"
+           "  As a result the track names may be incorrect.\n");
+  }
+  // Read the entire tracklog styles section whether we use it or not.
+  for (i = 0; i != ts_count; i++) {
+    QString tname = fread_string(file_in);
     fread_discard(file_in, 12);
-    trk_head = (route_head*)QUEUE_NEXT(&trk_head->Q);
+    if (i < real_track_list.size()) {
+      trk_head = real_track_list.at(i);
+      trk_head->rte_name = tname;
+    }
   }
 
   /* Routes */
@@ -708,15 +720,15 @@ static void write_rte_waypt(const Waypoint* wpt)
 }
 
 static void
-gtm_write(void)
+gtm_write()
 {
   waypt_disp_all(write_waypt);
   if (waypt_count()) {
     gbfwrite(WAYPOINTSTYLES, 1, sizeof(WAYPOINTSTYLES)-1, file_out);
   }
-  track_disp_all(start_rte, NULL, write_trk_waypt);
-  track_disp_all(write_trk_style, NULL, NULL);
-  route_disp_all(start_rte, NULL, write_rte_waypt);
+  track_disp_all(start_rte, nullptr, write_trk_waypt);
+  track_disp_all(write_trk_style, nullptr, nullptr);
+  route_disp_all(start_rte, nullptr, write_rte_waypt);
 }
 
 static
@@ -733,6 +745,9 @@ ff_vecs_t gtm_vecs = {
   gtm_wr_deinit,
   gtm_read,
   gtm_write,
-  NULL,
+  nullptr,
   gtm_args,
+  CET_CHARSET_ASCII, 0, /* CET-REVIEW */
+  NULL_POS_OPS,
+  nullptr
 };

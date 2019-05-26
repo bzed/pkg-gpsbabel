@@ -37,11 +37,16 @@
     description string beyond the NUL terminator.  -- Ron Parker, 17 July 2006
 */
 
+#include <cstdio>           // for printf, snprintf, SEEK_CUR, EOF
+#include <cstdlib>          // for qsort
+#include <cstring>          // for strlen
+
+#include <QtCore/QString>   // for QString
+#include <QtCore/QtGlobal>  // for foreach
 
 #include "defs.h"
-#include <stdio.h> // sprintf
-#include <stdlib.h> // qsort
-#include <QtCore/QTextCodec>
+#include "gbfile.h"         // for gbfgetint32, gbfputint32, gbfclose, gbfgetc, gbfputc, gbfseek, gbfile, gbfeof, gbfread, gbftell, gbfwrite, gbfopen_le
+
 
 #define MYNAME "TomTom"
 
@@ -60,7 +65,7 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
@@ -72,7 +77,7 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
 }
@@ -80,10 +85,11 @@ wr_deinit(void)
 #define read_long(f) gbfgetint32((f))
 #define read_char(f) gbfgetc((f))
 
+#ifdef DEAD_CODE_IS_REBORN
 /*
  *  Decode a type 8 compressed record
  */
-char*
+static char*
 decode_8(int sz, const unsigned char* inbuf)
 {
   static const char encoding_8[] = "X. SaerionstldchumgpbkfzvACBMPG-";
@@ -122,8 +128,10 @@ decode_8(int sz, const unsigned char* inbuf)
   }
   return rval;
 }
+#endif
 
-void
+#ifdef DEAD_CODE_IS_REBORN
+static void
 decode_latlon(double* lat, double* lon)
 {
   unsigned char latbuf[3];
@@ -138,6 +146,7 @@ decode_latlon(double* lat, double* lon)
   *lon = rlon = 123.456;
 
 }
+#endif
 
 static void
 check_recsize(int sz)
@@ -148,16 +157,15 @@ check_recsize(int sz)
 }
 
 static void
-data_read(void)
+data_read()
 {
-  int rectype;
   long recsize;
   long x;
   long y;
   char* desc;
   Waypoint* wpt_tmp;
   while (!gbfeof(file_in)) {
-    rectype = read_char(file_in);
+    int rectype = read_char(file_in);
     if (rectype == EOF) {
       fatal(MYNAME ":Unexpected EOF.");
     }
@@ -200,7 +208,7 @@ data_read(void)
       wpt_tmp->latitude = y/100000.0;
       wpt_tmp->description = STRTOUNICODE(desc);
       xfree(desc);
-      desc = NULL;
+      desc = nullptr;
       // TODO:: description in rectype 3 contains two zero-terminated strings
       // First is same as rectype 2, second apparently contains the unique ID of the waypoint
       // See http://www.tomtom.com/lib/doc/PRO/TTN6_SDK_documentation.zip
@@ -316,7 +324,6 @@ struct blockheader {
 static void
 write_blocks(gbfile* f, struct blockheader* blocks)
 {
-  int i;
   write_char(f, 1);
   write_long(f, blocks->size);
   write_float_as_long(f, blocks->maxlon*100000);
@@ -330,7 +337,7 @@ write_blocks(gbfile* f, struct blockheader* blocks)
     write_blocks(f, blocks->ch2);
   }
   if (!blocks->ch1 && !blocks->ch2) {
-    for (i = 0; i < blocks->count; i++) {
+    for (int i = 0; i < blocks->count; i++) {
       char desc_field [256];
       write_char(f, 2);
       if (global_opts.smart_names &&
@@ -359,9 +366,7 @@ static struct blockheader*
 compute_blocks(struct hdr* start, int count,
                double minlon, double maxlon, double minlat, double maxlat)
 {
-  struct blockheader* newblock;
-
-  newblock = (struct blockheader*)xcalloc(sizeof(*newblock), 1);
+  struct blockheader* newblock = (struct blockheader*)xcalloc(sizeof(*newblock), 1);
   newblock->start = start;
   newblock->count = count;
   newblock->minlon = minlon;
@@ -370,13 +375,10 @@ compute_blocks(struct hdr* start, int count,
   newblock->maxlat = maxlat;
   newblock->size = 4 * 5 + 1;   /* hdr is 5 longs, 1 char */
   if (count < 20) {
-    int i;
-    Waypoint* wpt = NULL;
-
-    for (i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
       newblock->size += 4 * 3 + 1;
       /* wpt const part 3 longs, 1 char */
-      wpt = start[i].wpt;
+      Waypoint* wpt = start[i].wpt;
       newblock->size += wpt->description.length() + 1;
     }
   } else {
@@ -422,32 +424,22 @@ free_blocks(struct blockheader* block)
 }
 
 static void
-data_write(void)
+data_write()
 {
   int ct = waypt_count();
   struct hdr* htable, *bh;
-#if NEWQ
-  extern QList<Waypoint*> waypt_list;
-#else
-  queue* elem, *tmp;
-  extern queue waypt_head;
-#endif
+  extern WaypointList* global_waypoint_list;
   double minlon = 200;
   double maxlon = -200;
   double minlat = 200;
   double maxlat = -200;
-  struct blockheader* blocks = NULL;
+  struct blockheader* blocks = nullptr;
 
   htable = (struct hdr*) xmalloc(ct * sizeof(*htable));
   bh = htable;
 
-#if NEWQ
   // Iterate with waypt_disp_all?
-  foreach(Waypoint* waypointp, waypt_list) {
-#else
-  QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-    Waypoint* waypointp = (Waypoint*) elem;
-#endif
+  foreach(Waypoint* waypointp, *global_waypoint_list) {
     bh->wpt = waypointp;
     if (waypointp->longitude > maxlon) {
       maxlon = waypointp->longitude;
@@ -480,7 +472,9 @@ ff_vecs_t tomtom_vecs = {
   wr_deinit,
   data_read,
   data_write,
-  NULL,
+  nullptr,
   tomtom_args,
   CET_CHARSET_MS_ANSI, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

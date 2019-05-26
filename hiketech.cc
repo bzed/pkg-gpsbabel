@@ -20,10 +20,10 @@
  */
 
 #include "defs.h"
-#include "xmlgeneric.h"
 #include "src/core/xmlstreamwriter.h"
+#include "xmlgeneric.h"
 #include <QtCore/QXmlStreamAttributes>
-#include <stdio.h>
+#include <cstdio>
 
 static gbfile* ofd;
 static QString ostring;
@@ -75,23 +75,23 @@ static xg_tag_mapping ht_map[] = {
   { ht_trk_lat, 	cb_cdata, "/hiketech/gpsdata/trk/pnt/lat" },
   { ht_trk_long, 	cb_cdata, "/hiketech/gpsdata/trk/pnt/long" },
   { ht_trk_alt, 	cb_cdata, "/hiketech/gpsdata/trk/pnt/alt" },
-  { NULL,	(xg_cb_type)0,         NULL}
+  { nullptr,	(xg_cb_type)0,         nullptr}
 };
 
 static void
 hiketech_rd_init(const QString& fname)
 {
-  xml_init(fname, ht_map, NULL);
+  xml_init(fname, ht_map, nullptr);
 }
 
 static void
-hiketech_read(void)
+hiketech_read()
 {
   xml_read();
 }
 
 static void
-hiketech_rd_deinit(void)
+hiketech_rd_deinit()
 {
   xml_deinit();
 }
@@ -104,24 +104,24 @@ hiketech_wr_init(const QString& fname)
 }
 
 static void
-hiketech_wr_deinit(void)
+hiketech_wr_deinit()
 {
   writer.writeEndDocument();
   gbfputs(ostring, ofd);
   gbfclose(ofd);
-  ofd = NULL;
+  ofd = nullptr;
 }
 
 static void
 hiketech_trk_hdr(const route_head* rte)
 {
-  writer.writeStartElement("trk");
+  writer.writeStartElement(QStringLiteral("trk"));
   writer.setAutoFormattingIndent(1);
-  writer.writeOptionalTextElement("ident", rte->rte_name);
+  writer.writeOptionalTextElement(QStringLiteral("ident"), rte->rte_name);
 }
 
 static void
-hiketech_trk_tlr(const route_head* rte)
+hiketech_trk_tlr(const route_head*)
 {
   writer.writeEndElement(); // trk
 }
@@ -145,15 +145,15 @@ hiketech_format_time(const QDateTime& t)
 static void
 hiketech_trkpt_pr(const Waypoint* waypointp)
 {
-  writer.writeStartElement("pnt"); 
+  writer.writeStartElement(QStringLiteral("pnt")); 
   if (waypointp->creation_time.isValid()) {
-    writer.writeTextElement("utc", 
+    writer.writeTextElement(QStringLiteral("utc"), 
                             hiketech_format_time(waypointp->GetCreationTime()));
   }
-  writer.writeTextElement("lat", QString::number(waypointp->latitude,'f', 6));
-  writer.writeTextElement("long", QString::number(waypointp->longitude,'f', 6));
+  writer.writeTextElement(QStringLiteral("lat"), QString::number(waypointp->latitude,'f', 6));
+  writer.writeTextElement(QStringLiteral("long"), QString::number(waypointp->longitude,'f', 6));
   if (waypointp->altitude != unknown_alt) {
-    writer.writeTextElement("alt", QString::number(waypointp->altitude,'f', 6));
+    writer.writeTextElement(QStringLiteral("alt"), QString::number(waypointp->altitude,'f', 6));
   }
   writer.writeEndElement(); // png
 }
@@ -161,37 +161,37 @@ hiketech_trkpt_pr(const Waypoint* waypointp)
 static void
 hiketech_waypt_pr(const Waypoint* wpt)
 {
-  writer.writeStartElement("wpt"); 
+  writer.writeStartElement(QStringLiteral("wpt")); 
   writer.setAutoFormattingIndent(-1);
-  writer.writeTextElement("ident", wpt->shortname);
-  writer.writeTextElement("sym", wpt->icon_descr);
-  writer.writeTextElement("lat", QString::number(wpt->latitude, 'f', 6));
-  writer.writeTextElement("long", QString::number(wpt->longitude, 'f', 6));
-  writer.writeStartElement("color"); 
-  writer.writeTextElement("lbl", "FAFFB4");
-  writer.writeTextElement("obj", "FF8000");
+  writer.writeTextElement(QStringLiteral("ident"), wpt->shortname);
+  writer.writeTextElement(QStringLiteral("sym"), wpt->icon_descr);
+  writer.writeTextElement(QStringLiteral("lat"), QString::number(wpt->latitude, 'f', 6));
+  writer.writeTextElement(QStringLiteral("long"), QString::number(wpt->longitude, 'f', 6));
+  writer.writeStartElement(QStringLiteral("color")); 
+  writer.writeTextElement(QStringLiteral("lbl"), QStringLiteral("FAFFB4"));
+  writer.writeTextElement(QStringLiteral("obj"), QStringLiteral("FF8000"));
   writer.writeEndElement(); // color
 
   writer.writeEndElement(); // wpt
 }
 
 static void
-hiketech_write(void)
+hiketech_write()
 {
-  writer.writeStartElement("hiketech");
-  writer.writeAttribute("version", "1.2");
-  writer.writeAttribute("url", "http://www.hiketech.com");
+  writer.writeStartElement(QStringLiteral("hiketech"));
+  writer.writeAttribute(QStringLiteral("version"), QStringLiteral("1.2"));
+  writer.writeAttribute(QStringLiteral("url"), QStringLiteral("http://www.hiketech.com"));
   writer.setAutoFormatting(true);
-  writer.writeStartElement("gpsdata");
+  writer.writeStartElement(QStringLiteral("gpsdata"));
   track_disp_all(hiketech_trk_hdr, hiketech_trk_tlr, hiketech_trkpt_pr);
-  track_disp_all(NULL, NULL, hiketech_trkpt_pr);
+  track_disp_all(nullptr, nullptr, hiketech_trkpt_pr);
   waypt_disp_all(hiketech_waypt_pr);
   writer.writeEndElement(); // gpsdata
   writer.writeEndElement(); // hiketech
 }
 
 static
-void	 ht_wpt_s(xg_string args, const QXmlStreamAttributes*)
+void	 ht_wpt_s(xg_string, const QXmlStreamAttributes*)
 {
   wpt_tmp = new Waypoint;
 }
@@ -227,21 +227,21 @@ void  	ht_alt(xg_string args, const QXmlStreamAttributes*)
 }
 
 static
-void  	ht_wpt_e(xg_string args, const QXmlStreamAttributes*)
+void  	ht_wpt_e(xg_string, const QXmlStreamAttributes*)
 {
   waypt_add(wpt_tmp);
-  wpt_tmp = NULL;
+  wpt_tmp = nullptr;
 }
 
 static
-void	ht_trk_s(xg_string args, const QXmlStreamAttributes*)
+void	ht_trk_s(xg_string, const QXmlStreamAttributes*)
 {
   trk_head = route_head_alloc();
   track_add_head(trk_head);
 }
 
 static
-void	ht_trk_e(xg_string args, const QXmlStreamAttributes*)
+void	ht_trk_e(xg_string, const QXmlStreamAttributes*)
 {
 
 }
@@ -253,13 +253,13 @@ void	ht_trk_ident(xg_string args, const QXmlStreamAttributes*)
 }
 
 static
-void	ht_trk_pnt_s(xg_string args, const QXmlStreamAttributes*)
+void	ht_trk_pnt_s(xg_string, const QXmlStreamAttributes*)
 {
   wpt_tmp = new Waypoint;
 }
 
 static
-void	ht_trk_pnt_e(xg_string args, const QXmlStreamAttributes*)
+void	ht_trk_pnt_e(xg_string, const QXmlStreamAttributes*)
 {
   track_add_wpt(trk_head, wpt_tmp);
 }
@@ -268,7 +268,6 @@ static
 void	ht_trk_utc(xg_string args, const QXmlStreamAttributes*)
 {
   struct tm tm;
-  time_t utc;
 
   sscanf(CSTRc(args), "%d-%d-%d %d:%d:%d",
          &tm.tm_year, &tm.tm_mon,
@@ -278,7 +277,7 @@ void	ht_trk_utc(xg_string args, const QXmlStreamAttributes*)
   tm.tm_year -= 1900;
   tm.tm_isdst = 0;
 
-  utc = mkgmtime(&tm);
+  time_t utc = mkgmtime(&tm);
 
   wpt_tmp->SetCreationTime(utc);
 }
@@ -312,8 +311,10 @@ ff_vecs_t hiketech_vecs = {
   hiketech_wr_deinit,
   hiketech_read,
   hiketech_write,
-  NULL,
+  nullptr,
   hiketech_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };
 

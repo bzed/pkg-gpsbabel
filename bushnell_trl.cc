@@ -47,7 +47,7 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
@@ -55,14 +55,13 @@ rd_deinit(void)
 static void
 wr_init(const QString& fname)
 {
-  int i;
   int l = fname.length();
   char obuf[20] = { 0 } ;
   char* p = obuf;
   file_out = gbfopen_le(fname, "w", MYNAME);
   trkpt_count = 0;
   QString fnameu = fname.toUpper();
-  for (i = 0; (i < l) && (i < 20); i++) {
+  for (int i = 0; (i < l) && (i < 20); i++) {
     char c = fnameu[i].toLatin1();
     if (isalnum(c)) {
       *p++ = c;
@@ -75,7 +74,7 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   int i = trkpt_count;
   while (i < 4502) {
@@ -94,21 +93,17 @@ wr_deinit(void)
  * Each file contains a single waypoint.
  */
 static void
-bushnell_read(void)
+bushnell_read()
 {
-  int lat_tmp,lon_tmp;
-
-  while (1) {
-    Waypoint* wpt_tmp;
-
-    lat_tmp = gbfgetint32(file_in);
-    lon_tmp = gbfgetint32(file_in);
+  while (true) {
+    int lat_tmp = gbfgetint32(file_in);
+    int lon_tmp = gbfgetint32(file_in);
 
     if (!lat_tmp && !lon_tmp) {
       break;
     }
 
-    wpt_tmp = new Waypoint;
+    Waypoint* wpt_tmp = new Waypoint;
     wpt_tmp->latitude  = lat_tmp / 10000000.0;
     wpt_tmp->longitude = lon_tmp / 10000000.0;
 
@@ -131,9 +126,9 @@ bushnell_write_one(const Waypoint* wpt)
 }
 
 static void
-bushnell_write(void)
+bushnell_write()
 {
-  track_disp_all(NULL, NULL, bushnell_write_one);
+  track_disp_all(nullptr, nullptr, bushnell_write_one);
 }
 
 ff_vecs_t bushnell_trl_vecs = {
@@ -145,7 +140,9 @@ ff_vecs_t bushnell_trl_vecs = {
   wr_deinit,
   bushnell_read,
   bushnell_write,
-  NULL,
+  nullptr,
   bushnell_args,
-  CET_CHARSET_MS_ANSI, 0  /* Not really sure... */
+  CET_CHARSET_MS_ANSI, 0,  /* Not really sure... */
+  NULL_POS_OPS,
+  nullptr
 };

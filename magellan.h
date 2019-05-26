@@ -17,6 +17,12 @@
 
  */
 
+#ifndef MAGELLAN_H_INCLUDED_
+#define MAGELLAN_H_INCLUDED_
+
+#include <QtCore/QString>
+#include "defs.h"
+
 /*
  * Table of "interesting" Magellan models.
  * Selfishly, if I haven't heard of it, it's not in the table.
@@ -47,8 +53,10 @@ typedef struct icon_mapping {
 QString mag_find_descr_from_token(const char* token);
 QString mag_find_token_from_descr(const QString& icon);
 
-unsigned int mag_checksum(const char* const buf);
+unsigned int mag_checksum(const char*buf);
 QString m330_cleanse(const char* istring);
 
 Waypoint* mag_trkparse(char* trkmsg);
 void mag_rteparse(char* rtemsg);
+
+#endif  // MAGELLAN_H_INCLUDED_

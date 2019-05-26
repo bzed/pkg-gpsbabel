@@ -18,7 +18,8 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
-#include <stdio.h>
+#include <cstdio>
+#include "gpsdevice.h"
 
 /* This structure is a bit funny looking to avoid variable length
  * arrays which aren't present in C89.   This contains the visible

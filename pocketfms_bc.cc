@@ -60,7 +60,7 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
@@ -72,25 +72,24 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
 }
 
 static void
-read_tracks(void)
+read_tracks()
 {
   struct breadcrumb bc;
   route_head* trk_head = route_head_alloc();
   trk_head->rte_num = 1;
   trk_head->rte_name = "PocketFMS";
   trk_head->rte_desc = "Breadcrumb";
-  trk_head->rte_url = "www.pocketfms.com";
+  trk_head->rte_urls.AddUrlLink(UrlLink("www.pocketfms.com"));
   track_add_head(trk_head);
 
   while (1 == gbfread(&bc, sizeof(bc), 1, file_in)) {
     struct tm tm;
-    Waypoint* wpt;
 
     if (strcmp(bc.id, header_id) != 0) {
       fatal(MYNAME ": invalid breadcrumb header in input file.\n");
@@ -104,7 +103,7 @@ read_tracks(void)
     tm.tm_min = le_readu16(&bc.minute);
     tm.tm_sec = le_readu16(&bc.second);
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
     wpt->latitude = le_read_float(&bc.latitude);
     wpt->longitude = le_read_float(&bc.longitude);
     wpt->altitude = FEET_TO_METERS(le_read_float(&bc.altitude));
@@ -121,7 +120,7 @@ read_tracks(void)
 }
 
 static void
-route_head_noop(const route_head* wp)
+route_head_noop(const route_head*)
 {
 }
 
@@ -129,11 +128,10 @@ static void
 pocketfms_waypt_disp(const Waypoint* wpt)
 {
   struct breadcrumb bc;
-  struct tm* tm;
 
   memset(&bc, 0, sizeof(bc));
   const time_t tt = wpt->GetCreationTime().toTime_t();
-  tm = localtime(&tt);
+  struct tm* tm = localtime(&tt);
   if (wpt->creation_time.isValid()) {
     const time_t tt = wpt->GetCreationTime().toTime_t();
     tm = gmtime(&tt);
@@ -163,13 +161,13 @@ pocketfms_waypt_disp(const Waypoint* wpt)
 }
 
 static void
-data_read(void)
+data_read()
 {
   read_tracks();
 }
 
 static void
-data_write(void)
+data_write()
 {
   track_disp_all(route_head_noop, route_head_noop, pocketfms_waypt_disp);
 }
@@ -187,7 +185,9 @@ ff_vecs_t pocketfms_bc_vecs = {
   wr_deinit,
   data_read,
   data_write,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

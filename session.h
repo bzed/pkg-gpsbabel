@@ -19,33 +19,25 @@
 
 */
 
-#ifndef SESSION_H
-#define SESSION_H
+#ifndef SESSION_H_INCLUDED_
+#define SESSION_H_INCLUDED_
 
-typedef struct {
-  queue Q;
-  int id;
-  char* name;
-} category_t;
+#include <QtCore/QString>  // for QString
+#include <utility>
 
-typedef struct {
-  queue Q;
-  int nr;
-  const char* name;		/* in normal case the name of a format */
-  char* filename;			/* used file within format */
-  int category_ct;
-  int unknown_category_ct;	/* added without id */
-  queue category_list;
-} session_t;
+struct session_t {
+public:
+  QString name;					/* in normal case the name of a format */
+  QString filename;			/* used file within format */
 
-void session_init(void);
-void session_exit(void);
+public:
+  session_t(QString name_p, QString filename_p) : name{std::move(name_p)},filename{std::move(filename_p)} {}
+};
 
-void start_session(const char* name, const char* filename);
-session_t* curr_session(void);
+void session_init();
+void session_exit();
 
-/* in work
-int session_add_category(const char *name, const int id);
-*/
+void start_session(const QString& name, const QString& filename);
+const session_t* curr_session();
 
-#endif
+#endif  // SESSION_H_INCLUDED_

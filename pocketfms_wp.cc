@@ -20,8 +20,8 @@
 
 #include "defs.h"
 #include "csv_util.h"
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
 
 #define MYNAME "PocketFMS waypoint text file format"
 
@@ -33,9 +33,9 @@ rd_init(const QString& fname)
   file_in = gbfopen_le(fname, "r", MYNAME);
 }
 
-double wppos_to_dec(char* value)
+static double wppos_to_dec(char* value)
 {
-  if (strstr(value, "\xB0") == NULL) {
+  if (strstr(value, "\xB0") == nullptr) {
     return atof(value);
   } else {
     int degrees, minutes;
@@ -55,42 +55,43 @@ double wppos_to_dec(char* value)
 }
 
 static void
-data_read(void)
+data_read()
 {
   char* buff;
   int linecount = 0;
   while ((buff = gbfgetstr(file_in))) {
-    char* s;
-    Waypoint* wpt;
     rtrim(buff);
     if (strlen(buff) == 0) {
       break;
     }
     linecount++;
-    wpt = new Waypoint;
-    s = buff;
+    Waypoint* wpt = new Waypoint;
+    char* s = buff;
     s = csv_lineparse(s, "\\w", "", linecount);
     if (!s) {
       fatal(MYNAME "Invalid name");
     }
     wpt->shortname = s;
-    s = csv_lineparse(NULL, "\\w", "", linecount);
+    s = csv_lineparse(nullptr, "\\w", "", linecount);
     if (!s) {
       fatal(MYNAME "Invalid latitude %s", qPrintable(wpt->shortname));
     }
     wpt->latitude = wppos_to_dec(s);
 
-    s = csv_lineparse(NULL, "\\w", "", linecount);
+    s = csv_lineparse(nullptr, "\\w", "", linecount);
     if (!s) {
       fatal(MYNAME "Invalid longitude %s", qPrintable(wpt->shortname));
     }
     wpt->longitude = wppos_to_dec(s);
     waypt_add(wpt);
+
+    // continue reading until csv_lineparse returns null indicating all dynamic memory has been deallocated.
+    while (csv_lineparse(nullptr, "\\w", "", linecount));
   }
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
@@ -106,10 +107,10 @@ enigma_waypt_disp(const Waypoint* wpt)
 {
   if (!wpt->shortname.isEmpty()) {
     // The output might have a space or control character.
-    int i, l = wpt->shortname.length();
+    int l = wpt->shortname.length();
     char *t = (char*) xmalloc(l + 1);
     char* d = t;
-    for (i = 0; i < l; i++) {
+    for (int i = 0; i < l; i++) {
       char s = wpt->shortname[i].cell();
       if (isgraph(s)) {
         *d++ = s;
@@ -124,13 +125,13 @@ enigma_waypt_disp(const Waypoint* wpt)
 }
 
 static void
-data_write(void)
+data_write()
 {
   waypt_disp_all(enigma_waypt_disp);
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
 }
@@ -148,7 +149,9 @@ ff_vecs_t pocketfms_wp_vecs = {
   wr_deinit,
   data_read,
   data_write,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

@@ -37,8 +37,8 @@
 
 
 
-static gbfile* fin = NULL;
-static route_head* track = NULL;
+static gbfile* fin = nullptr;
+static route_head* track = nullptr;
 
 
 static
@@ -61,22 +61,22 @@ f90g_track_rd_init(const QString& fname)
     fatal(MYNAME ": read error");
   } else {
     // flip bits and check for valid header
-    for (int i = 0; i<HEADERRECORDSIZE; i++) {
-      header[i] ^= FLIPEDBITS;
+    for (char &i : header) {
+        i ^= FLIPEDBITS;
     }
     if (memcmp(header, VALIDHEADER, sizeof(VALIDHEADER)-1)) {
       fatal(MYNAME ": bad header");
     }
     // start the track list
     track = route_head_alloc();
-    is_fatal((track == NULL), MYNAME ": memory non-enough");
+    is_fatal((track == nullptr), MYNAME ": memory non-enough");
     track->rte_name = fname;
     track_add_head(track);
   }
 }
 
 static void
-f90g_track_rd_deinit(void)
+f90g_track_rd_deinit()
 {
   gbfclose(fin);
 }
@@ -86,14 +86,12 @@ static const double MIN_PER_DEGREE  = 600000.0f;
 static const float  SPEED_CONVERSION = (10.0f)/(36.0f); // convert KPH to meters per second
 
 static void
-f90g_track_read(void)
+f90g_track_read()
 {
-  Waypoint* readWaypoint;
   char northSouth, eastWest, velocityMark, ttRec[TTRECORDSIZE], tempBuf[20];
   int year, mon, mday, hour, min, sec, latitudeDeg, latitudeMin, longitudeDeg, longitudeMin, velocity;
-  QDateTime dt;
 
-  is_fatal((track == NULL), MYNAME "Track setup error");
+  is_fatal((track == nullptr), MYNAME "Track setup error");
   for (;;) {
     if ((gbfread((void*)ttRec, 1, 2, fin) != 2)
         || (memcmp(ttRec,"TT",2))) {
@@ -102,8 +100,8 @@ f90g_track_read(void)
     if (gbfread((void*)ttRec, 1, TTRECORDSIZE, fin) != TTRECORDSIZE) {
       break;
     }
-    for (int i = 0; i<TTRECORDSIZE; i++) {
-      ttRec[i] ^= FLIPEDBITS;
+    for (char &i : ttRec) {
+        i ^= FLIPEDBITS;
     }
 
     // Pick the TT record apart and if it is good, fill in a new Waypoint
@@ -121,8 +119,8 @@ f90g_track_read(void)
         && velocityMark == 'M') {
 
       // create the Waypoint and fill it in
-      readWaypoint = new Waypoint;
-      dt = QDateTime(QDate(year, mon, mday), QTime(hour, min, sec), Qt::UTC);
+      Waypoint* readWaypoint = new Waypoint;
+      QDateTime dt = QDateTime(QDate(year, mon, mday), QTime(hour, min, sec), Qt::UTC);
 
       readWaypoint->SetCreationTime(dt);
       readWaypoint->latitude = (double(latitudeDeg) + double(latitudeMin)/MIN_PER_DEGREE)
@@ -147,13 +145,15 @@ ff_vecs_t f90g_track_vecs = {
   ff_type_file,
   { ff_cap_none, (ff_cap)(ff_cap_read), ff_cap_none },
   f90g_track_rd_init,
-  NULL,
+  nullptr,
   f90g_track_rd_deinit,
-  NULL,
+  nullptr,
   f90g_track_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   f90g_track_args,
   CET_CHARSET_UTF8, 0			/* ascii is the expected character set */
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };

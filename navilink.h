@@ -20,10 +20,10 @@
 
  */
 
-#ifndef gpsbabel_navilink_h_included
-#define gpsbabel_navilink_h_included
+#ifndef NAVILINK_H_INCLUDED_
+#define NAVILINK_H_INCLUDED_
 
-#include <time.h>
+#include <ctime>
 #include "defs.h"
 
 #define SBP_RECORD_LEN 32
@@ -33,7 +33,7 @@ Waypoint* navilink_decode_logpoint(const unsigned char* buffer);
 unsigned navilink_checksum_packet(const unsigned char* packet, unsigned length);
 
 /* defined in sbn.c */
-int locosys_decode_file_id(char* header, size_t len);
+bool locosys_decode_file_id(char* header, size_t len);
 
 
 #ifdef THIS_IS_ONLY_FOR_REFERENCE
@@ -133,4 +133,4 @@ typedef struct __packed {
 
 #endif
 
-#endif /* gpsbabel_navilink_h_included */
+#endif  // NAVILINK_H_INCLUDED

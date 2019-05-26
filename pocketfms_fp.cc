@@ -19,13 +19,16 @@
 
  */
 
+#include <QtCore/QString>               // for QString
+#include <QtCore/QStringRef>            // for QStringRef
+#include <QtCore/QXmlStreamAttributes>  // for QXmlStreamAttributes
 
 #include "defs.h"
-#include "xmlgeneric.h"
-#include <QtCore/QXmlStreamAttributes>
+#include "xmlgeneric.h"                 // for cb_cdata, xg_callback, xg_string, cb_start, cb_end, xg_cb_type, xml_deinit, xml_init, xml_read, xg_tag_mapping
+
 
 static int isFirst = 1;
-static route_head* route = NULL;
+static route_head* route = nullptr;
 static Waypoint* wpt_to, *wpt_from;
 static double dest_altitude;
 
@@ -46,32 +49,32 @@ static xg_tag_mapping gl_map[] = {
   { wpt_to_elev,		cb_cdata, "/PocketFMSFlightplan/LIB/ToPoint/Elevation" },
   { wpt_altitude,	cb_start, "/PocketFMSFlightplan/LIB/PlannedAltitude" },
   { wpt_e,			cb_end,   "/PocketFMSFlightplan/LIB" },
-  { NULL,	(xg_cb_type)0,		NULL}
+  { nullptr,	(xg_cb_type)0,		nullptr}
 };
 
 static void
 rd_init(const QString& fname)
 {
-  xml_init(fname, gl_map, NULL);
+  xml_init(fname, gl_map, nullptr);
 }
 
 static void
-data_read(void)
+data_read()
 {
   xml_read();
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
-  if (route != NULL) {
-    Waypoint* head = (Waypoint*) QUEUE_FIRST(&route->waypoint_list);
-    Waypoint* tail = (Waypoint*) QUEUE_LAST(&route->waypoint_list);
-    if (head != NULL) {
+  if (route != nullptr) {
+    Waypoint* head = route->waypoint_list.front();
+    Waypoint* tail = route->waypoint_list.back();
+    if (head != nullptr) {
       route->rte_name = head->shortname;
     }
     route->rte_name += " - ";
-    if (tail != NULL) {
+    if (tail != nullptr) {
       route->rte_name += tail->shortname;
       tail->altitude = dest_altitude;
     }
@@ -80,12 +83,12 @@ rd_deinit(void)
 }
 
 static void
-wr_init(const QString& fname)
+wr_init(const QString&)
 {
   fatal("Writing file of type %s is not supported\n", MYNAME);
 }
 
-void	wpt_s(xg_string args, const QXmlStreamAttributes*)
+void	wpt_s(xg_string, const QXmlStreamAttributes*)
 {
   if (isFirst == 1) {
     wpt_from = new Waypoint;
@@ -96,47 +99,47 @@ void	wpt_s(xg_string args, const QXmlStreamAttributes*)
   wpt_to = new Waypoint;
 }
 
-void	wpt_e(xg_string args, const QXmlStreamAttributes*)
+void	wpt_e(xg_string, const QXmlStreamAttributes*)
 {
   if (isFirst == 1) {
     route_add_wpt(route, wpt_from);
     if (doing_wpts) {
       waypt_add(new Waypoint(*wpt_from));
     }
-    wpt_from = NULL;
+    wpt_from = nullptr;
     isFirst = 0;
   }
   route_add_wpt(route, wpt_to);
   if (doing_wpts) {
     waypt_add(new Waypoint(*wpt_to));
   }
-  wpt_to = NULL;
+  wpt_to = nullptr;
 }
 
 void	wpt_from_lat(xg_string args, const QXmlStreamAttributes*)
 {
-  if (wpt_from != NULL) {
+  if (wpt_from != nullptr) {
     wpt_from->latitude = args.toDouble();
   }
 }
 
 void	wpt_from_lon(xg_string args, const QXmlStreamAttributes*)
 {
-  if (wpt_from != NULL) {
+  if (wpt_from != nullptr) {
     wpt_from->longitude = args.toDouble();
   }
 }
 
 void	wpt_from_name(xg_string args, const QXmlStreamAttributes*)
 {
-  if (wpt_from != NULL) {
+  if (wpt_from != nullptr) {
     wpt_from->shortname += args;
   }
 }
 
 void	wpt_from_elev(xg_string args, const QXmlStreamAttributes*)
 {
-  if (wpt_from != NULL) {
+  if (wpt_from != nullptr) {
     wpt_from->altitude = FEET_TO_METERS(args.toDouble());
   }
 }
@@ -161,7 +164,7 @@ void	wpt_to_elev(xg_string args, const QXmlStreamAttributes*)
   dest_altitude = FEET_TO_METERS(args.toDouble());
 }
 
-void	wpt_altitude(xg_string args, const QXmlStreamAttributes* attrv)
+void	wpt_altitude(xg_string, const QXmlStreamAttributes* attrv)
 {
   int isFeet = 0;
 
@@ -186,10 +189,12 @@ ff_vecs_t pocketfms_fp_vecs = {
   rd_init,
   wr_init,
   rd_deinit,
-  NULL,
+  nullptr,
   data_read,
-  NULL,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
+  nullptr,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

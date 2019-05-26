@@ -44,13 +44,13 @@ mapbar_track_rd_init(const QString& fname)
 }
 
 static void
-mapbar_track_rd_deinit(void)
+mapbar_track_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static gpsbabel::DateTime
-read_datetime(void)
+read_datetime()
 {
   int hour = gbfgetint16(fin);
   int min = gbfgetint16(fin);
@@ -65,7 +65,7 @@ read_datetime(void)
 
 static const double DIV_RATE  = 100000.0f;
 static Waypoint*
-read_waypoint(void)
+read_waypoint()
 {
   int longitude = gbfgetint32(fin);
   int latitude = gbfgetint32(fin);
@@ -79,20 +79,25 @@ read_waypoint(void)
 }
 
 static void
-mapbar_track_read(void)
+mapbar_track_read()
 {
   route_head* track = route_head_alloc();
-  is_fatal((track == NULL), MYNAME ": memory non-enough");
+  is_fatal((track == nullptr), MYNAME ": memory non-enough");
   track_add_head(track);
 
   (void) read_datetime(); // start_time currently unused
   (void) read_datetime(); // end_time currently unused
 
-  ushort name[200] = {0};
-  gbfread((void*)name, 1, 200, fin);
-  // At this point, name is a UCS-16 encoded, zero terminated string.
+  ushort name[101];
+  // read 100 UCS-2 characters that are each stored little endian.
+  // note gbfread wouldn't get this right on big endian machines.
+  for (int idx=0; idx<100; idx++) {
+    name[idx] = gbfgetint16(fin);
+  }
+  name[100] = 0;
+  // At this point, name is a UCS-2 encoded, zero terminated string.
   // All our internals use Qt encoding, so convert now.
-  track->rte_name = QString().fromUtf16(name);
+  track->rte_name = QString::fromUtf16(name);
 
   // skip two pair waypoint
   gbfseek(fin, 8*4, SEEK_CUR);
@@ -129,13 +134,15 @@ ff_vecs_t mapbar_track_vecs = {
   ff_type_file,
   { ff_cap_none, (ff_cap)(ff_cap_read), ff_cap_none },
   mapbar_track_rd_init,
-  NULL,
+  nullptr,
   mapbar_track_rd_deinit,
-  NULL,
+  nullptr,
   mapbar_track_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   mapbar_track_args,
   CET_CHARSET_UTF8, 0
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };

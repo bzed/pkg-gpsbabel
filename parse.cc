@@ -22,9 +22,9 @@
 
 #include "defs.h"
 #include "jeeps/gpsmath.h"
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h> //strtod
+#include <cmath>
+#include <cstdio>
+#include <cstdlib> //strtod
 
 /*
  * parse_distance:
@@ -40,11 +40,11 @@ parse_distance(const char* str, double* val, double scale, const char* module)
 {
   char* unit;
 
-  if ((str == NULL) || (*str == '\0')) {
+  if ((str == nullptr) || (*str == '\0')) {
     return 0;
   }
   *val = strtod(str, &unit);
-  if (unit == NULL) {
+  if (unit == nullptr) {
     fatal("%s: Unconvertable numeric value (%s)!\n", module, str);
   }
 
@@ -100,12 +100,12 @@ parse_speed(const char* str, double* val, const double scale, const char* module
 {
   char* unit;
 
-  if ((str == NULL) || (*str == '\0')) {
+  if ((str == nullptr) || (*str == '\0')) {
     return 0;
   }
 
   *val = strtod(str, &unit);
-  if (unit == NULL) {
+  if (unit == nullptr) {
     fatal("%s: Unconvertable numeric value (%s)!\n", module, str);
   }
 
@@ -167,11 +167,12 @@ parse_coordinates(const char* str, int datum, const grid_type grid,
   int utmz;
   double utme, utmn;
   char utmc;
-  int valid, result, ct;
+  int result;
+  int ct;
   double lx, ly;
   const char* format;
 
-  valid = 1;
+  int valid = 1;
 
   switch (grid) {
 
@@ -188,8 +189,8 @@ parse_coordinates(const char* str, int datum, const grid_type grid,
                 &lathemi, &deg_lat, &lat, &lonhemi, &deg_lon, &lon, &result);
     valid = (ct == 6);
     if (valid) {
-      lat = (double)deg_lat + (lat / (double)60);
-      lon = (double)deg_lon + (lon / (double)60);
+      lat = (double)deg_lat + (lat / 60.0);
+      lon = (double)deg_lon + (lon / 60.0);
     }
     break;
 
@@ -200,8 +201,8 @@ parse_coordinates(const char* str, int datum, const grid_type grid,
                 &result);
     valid = (ct == 8);
     if (valid) {
-      lat = (double)deg_lat + ((double)min_lat / (double)60) + (lat / (double)3600.0);
-      lon = (double)deg_lon + ((double)min_lon / (double)60) + (lon / (double)3600.0);
+      lat = (double)deg_lat + ((double)min_lat / 60.0) + (lat / 3600.0);
+      lon = (double)deg_lon + ((double)min_lon / 60.0) + (lon / 3600.0);
     }
     break;
 
@@ -266,7 +267,7 @@ parse_coordinates(const char* str, int datum, const grid_type grid,
 
   if (datum != DATUM_WGS84) {
     double alt;
-    GPS_Math_Known_Datum_To_WGS84_M(lat, lon, (double) 0.0,
+    GPS_Math_Known_Datum_To_WGS84_M(lat, lon, 0.0,
                                     &lat, &lon, &alt, datum);
   }
 

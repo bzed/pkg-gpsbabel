@@ -28,14 +28,14 @@
 
 #include "defs.h"
 #include "xmlgeneric.h"
-#include <stdio.h>
 #include <QtCore/QXmlStreamAttributes>
+#include <cstdio>
 
 static gbfile* ofd;
 static Waypoint* wpt_tmp;
-QString urllink;
-QString urllinkt;
-static char* binary = NULL;
+static QString urllink;
+static QString urllinkt;
+static char* binary = nullptr;
 
 #define MYNAME "lmx"
 
@@ -44,7 +44,7 @@ arglist_t lmx_args[] = {
   {
     "binary", &binary,
     "Compact binary representation",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -61,7 +61,7 @@ lmx_wr_init(const QString& fname)
 }
 
 static void
-lmx_wr_deinit(void)
+lmx_wr_deinit()
 {
   gbfclose(ofd);
 }
@@ -141,15 +141,14 @@ lmx_stag(int tag)
   case 0x67:
     return "url";
   default:
-    return 0;
+    return nullptr;
   }
 }
 
 static void
 lmx_indent(int count)
 {
-  int i;
-  for (i=0; i<count; i++) {
+  for (int i = 0; i<count; i++) {
     gbfputc('\t', ofd);
   }
 }
@@ -196,13 +195,10 @@ lmx_write_xml(int tag, const QString& data, int indent)
 static void
 lmx_print(const Waypoint* wpt)
 {
-  QString oname;
-  QString odesc;
-
   /*
    * Desparation time, try very hard to get a good shortname
    */
-  odesc = wpt->notes;
+  QString odesc = wpt->notes;
   if (odesc.isEmpty()) {
     odesc = wpt->description;
   }
@@ -210,7 +206,7 @@ lmx_print(const Waypoint* wpt)
     odesc = wpt->shortname;
   }
 
-  oname = global_opts.synthesize_shortnames ? odesc : wpt->shortname;
+  QString oname = global_opts.synthesize_shortnames ? odesc : wpt->shortname;
 
   lmx_start_tag(0x47, 2); // landmark
   if (!binary) {
@@ -258,7 +254,7 @@ lmx_print(const Waypoint* wpt)
 
 
 static void
-lmx_write(void)
+lmx_write()
 {
   if (binary) {
     gbfputc(0x03, ofd); // WBXML version 1.3
@@ -312,23 +308,23 @@ static xg_tag_mapping gl_map[] = {
   { lmx_lm_link,  	cb_cdata, 	LM "/lm:mediaLink/lm:url" },
   { lmx_lm_linkt, 	cb_cdata, 	LM "/lm:mediaLink/lm:name" },
   { lmx_lm_mlink_e,	cb_end, 	LM "/lm:mediaLink" },
-  { NULL,	(xg_cb_type)0,         NULL}
+  { nullptr,	(xg_cb_type)0,         nullptr}
 };
 
 static void
 lmx_rd_init(const QString& fname)
 {
-  xml_init(fname, gl_map, NULL);
+  xml_init(fname, gl_map, nullptr);
 }
 
 static void
-lmx_read(void)
+lmx_read()
 {
   xml_read();
 }
 
 static void
-lmx_rd_deinit(void)
+lmx_rd_deinit()
 {
   xml_deinit();
 }
@@ -336,13 +332,13 @@ lmx_rd_deinit(void)
 
 
 static void
-lmx_lm_start(xg_string args, const QXmlStreamAttributes*)
+lmx_lm_start(xg_string, const QXmlStreamAttributes*)
 {
   wpt_tmp = new Waypoint;
 }
 
 static void
-lmx_lm_end(xg_string args, const QXmlStreamAttributes*)
+lmx_lm_end(xg_string, const QXmlStreamAttributes*)
 {
   waypt_add(wpt_tmp);
 }
@@ -378,7 +374,7 @@ lmx_lm_desc(xg_string args, const QXmlStreamAttributes*)
 }
 
 static void
-lmx_lm_mlink_s(xg_string args, const QXmlStreamAttributes*)
+lmx_lm_mlink_s(xg_string, const QXmlStreamAttributes*)
 {
   urllink = urllinkt = QString();
 }
@@ -396,7 +392,7 @@ lmx_lm_linkt(xg_string args, const QXmlStreamAttributes*)
 }
 
 static void
-lmx_lm_mlink_e(xg_string args, const QXmlStreamAttributes*)
+lmx_lm_mlink_e(xg_string, const QXmlStreamAttributes*)
 {
   waypt_add_url(wpt_tmp, urllink, urllinkt);
 }
@@ -415,7 +411,9 @@ ff_vecs_t lmx_vecs = {
   lmx_wr_deinit,
   lmx_read,
   lmx_write,
-  NULL,
+  nullptr,
   lmx_args,
   CET_CHARSET_UTF8, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

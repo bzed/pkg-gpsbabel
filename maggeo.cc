@@ -21,12 +21,12 @@
 
 #include "defs.h"
 #include "csv_util.h"
-#include "xmlgeneric.h"
 #include "magellan.h"
+#include "xmlgeneric.h"
 #include <QtCore/QXmlStreamAttributes>
 #include <cmath>
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
 
 #define MYNAME "maggeo"
 
@@ -35,7 +35,7 @@
 
 static gbfile* maggeofile_in;
 static gbfile* maggeofile_out;
-static short_handle desc_handle = NULL;
+static short_handle desc_handle = nullptr;
 
 static QDateTime maggeo_parsedate(char* dmy);
 
@@ -53,7 +53,7 @@ maggeo_rd_init(const QString& fname)
 }
 
 static void
-maggeo_rd_deinit(void)
+maggeo_rd_deinit()
 {
   gbfclose(maggeofile_in);
 }
@@ -71,7 +71,7 @@ maggeo_wr_init(const QString& fname)
 }
 
 static void
-maggeo_wr_deinit(void)
+maggeo_wr_deinit()
 {
   maggeo_writemsg("PMGNCMD,END");
   mkshort_del_handle(&desc_handle);
@@ -79,15 +79,12 @@ maggeo_wr_deinit(void)
 }
 
 static void
-maggeo_read(void)
+maggeo_read()
 {
   char* buff;
 
   while ((buff = gbfgetstr(maggeofile_in))) {
-    Waypoint* wpt_tmp;
-    geocache_data* gcdata;
-    char* s = NULL;
-    int fld;
+    char* s = nullptr;
 
     buff = lrtrim(buff);
     if (*buff == '\0') {
@@ -98,13 +95,13 @@ maggeo_read(void)
     }
 
     buff += 9; /* skip field no. 1 */
-    fld = 1;
+    int fld = 1;
 
-    wpt_tmp = new Waypoint;
-    gcdata = wpt_tmp->AllocGCData();
+    Waypoint* wpt_tmp = new Waypoint;
+    geocache_data* gcdata = wpt_tmp->AllocGCData();
 
     while ((s = csv_lineparse(buff, ",", "", fld++))) {
-      buff = NULL;
+      buff = nullptr;
 
       s = lrtrim(s);
       if (*s == '\0') {
@@ -176,7 +173,7 @@ maggeo_read(void)
 
 static
 QString
-maggeo_fmtdate(QDateTime dt)
+maggeo_fmtdate(const QDateTime& dt)
 {
   QDate date = dt.date();
   int y = date.year() - 1900;
@@ -195,9 +192,9 @@ maggeo_fmtdate(QDateTime dt)
 static QDateTime maggeo_parsedate(char* dmy)
 {
   QString date(dmy);
-  int d = date.mid(0,2).toInt();
-  int m = date.mid(2,2).toInt();
-  int y = date.mid(4,3).toInt();
+  int d = date.midRef(0,2).toInt();
+  int m = date.midRef(2,2).toInt();
+  int y = date.midRef(4,3).toInt();
   QDateTime r(QDate(y + 1900, m, d));
   return r;
 }
@@ -210,7 +207,7 @@ static
 void
 append(char* buf, const char* str)
 {
-  char* cleansed1, *cleansed2;
+  char* cleansed2;
 
   strcat(buf, ",");
 
@@ -218,7 +215,7 @@ append(char* buf, const char* str)
     return;
   }
 
-  cleansed1 = xstrdup(str);
+  char* cleansed1 = xstrdup(str);
 #if FIRMWARE_DOES_88591
   /* Actually, this function needs needs refactored... */
   cleansed2 = xstrdup(cleansed1);
@@ -238,20 +235,16 @@ static void
 maggeo_waypt_pr(const Waypoint* waypointp)
 {
   char obuf[4096];
-  double ilon, ilat;
-  double lon, lat;
-  int lon_deg, lat_deg;
-  const char* ctype = NULL;
-  QString placer;
+  const char* ctype = nullptr;
 
-  ilat = waypointp->latitude;
-  ilon = waypointp->longitude;
+  double ilat = waypointp->latitude;
+  double ilon = waypointp->longitude;
 
-  lon = fabs(ilon);
-  lat = fabs(ilat);
+  double lon = fabs(ilon);
+  double lat = fabs(ilat);
 
-  lon_deg = lon;
-  lat_deg = lat;
+  int lon_deg = lon;
+  int lat_deg = lat;
 
   lon = (lon - lon_deg) * 60.0;
   lat = (lat - lat_deg) * 60.0;
@@ -272,7 +265,7 @@ maggeo_waypt_pr(const Waypoint* waypointp)
   QString lfounddate = maggeo_fmtdate(waypointp->gc_data->last_found);
   QString cname = mkshort(desc_handle,
                   waypointp->notes.isEmpty() ? waypointp->description : waypointp->notes);
-  placer = waypointp->gc_data->placer;
+  QString placer = waypointp->gc_data->placer;
 
   /*
    * As of this writing on 05/04, the firmware in the units will
@@ -318,7 +311,7 @@ maggeo_waypt_pr(const Waypoint* waypointp)
 }
 
 static void
-maggeo_write(void)
+maggeo_write()
 {
   waypt_disp_all(maggeo_waypt_pr);
 }
@@ -332,11 +325,13 @@ ff_vecs_t maggeo_vecs = {
   maggeo_wr_deinit,
   maggeo_read,
   maggeo_write,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
 #if FIRMWARE_DOES_88591
   CET_CHARSET_LATIN1, 0	/* CET-REVIEW */
 #else
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
 #endif
+  , NULL_POS_OPS,
+  nullptr
 };

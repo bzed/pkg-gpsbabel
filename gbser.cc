@@ -23,9 +23,9 @@
 #include "gbser.h"
 #include "gbser_private.h"
 
-#include <assert.h>
-#include <stdarg.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstdarg>
+#include <cstdio>
 
 void gbser__db(int l, const char* msg, ...)
 {
@@ -69,9 +69,8 @@ static int parity_letter(char c)
 int gbser_setup(void* handle, const char* spec)
 {
   unsigned arg[] = { 4800, 8, 0, 1 };
-  unsigned int ap;
 
-  for (ap = 0; ap < sizeof(arg) / sizeof(arg[0]); ap++) {
+  for (unsigned int ap = 0; ap < sizeof(arg) / sizeof(arg[0]); ap++) {
     unsigned t = 0;
     int pl;
     while (isspace(*spec)) {
@@ -110,7 +109,7 @@ int gbser_setup(void* handle, const char* spec)
  */
 int gbser_avail(void* handle)
 {
-  return gbser__fill_buffer(handle, 1, NULL);
+  return gbser__fill_buffer(handle, 1, nullptr);
 }
 
 /* Read as many bytes as are available without blocking. At most |len|
@@ -122,7 +121,7 @@ int gbser_read(void* handle, void* buf, unsigned len)
   int got = 0;
 
   while (len > 0) {
-    int rc = gbser__fill_buffer(handle, len, NULL);
+    int rc = gbser__fill_buffer(handle, len, nullptr);
     if (rc < 0) {
       /* error */
       return rc;
@@ -160,9 +159,8 @@ int gbser_read_wait(void* handle, void* buf, unsigned len, unsigned ms)
 int gbser_readc(void* handle)
 {
   unsigned char buf;
-  int rc;
 
-  rc = gbser_read(handle, &buf, 1);
+  int rc = gbser_read(handle, &buf, 1);
   if (rc > 0) {
     return buf;
   } else if (rc == 0) {
@@ -178,9 +176,8 @@ int gbser_readc(void* handle)
 int gbser_readc_wait(void* handle, unsigned ms)
 {
   unsigned char buf;
-  int rc;
 
-  rc = gbser_read_wait(handle, &buf, 1, ms);
+  int rc = gbser_read_wait(handle, &buf, 1, ms);
   if (rc > 0) {
     return buf;
   } else if (rc == 0) {

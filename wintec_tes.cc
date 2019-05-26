@@ -33,7 +33,7 @@ wintec_tes_rd_init(const QString& fname)
 }
 
 static void
-wintec_tes_rd_deinit(void)
+wintec_tes_rd_deinit()
 {
   gbfclose(fin);
 }
@@ -54,13 +54,12 @@ wintec_date_to_time(uint32_t w)
 }
 
 static void
-wintec_tes_read(void)
+wintec_tes_read()
 {
   route_head* trk = route_head_alloc();
   track_add_head(trk);
 
   while (!gbfeof(fin)) {
-    Waypoint* wpt;
     uint16_t flags = gbfgetuint16(fin);
     uint32_t date = gbfgetuint32(fin);
     int32_t latitude = gbfgetint32(fin);
@@ -68,7 +67,7 @@ wintec_tes_read(void)
     int16_t alt = gbfgetint16(fin);  // Signed.  Meters.
 
     (void) flags; // Silence 'unused' warning until we use flags.
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
     wpt->latitude = latitude / 1.0e7;
     wpt->longitude = longitude / 1.0e7;
     wpt->SetCreationTime(wintec_date_to_time(date));
@@ -106,13 +105,15 @@ ff_vecs_t wintec_tes_vecs = {
     ff_cap_none 			/* routes */
   },
   wintec_tes_rd_init,
-  NULL,
+  nullptr,
   wintec_tes_rd_deinit,
-  NULL,
+  nullptr,
   wintec_tes_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   wintec_tes_args,
   CET_CHARSET_ASCII, 0			/* ascii is the expected character set */
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };

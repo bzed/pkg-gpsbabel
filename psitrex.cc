@@ -19,11 +19,22 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
  */
 
+#include <cctype>                  // for isspace
+#include <cstdio>                  // for sscanf, EOF, size_t
+#include <cstdlib>                 // for atof, atoi
+#include <cstring>                 // for strcmp, strlen, strcpy
+#include <ctime>                   // for gmtime
+
+#include <QtCore/QChar>            // for QChar
+#include <QtCore/QLatin1String>    // for QLatin1String
+#include <QtCore/QString>          // for QString
+#include <QtCore/QtGlobal>         // for foreach, uint
+
 #include "defs.h"
-#include "garmin_tables.h"
-#include <ctype.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include "garmin_tables.h"         // for gt_find_desc_from_icon_number, gt_find_icon_number_from_desc, PCX
+#include "gbfile.h"                // for gbfprintf, gbfeof, gbfile, gbfgetc, gbfclose, gbfgets, gbfopen, gbfputs
+#include "src/core/datetime.h"     // for DateTime
+
 
 #define MYNAME "PSITREX"
 
@@ -51,7 +62,7 @@ static int	psit_track_state = 2;
 
 static char psit_current_token[256];
 
-char* snlen;
+static char* snlen;
 
 static
 arglist_t psit_args[] = {
@@ -141,15 +152,13 @@ const psit_icon_mapping_t psit_icon_value_table[] = {
   { 0x400a, "ultralight" },
   { 0x400b, "parachute" },
   { 0x4012, "seaplane" },
-  {     -1, NULL }
+  {     -1, nullptr }
 };
 
 static const char*
 psit_find_desc_from_icon_number(const int icon)
 {
-  const psit_icon_mapping_t* i;
-
-  for (i = psit_icon_value_table; i->icon; i++) {
+  for (const psit_icon_mapping_t* i = psit_icon_value_table; i->icon; i++) {
     if (icon == i->value) {
       return i->icon;
     }
@@ -160,14 +169,13 @@ psit_find_desc_from_icon_number(const int icon)
 static int
 psit_find_icon_number_from_desc(const char* desc)
 {
-  const psit_icon_mapping_t* i;
   int def_icon = 18;
 
   if (!desc) {
     return def_icon;
   }
 
-  for (i = psit_icon_value_table; i->icon; i++) {
+  for (const psit_icon_mapping_t* i = psit_icon_value_table; i->icon; i++) {
     if (case_ignore_strcmp(desc,i->icon) == 0) {
       return i->value;
     }
@@ -185,7 +193,7 @@ psit_rd_init(const QString& fname)
 }
 
 static void
-psit_rd_deinit(void)
+psit_rd_deinit()
 {
   gbfclose(psit_file_in);
 }
@@ -197,7 +205,7 @@ psit_wr_init(const QString& fname)
 }
 
 static void
-psit_wr_deinit(void)
+psit_wr_deinit()
 {
   gbfclose(psit_file_out);
 }
@@ -230,7 +238,7 @@ psit_getToken(gbfile* psit_file, char* buf, size_t sz, psit_tokenSep_type delimT
   }
 
   if (c == '#') {
-    if (gbfgets(buf, sz, psit_file) == NULL) {
+    if (gbfgets(buf, sz, psit_file) == nullptr) {
       *buf = 0;
       return;
     }
@@ -293,14 +301,10 @@ psit_isKnownToken(char* buf)
  * MRCB
  */
 static void
-psit_waypoint_r(gbfile* psit_file, Waypoint** wpt)
+psit_waypoint_r(gbfile* psit_file, Waypoint**)
 {
-  int		garmin_icon_num;
-
-  Waypoint*	thisWaypoint;
-
   if (strlen(psit_current_token) > 0) {
-    thisWaypoint = new Waypoint;
+    Waypoint* thisWaypoint = new Waypoint;
 
     thisWaypoint->latitude = atof(psit_current_token);
 
@@ -324,7 +328,7 @@ psit_waypoint_r(gbfile* psit_file, Waypoint** wpt)
     rtrim(psit_current_token);
     /* since PsiTrex only deals with Garmins, let's use the "proper" Garmin icon name */
     /* convert the PsiTrex name to the number, which is the PCX one; from there to Garmin desc */
-    garmin_icon_num = psit_find_icon_number_from_desc(psit_current_token);
+    int garmin_icon_num = psit_find_icon_number_from_desc(psit_current_token);
     thisWaypoint->icon_descr = gt_find_desc_from_icon_number(garmin_icon_num, PCX);
 
     waypt_add(thisWaypoint);
@@ -340,9 +344,7 @@ psit_waypoint_r(gbfile* psit_file, Waypoint** wpt)
 static void
 psit_waypoint_w(gbfile* psit_file, const Waypoint* wpt)
 {
-  int	icon;
-  const char* ident;
-  char* src = 0;  /* BUGBUG Passed to mkshort */
+  char* src = nullptr;  /* BUGBUG Passed to mkshort */
 
   gbfprintf(psit_file, "%11.6f,%11.6f,",
             wpt->latitude,
@@ -354,16 +356,16 @@ psit_waypoint_w(gbfile* psit_file, const Waypoint* wpt)
     gbfprintf(psit_file, "%8.2f,",
               wpt->altitude);
 
-  ident = global_opts.synthesize_shortnames ?
-          mkshort(mkshort_handle, src) :
-          xstrdup(wpt->shortname);
+  const char* ident = global_opts.synthesize_shortnames ?
+                         mkshort(mkshort_handle, src) :
+                         xstrdup(wpt->shortname);
 
   gbfprintf(psit_file, " %-6s, ", ident);
   xfree(ident);
 
-  icon = gt_find_icon_number_from_desc(wpt->icon_descr, PCX);
+  int icon = gt_find_icon_number_from_desc(wpt->icon_descr, PCX);
 
-  if (get_cache_icon(wpt) && wpt->icon_descr.compare("Geocache Found") != 0) {
+  if (get_cache_icon(wpt) && wpt->icon_descr.compare(QLatin1String("Geocache Found")) != 0) {
     icon = gt_find_icon_number_from_desc(get_cache_icon(wpt), PCX);
   }
 
@@ -390,9 +392,6 @@ static void
 psit_route_r(gbfile* psit_file, route_head** rte)
 {
   char rtename[256];
-  int garmin_icon_num;
-  route_head* rte_head;
-  Waypoint* thisWaypoint;
 
   psit_getToken(psit_file,psit_current_token,sizeof(psit_current_token), ltrimEOL);
 
@@ -404,7 +403,7 @@ psit_route_r(gbfile* psit_file, route_head** rte)
 
   rtrim(rtename);
 
-  rte_head = route_head_alloc();
+  route_head* rte_head = route_head_alloc();
   rte_head->rte_name = rtename;
   route_add_head(rte_head);
   *rte = rte_head;
@@ -413,7 +412,7 @@ psit_route_r(gbfile* psit_file, route_head** rte)
 
   while (psit_isKnownToken(psit_current_token) != 0) {
     if (strlen(psit_current_token) > 0) {
-      thisWaypoint = new Waypoint;
+      Waypoint* thisWaypoint = new Waypoint;
 
       thisWaypoint->latitude = atof(psit_current_token);
 
@@ -437,7 +436,7 @@ psit_route_r(gbfile* psit_file, route_head** rte)
       rtrim(psit_current_token);
       /* since PsiTrex only deals with Garmins, let's use the "proper" Garmin icon name */
       /* convert the PsiTrex name to the number, which is the PCX one; from there to Garmin desc */
-      garmin_icon_num = psit_find_icon_number_from_desc(psit_current_token);
+      int garmin_icon_num = psit_find_icon_number_from_desc(psit_current_token);
       thisWaypoint->icon_descr = gt_find_desc_from_icon_number(garmin_icon_num, PCX);
 
       route_add_wpt(rte_head, thisWaypoint);
@@ -460,20 +459,16 @@ psit_route_r(gbfile* psit_file, route_head** rte)
 static void
 psit_routehdr_w(gbfile* psit_file, const route_head* rte)
 {
-  unsigned int rte_datapoints;
   QString rname;
 
-  Waypoint* testwpt;
-  time_t uniqueValue = 0;
-  queue* elem, *tmp;
-
   /* total nodes (waypoints) this route */
-  rte_datapoints = 0;
-
-  if (rte->waypoint_list.next) {		/* this test doesn't do what I want i.e test if this is a valid route - treat as a placeholder for now */
-
-    QUEUE_FOR_EACH(&rte->waypoint_list, elem, tmp) {
-      testwpt = (Waypoint*)elem;
+  //if (rte->waypoint_list.next) { 
+  if (true) {
+    // this test doesn't do what I w ant i.e test if this is a valid 
+    // route - treat as a placeholder for now .
+    time_t uniqueValue = 0;
+    unsigned int rte_datapoints = 0;
+    foreach (const Waypoint* testwpt, rte->waypoint_list) {
       if (rte_datapoints == 0) {
         uniqueValue = testwpt->GetCreationTime().toTime_t();
       }
@@ -509,15 +504,11 @@ psit_routehdr_w_wrapper(const route_head* rte)
  * MRCB
  */
 static void
-psit_track_r(gbfile* psit_file, route_head** trk)
+psit_track_r(gbfile* psit_file, route_head**)
 {
   char trkname[256];
-  unsigned int trk_num;
 
   struct tm tmTime;
-  time_t dateTime = 0;
-  route_head* track_head = NULL;
-  Waypoint* thisWaypoint;
 
   psit_getToken(psit_file,psit_current_token,sizeof(psit_current_token), ltrimEOL);
   if (strlen(psit_current_token) == 0) {
@@ -528,14 +519,14 @@ psit_track_r(gbfile* psit_file, route_head** trk)
 
   rtrim(trkname);
 
-  trk_num = 0;
-  track_head = NULL;
+  unsigned int trk_num = 0;
+  route_head* track_head = nullptr;
 
   psit_getToken(psit_file,psit_current_token,sizeof(psit_current_token), wscomma);
 
   while (psit_isKnownToken(psit_current_token) != 0) {
     if (strlen(psit_current_token) > 0) {
-      thisWaypoint = new Waypoint;
+      Waypoint* thisWaypoint = new Waypoint;
 
       thisWaypoint->latitude = atof(psit_current_token);
 
@@ -568,11 +559,11 @@ psit_track_r(gbfile* psit_file, route_head** trk)
              &(tmTime.tm_sec));
 
       tmTime.tm_isdst = 0;
-      dateTime = mkgmtime(&tmTime);
+      time_t dateTime = mkgmtime(&tmTime);
 
       psit_getToken(psit_file,psit_current_token,sizeof(psit_current_token), whitespace);
 
-      if ((strcmp(psit_current_token, "1") == 0) || (track_head == NULL)) {
+      if ((strcmp(psit_current_token, "1") == 0) || (track_head == nullptr)) {
         track_head = route_head_alloc();
         /* Add a number to the track name.  With Garmins, the "first"
          tracklog is usually ACTIVE LOG
@@ -607,21 +598,17 @@ psit_track_r(gbfile* psit_file, route_head** trk)
 static void
 psit_trackhdr_w(gbfile* psit_file, const route_head* trk)
 {
-  unsigned int trk_datapoints;
-  QString	tname;
-  Waypoint*	testwpt;
-  time_t		uniqueValue = 0;
-
-  queue* elem, *tmp;
+  QString tname;
+  time_t uniqueValue = 0;
 
   if (psit_track_state == 2) {
     /* total nodes (waypoints) this track */
-    trk_datapoints = 0;
-    if (trk->waypoint_list.next) {	/* this test doesn't do what I want i.e test if this is a valid track - treat as a placeholder for now */
+    //if (trk->waypoint_list.next) {	/* this test doesn't do what I want i.e test if this is a valid track - treat as a placeholder for now */
+    if (true) {
 
-      QUEUE_FOR_EACH(&trk->waypoint_list, elem, tmp) {
+      unsigned int trk_datapoints = 0;
+      foreach (const Waypoint* testwpt, trk->waypoint_list) {
         if (trk_datapoints == 0) {
-          testwpt = (Waypoint*)elem;
           uniqueValue = testwpt->GetCreationTime().toTime_t();
         }
         trk_datapoints++;
@@ -695,7 +682,7 @@ psit_trackdatapoint_w_wrapper(const Waypoint* wpt)
 
 
 static void
-psit_read(void)
+psit_read()
 {
   Waypoint*	wpt;
   route_head*	rte;
@@ -739,8 +726,6 @@ psit_read(void)
     }
   } while (!gbfeof(psit_file_in));
 
-  return;
-
 #ifdef DUMP_ICON_TABLE
   printf("\t{ -1, NULL },\n");
   printf("};\n");
@@ -748,13 +733,13 @@ psit_read(void)
 }
 
 static void
-psit_noop(const route_head* wp)
+psit_noop(const route_head*)
 {
   /* no-op */
 }
 
-void
-psit_write(void)
+static void
+psit_write()
 {
   int short_length;
 
@@ -795,7 +780,9 @@ ff_vecs_t psit_vecs = {
   psit_wr_deinit,
   psit_read,
   psit_write,
-  NULL,
+  nullptr,
   psit_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

@@ -25,7 +25,7 @@
 #include "jeeps/gpsmath.h"
 #include <QtCore/QDebug>
 #include <QtCore/QTextCodec>
-#include <math.h>
+#include <cmath>
 
 #define MYNAME        "Naviguide"
 
@@ -78,8 +78,8 @@ static char strComment[101];
 /* wp - process only waypoints */
 /* rte - process as route */
 /* wprte - Process waypoints and route */
-static char* process = NULL;
-static char* reorder = NULL;
+static char* process = nullptr;
+static char* reorder = nullptr;
 static int process_rte = 1;
 static int reorder_wp = 0;
 
@@ -89,17 +89,17 @@ static char temp_short_name[5];
 
 
 /* Forward declarations */
-static void ng_read_file_header(void);
+static void ng_read_file_header();
 
 static
 arglist_t ng_args[] = {
   {
     "output", &process, "'wp' - Create waypoint file , 'rte' - Create route file",
-    "rte", ARGTYPE_STRING, ARG_NOMINMAX
+    "rte", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "reorder", &reorder, "'n' - Keep the existing wp name, 'y' - rename waypoints",
-    "n", ARGTYPE_STRING, ARG_NOMINMAX
+    "n", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
 
   ARG_TERMINATOR
@@ -110,11 +110,11 @@ arglist_t ng_args[] = {
 static void
 ng_convert_datum(Waypoint* wpt)
 {
-  double lat, lon, east, north, alt;
+  double lat, lon;
 
-  east = (double) WPNC.wp_data.East;
-  north = (double) WPNC.wp_data.North;
-  alt = (double) WPNC.wp_data.Alt;
+  double east = (double) WPNC.wp_data.East;
+  double north = (double) WPNC.wp_data.North;
+  double alt = (double) WPNC.wp_data.Alt;
 
   GPS_Math_ICS_EN_To_WGS84(east, north, &lat, &lon);
   wpt->latitude = lat;
@@ -129,12 +129,11 @@ ng_convert_datum(Waypoint* wpt)
 static void
 ng_fwrite_wp_data(const QString& s, const QString& d, ng_wp_data_t* wp_data, gbfile* f)
 {
-  int i;
   char z[50];
 
   memset(z, 0, 50);
-  i = s.length();
-  gbfwrite(&i, 1, 1, f);
+  int i = strlen(STRFROMUNICODE(s));
+  gbfputc(i, f);
   gbfwrite(STRFROMUNICODE(s), 1, i, f);
 
   gbfwrite(&wp_data->pad1[0], 8, 1, f);
@@ -143,8 +142,8 @@ ng_fwrite_wp_data(const QString& s, const QString& d, ng_wp_data_t* wp_data, gbf
   gbfwrite(&wp_data->pad2[0], 2, 1, f);
   gbfputint32(wp_data->Alt, f);
 
-  i = d.length();
-  gbfwrite(&i, 1, 1, f);
+  i = strlen(STRFROMUNICODE(d));
+  gbfputc(i, f);
   gbfwrite(STRFROMUNICODE(d), 1, i, f);
   gbfwrite(z, 44, 1, f);
 }
@@ -160,9 +159,6 @@ ng_fwrite_next_wp(ng_next_wp_t* nwp, gbfile* f)
 static void
 ng_fread_wp_data(char* d, ng_wp_no_comment_t* wpnc, gbfile* f)
 {
-
-  int i;
-
   gbfread(&wpnc->chHeaderLen ,sizeof(wpnc->chHeaderLen), 1, f);
   gbfread(&wpnc->strName, wpnc->chHeaderLen, 1, f);
   wpnc->strName[wpnc->chHeaderLen] = 0;
@@ -174,7 +170,7 @@ ng_fread_wp_data(char* d, ng_wp_no_comment_t* wpnc, gbfile* f)
   gbfread(&wpnc->wp_data.pad2,2, 1, f);
   wpnc->wp_data.Alt = gbfgetint32(f);
   gbfread(&wpnc->wp_data.CommentLength, 1, 1, f);
-  i = (int)wpnc->wp_data.CommentLength;
+  int i = (int)wpnc->wp_data.CommentLength;
 
 
   /* Read the comment field */
@@ -193,7 +189,7 @@ ng_fread_next_wp(ng_next_wp_t* nwp, gbfile* f)
 /* =================== Write data functions ====================================*/
 
 static void
-ng_fill_header_default(void)
+ng_fill_header_default()
 {
   ng_file_header_t default_header = {
     0x00,
@@ -208,7 +204,7 @@ ng_fill_header_default(void)
 
 
 static void
-ng_fill_waypoint_default(void)
+ng_fill_waypoint_default()
 {
   ng_wp_data_t default_wp  = {
     {0xfe, 0xff, 0xff, 0xff, 0x01, 0x00, 0x00, 0x00},
@@ -273,7 +269,7 @@ ng_waypt_rd(const Waypoint* wpt)
 }
 
 static void
-header_write(void)
+header_write()
 {
   ng_file_header.nof_wp = nof_wp;
   gbfputint16(nof_wp, file_out);
@@ -283,7 +279,7 @@ header_write(void)
 
 
 static void
-data_write(void)
+data_write()
 {
   nof_wp = waypt_count();
   if (nof_wp) {
@@ -293,7 +289,7 @@ data_write(void)
     nof_wp = route_waypt_count();
     if (nof_wp) {
       header_write();
-      route_disp_all(NULL, NULL, ng_waypt_rd);
+      route_disp_all(nullptr, nullptr, ng_waypt_rd);
     }
   }
 }
@@ -304,7 +300,7 @@ wr_init(const QString& fname)
 {
   file_out = gbfopen_le(fname, "wb", MYNAME);
   ng_fill_header_default();
-  if (NULL != reorder)
+  if (nullptr != reorder)
     if (!case_ignore_strcmp(reorder, "y")) {
       reorder_wp = 1;
     }
@@ -312,7 +308,7 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
 }
@@ -326,7 +322,7 @@ rd_init(const QString& fname)
 
   ng_read_file_header();
 
-  if (NULL != process) {
+  if (nullptr != process) {
     if (!case_ignore_strcmp(process, "wp")) {
       process_rte = 0;
     }
@@ -339,16 +335,16 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
-  file_in = NULL;
+  file_in = nullptr;
 }
 
 
 
 static void
-ng_read_file_header(void)
+ng_read_file_header()
 {
 
   nof_wp = gbfgetint16(file_in);
@@ -364,7 +360,7 @@ ng_read_file_header(void)
 }
 
 static void
-data_read(void)
+data_read()
 {
   if (process_rte) {
     rte_head = route_head_alloc();
@@ -420,7 +416,9 @@ ff_vecs_t ng_vecs = {
   wr_deinit,
   data_read,
   data_write,
-  NULL,
+  nullptr,
   ng_args,
   CET_CHARSET_HEBREW, 0
+  , NULL_POS_OPS,
+  nullptr
 };

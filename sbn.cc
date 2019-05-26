@@ -24,7 +24,7 @@
 
 #define MYNAME "sbn"
 
-static gbfile* file_handle = NULL;
+static gbfile* file_handle = nullptr;
 
 static
 arglist_t sbn_args[] = {
@@ -63,10 +63,7 @@ arglist_t sbn_args[] = {
 static size_t
 read_packet(int* type, void* payload, size_t max_len)
 {
-  size_t size, data_size;
   unsigned char start[4];
-  unsigned int  checksum_exp, checksum_act;
-  unsigned char* data;
 
   if (gbfread(start, sizeof(start), 1, file_handle) != 1) {
     if (gbfeof(file_handle)) {
@@ -80,17 +77,17 @@ read_packet(int* type, void* payload, size_t max_len)
     fatal(MYNAME ": Format error: Bad packet start.\n");
   }
 
-  size = be_readu16(start + 2);
+  size_t size = be_readu16(start + 2);
 
   if (size < 1 || max_len < size) {
     fatal(MYNAME ": Format error: unexpected size: %d.\n", (int) size);
   }
 
   /* allocate space for checksum and trailing 0xb0b3 */
-  data_size = size + 4;
+  size_t data_size = size + 4;
 
   /* data_size can be up to about 64k */
-  data = (unsigned char*) xmalloc(data_size);
+  unsigned char* data = (unsigned char*) xmalloc(data_size);
 
   if (gbfread(data, data_size, 1, file_handle) != 1) {
     fatal(MYNAME ": Format error: could not read %d bytes.\n",
@@ -99,8 +96,8 @@ read_packet(int* type, void* payload, size_t max_len)
 
   *type = data[0];
 
-  checksum_exp = be_readu16(data + size);
-  checksum_act = navilink_checksum_packet(data, size);
+  unsigned int checksum_exp = be_readu16(data + size);
+  unsigned int checksum_act = navilink_checksum_packet(data, size);
 
   if (checksum_exp != checksum_act) {
     fatal(MYNAME ": Checksum error - expected %x got %x\n",
@@ -134,9 +131,11 @@ hdrcpy(char* dest, const char* src, size_t max_len)
 }
 #endif /* LOCOSYS_PARSE_FILE_ID */
 
-int
+bool
 locosys_decode_file_id(char* header, size_t len)
 {
+  Q_UNUSED(header);
+  Q_UNUSED(len);
 #ifdef LOCOSYS_PARSE_FILE_ID
   /*
    * MID_FILE_ID(0xfd) contains the following payload :
@@ -165,17 +164,16 @@ locosys_decode_file_id(char* header, size_t len)
   printf(MYNAME ": Firmware version: %s\n", version);
 #endif /* LOCOSYS_PARSE_FILE_ID */
 
-  return TRUE;
+  return true;
 }
 
 static void
-read_sbn_header(route_head* track)
+read_sbn_header(route_head*)
 {
   char header[QRY_INFORMATION_LEN];
-  size_t len;
   int type = 0;
 
-  len = read_packet(&type, header, sizeof(header));
+  size_t len = read_packet(&type, header, sizeof(header));
 
   if (len == 0 || type != PID_QRY_INFORMATION ||
       !locosys_decode_file_id(header, len)) {
@@ -238,8 +236,7 @@ decode_sbn_position(const unsigned char* buffer, Waypoint* waypt)
 static Waypoint*
 decode_sbn_record(unsigned char* buffer)
 {
-  Waypoint* waypt = NULL;
-  waypt = new Waypoint;
+  Waypoint* waypt = new Waypoint;
 
   if (is_sbn_valid(buffer)) {
     waypt->fix = decode_sbn_mode(buffer + 3);
@@ -284,18 +281,16 @@ sbn_rd_init(const QString& fname)
 }
 
 static void
-sbn_rd_deinit(void)
+sbn_rd_deinit()
 {
   gbfclose(file_handle);
 }
 
 static void
-sbn_read(void)
+sbn_read()
 {
   if (global_opts.masked_objective & TRKDATAMASK) {
-    route_head*     track;
-
-    track = route_head_alloc();
+    route_head*     track = route_head_alloc();
     track_add_head(track);
 
     read_sbn_header(track);
@@ -305,7 +300,7 @@ sbn_read(void)
 }
 
 static void
-sbn_exit(void)
+sbn_exit()
 {
 }
 
@@ -319,15 +314,17 @@ ff_vecs_t sbn_vecs = {
     ff_cap_none					/* routes */
   },
   sbn_rd_init,
-  NULL,
+  nullptr,
   sbn_rd_deinit,
-  NULL,
+  nullptr,
   sbn_read,
-  NULL,
+  nullptr,
   sbn_exit,
   sbn_args,
   /* Characters are always encoded in ASCII. Even if the unit is set
    * to Chinese language, only ASCII characters can be entered. */
   CET_CHARSET_ASCII, 0
+  , NULL_POS_OPS,
+  nullptr
 };
 /**********************************************************************/

@@ -20,16 +20,16 @@
  */
 
 #include "gps.h"
-#include "gpsdevice.h"
 #include "garminusb.h"
-#include "gpsusbint.h"
+#include "gpsdevice.h"
 #include "gpsusbcommon.h"
+#include "gpsusbint.h"
 
 garmin_unit_info_t garmin_unit_info[GUSB_MAX_UNITS];
 
-static int32 success_stub(void)
+static bool success_stub()
 {
-  return 1;
+  return true;
 }
 
 static int32 gdu_on(const char* port, gpsdevh** fd)

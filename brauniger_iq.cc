@@ -20,7 +20,7 @@
 
 #include "defs.h"
 #include "gbser.h"
-#include <stdio.h>
+#include <cstdio>
 
 static void* serial_handle;
 
@@ -46,19 +46,23 @@ typedef enum {
   st_sample_spd,
   num_states
 } state_t;
-state_t state;
-#if __cplusplus
-inline state_t operator++(state_t& rs, int)
+static state_t state;
+inline state_t& operator++(state_t& s) // prefix
 {
-  return rs = (state_t)((int)rs + 1);
+  return s = static_cast<state_t>(s + 1);
 }
-#endif
+inline const state_t operator++(state_t& s, int) // postfix
+{
+  state_t ret(s);
+  s = ++s;
+  return ret;
+}
 
 static const int reqd_bytes[num_states] = { 6, 1, 2, 2, 25, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1 };
 
 static void rd_init(const QString& fname)
 {
-  if (serial_handle = gbser_init(qPrintable(fname)), NULL == serial_handle) {
+  if (serial_handle = gbser_init(qPrintable(fname)), nullptr == serial_handle) {
     fatal(MYNAME ": Can't open port '%s'\n", qPrintable(fname));
   }
   if (gbser_set_port(serial_handle, 9600, 8, 0, 1) != gbser_OK) {
@@ -66,10 +70,10 @@ static void rd_init(const QString& fname)
   }
 }
 
-static void rd_deinit(void)
+static void rd_deinit()
 {
   gbser_deinit(serial_handle);
-  serial_handle = NULL;
+  serial_handle = nullptr;
 }
 
 /**
@@ -84,7 +88,7 @@ static int process_data(const unsigned char* data)
   static route_head* track;
   static unsigned char interval;
   time_t finish;
-  Waypoint* wpt = NULL;
+  Waypoint* wpt = nullptr;
   int i;
 
   if (global_opts.debug_level >= 3) {
@@ -221,14 +225,13 @@ static int process_data(const unsigned char* data)
   default:
     fatal(MYNAME ": Bad internal state\n");
   }
-  state++;
+  ++state;
   return remaining;
 }
 
-static void data_read(void)
+static void data_read()
 {
   unsigned char ibuf[25];
-  int rd_cnt;
 
   if (global_opts.debug_level >= 0) {
     puts(MYNAME ":  Select recorded flight in memo mode.");
@@ -244,7 +247,7 @@ static void data_read(void)
   state = st_sync;
   for (;;) {
     /* wait up to 5 seconds for more data */
-    rd_cnt = gbser_read_wait(serial_handle, ibuf, reqd_bytes[state], 5000);
+    int rd_cnt = gbser_read_wait(serial_handle, ibuf, reqd_bytes[state], 5000);
     if (rd_cnt < 0) {
       fatal(MYNAME ": Serial error\n");
     } else if (rd_cnt < reqd_bytes[state]) {
@@ -268,12 +271,14 @@ ff_vecs_t brauniger_iq_vecs = {
   ff_type_serial,
   { ff_cap_none, ff_cap_read, ff_cap_none},
   rd_init,
-  NULL,
+  nullptr,
   rd_deinit,
-  NULL,
+  nullptr,
   data_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   brauniger_iq_args,
   CET_CHARSET_UTF8, 1		/* master process: don't convert anything | CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

@@ -20,87 +20,65 @@
 
  */
 
+#include <cmath>            // macos wants abs from here!
+#include <cstdlib>          // for strtod, abs
+
+#include <QtCore/QString>   // for QString
+#include <QtCore/QtGlobal>  // for qAsConst, QAddConst<>::Type, foreach
+
 #include "defs.h"
 #include "filterdefs.h"
-#include "grtcirc.h"
+#include "bend.h"
+#include "grtcirc.h"        // for RAD, heading_true_degrees, gcdist, linepart, radtometers, DEG
 
-#include <stdlib.h>
-#include <cmath>
 
 #define MYNAME "bend"
 
 #if FILTERS_ENABLED
 
-static char* distopt = NULL;
-static char* minangleopt = NULL;
-
-static double maxDist;
-static double minAngle;
-
-static queue* routes_orig = NULL;
-static int routes_orig_num = 0;
-
-static
-arglist_t bend_args[] = {
-  {
-    "distance", &distopt, "Distance to the bend in meters where the new points will be added",
-    "25", ARGTYPE_FLOAT, ARG_NOMINMAX
-  },
-  {
-    "minangle", &minangleopt, "Minimum bend angle in degrees", "5",
-    ARGTYPE_FLOAT, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
-static void
-bend_init(const char* args)
+void BendFilter::init()
 {
   maxDist = 0.0;
   if (distopt) {
-    maxDist = strtod(distopt, NULL);
+    maxDist = strtod(distopt, nullptr);
   }
 
   minAngle = 0.0;
   if (minangleopt) {
-    minAngle = strtod(minangleopt, NULL);
+    minAngle = strtod(minangleopt, nullptr);
   }
 
-  route_backup(&routes_orig_num, &routes_orig);
+  route_backup(&routes_orig);
   route_flush_all_routes();
 }
 
-static Waypoint*
-create_wpt_dest(const Waypoint* wpt_orig, double lat_orig,
-                double long_orig, double lat_orig_adj, double long_orig_adj)
+Waypoint* BendFilter::create_wpt_dest(const Waypoint* wpt_orig, double lat_orig,
+                                      double long_orig, double lat_orig_adj, double long_orig_adj)
 {
   double distance = gcdist(lat_orig, long_orig,
                            lat_orig_adj, long_orig_adj);
-  double frac;
   double lat_dest;
   double long_dest;
-  Waypoint* wpt_dest = NULL;
   distance = radtometers(distance);
   if (distance <= maxDist) {
-    return NULL;
+    return nullptr;
   }
 
-  frac = maxDist / distance;
+  double frac = maxDist / distance;
 
   linepart(lat_orig, long_orig, lat_orig_adj, long_orig_adj, frac,
            &lat_dest, &long_dest);
 
-  wpt_dest = new Waypoint(*wpt_orig);
+  Waypoint* wpt_dest = new Waypoint(*wpt_orig);
   wpt_dest->latitude = DEG(lat_dest);
   wpt_dest->longitude = DEG(long_dest);
 
   return wpt_dest;
 }
 
-static int
-is_small_angle(double lat_orig, double long_orig, double lat_orig_prev,
-               double long_orig_prev, double lat_orig_next,
-               double long_orig_next)
+int BendFilter::is_small_angle(double lat_orig, double long_orig, double lat_orig_prev,
+                               double long_orig_prev, double lat_orig_next,
+                               double long_orig_next)
 {
   double heading_prev = heading_true_degrees(lat_orig, long_orig,
                         lat_orig_prev, long_orig_prev);
@@ -114,18 +92,15 @@ is_small_angle(double lat_orig, double long_orig, double lat_orig_prev,
           || (std::abs(heading_diff - 360.0) < minAngle));
 }
 
-static void
-process_route(const route_head* route_orig, route_head* route_dest)
+void BendFilter::process_route(const route_head* route_orig, route_head* route_dest)
 {
-  Waypoint* wpt_orig_prev = NULL;
-  Waypoint* wpt_orig = NULL;
+  const Waypoint* wpt_orig_prev = nullptr;
+  const Waypoint* wpt_orig = nullptr;
 
-  queue* elem, *tmp;
-  QUEUE_FOR_EACH(&route_orig->waypoint_list, elem, tmp) {
-    Waypoint* wpt_orig_next = (Waypoint*)elem;
+  foreach (const Waypoint* wpt_orig_next, route_orig->waypoint_list) {
 
-    if (wpt_orig_prev == NULL) {
-      if (wpt_orig != NULL) {
+    if (wpt_orig_prev == nullptr) {
+      if (wpt_orig != nullptr) {
         Waypoint* waypoint_dest = new Waypoint(*wpt_orig);
         route_add_wpt(route_dest, waypoint_dest);
       }
@@ -138,7 +113,6 @@ process_route(const route_head* route_orig, route_head* route_dest)
 
       double lat_orig_next = RAD(wpt_orig_next->latitude);
       double long_orig_next = RAD(wpt_orig_next->longitude);
-      Waypoint* wpt_dest_next = NULL;
 
       if (is_small_angle(lat_orig, long_orig, lat_orig_prev,
                          long_orig_prev, lat_orig_next, long_orig_next)) {
@@ -147,13 +121,13 @@ process_route(const route_head* route_orig, route_head* route_dest)
       } else {
         Waypoint* wpt_dest_prev = create_wpt_dest(wpt_orig,
                                   lat_orig, long_orig, lat_orig_prev, long_orig_prev);
-        if (wpt_dest_prev != NULL) {
+        if (wpt_dest_prev != nullptr) {
           route_add_wpt(route_dest, wpt_dest_prev);
         }
 
-        wpt_dest_next = create_wpt_dest(wpt_orig,
-                                        lat_orig, long_orig, lat_orig_next, long_orig_next);
-        if (wpt_dest_next != NULL) {
+        Waypoint* wpt_dest_next = create_wpt_dest(wpt_orig,
+                                                   lat_orig, long_orig, lat_orig_next, long_orig_next);
+        if (wpt_dest_next != nullptr) {
           route_add_wpt(route_dest, wpt_dest_next);
 
           wpt_orig = wpt_dest_next;
@@ -165,14 +139,13 @@ process_route(const route_head* route_orig, route_head* route_dest)
     wpt_orig = wpt_orig_next;
   }
 
-  if (wpt_orig != NULL) {
+  if (wpt_orig != nullptr) {
     Waypoint* waypoint_dest = new Waypoint(*wpt_orig);
     route_add_wpt(route_dest, waypoint_dest);
   }
 }
 
-static void
-process_route_orig(const route_head* route_orig)
+void BendFilter::process_route_orig(const route_head* route_orig)
 {
   route_head* route_dest = route_head_alloc();
   route_dest->rte_name = route_orig->rte_name;
@@ -185,34 +158,18 @@ process_route_orig(const route_head* route_orig)
   process_route(route_orig, route_dest);
 }
 
-static void
-bend_process(void)
+void BendFilter::process()
 {
-  queue* elem, *tmp;
-  QUEUE_FOR_EACH(routes_orig, elem, tmp) {
-    route_head* route_orig = (route_head*)elem;
+  for (const auto* route_orig : qAsConst(*routes_orig)) {
     process_route_orig(route_orig);
   }
 }
 
-static void
-bend_deinit(void)
+void BendFilter::deinit()
 {
-  route_flush(routes_orig);
-  xfree(routes_orig);
+  routes_orig->flush();
+  delete routes_orig;
+  routes_orig = nullptr;
 }
-
-static void
-bend_exit(void)
-{
-}
-
-filter_vecs_t bend_vecs = {
-  bend_init,
-  bend_process,
-  bend_deinit,
-  bend_exit,
-  bend_args
-};
 
 #endif // FILTERS_ENABLED

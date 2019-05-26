@@ -24,7 +24,7 @@
 ********************************************************************/
 #define COMMON
 #include "gps.h"
-#include <stdio.h>
+#include <cstdio>
 
 #define GPS_TAGUNK  20
 
@@ -415,7 +415,7 @@ void GPS_Protocol_Error(US tag, US data)
 ** @return [void]
 ************************************************************************/
 
-void GPS_Unknown_Protocol_Print(void)
+void GPS_Unknown_Protocol_Print()
 {
   int32 i;
 

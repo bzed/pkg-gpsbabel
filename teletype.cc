@@ -49,28 +49,27 @@ teletype_rd_init(const QString& fname)
 }
 
 static void
-teletype_rd_deinit(void)
+teletype_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-teletype_read(void)
+teletype_read()
 {
-  uint32_t i;
-  for (i = 0; i < tty_wpt_count; i++) {
+  for (uint32_t i = 0; i < tty_wpt_count; i++) {
     Waypoint* wpt = new Waypoint;
     wpt->shortname = (gbfgetcstr(fin));
     wpt->description = (gbfgetcstr(fin));
 
-    if (1) { // needs bit values of NEWFORMAT2
+    if (true) { // needs bit values of NEWFORMAT2
       uint32_t direction = gbfgetuint32(fin);
       uint32_t mins = gbfgetuint32(fin);
       (void) direction ;
       (void) mins ;
     }
 
-    if (1) {  // need bit value of NEWFORMAT
+    if (true) {  // need bit value of NEWFORMAT
       int len = gbfgetuint16(fin);
       // probably could treat as a pascal string
       char* junk = (char*) xmalloc(len);
@@ -91,7 +90,7 @@ teletype_read(void)
 }
 
 static void
-teletype_exit(void)		/* optional */
+teletype_exit()		/* optional */
 {
 }
 
@@ -108,14 +107,16 @@ ff_vecs_t teletype_vecs = {
     ff_cap_none 			/* routes */
   },
   teletype_rd_init,
-  NULL,
+  nullptr,
   teletype_rd_deinit,
-  NULL,
+  nullptr,
   teletype_read,
-  NULL,
+  nullptr,
   teletype_exit,
   teletype_args,
   CET_CHARSET_ASCII, 0			/* ascii is the expected character set */
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };
 /**************************************************************************/

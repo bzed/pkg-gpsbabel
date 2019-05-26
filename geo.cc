@@ -17,12 +17,12 @@
 
  */
 #include "defs.h"
+#include "src/core/file.h"
+#include <QtCore/QDebug>
 #include <QtCore/QXmlStreamReader>
 #include <QtCore/QXmlStreamWriter>
-#include <QtCore/QDebug>
-#include "src/core/file.h"
 
-static char* deficon = NULL;
+static char* deficon = nullptr;
 static char* nuke_placer;
 static gbfile* ofd;
 static QString ostring;
@@ -30,22 +30,22 @@ static QXmlStreamWriter writer(&ostring);
 
 static
 arglist_t geo_args[] = {
-  {"deficon", &deficon, "Default icon name", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
-  {"nuke_placer", &nuke_placer, "Omit Placer name", NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
+  {"deficon", &deficon, "Default icon name", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
+  {"nuke_placer", &nuke_placer, "Omit Placer name", nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
   ARG_TERMINATOR
 };
 
 #define MYNAME "geo"
 
 // This really should be class-local...
-QXmlStreamReader reader;
-QString geo_read_fname;
+static QXmlStreamReader reader;
+static QString geo_read_fname;
 
-geocache_container wpt_container(const QString&);
+static geocache_container wpt_container(const QString&);
 
-void GeoReadLoc()
+static void GeoReadLoc()
 {
-  Waypoint* wpt = NULL;
+  Waypoint* wpt = nullptr;
   QString current_tag;
 
   while (!reader.atEnd()) {
@@ -74,9 +74,9 @@ void GeoReadLoc()
         waypt_add_url(wpt,
                       reader.readElementText(), a.value("text").toString());
       } else if (current_tag == "/loc/waypoint/difficulty") {
-        wpt->gc_data->diff = reader.readElementText().toInt() * 10;
+        wpt->gc_data->diff = reader.readElementText().toDouble() * 10;
       } else if (current_tag == "/loc/waypoint/terrain") {
-        wpt->gc_data->terr = reader.readElementText().toInt() * 10;
+        wpt->gc_data->terr = reader.readElementText().toDouble() * 10;
       } else if (current_tag == "/loc/waypoint/container") {
         wpt->gc_data->container = wpt_container(reader.readElementText());
       }
@@ -101,7 +101,7 @@ geo_rd_init(const QString& fname)
 }
 
 static void
-geo_read(void)
+geo_read()
 {
   gpsbabel::File file(geo_read_fname);
   file.open(QIODevice::ReadOnly);
@@ -151,7 +151,7 @@ geocache_container wpt_container(const QString& args)
 }
 
 static void
-geo_rd_deinit(void)
+geo_rd_deinit()
 {
 
 }
@@ -168,45 +168,45 @@ geo_wr_init(const QString& fname)
 }
 
 static void
-geo_wr_deinit(void)
+geo_wr_deinit()
 {
   writer.writeEndDocument();
   gbfputs(ostring,ofd);
   gbfclose(ofd);
-  ofd = NULL;
+  ofd = nullptr;
 }
 
 static void
 geo_waypt_pr(const Waypoint* waypointp)
 {
-  writer.writeStartElement("waypoint");
+  writer.writeStartElement(QStringLiteral("waypoint"));
 
-  writer.writeStartElement("name");
-  writer.writeAttribute("id", waypointp->shortname);
+  writer.writeStartElement(QStringLiteral("name"));
+  writer.writeAttribute(QStringLiteral("id"), waypointp->shortname);
   // TODO: this could be writeCharacters, but it's here for compat with pre
   // Qt writer.
   writer.writeCDATA(waypointp->description);
   writer.writeEndElement();
 
-  writer.writeStartElement("coord");
-  writer.writeAttribute("lat", QString::number(waypointp->latitude, 'f'));
-  writer.writeAttribute("lon", QString::number(waypointp->longitude, 'f'));
+  writer.writeStartElement(QStringLiteral("coord"));
+  writer.writeAttribute(QStringLiteral("lat"), QString::number(waypointp->latitude, 'f'));
+  writer.writeAttribute(QStringLiteral("lon"), QString::number(waypointp->longitude, 'f'));
   writer.writeEndElement();
 
-  writer.writeTextElement("type", deficon ? deficon : waypointp->icon_descr);
+  writer.writeTextElement(QStringLiteral("type"), deficon ? deficon : waypointp->icon_descr);
 
   if (waypointp->HasUrlLink()) {
-    writer.writeStartElement("link");
-    writer.writeAttribute("text ", "Cache Details");
+    writer.writeStartElement(QStringLiteral("link"));
+    writer.writeAttribute(QStringLiteral("text "), QStringLiteral("Cache Details"));
     UrlLink link = waypointp->GetUrlLink();
     writer.writeCharacters(link.url_);
     writer.writeEndElement();
   }
 
   if (waypointp->gc_data && waypointp->gc_data->diff) {
-    writer.writeTextElement("difficulty",
+    writer.writeTextElement(QStringLiteral("difficulty"),
                             QString::number(waypointp->gc_data->diff/10));
-    writer.writeTextElement("terrain",
+    writer.writeTextElement(QStringLiteral("terrain"),
                             QString::number(waypointp->gc_data->terr/10));
 
     int v = 1;
@@ -236,7 +236,7 @@ geo_waypt_pr(const Waypoint* waypointp)
       v = 1;
       break;
     }
-    writer.writeTextElement("container",
+    writer.writeTextElement(QStringLiteral("container"),
                             QString::number(v));
   }
 
@@ -244,14 +244,14 @@ geo_waypt_pr(const Waypoint* waypointp)
 }
 
 static void
-geo_write(void)
+geo_write()
 {
-  writer.writeStartElement("loc");
-  writer.writeAttribute("version", "1.0");
+  writer.writeStartElement(QStringLiteral("loc"));
+  writer.writeAttribute(QStringLiteral("version"), QStringLiteral("1.0"));
   // TODO: This could be moved to wr_init, but the pre GPX version put the two
   // lines above this, so mimic that behaviour exactly.
   writer.setAutoFormatting(true);
-  writer.writeAttribute("src", "EasyGPS");
+  writer.writeAttribute(QStringLiteral("src"), QStringLiteral("EasyGPS"));
   waypt_disp_all(geo_waypt_pr);
   writer.writeEndElement();
 }
@@ -265,7 +265,9 @@ ff_vecs_t geo_vecs = {
   geo_wr_deinit,
   geo_read,
   geo_write,
-  NULL,
+  nullptr,
   geo_args,
-  CET_CHARSET_UTF8, 0	/* CET-REVIEW */
+  CET_CHARSET_UTF8, 0,	/* CET-REVIEW */
+  NULL_POS_OPS,
+  nullptr
 };

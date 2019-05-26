@@ -22,8 +22,8 @@
 
 #include "defs.h"
 #include "cet_util.h"
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
 #define MYNAME "cst"
 
@@ -50,65 +50,61 @@ arglist_t cst_args[] = {
 /* helpers */
 
 static void
-cst_add_wpt(const route_head* track, Waypoint* wpt)
+cst_add_wpt(route_head* track, Waypoint* wpt)
 {
-  if ((wpt == NULL) || (track == NULL)) {
+  if ((wpt == nullptr) || (track == nullptr)) {
     return;
   }
 
-  if (wpt->shortname != NULL) {
+  if (wpt->shortname != nullptr) {
     waypt_add(new Waypoint(*wpt));
     // Rather than creating a new waypt on each read, tis format bizarrely
     // recycles the same one, relying on new waypoint(*) above and then manually
     // resetting fields.  Weird.
-    wpt->url_link_list_.clear();
+    wpt->urls.clear();
 
-    if (temp_route == NULL) {
+    if (temp_route == nullptr) {
       temp_route = route_head_alloc();
       route_add_head(temp_route);
     }
     route_add_wpt(temp_route, new Waypoint(*wpt));
   }
-  track_add_wpt((route_head*)track, (Waypoint*)wpt);
+  track_add_wpt(track, wpt);
 }
 
 static char*
 cst_make_url(char* str)
 {
   int len = strlen(str);
-  char* res;
 
   if (len < 3) {
-    return NULL;
+    return nullptr;
   }
 
   if (strstr(str, "://") > str) {
     return xstrdup(str);
   } else if (strstr(str, ":\\") == str+1) {	/* DOS 0.01++ file format */
-    res = xstrdup("file://*:");
+    char* res = xstrdup("file://*:");
     res[7] = *str++;
     res[8] = *str++;
     res = xstrappend(res, str);
     {
-      char* c;
-      int i;
-
-      c = res;			/* replace all backslashes with a slash */
+      char* c = res;			/* replace all backslashes with a slash */
       while ((c = strchr(c, '\\'))) {
         *c++ = '/';
       }
 
       c = res;			/* enumerate number of spaces within filename */
-      i = 0;
+      int i = 0;
       while ((c = strchr(c, ' '))) {
         c++;
         i++;
       }
 
       if (i > 0) {		/* .. and replace them with "%20" */
-        char* src, *dest, *last;
+        char* src, *dest;
 
-        last = src = res;
+        char* last = src = res;
         res = dest = (char*) xcalloc(strlen(src) + (2*i) + 1, 1);
         while ((c = strchr(src, ' '))) {
           if (c != src) {
@@ -128,7 +124,7 @@ cst_make_url(char* str)
     return res;
 
   } else {
-    return NULL;
+    return nullptr;
   }
 
 }
@@ -139,11 +135,11 @@ static void
 cst_rd_init(const QString& fname)
 {
   fin = gbfopen(fname, "rb", MYNAME);
-  temp_route = NULL;
+  temp_route = nullptr;
 }
 
 static void
-cst_rd_deinit(void)
+cst_rd_deinit()
 {
   gbfclose(fin);
 }
@@ -151,7 +147,7 @@ cst_rd_deinit(void)
 /* --------------------------------------------------------------------------- */
 
 static void
-cst_data_read(void)
+cst_data_read()
 {
   char* buff;
   int line = 0;
@@ -161,16 +157,14 @@ cst_data_read(void)
   int section = CST_UNKNOWN;
   int cst_version;
   int cst_points = -1;
-  route_head* track = NULL;
-  Waypoint* wpt = NULL;
+  route_head* track = nullptr;
+  Waypoint* wpt = nullptr;
 
   while ((buff = gbfgetstr(fin))) {
-    char* cin = buff;
-
     if ((line++ == 0) && fin->unicode) {
       cet_convert_init(CET_CHARSET_UTF8, 1);
     }
-    cin = lrtrim(buff);
+    char* cin = lrtrim(buff);
     if (strlen(cin) == 0) {
       continue;
     }
@@ -228,7 +222,7 @@ cst_data_read(void)
 
           if (strcmp(cin + 2, "note") == 0) {
             buff = gbfgetstr(fin);
-            if (buff == NULL) {
+            if (buff == nullptr) {
               buff = (char*) "";
             }
             line++;
@@ -260,8 +254,6 @@ cst_data_read(void)
         }
 
         cst_add_wpt(track, wpt);
-        wpt = NULL;
-
 
         wpt = new Waypoint;
 
@@ -304,7 +296,7 @@ cst_data_read(void)
       break;
 
     case CST_REFERENCE:
-      if ((strncmp(cin, "DATUM ", 6) == 0) && (strstr(cin, "WGS 84") == NULL)) {
+      if ((strncmp(cin, "DATUM ", 6) == 0) && (strstr(cin, "WGS 84") == nullptr)) {
         fatal(MYNAME ": Unsupported datum (%s)!\n", cin);
       }
       break;
@@ -315,7 +307,7 @@ cst_data_read(void)
     }
   }
   cst_add_wpt(track, wpt);
-  wpt = NULL;
+  wpt = nullptr;
 
   if ((cst_points >= 0) && (data_lines != cst_points)) {
     warning(MYNAME ": Loaded %d point(s), but line %d says %d!\n", data_lines, line_of_count, cst_points);
@@ -326,12 +318,14 @@ ff_vecs_t cst_vecs = {
   ff_type_file,
   { ff_cap_read, ff_cap_read, ff_cap_read },
   cst_rd_init,
-  NULL, 		/* cst_wr_init, */
+  nullptr, 		/* cst_wr_init, */
   cst_rd_deinit,
-  NULL,		/* cst_wr_deinit, */
+  nullptr,		/* cst_wr_deinit, */
   cst_data_read,
-  NULL,		/* cst_data_write, */
-  NULL,
+  nullptr,		/* cst_data_write, */
+  nullptr,
   cst_args,
   CET_CHARSET_MS_ANSI, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

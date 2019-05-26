@@ -25,7 +25,7 @@
 
 #define MYNAME "sbp"
 
-static gbfile* file_handle = NULL;
+static gbfile* file_handle = nullptr;
 
 static
 arglist_t sbp_args[] = {
@@ -43,13 +43,13 @@ sbp_rd_init(const QString& fname)
 }
 
 static void
-sbp_rd_deinit(void)
+sbp_rd_deinit()
 {
   gbfclose(file_handle);
 }
 
 static void
-read_sbp_header(route_head* track)
+read_sbp_header(route_head*)
 {
   /*
    * A complete SBP file contains 64 bytes header,
@@ -62,7 +62,7 @@ read_sbp_header(route_head* track)
 
 #define HEADER_SKIP 7
 
-  int success;
+  bool success;
   char header[64];
 
   if (gbfread(header, sizeof(header), 1, file_handle) == 1) {
@@ -73,7 +73,7 @@ read_sbp_header(route_head* track)
 
     success = locosys_decode_file_id(header + HEADER_SKIP, len);
   } else {
-    success = FALSE;
+    success = false;
   }
 
   if (!success) {
@@ -83,7 +83,7 @@ read_sbp_header(route_head* track)
 }
 
 static Waypoint*
-read_logpoint(void)
+read_logpoint()
 {
   unsigned char buffer[SBP_RECORD_LEN];
 
@@ -91,16 +91,15 @@ read_logpoint(void)
     return navilink_decode_logpoint(buffer);
   }
 
-  return NULL;
+  return nullptr;
 }
 
 static void
-sbp_read(void)
+sbp_read()
 {
   Waypoint* logpoint;
-  route_head*     track;
 
-  track = route_head_alloc();
+  route_head*     track = route_head_alloc();
   track_add_head(track);
 
   read_sbp_header(track);
@@ -111,7 +110,7 @@ sbp_read(void)
 }
 
 static void
-sbp_exit(void)
+sbp_exit()
 {
 }
 
@@ -125,14 +124,16 @@ ff_vecs_t sbp_vecs = {
     ff_cap_none					/* routes */
   },
   sbp_rd_init,
-  NULL,
+  nullptr,
   sbp_rd_deinit,
-  NULL,
+  nullptr,
   sbp_read,
-  NULL,
+  nullptr,
   sbp_exit,
   sbp_args,
   CET_CHARSET_ASCII, 0			/* ascii is the expected character set */
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };
 /**************************************************************************/

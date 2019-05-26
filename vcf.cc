@@ -20,14 +20,14 @@
 
 #include "defs.h"
 #include "jeeps/gpsmath.h"
-#include <ctype.h>
-#include <math.h>
-#include <stdlib.h>
+#include <cctype>
+#include <cmath>
+#include <cstdlib>
 
 static gbfile* file_out;
 static short_handle mkshort_handle;
 
-static char* vcf_encrypt = NULL;
+static char* vcf_encrypt = nullptr;
 
 #define MYNAME "VCF"
 
@@ -35,7 +35,7 @@ static
 arglist_t vcf_args[] = {
   {
     "encrypt", &vcf_encrypt,
-    "Encrypt hints using ROT13", NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    "Encrypt hints using ROT13", nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -48,7 +48,7 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
   mkshort_del_handle(&mkshort_handle);
@@ -61,17 +61,14 @@ wr_deinit(void)
 static void
 vcf_print_utf(const utf_string* s)
 {
-  char* p, *p2, *p3;
-  char* stripped_html;
-
   if (!s) {
     return;
   }
 
-  stripped_html = strip_html(s);
-  p = gstrsub(stripped_html, "\n", "\\n");
-  p2 = gstrsub(p, "<p>", "\\n");
-  p3 = gstrsub(p2, ";", "\\;");
+  char* stripped_html = strip_html(s);
+  char* p = gstrsub(stripped_html, "\n", "\\n");
+  char* p2 = gstrsub(p, "<p>", "\\n");
+  char* p3 = gstrsub(p2, ";", "\\;");
   gbfputs(p3, file_out);
   xfree(p);
   xfree(p2);
@@ -82,13 +79,11 @@ vcf_print_utf(const utf_string* s)
 static void
 vcf_print(const char* s)
 {
-  char* p;
-
   if (!s) {
     return;
   }
 
-  p = gstrsub(s, "\n", "\\n");
+  char* p = gstrsub(s, "\n", "\\n");
   gbfputs(p, file_out);
   xfree(p);
 }
@@ -102,10 +97,8 @@ vcf_print(const QString& s)
 static void
 vcf_disp(const Waypoint* wpt)
 {
-  int latint, lonint;
-
-  lonint = abs((int) wpt->longitude);
-  latint = abs((int) wpt->latitude);
+  int lonint = abs((int) wpt->longitude);
+  int latint = abs((int) wpt->latitude);
 
   gbfprintf(file_out, "BEGIN:VCARD\nVERSION:3.0\n");
   gbfprintf(file_out, "N:%s;%s;;;\n", CSTRc(wpt->description),CSTRc(wpt->shortname));
@@ -132,7 +125,7 @@ vcf_disp(const Waypoint* wpt)
 }
 
 static void
-data_write(void)
+data_write()
 {
   setshort_length(mkshort_handle, 6);
   waypt_disp_all(vcf_disp);
@@ -142,13 +135,15 @@ data_write(void)
 ff_vecs_t vcf_vecs = {
   ff_type_file,
   { ff_cap_write, ff_cap_none, ff_cap_none},
-  NULL,
+  nullptr,
   wr_init,
-  NULL,
+  nullptr,
   wr_deinit,
-  NULL,
+  nullptr,
   data_write,
-  NULL,
+  nullptr,
   vcf_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

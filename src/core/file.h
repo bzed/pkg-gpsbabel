@@ -17,9 +17,12 @@
 
  */
 
+#ifndef SRC_CORE_FILE_INCLUDED_H_
+#define SRC_CORE_FILE_INCLUDED_H_
+
 #include <QtCore/QFile>
 #include <QtCore/QIODevice>
-#include <stdio.h>
+#include <cstdio>
 #include "defs.h"
 
 // Mimic gbfile open services
@@ -30,10 +33,10 @@ namespace gpsbabel
 class File : public QFile
 {
 public:
-  File(const QString& s) : QFile(s) {}
+    explicit File(const QString& s) : QFile(s) {}
 
   /* in the tradition of gbfile we assume WriteOnly or ReadOnly, not ReadWrite */
-  bool open(OpenMode mode) {
+  bool open(OpenMode mode) override {
     bool status;
 
     if (QFile::fileName() == "-") {
@@ -49,7 +52,7 @@ public:
     if (!status) {
       fatal("Cannot open '%s' for %s.  Error was '%s'.\n",
             qPrintable(QFile::fileName()),
-            mode & QIODevice::WriteOnly? "write" : "read",
+            (mode & QIODevice::WriteOnly)? "write" : "read",
             qPrintable(QFile::errorString()));
     }
     return status;
@@ -58,3 +61,5 @@ public:
 };
 
 }; // namespace gpsbabel
+
+#endif // SRC_CORE_FILE_INCLUDED_H_

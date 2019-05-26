@@ -50,11 +50,11 @@ xg_tag_mapping ikt_map[] = {
   { iktobj_waypt,	cb_start,	IKTOBJ "_*/GeoPosition" },
   { iktobj_name,	cb_cdata,	IKTOBJ "_*/Name" },
   { iktobj_text,	cb_cdata,	IKTOBJ "_*/POIDrawable2D/Text" },
-  { NULL,	(xg_cb_type)0,		NULL }
+  { nullptr,	(xg_cb_type)0,		nullptr }
 };
 
 static void
-ikt_object_end(void)
+ikt_object_end()
 {
   if (track) {
     track->rte_name = name;
@@ -67,12 +67,12 @@ ikt_object_end(void)
 
   name = QString();
   text = QString();
-  track = NULL;
-  waypt = NULL;
+  track = nullptr;
+  waypt = nullptr;
 }
 
 static void
-iktobj_waypt(xg_string args, const QXmlStreamAttributes* attrv)
+iktobj_waypt(xg_string, const QXmlStreamAttributes* attrv)
 {
   if (attrv->hasAttribute("X")) {
     waypt->longitude = attrv->value("X").toString().toDouble();
@@ -88,7 +88,7 @@ iktobj_trkpt(xg_string args, const QXmlStreamAttributes* attrv)
   waypt = new Waypoint;
   iktobj_waypt(args, attrv);
   track_add_wpt(track, waypt);
-  waypt = NULL;
+  waypt = nullptr;
 }
 
 static void
@@ -122,22 +122,22 @@ iktobj_type(xg_string args, const QXmlStreamAttributes*)
 static void
 ikt_rd_init(const QString& fname)
 {
-  xml_init(fname, ikt_map, NULL);
+  xml_init(fname, ikt_map, nullptr);
 
-  track = NULL;
-  waypt = NULL;
+  track = nullptr;
+  waypt = nullptr;
   name = QString();
   text = QString();
 }
 
 static void
-ikt_read(void)
+ikt_read()
 {
   xml_read();
 }
 
 static void
-ikt_rd_deinit(void)
+ikt_rd_deinit()
 {
   ikt_object_end();
   xml_deinit();
@@ -151,12 +151,14 @@ ff_vecs_t ik3d_vecs = {
     ff_cap_none	/* routes */
   },
   ikt_rd_init,
-  NULL,
+  nullptr,
   ikt_rd_deinit,
-  NULL,
+  nullptr,
   ikt_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   ikt_args,
   CET_CHARSET_UTF8, 1
+  , NULL_POS_OPS,
+  nullptr
 };

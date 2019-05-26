@@ -22,8 +22,8 @@
  */
 
 #include "defs.h"
-#include <math.h>
-#include <stdlib.h>
+#include <cmath>
+#include <cstdlib>
 
 #define MYNAME "Enigma binary route and waypoint file format"
 
@@ -81,7 +81,7 @@ rd_init(const QString& fname)
   file_in = gbfopen_le(fname, "rb", MYNAME);
 }
 
-int32_t decToEnigmaPosition(double val)
+static int32_t decToEnigmaPosition(double val)
 {
   int degrees = fabs(val);
   double frac = fabs(val) - degrees;
@@ -91,7 +91,7 @@ int32_t decToEnigmaPosition(double val)
   return sign * (enigmadeg + enigmafrac);
 }
 
-float enigmaPositionToDec(int32_t val)
+static float enigmaPositionToDec(int32_t val)
 {
   int deg = abs(val) / 180000;
   int enigmafrac = abs(val) % 180000;
@@ -101,7 +101,7 @@ float enigmaPositionToDec(int32_t val)
 }
 
 static void
-data_read(void)
+data_read()
 {
   struct enigma_wpt ewpt;
   route_head* route = route_head_alloc();
@@ -148,7 +148,7 @@ data_read(void)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
@@ -160,10 +160,10 @@ wr_init(const QString& fname)
 }
 
 #ifndef min
-#define min(a,b) ((a) < (b)) ? (a) : (b)
+#define min(a,b) (((a) < (b)) ? (a) : (b))
 #endif
 #ifndef max
-#define max(a,b) ((a) > (b)) ? (a) : (b)
+#define max(a,b) (((a) > (b)) ? (a) : (b))
 #endif
 
 static void
@@ -179,25 +179,25 @@ enigma_waypt_disp(const Waypoint* wpt)
   if (wpt->altitude != unknown_alt) {
     le_write32(&ewpt.data.wp_altitude, METERS_TO_FEET(wpt->altitude) + 1000);
   }
-  if (wpt->shortname != NULL) {
-    ewpt.shortname_len = min(6, strlen(CSTRc(wpt->shortname)));
+  if (wpt->shortname != nullptr) {
+    ewpt.shortname_len = (uint8_t) min(6, strlen(CSTRc(wpt->shortname)));
     strncpy(ewpt.shortname, CSTRc(wpt->shortname), 6);
   }
-  if (wpt->description != NULL) {
-    ewpt.longname_len = min(27, strlen(CSTRc(wpt->description)));
+  if (wpt->description != nullptr) {
+    ewpt.longname_len = (uint8_t) min(27, strlen(CSTRc(wpt->description)));
     strncpy(ewpt.longname, CSTRc(wpt->description), 27);
   }
   gbfwrite(&ewpt, sizeof(ewpt), 1, file_out);
 }
 
 static void
-data_write(void)
+data_write()
 {
-  route_disp_all(NULL, NULL, enigma_waypt_disp);
+  route_disp_all(nullptr, nullptr, enigma_waypt_disp);
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
 }
@@ -215,7 +215,9 @@ ff_vecs_t enigma_vecs = {
   wr_deinit,
   data_read,
   data_write,
-  NULL,
-  NULL,
-  CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  nullptr,
+  nullptr,
+  CET_CHARSET_ASCII, 0,	/* CET-REVIEW */
+  NULL_POS_OPS,
+  nullptr
 };

@@ -22,22 +22,19 @@
 #include "defs.h"
 #include "cet_util.h"
 #include "src/core/xmltag.h"
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
 
 static void
 free_xml_tag(xml_tag* tag)
 {
-  xml_tag* next = NULL;
-  char** ap;
-
   while (tag) {
     if (tag->child) {
       free_gpx_extras(tag->child);
     }
     if (tag->attributes) {
-      ap = tag->attributes;
+      char** ap = tag->attributes;
 
       while (*ap) {
         xfree(*ap++);
@@ -46,7 +43,7 @@ free_xml_tag(xml_tag* tag)
       xfree(tag->attributes);
     }
 
-    next = tag->sibling;
+    xml_tag* next = tag->sibling;
     delete tag;
     tag = next;
   }
@@ -56,17 +53,12 @@ free_xml_tag(xml_tag* tag)
 static void
 copy_xml_tag(xml_tag** copy, xml_tag* src, xml_tag* parent)
 {
-  xml_tag* res = NULL;
-  char** ap = NULL;
-  char** ap2 = NULL;
-  int count = 0;
-
   if (!src) {
-    *copy = NULL;
+    *copy = nullptr;
     return;
   }
 
-  res = new xml_tag;
+  xml_tag* res = new xml_tag;
   *copy = res;
 
 //  memcpy(res, src, sizeof(xml_tag));
@@ -74,14 +66,15 @@ copy_xml_tag(xml_tag** copy, xml_tag* src, xml_tag* parent)
   res->cdata = (src->cdata);
   res->parentcdata = (src->parentcdata);
   if (src->attributes) {
-    ap = src->attributes;
+    char** ap = src->attributes;
+    int count = 0;
     while (*ap) {
       count++;
       ap++;
     }
     res->attributes = (char**)xcalloc(count+1, sizeof(char*));
     ap = src->attributes;
-    ap2 = res->attributes;
+    auto ap2 = res->attributes;
     while (*ap) {
       *ap2 = xstrdup(*ap);
       ap++;
@@ -96,9 +89,7 @@ copy_xml_tag(xml_tag** copy, xml_tag* src, xml_tag* parent)
 static void
 convert_xml_tag(xml_tag* tag)
 {
-  char** ap = NULL;
-
-  if (tag == NULL) {
+  if (tag == nullptr) {
     return;
   }
 
@@ -107,7 +98,7 @@ convert_xml_tag(xml_tag* tag)
   tag->cdata = tag->cdata;
   tag->parentcdata = tag->parentcdata;
 
-  ap = tag->attributes;
+  char** ap = tag->attributes;
   while (*ap) {
     *ap = cet_convert_string(*ap);
     ap++;
@@ -116,8 +107,6 @@ convert_xml_tag(xml_tag* tag)
   convert_xml_tag(tag->child);
 }
 
-fs_xml* fs_xml_alloc(long type);
-
 static void
 fs_xml_destroy(void* fs)
 {
@@ -125,7 +114,7 @@ fs_xml_destroy(void* fs)
   if (xml) {
     free_xml_tag(xml->tag);
   }
-  xfree(fs);
+  delete xml;
 }
 
 static void
@@ -133,12 +122,12 @@ fs_xml_copy(void** copy, void* source)
 {
   fs_xml* src = (fs_xml*)source;
   if (!source) {
-    *copy = NULL;
+    *copy = nullptr;
     return;
   }
   *copy = (void*)fs_xml_alloc(src->fs.type);
   memcpy(*copy, source, sizeof(fs_xml));
-  copy_xml_tag(&(((fs_xml*)(*copy))->tag), src->tag, NULL);
+  copy_xml_tag(&(((fs_xml*)(*copy))->tag), src->tag, nullptr);
 }
 
 static void
@@ -152,9 +141,7 @@ fs_xml_convert(void* fs)
 
 fs_xml* fs_xml_alloc(long type)
 {
-  fs_xml* result = NULL;
-
-  result = (fs_xml*)xcalloc(1, sizeof(fs_xml));
+  fs_xml* result = new fs_xml;
   result->fs.type = type;
   result->fs.copy = fs_xml_copy;
   result->fs.destroy = fs_xml_destroy;
