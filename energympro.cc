@@ -22,7 +22,7 @@
 
 #include "defs.h"
 #include <QtCore/QDebug>
-#include <limits.h>
+#include <climits>
 
 #define MYNAME "energympro"
 
@@ -156,10 +156,9 @@ read_point(route_head* gpsbabel_route,gpsbabel::DateTime& gpsDateTime)
   qint64 mSecsSinceEpoc = gpsbabeltime.toMSecsSinceEpoch();
   gpsbabeltime.setMSecsSinceEpoch(mSecsSinceEpoc-mSecsSinceEpoc%1000);
 
-  Waypoint* waypt;
-  waypt = new Waypoint;
-  waypt->latitude = (point.Latitude / (double)1000000);
-  waypt->longitude = (point.Longitude / (double)1000000);
+  Waypoint* waypt = new Waypoint;
+  waypt->latitude = (point.Latitude / 1000000.0);
+  waypt->longitude = (point.Longitude / 1000000.0);
   waypt->altitude = point.Altitude;
 
   if (global_opts.debug_level > 1) {
@@ -186,7 +185,7 @@ read_point(route_head* gpsbabel_route,gpsbabel::DateTime& gpsDateTime)
 
 
 static void 
-read_lap(void)
+read_lap()
 {
   tw_lap lap;
   gbfread(&lap,sizeof(tw_lap),1,file_in);
@@ -214,9 +213,8 @@ rd_init(const QString& fname)
   gbfile* fileorg_in = gbfopen(fname, "rb", MYNAME);
 
   /* copy file to memory stream (needed for seek-ops and piped commands) */
-  file_in = gbfopen(NULL, "wb", MYNAME);
-  gbsize_t size;
-  size = gbfcopyfrom(file_in, fileorg_in, 0x7FFFFFFF);
+  file_in = gbfopen(nullptr, "wb", MYNAME);
+  gbsize_t size = gbfcopyfrom(file_in, fileorg_in, 0x7FFFFFFF);
   if(global_opts.debug_level > 1) {
     printf (MYNAME "  filesize=%d\n",size);
   }
@@ -224,7 +222,7 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   if (global_opts.debug_level > 1) {
     printf (MYNAME " rd_deinit()\n");
@@ -233,14 +231,14 @@ rd_deinit(void)
 }
 
 static void 
-track_read(void)
+track_read()
 {
   if(global_opts.debug_level > 1) {
     printf (MYNAME "  waypoint_read()\n");
   }
 
   gbfseek(file_in, 0L, SEEK_END);
-  gbfseek(file_in, (int32_t) -(sizeof(tw_workout)), SEEK_CUR);
+  gbfseek(file_in, -(int32_t)(sizeof(tw_workout)), SEEK_CUR);
   tw_workout workout;
   workout.dateStart.Year = gbfgetc(file_in);
   workout.dateStart.Month = gbfgetc(file_in);
@@ -287,7 +285,7 @@ track_read(void)
 }
 
 static void
-data_read(void)
+data_read()
 {
   if (global_opts.debug_level > 1) {
     printf (MYNAME " data_read()\n");
@@ -304,14 +302,15 @@ ff_vecs_t energympro_vecs = {
     ff_cap_read,  // tracks
     ff_cap_none   // routes
   },
-		rd_init,      // rd_init
-		NULL,         // wr_init
-		rd_deinit,    // rd_deinit
-		NULL,         // wr_deinit
-		data_read,    // read
-		NULL,         // write
-		NULL,         // exit
-		NULL,         //args
-		CET_CHARSET_ASCII, 0  //encode,fixed_encode
-		//NULL                //name dynamic/internal?
+  rd_init,      // rd_init
+  nullptr,      // wr_init
+  rd_deinit,    // rd_deinit
+  nullptr,      // wr_deinit
+  data_read,    // read
+  nullptr,      // write
+  nullptr,      // exit
+  nullptr,      // args
+  CET_CHARSET_ASCII, 0,  // encode, fixed_encode
+  NULL_POS_OPS,
+  nullptr
 };

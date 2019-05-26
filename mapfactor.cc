@@ -19,9 +19,9 @@
 #include "defs.h"
 #include "src/core/file.h"
 #include "src/core/xmlstreamwriter.h"
+#include <QtCore/QDebug>
 #include <QtCore/QXmlStreamReader>
 #include <QtCore/QXmlStreamWriter>
-#include <QtCore/QDebug>
 
 static gpsbabel::File* oqfile;
 static QXmlStreamWriter* writer;
@@ -40,9 +40,9 @@ static  const double milliarcseconds = 60.0 * 60.0 * 1000.0;
 
 geocache_container wpt_container(const QString&);
 
-void MapfactorRead()
+static void MapfactorRead()
 {
-  Waypoint* wpt = NULL;
+  Waypoint* wpt = nullptr;
 
   while (!reader.atEnd()) {
     QStringRef tag_name = reader.name();
@@ -74,7 +74,7 @@ mapfactor_rd_init(const QString& fname)
 }
 
 static void
-mapfactor_read(void)
+mapfactor_read()
 {
   gpsbabel::File file(mapfactor_read_fname);
   file.open(QIODevice::ReadOnly);
@@ -92,7 +92,7 @@ mapfactor_read(void)
 
 
 static void
-mapfactor_rd_deinit(void)
+mapfactor_rd_deinit()
 {
 
 }
@@ -113,32 +113,32 @@ mapfactor_wr_init(const QString& fname)
 }
 
 static void
-mapfactor_wr_deinit(void)
+mapfactor_wr_deinit()
 {
   writer->writeEndDocument();
   delete writer;
-  writer = NULL;
+  writer = nullptr;
   oqfile->close();
   delete oqfile;
-  oqfile = NULL;
+  oqfile = nullptr;
 }
 
 static void
 mapfactor_waypt_pr(const Waypoint* waypointp)
 {
-  writer->writeStartElement("item");
+  writer->writeStartElement(QStringLiteral("item"));
 
-  writer->writeAttribute("name", waypointp->shortname);
-  writer->writeAttribute("lat", QString::number(waypointp->latitude * milliarcseconds, 'f', 0));
-  writer->writeAttribute("lon", QString::number(waypointp->longitude * milliarcseconds, 'f', 0));
+  writer->writeAttribute(QStringLiteral("name"), waypointp->shortname);
+  writer->writeAttribute(QStringLiteral("lat"), QString::number(waypointp->latitude * milliarcseconds, 'f', 0));
+  writer->writeAttribute(QStringLiteral("lon"), QString::number(waypointp->longitude * milliarcseconds, 'f', 0));
   writer->writeEndElement();
 }
 
 static void
-mapfactor_write(void)
+mapfactor_write()
 {
-  writer->writeStartElement("favourites");
-  writer->writeAttribute("version", "1");
+  writer->writeStartElement(QStringLiteral("favourites"));
+  writer->writeAttribute(QStringLiteral("version"), QStringLiteral("1"));
   // TODO: This could be moved to wr_init, but the pre GPX version put the two
   // lines above this, so mimic that behaviour exactly.
   writer->setAutoFormatting(true);
@@ -155,7 +155,9 @@ ff_vecs_t mapfactor_vecs = {
   mapfactor_wr_deinit,
   mapfactor_read,
   mapfactor_write,
-  NULL,
+  nullptr,
   mapfactor_args,
   CET_CHARSET_UTF8, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

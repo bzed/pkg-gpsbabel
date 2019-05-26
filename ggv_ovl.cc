@@ -20,14 +20,17 @@
 
  */
 
-#include "defs.h"
-#include "cet_util.h"
-#include "inifile.h"
-#include "grtcirc.h"
+#include <cmath>            // for sin, cos, acos
+#include <cstdio>           // for snprintf
 
-#include <cmath>
-#include <stdlib.h>
-#include <stdio.h>
+#include <QtCore/QString>   // for QString
+#include <QtCore/QtGlobal>  // for foreach
+
+#include "defs.h"
+#include "gbfile.h"         // for gbfprintf, gbfclose, gbfopen, gbfile
+#include "grtcirc.h"        // for RAD, gcdist, DEG
+#include "inifile.h"        // for inifile_readstr, inifile_readint_def, inifile_done, inifile_init, inifile_readint, inifile_t
+
 
 #define MYNAME "ggv_ovl"
 
@@ -82,44 +85,37 @@ static OVL_COLOR_TYP color;
 static void
 ggv_ovl_rd_init(const QString& fname)
 {
-  inifile = inifile_init(qPrintable(fname), MYNAME);
-  if (inifile->unicode) {
-    cet_convert_init(CET_CHARSET_UTF8, 1);
-  }
+  inifile = inifile_init(fname, MYNAME);
 
   route_ct = 0;
   track_ct = 0;
 }
 
 static void
-ggv_ovl_rd_deinit(void)
+ggv_ovl_rd_deinit()
 {
   inifile_done(inifile);
 }
 
 static void
-ggv_ovl_read(void)
+ggv_ovl_read()
 {
-  int symbols;
-  int i;
+  int symbols = inifile_readint_def(inifile, "Overlay", "Symbols", -1);
 
-  symbols = inifile_readint_def(inifile, "Overlay", "Symbols", -1);
-
-  for (i = 1; i <= symbols; i++) {
-    int points;
-    OVL_SYMBOL_TYP type;
+  for (int i = 1; i <= symbols; i++) {
     char symbol[32];
 
     snprintf(symbol, sizeof(symbol), "Symbol %d", i);
 
-    type = (OVL_SYMBOL_TYP) inifile_readint_def(inifile, symbol, "Typ", 0);
-    points = inifile_readint_def(inifile, symbol, "Punkte", -1);
+    OVL_SYMBOL_TYP type = (OVL_SYMBOL_TYP) inifile_readint_def(inifile, symbol, "Typ", 0);
+    int points = inifile_readint_def(inifile, symbol, "Punkte", -1);
 
+    QString lat;
+    QString lon;
     switch (type) {
 
       char coord[32];
       Waypoint* wpt;
-      char* cx;
       int group;
 
     case OVL_SYMBOL_LINE:
@@ -130,10 +126,9 @@ ggv_ovl_read(void)
       }
 
       if (points > 0) {
-        int j;
-        route_head* rte, *trk;
+        route_head* trk;
 
-        rte = trk = route_head_alloc();
+        route_head* rte = trk = route_head_alloc();
         if (group > 1) {
           route_add_head(rte);
           route_ct++;
@@ -144,20 +139,22 @@ ggv_ovl_read(void)
           trk->rte_name = QString("Track %1").arg(track_ct);
         }
 
-        for (j = 0; j < points; j++) {
+        for (int j = 0; j < points; j++) {
 
           wpt = new Waypoint;
 
           snprintf(coord, sizeof(coord), "YKoord%d", j);
-          if ((cx = inifile_readstr(inifile, symbol, coord))) {
-            wpt->latitude = atof(cx);
+          lat = inifile_readstr(inifile, symbol, coord);
+          if (!lat.isNull()) {
+            wpt->latitude = lat.toDouble();
           } else {
             continue;
           }
 
           snprintf(coord, sizeof(coord), "XKoord%d", j);
-          if ((cx = inifile_readstr(inifile, symbol, coord))) {
-            wpt->longitude = atof(cx);
+          lon = inifile_readstr(inifile, symbol, coord);
+          if (!lon.isNull()) {
+            wpt->longitude = lon.toDouble();
           } else {
             continue;
           }
@@ -177,13 +174,15 @@ ggv_ovl_read(void)
       wpt = new Waypoint;
       wpt->shortname = symbol;
 
-      if ((cx = inifile_readstr(inifile, symbol, "YKoord"))) {
-        wpt->latitude = atof(cx);
+      lat = inifile_readstr(inifile, symbol, "YKoord");
+      if (!lat.isNull()) {
+        wpt->latitude = lat.toDouble();
       } else {
         continue;
       }
-      if ((cx = inifile_readstr(inifile, symbol, "XKoord"))) {
-        wpt->longitude = atof(cx);
+      lon = inifile_readstr(inifile, symbol, "XKoord");
+      if (!lon.isNull()) {
+        wpt->longitude = lon.toDouble();
       } else {
         continue;
       }
@@ -206,8 +205,8 @@ ggv_ovl_read(void)
 static void waypt_disp_cb(const Waypoint* wpt);
 static void track_disp_cb(const route_head* trk);
 static void route_disp_cb(const route_head* rte);
-static void write_bounds(void);
-static void draw_symbol_basics(const OVL_SYMBOL_TYP typ, const int art, const OVL_COLOR_TYP color, const Waypoint* wpt);
+static void write_bounds();
+static void draw_symbol_basics(OVL_SYMBOL_TYP typ, int art, OVL_COLOR_TYP color, const Waypoint* wpt);
 static int get_direction(const Waypoint* A, const Waypoint* B);
 // static void draw_symbol_text(const char *text, const waypoint *reference);
 
@@ -222,21 +221,21 @@ ggv_ovl_wr_init(const QString& fname)
 }
 
 static void
-ggv_ovl_wr_deinit(void)
+ggv_ovl_wr_deinit()
 {
   gbfclose(fout);
 }
 
 static void
-ggv_ovl_write(void)
+ggv_ovl_write()
 {
   group_ct = 1;	/* tracks are not grouped */
   color = OVL_COLOR_FUCHSIA;
-  track_disp_all(track_disp_cb, NULL, NULL);
+  track_disp_all(track_disp_cb, nullptr, nullptr);
 
   group_ct++;
   color = OVL_COLOR_AQUA;
-  route_disp_all(route_disp_cb, NULL, NULL);
+  route_disp_all(route_disp_cb, nullptr, nullptr);
 
   group_ct++;
   color = OVL_COLOR_LIME;
@@ -272,25 +271,21 @@ waypt_disp_cb(const Waypoint* wpt)
 static void
 track_disp_cb(const route_head* trk)
 {
-  int i;
-  queue* elem, *tmp;
   int waypt_ct = trk->rte_waypt_ct;
 
   if (waypt_ct <= 0) {
     return;
   }
 
-  draw_symbol_basics(OVL_SYMBOL_LINE, 1, color, NULL);
+  draw_symbol_basics(OVL_SYMBOL_LINE, 1, color, nullptr);
 
   gbfprintf(fout, "Zoom=1\n");
   gbfprintf(fout, "Size=105\n");
   gbfprintf(fout, "Punkte=%d\n", waypt_ct);
 
-  i = 0;
+  int i = 0;
 
-  QUEUE_FOR_EACH(&(trk->waypoint_list), elem, tmp) {
-
-    Waypoint* wpt = (Waypoint*) elem;
+  foreach (const Waypoint* wpt, trk->waypoint_list) {
 
     gbfprintf(fout, "XKoord%d=%0.8f\n", i, wpt->longitude);
     gbfprintf(fout, "YKoord%d=%0.8f\n", i, wpt->latitude);
@@ -304,9 +299,6 @@ track_disp_cb(const route_head* trk)
 static void
 route_disp_cb(const route_head* rte)
 {
-  int i;
-  queue* elem, *tmp;
-  Waypoint* prev;
   int waypt_ct = rte->rte_waypt_ct;
 
   if (waypt_ct <= 0) {
@@ -317,14 +309,12 @@ route_disp_cb(const route_head* rte)
 
   color = OVL_COLOR_RED;
 
-  i = 0;
-  prev = NULL;
+  int i = 0;
+  const Waypoint* prev = nullptr;
 
-  QUEUE_FOR_EACH(&(rte->waypoint_list), elem, tmp) {
+  foreach (const Waypoint* wpt, rte->waypoint_list) {
 
-    Waypoint* wpt = (Waypoint*) elem;
-
-    if (prev != NULL) {
+    if (prev != nullptr) {
       draw_symbol_basics(OVL_SYMBOL_TRIANGLE, 1, (OVL_COLOR_TYP)9 /* color */, prev);
 
       gbfprintf(fout, "Width=12\n");
@@ -349,13 +339,13 @@ waypt_bound_calc(const Waypoint* waypointp)
 }
 
 static void
-write_bounds(void)
+write_bounds()
 {
   waypt_init_bounds(&all_bounds);
 
   waypt_disp_all(waypt_bound_calc);
-  route_disp_all(NULL, NULL, waypt_bound_calc);
-  track_disp_all(NULL, NULL, waypt_bound_calc);
+  route_disp_all(nullptr, nullptr, waypt_bound_calc);
+  track_disp_all(nullptr, nullptr, waypt_bound_calc);
 
   if (waypt_bounds_valid(&all_bounds)) {
 
@@ -393,21 +383,17 @@ draw_symbol_basics(const OVL_SYMBOL_TYP typ, const int art, const OVL_COLOR_TYP 
 static int
 get_direction(const Waypoint* A, const Waypoint* B)
 {
-  double lata, lona, latb, lonb;
-  double dist, dir;
-  int res;
+  double lata = RAD(A->latitude);
+  double lona = RAD(A->longitude);
+  double latb = RAD(B->latitude);
+  double lonb = RAD(B->longitude);
 
-  lata = RAD(A->latitude);
-  lona = RAD(A->longitude);
-  latb = RAD(B->latitude);
-  lonb = RAD(B->longitude);
-
-  dist = gcdist(lata, lona, latb, lonb);
-  dir = acos((sin(latb) - sin(lata) * cos(dist)) / (cos(lata) * sin(dist)));
+  double dist = gcdist(lata, lona, latb, lonb);
+  double dir = acos((sin(latb) - sin(lata) * cos(dist)) / (cos(lata) * sin(dist)));
   if (lonb < lona) {
     dir = -dir;
   }
-  res = (int) DEG(dir);
+  int res = (int) DEG(dir);
   res = 360 - (res + 270);
   if (res < 0) {
     res += 360;
@@ -458,9 +444,11 @@ ff_vecs_t ggv_ovl_vecs = {
   ggv_ovl_wr_deinit,
   ggv_ovl_read,
   ggv_ovl_write,
-  NULL,
+  nullptr,
   ggv_ovl_args,
   CET_CHARSET_MS_ANSI, 0
+  , NULL_POS_OPS,
+  nullptr
 };
 
 /**************************************************************************/

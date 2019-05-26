@@ -18,136 +18,57 @@
 
  */
 
-#include <QtCore/QStringList>
+#ifndef CSV_UTIL_H_INCLUDED_
+#define CSV_UTIL_H_INCLUDED_
+
+#include <QtCore/QString>      // for QString
+
+#include "defs.h"
 
 /* function prototypes */
 
-char*
-#ifndef DEBUG_MEM
-csv_stringtrim(const char* string, const char* enclosure, int strip_max);
-#else
-CSV_STRINGTRIM(const char* string, const char* enclosure, int strip_max, DEBUG_PARAMS);
-#define csv_stringtrim( s, e,m ) CSV_STRINGTRIM( s, e, m, __FILE__, __LINE__)
-#endif
-QString csv_stringtrim(const QString& source, const QString& enclosure);
+QString
+csv_stringclean(const QString& source, const QString& to_nuke);
 
 char*
-csv_lineparse(const char* stringstart, const char* delimited_by, const char* enclosed_in, const int line_no);
+csv_stringtrim(const char* string, const char* enclosure, int strip_max);
+QString
+csv_stringtrim(const QString& source, const QString& enclosure);
+QString
+csv_stringtrim(const QString& string, const QString& enclosure, int strip_max);
+QString
+csv_enquote(const QString& str, const QString& enclosure);
+QString
+csv_dequote(const QString& string, const QString& enclosure);
+
+enum class CsvQuoteMethod {historic, rfc4180};
+
+char*
+csv_lineparse(const char* stringstart, const char* delimited_by, const char* enclosed_in, int line_no);
+QStringList
+csv_linesplit(const QString& string, const QString& delimited_by,
+              const QString& enclosed_in, const int line_no, CsvQuoteMethod method = CsvQuoteMethod::historic);
+
+int
+dec_to_intdeg(const double d);
+
+double
+intdeg_to_dec(const int ideg);
+
+double
+decdir_to_dec(const char* decdir);
+
+double
+ddmmdir_to_degrees(const char* ddmmdir);
 
 void
 human_to_dec(const char* instr, double* outlat, double* outlon, int which);
-
-char*
-#ifndef DEBUG_MEM
-csv_stringclean(const char* string, const char* chararray);
-#else
-CSV_STRINGCLEAN(const char* string, const char* chararray,DEBUG_PARAMS);
-#define csv_stringclean(s,c) CSV_STRINGCLEAN(s,c,__FILE__,__LINE__)
-#endif
-QString csv_stringclean(const QString& string, const QString& chararray);
-
-void
-xcsv_data_read(void);
-
-void
-xcsv_data_write(void);
-
-void
-xcsv_file_init(void);
-
-void
-xcsv_prologue_add(char*);
-
-void
-xcsv_epilogue_add(char*);
-
-void
-xcsv_ifield_add(char*, char*, char*);
-
-void
-xcsv_ofield_add(char*, char*, char*, int options);
-
-void
-xcsv_destroy_style(void);
-
-const char*
-xcsv_get_char_from_constant_table(char* key);
-
-/****************************************************************************/
-/* types required for various xcsv functions                                */
-/****************************************************************************/
-
-/* something to map fields to waypts */
-#define OPTIONS_NODELIM 1
-#define OPTIONS_ABSOLUTE 2
-#define OPTIONS_OPTIONAL 3
-typedef struct field_map {
-  queue Q;
-  char* key;
-  char* val;
-  char* printfc;
-  int hashed_key;
-  int options;
-} field_map_t;
-
-/* something to map config file constants to chars */
-typedef struct char_map {
-  const char* key;
-  const char* chars;
-} char_map_t;
-
-namespace gpsbabel
-{
-    class File;
+inline void
+human_to_dec(const QString& instr, double* outlat, double* outlon, int which) {
+  human_to_dec(CSTR(instr), outlat, outlon, which);
 }
-/*
- * a Class describing all the wonderful elements of xcsv files, in a
- * nutshell.
- * It completely shows that this began life as a C struct...baby steps.
- */
-class XcsvFile {
- public:
-  XcsvFile();
 
-  bool is_internal;		/* bool - is internal (1) or parsed (0) */
+QString
+dec_to_human(const char* format, const char* dirs, double val);
 
-  /* header lines for writing at the top of the file. */
-  QStringList prologue;
-
-  /* footer lines for writing at the bottom of the file. */
-  QStringList epilogue;
-
-  QString field_delimiter; 	/* comma, quote, etc... */
-  QString field_encloser; 	/* doublequote, etc... */
-  QString record_delimiter;	/* newline, c/r, etc... */
-
-  QString badchars;		/* characters we never write to output */
-
-  queue ifield;		/* input field mapping */
-  queue* ofield;    		/* output field mapping */
-
-  int ifield_ct;		/* actual # of ifields */
-  int ofield_ct;		/* actual # of ofields */
-
-  gpsbabel::File* file;
-  QTextStream* stream;
-  QTextCodec* codec;
-  QString fname;                 /* ptr to filename of above. */
-
-  char* description;		/* Description for help text */
-  char* extension;		/* preferred filename extension (for wrappers)*/
-
-  short_handle mkshort_handle;/* handle for mkshort() */
-  ff_type type;		/* format type for GUI wrappers. */
-
-  int gps_datum;		/* result of GPS_Lookup_Datum_Index */
-  gpsdata_type datatype;	/* can be wptdata, rtedata or trkdata */
-  /* ... or ZERO to keep the old behaviour */
-
-};
-
-
-/****************************************************************************/
-/* obligatory global struct                                                 */
-/****************************************************************************/
-extern XcsvFile xcsv_file;
+#endif // CSV_UTIL_H_INCLUDED_

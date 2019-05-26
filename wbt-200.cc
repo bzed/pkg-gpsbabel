@@ -21,8 +21,8 @@
 #include "defs.h"
 #include "gbser.h"
 #include "grtcirc.h"
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
 #define MYNAME      "WBT-100/200"
 #define NL          "\x0D\x0A"
@@ -147,8 +147,8 @@ static void db(int l, const char* msg, ...)
 
 static void buf_init(struct buf_head* h, size_t alloc)
 {
-  h->head     = NULL;
-  h->tail     = NULL;
+  h->head     = nullptr;
+  h->tail     = nullptr;
   h->alloc    = alloc;
   h->used     = 0;
   h->checksum = 0;
@@ -157,13 +157,13 @@ static void buf_init(struct buf_head* h, size_t alloc)
 
 static void buf_empty(struct buf_head* h)
 {
-  struct buf_chunk* chunk, *next;
-  for (chunk = h->head; chunk; chunk = next) {
+  struct buf_chunk* next;
+  for (struct buf_chunk* chunk = h->head; chunk; chunk = next) {
     next = chunk->next;
     xfree(chunk);
   }
-  h->head     = NULL;
-  h->tail     = NULL;
+  h->head     = nullptr;
+  h->tail     = nullptr;
   h->used     = 0;
   h->checksum = 0;
 }
@@ -179,14 +179,14 @@ static size_t buf_read(struct buf_head* h, void* data, size_t len)
   char*    bp = (char*) data;
   size_t  got = 0;
 
-  while (len != 0 && h->current != NULL) {
+  while (len != 0 && h->current != nullptr) {
     size_t avail = h->current->used - h->offset;
     if (avail > len) {
       avail = len;
     }
 
     /* Allow NULL buffer pointer to skip bytes */
-    if (NULL != bp) {
+    if (nullptr != bp) {
       memcpy(bp, buf_CHUNK_PTR(h->current, h->offset), avail);
       bp          += avail;
     }
@@ -206,15 +206,14 @@ static size_t buf_read(struct buf_head* h, void* data, size_t len)
 
 static void buf_extend(struct buf_head* h, size_t amt)
 {
-  struct buf_chunk* c;
   size_t sz = amt + sizeof(struct buf_chunk);
 
-  c = (struct buf_chunk*) xmalloc(sz);
-  c->next = NULL;
+  struct buf_chunk* c = (struct buf_chunk*) xmalloc(sz);
+  c->next = nullptr;
   c->size = amt;
   c->used = 0;
 
-  if (NULL == h->head) {
+  if (nullptr == h->head) {
     h->head = c;
   } else {
     h->tail->next = c;
@@ -226,11 +225,10 @@ static void buf_extend(struct buf_head* h, size_t amt)
 static void buf_update_checksum(struct buf_head* h, const void* data, size_t len)
 {
   unsigned char* cp = (unsigned char*) data;
-  unsigned i;
 
   db(4, "Updating checksum with %p, %lu, before: %02x ",
      data, (unsigned long) len, h->checksum);
-  for (i = 0; i < len; i++) {
+  for (unsigned i = 0; i < len; i++) {
     h->checksum ^= cp[i];
   }
   db(4, "after: %02x\n", h->checksum);
@@ -238,19 +236,18 @@ static void buf_update_checksum(struct buf_head* h, const void* data, size_t len
 
 static void buf_write(struct buf_head* h, const void* data, size_t len)
 {
-  size_t avail;
   const char* bp = (const char*) data;
 
   buf_update_checksum(h, data, len);
 
   h->used += len;
 
-  if (NULL == h->tail) {
+  if (nullptr == h->tail) {
     buf_extend(h, h->alloc);
   }
 
   for (;;) {
-    avail = h->tail->size - h->tail->used;
+    size_t avail = h->tail->size - h->tail->used;
     if (avail > len) {
       avail = len;
     }
@@ -300,16 +297,15 @@ static void wr_cmdl(const char* cmd)
 static int expect(const char* str)
 {
   int state = 0;
-  int c, i;
   int errors = 5; /* allow this many errors */
 
-  for (i = 0; i < 5000; i++) {
+  for (int i = 0; i < 5000; i++) {
     /* reached end of string */
     if (str[state] == '\0') {
       return 1;
     }
 
-    c = gbser_readc_wait(fd, 500);
+    int c = gbser_readc_wait(fd, 500);
     if (c < 0) {
       db(3, "Got error: %d\n", c);
       if (--errors <= 0) {
@@ -375,9 +371,8 @@ static int wsg1000_try()
 
 static wintec_gps_types guess_device()
 {
-  int i;
   db(1, "Guessing device...\n");
-  for (i = 0; i < 5; i++) {
+  for (int i = 0; i < 5; i++) {
     if (wbt200_try()) {
       return WBT200;
     }
@@ -397,7 +392,7 @@ static void rd_init(const QString& fname)
   port = xstrdup(qPrintable(fname));
 
   db(1, "Opening port...\n");
-  if ((fd = gbser_init(port)) == NULL) {
+  if ((fd = gbser_init(port)) == nullptr) {
     fatal(MYNAME ": Can't initialise port \"%s\"\n", port);
   }
 
@@ -407,11 +402,11 @@ static void rd_init(const QString& fname)
   }
 }
 
-static void rd_deinit(void)
+static void rd_deinit()
 {
   db(1, "Closing port...\n");
   gbser_deinit(fd);
-  fd = NULL;
+  fd = nullptr;
   xfree(port);
 }
 
@@ -430,12 +425,12 @@ static int rd_buf(void* buf, int len)
 static void file_init(const QString& fname)
 {
   db(1, "Opening file...\n");
-  if ((fl = fopen(qPrintable(fname), "rb")) == NULL) {
+  if ((fl = ufopen(fname, "rb")) == nullptr) {
     fatal(MYNAME ": Can't open file '%s'\n", qPrintable(fname));
   }
 }
 
-static void file_deinit(void)
+static void file_deinit()
 {
   db(1, "Closing file...\n");
   fclose(fl);
@@ -454,8 +449,6 @@ static int starts_with(const char* buf, const char* pat)
  */
 static int do_cmd(const char* cmd, const char* expect, char* buf, int len)
 {
-  int trycount;
-
   rd_drain();
   wr_cmdl(cmd);
 
@@ -465,7 +458,7 @@ static int do_cmd(const char* cmd, const char* expect, char* buf, int len)
    * NMEA data all the time so it's highly likely that it'll be in the
    * middle of an NMEA sentence when we start listening.
    */
-  for (trycount = 0; trycount < RETRIES; trycount++) {
+  for (int trycount = 0; trycount < RETRIES; trycount++) {
     rd_line(buf, len);
     db(3, "Got: %s\n", buf);
     if (starts_with(buf, expect)) {
@@ -569,17 +562,14 @@ static Waypoint* make_trackpoint(struct read_state* st, double lat, double lon, 
 
 static int wbt200_data_chunk(struct read_state* st, const void* buf, int fmt)
 {
-  uint32_t   tim;
-  double     lat, lon, alt;
-  time_t     rtim;
-  Waypoint*   tpt     = NULL;
+  double alt;
   const char* bp      = (const char*) buf;
   size_t     buf_used = fmt_version[fmt].reclen;
 
-  tim = le_read32(bp + 0);
+  uint32_t tim = le_read32(bp + 0);
 
-  lat = (double)((int32_t) le_read32(bp + 4)) / 10000000;
-  lon = (double)((int32_t) le_read32(bp + 8)) / 10000000;
+  double lat = (double)((int32_t) le_read32(bp + 4)) / 10000000;
+  double lon = (double)((int32_t) le_read32(bp + 8)) / 10000000;
 
   /* Handle extra fields in longer records here. */
   if (buf_used >= 16) {
@@ -588,22 +578,22 @@ static int wbt200_data_chunk(struct read_state* st, const void* buf, int fmt)
     alt = unknown_alt;
   }
 
-  rtim = decode_date(tim);
+  time_t rtim = decode_date(tim);
 
   if (lat >= 100) {
     /* Start new track in the northern hemisphere */
     lat -= 100;
-    st->route_head_ = NULL;
+    st->route_head_ = nullptr;
   } else if (lat <= -100) {
     /* Start new track in the southern hemisphere */
     /* This fix courtesy of Anton Frolich */
     lat += 100;
-    st->route_head_ = NULL;
+    st->route_head_ = nullptr;
   }
 
-  tpt = make_trackpoint(st, lat, lon, alt, rtim);
+  Waypoint*   tpt = make_trackpoint(st, lat, lon, alt, rtim);
 
-  if (NULL == st->route_head_) {
+  if (nullptr == st->route_head_) {
     db(1, "New Track\n");
     st->route_head_ = route_head_alloc();
     track_add_head(st->route_head_);
@@ -626,7 +616,6 @@ static int is_valid(struct buf_head* h, int fmt)
 
   for (;;) {
     size_t got = buf_read(h, buf, reclen);
-    uint32_t tim;
     /* Don't mind odd bytes at the end - we may
      * be examining an incomplete dataset.
      */
@@ -634,7 +623,7 @@ static int is_valid(struct buf_head* h, int fmt)
       break;
     }
 
-    tim = le_read32(buf + 0);
+    uint32_t tim = le_read32(buf + 0);
     if (!check_date(tim)) {
       return 0;
     }
@@ -672,7 +661,7 @@ static void wbt200_process_data(struct read_state* pst, int fmt)
 
 static void state_init(struct read_state* pst)
 {
-  pst->route_head_ = NULL;
+  pst->route_head_ = nullptr;
   pst->wpn        = 0;
   pst->tpn        = 0;
 
@@ -705,7 +694,7 @@ static int want_bytes(struct buf_head* h, size_t len)
   return 1;
 }
 
-static void wbt200_data_read(void)
+static void wbt200_data_read()
 {
   /* Awooga! Awooga! Statically allocated buffer danger!
    * Actually, it's OK because rd_line can read arbitrarily
@@ -713,7 +702,6 @@ static void wbt200_data_read(void)
    */
   char                line_buf[100];
   int                 fmt;
-  unsigned long       count;
   struct read_state   st;
 
   state_init(&st);
@@ -731,7 +719,7 @@ static void wbt200_data_read(void)
 
   /* Now we're into binary mode */
   rd_buf(line_buf, 6);            /* six byte header */
-  count = le_read16(line_buf + 2) + 1;
+  unsigned long count = le_read16(line_buf + 2) + 1;
   if (count == 0x10000) {
     count = 0;
   }
@@ -792,9 +780,8 @@ static void wbt200_data_read(void)
 static int all_null(const void* buf, const int len)
 {
   const char* bp = (const char*) buf;
-  int i;
 
-  for (i = 0; i < len; i++) {
+  for (int i = 0; i < len; i++) {
     if (bp[i]) {
       return 0;
     }
@@ -805,11 +792,6 @@ static int all_null(const void* buf, const int len)
 
 static int wbt201_data_chunk(struct read_state* st, const void* buf)
 {
-  uint32_t    tim;
-  uint16_t    flags;
-  double      lat, lon, alt;
-  time_t      rtim;
-  Waypoint*    tpt     = NULL;
   const char*  bp      = (const char*) buf;
 
   /* Zero records are skipped */
@@ -817,19 +799,19 @@ static int wbt201_data_chunk(struct read_state* st, const void* buf)
     return 1;
   }
 
-  flags = le_read16(bp + 0);
-  tim   = le_read32(bp + 2);
+  uint16_t flags = le_read16(bp + 0);
+  uint32_t tim = le_read32(bp + 2);
 
   if (TK1_END_FLAG == tim) {
     /* EOF? (TK1 files only as far as I know) */
     return 0;
   }
 
-  lat   = (double)((int32_t) le_read32(bp +  6)) / 10000000;
-  lon   = (double)((int32_t) le_read32(bp + 10)) / 10000000;
-  alt   = (double)((int16_t) le_read16(bp + 14));
+  double lat = (double)((int32_t) le_read32(bp +  6)) / 10000000;
+  double lon = (double)((int32_t) le_read32(bp + 10)) / 10000000;
+  double alt = (double)((int16_t) le_read16(bp + 14));
 
-  rtim = decode_date(tim);
+  time_t rtim = decode_date(tim);
 
   if ((flags & WBT201_WAYPOINT) && (global_opts.masked_objective & WPTDATAMASK)) {
     Waypoint* wpt = make_waypoint(st, lat, lon, alt, rtim);
@@ -838,12 +820,12 @@ static int wbt201_data_chunk(struct read_state* st, const void* buf)
 
   if (global_opts.masked_objective & TRKDATAMASK) {
     if (flags & WBT201_TRACK_START) {
-      st->route_head_ = NULL;
+      st->route_head_ = nullptr;
     }
 
-    tpt = make_trackpoint(st, lat, lon, alt, rtim);
+    Waypoint*    tpt = make_trackpoint(st, lat, lon, alt, rtim);
 
-    if (NULL == st->route_head_) {
+    if (nullptr == st->route_head_) {
       db(1, "New Track\n");
       st->route_head_ = route_head_alloc();
       track_add_head(st->route_head_);
@@ -871,8 +853,7 @@ static int wbt201_read_chunk(struct read_state* st, unsigned pos, unsigned limit
 {
   char cmd_buf[30];
   char line_buf[100];
-  unsigned long cs;
-  char* lp, *op;
+  char* op;
   static const char* cs_prefix = "@AL,CS,";
 
   unsigned want = limit - pos;
@@ -886,7 +867,7 @@ static int wbt201_read_chunk(struct read_state* st, unsigned pos, unsigned limit
   buf_empty(&st->data);
 
   rd_drain();
-  sprintf(cmd_buf, "@AL,5,3,%d", pos);
+  sprintf(cmd_buf, "@AL,5,3,%u", pos);
   wr_cmdl(cmd_buf);
 
 
@@ -902,8 +883,8 @@ static int wbt201_read_chunk(struct read_state* st, unsigned pos, unsigned limit
     return 0;
   }
 
-  lp = line_buf + strlen(cs_prefix);
-  cs = strtoul(lp, &op, 16);
+  char* lp = line_buf + strlen(cs_prefix);
+  unsigned long cs = strtoul(lp, &op, 16);
   if (*lp == ',' || *op != ',') {
     db(2, "Badly formed checksum\n");
     return 0;
@@ -926,45 +907,29 @@ static int wbt201_read_chunk(struct read_state* st, unsigned pos, unsigned limit
 
 }
 
-static void wbt201_data_read(void)
+static void wbt201_data_read()
 {
   char                line_buf[100];
   struct read_state   st;
-  unsigned            tries;
-
-  const char*          tmp;
-
-  double              ver_hw;
-  double              ver_sw;
-  double              ver_fmt;
-
-  unsigned            log_addr_start;
-  unsigned            log_addr_end;
-  unsigned            log_area_start;
-  unsigned            log_area_end;
-
-  unsigned			wantbytes;
-  unsigned			read_pointer;
-  unsigned			read_limit;
 
   /* Read various device information. We don't use much of this yet -
    * just log_addr_start and log_addr_end - but it's useful to have it
    * here for debug and documentation purposes.
    */
-  tmp = get_param("@AL,7,1", BUFSPEC(line_buf));
+  const char*          tmp = get_param("@AL,7,1", BUFSPEC(line_buf));
   db(1, "Reading device \"%s\"\n", tmp);
 
-  ver_hw         = get_param_float("@AL,8,1");
-  ver_sw         = get_param_float("@AL,8,2");
-  ver_fmt        = get_param_float("@AL,8,3");
+  double ver_hw = get_param_float("@AL,8,1");
+  double ver_sw = get_param_float("@AL,8,2");
+  double ver_fmt = get_param_float("@AL,8,3");
 
   db(2, "versions: hw=%f, sw=%f, fmt=%f\n",
      ver_hw, ver_sw, ver_fmt);
 
-  log_addr_start = get_param_int("@AL,5,1");  /* we read from here... */
-  log_addr_end   = get_param_int("@AL,5,2");  /*  ...to here, but ... */
-  log_area_start = get_param_int("@AL,5,9");  /*  ...we need these when ... */
-  log_area_end   = get_param_int("@AL,5,10"); /*  ...the gps wrote more then it fits in memory */
+  unsigned log_addr_start = get_param_int("@AL,5,1");  /* we read from here... */
+  unsigned log_addr_end = get_param_int("@AL,5,2");  /*  ...to here, but ... */
+  unsigned log_area_start = get_param_int("@AL,5,9");  /*  ...we need these when ... */
+  unsigned log_area_end = get_param_int("@AL,5,10"); /*  ...the gps wrote more then it fits in memory */
 
   db(2, "Log addr=(%d..%d), area=(%d..%d)\n",
      log_addr_start, log_addr_end,
@@ -972,16 +937,16 @@ static void wbt201_data_read(void)
 
   state_init(&st);
 
-  tries = 10;
+  unsigned tries = 10;
 
   /* If the WBT-201 device logs more then the memory can handle it continues to write at the beginning of the memory,
    * thus overwriting the oldest tracks. In this case log_addr_end is smaller then log_addr_start and we need to read
    * from log_addr_start to log_area_end and then from log_area_start to log_addr_end.
    */
 
-  wantbytes = (log_addr_start < log_addr_end) ? log_addr_end - log_addr_start : log_area_end - (log_addr_start - log_addr_end);
-  read_pointer = log_addr_start;
-  read_limit = (log_addr_start < log_addr_end) ? log_addr_end : log_area_end;
+  unsigned wantbytes = (log_addr_start < log_addr_end) ? log_addr_end - log_addr_start : log_area_end - (log_addr_start - log_addr_end);
+  unsigned read_pointer = log_addr_start;
+  unsigned read_limit = (log_addr_start < log_addr_end) ? log_addr_end : log_area_end;
 
   db(2, "Want %d bytes from device\n", wantbytes);
   while (wantbytes > 0) {
@@ -996,7 +961,7 @@ static void wbt201_data_read(void)
         read_limit = log_addr_end;
       }
     } else {
-      if (--tries <= 0) {
+      if (--tries == 0) {
         fatal(MYNAME ": Too many data errors during read\n");
       }
     }
@@ -1011,10 +976,9 @@ static void wbt201_data_read(void)
   do_simple("@AL,2,1", BUFSPEC(line_buf));
 }
 
-static void file_read(void)
+static void file_read()
 {
   char                buf[512];
-  size_t              rc;
   struct read_state   st;
   int                 fmt;
 
@@ -1024,7 +988,7 @@ static void file_read(void)
   state_init(&st);
 
   /* Read the whole file into the buffer */
-  rc = fread(buf, 1, sizeof(buf), fl);
+  size_t rc = fread(buf, 1, sizeof(buf), fl);
   while (rc != 0) {
     buf_write(&st.data, buf, rc);
     rc = fread(buf, 1, sizeof(buf), fl);
@@ -1046,7 +1010,7 @@ static void file_read(void)
     db(1, "Got TK1 file\n");
     buf_rewind(&st.data);
     /* Seek */
-    buf_read(&st.data, NULL, TK1_DATA_OFFSET);
+    buf_read(&st.data, nullptr, TK1_DATA_OFFSET);
     wbt201_process_chunk(&st);
   } else {
     db(1, "Got bin file\n");
@@ -1069,7 +1033,7 @@ static void file_read(void)
   state_empty(&st);
 }
 
-static void data_read(void)
+static void data_read()
 {
   switch (dev_type) {
   case WBT200:
@@ -1093,7 +1057,7 @@ static void data_read(void)
 static arglist_t wbt_sargs[] = {
   {
     "erase", &erase, "Erase device data after download",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
+    "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -1102,14 +1066,16 @@ ff_vecs_t wbt_svecs = {
   ff_type_serial,
   { ff_cap_read, ff_cap_read, ff_cap_none },
   rd_init,
-  NULL,
+  nullptr,
   rd_deinit,
-  NULL,
+  nullptr,
   data_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   wbt_sargs,
   CET_CHARSET_UTF8, 1         /* master process: don't convert anything | CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };
 
 /* used for wbt-bin /and/ wbt-tk1 */
@@ -1122,12 +1088,14 @@ ff_vecs_t wbt_fvecs = {
   ff_type_file,
   { ff_cap_none, ff_cap_read, ff_cap_none },
   file_init,
-  NULL,
+  nullptr,
   file_deinit,
-  NULL,
+  nullptr,
   file_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   wbt_fargs,
   CET_CHARSET_UTF8, 1         /* master process: don't convert anything | CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

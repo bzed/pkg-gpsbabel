@@ -20,107 +20,26 @@
  */
 
 #include "defs.h"
+#include "discard.h"
 #include "filterdefs.h"
-#include <stdlib.h>
-// Can't use QRegularExpression because Linux won't get Qt 5 for years. 
+#include <cstdlib>
+// Can't use QRegularExpression because Linux won't get Qt 5 for years.
 #include <QtCore/QRegExp>
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
 
 #if FILTERS_ENABLED
-static char* hdopopt = NULL;
-static char* vdopopt = NULL;
-static char* andopt = NULL;
-static char* satopt = NULL;
-static char* fixnoneopt = NULL;
-static char* fixunknownopt = NULL;
-static char* eleminopt = NULL;
-static char* elemaxopt = NULL;
-static char* nameopt = NULL;
-static QRegExp name_regex;
-static char* descopt = NULL;
-static QRegExp desc_regex;
-static char* cmtopt = NULL;
-static QRegExp cmt_regex;
-static char* iconopt = NULL;
-static QRegExp icon_regex;
-
-static double hdopf;
-static double vdopf;
-static int satpf;
-static int eleminpf;
-static int elemaxpf;
-static gpsdata_type what;
-static route_head* head;
-
-static
-arglist_t fix_args[] = {
-  {
-    "hdop", &hdopopt, "Suppress points with higher hdop",
-    "-1.0", ARGTYPE_BEGIN_REQ | ARGTYPE_FLOAT, ARG_NOMINMAX
-  },
-  {
-    "vdop", &vdopopt, "Suppress points with higher vdop",
-    "-1.0", ARGTYPE_END_REQ | ARGTYPE_FLOAT, ARG_NOMINMAX
-  },
-  {
-    "hdopandvdop", &andopt, "Link hdop and vdop supression with AND",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "sat", &satopt, "Minimium sats to keep points",
-    "-1.0", ARGTYPE_BEGIN_REQ | ARGTYPE_INT, ARG_NOMINMAX
-  },
-  {
-    "fixnone", &fixnoneopt, "Suppress points without fix",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "fixunknown", &fixunknownopt, "Suppress points with unknown fix",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "elemin", &eleminopt, "Suppress points below given elevation in meters",
-    NULL, ARGTYPE_BEGIN_REQ | ARGTYPE_INT, ARG_NOMINMAX
-  },
-  {
-    "elemax", &elemaxopt, "Suppress points above given elevation in meters",
-    NULL, ARGTYPE_BEGIN_REQ | ARGTYPE_INT, ARG_NOMINMAX
-  },
-  {
-    "matchname", &nameopt,
-    "Suppress points where name matches given name", NULL, ARGTYPE_STRING,
-    ARG_NOMINMAX, NULL
-  },
-  {
-    "matchdesc", &descopt,
-    "Suppress points where description matches given name", NULL, ARGTYPE_STRING,
-    ARG_NOMINMAX, NULL
-  },
-  {
-    "matchcmt", &cmtopt,
-    "Suppress points where comment matches given name", NULL, ARGTYPE_STRING,
-    ARG_NOMINMAX, NULL
-  },
-  {
-    "matchicon", &iconopt,
-    "Suppress points where type matches given name", NULL, ARGTYPE_STRING,
-    ARG_NOMINMAX, NULL
-  },
-  ARG_TERMINATOR
-};
 
 /*
  * Decide whether to keep or toss this point.
  */
-static void
-fix_process_wpt(const Waypoint* wpt)
+void DiscardFilter::fix_process_wpt(const Waypoint* wpt)
 {
   int del = 0;
   int delh = 0;
   int delv = 0;
 
-  Waypoint* waypointp = (Waypoint*) wpt;
+  Waypoint* waypointp = const_cast<Waypoint*>(wpt);
 
   if ((hdopf >= 0.0) && (waypointp->hdop > hdopf)) {
     delh = 1;
@@ -172,45 +91,47 @@ fix_process_wpt(const Waypoint* wpt)
     switch (what) {
     case wptdata:
       waypt_del(waypointp);
+      delete waypointp;
       break;
     case trkdata:
       track_del_wpt(head, waypointp);
+      delete waypointp;
       break;
     case rtedata:
       route_del_wpt(head, waypointp);
+      delete waypointp;
       break;
     default:
       return;
     }
-    delete waypointp;
   }
 }
 
-static void
-fix_process_head(const route_head* trk)
+void DiscardFilter::fix_process_head(const route_head* trk)
 {
-  head = (route_head*)trk;
+  head = const_cast<route_head*>(trk);
 }
 
-static void
-fix_process(void)
+void DiscardFilter::process()
 {
+  WayptFunctor<DiscardFilter> fix_process_wpt_f(this, &DiscardFilter::fix_process_wpt);
+  RteHdFunctor<DiscardFilter> fix_process_head_f(this, &DiscardFilter::fix_process_head);
+
   // Filter waypoints.
   what = wptdata;
-  waypt_disp_all(fix_process_wpt);
+  waypt_disp_all(fix_process_wpt_f);
 
   // Filter tracks
   what = trkdata;
-  track_disp_all(fix_process_head, NULL, fix_process_wpt);
+  track_disp_all(fix_process_head_f, nullptr, fix_process_wpt_f);
 
   // And routes
   what = rtedata;
-  route_disp_all(fix_process_head, NULL, fix_process_wpt);
+  route_disp_all(fix_process_head_f, nullptr, fix_process_wpt_f);
 
 }
 
-static void
-fix_init(const char* args)
+void DiscardFilter::init()
 {
   if (hdopopt) {
     hdopf = atof(hdopopt);
@@ -260,11 +181,4 @@ fix_init(const char* args)
   }
 }
 
-filter_vecs_t discard_vecs = {
-  fix_init,
-  fix_process,
-  NULL,
-  NULL,
-  fix_args
-};
 #endif

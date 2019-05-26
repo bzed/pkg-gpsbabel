@@ -28,14 +28,13 @@
 
 #include "defs.h"
 #include "xmlgeneric.h"
-#include <stdio.h>
+#include <cstdio>
 
 static gbfile* ofd;
 static int lap_ct = 0;
 static int lap_s = 0;
 static Waypoint* wpt_tmp;
 static route_head* trk_head;
-static computed_trkdata* tdata;
 
 #define MYNAME "gtc"
 
@@ -59,11 +58,11 @@ static
 arglist_t gtc_args[] = {
   {
     "course", &opt_course, "Write course rather than history, default yes",
-    "1", ARGTYPE_BOOL, ARG_NOMINMAX
+    "1", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "sport", &opt_sport, "Sport: Biking (deflt), Running, MultiSport, Other",
-    "Biking", ARGTYPE_STRING, ARG_NOMINMAX
+    "Biking", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -155,7 +154,7 @@ static xg_tag_mapping gtc_map[] = {
   { gtc_wpt_long, cb_cdata, "/Courses/Course/Lap/BeginPosition/LongitudeDegrees" },
   { gtc_trk_alt,  cb_cdata, "/Courses/Course/Lap/BeginAltitudeMeters" },
 
-  { NULL,	(xg_cb_type)0,         NULL}
+  { nullptr,	(xg_cb_type)0,         nullptr}
 };
 
 static const char*
@@ -166,24 +165,24 @@ gtc_tags_to_ignore[] = {
   "Biking",
   "Other",
   "Multisport",
-  NULL,
+  nullptr,
 };
 
 static void
 gtc_rd_init(const QString& fname)
 {
-  xml_init(fname, gtc_map, NULL);
+  xml_init(fname, gtc_map, nullptr);
   xml_ignore_tags(gtc_tags_to_ignore);
 }
 
 static void
-gtc_read(void)
+gtc_read()
 {
   xml_read();
 }
 
 static void
-gtc_rd_deinit(void)
+gtc_rd_deinit()
 {
   xml_deinit();
 }
@@ -191,12 +190,10 @@ gtc_rd_deinit(void)
 static void
 gtc_wr_init(const QString& fname)
 {
-  int i;
-
   ofd = gbfopen(fname, "w", MYNAME);
 
   if (opt_sport) {
-    for (i = 0; i < MAX_SPORTS; i++) {
+    for (int i = 0; i < MAX_SPORTS; i++) {
       if (0 == case_ignore_strncmp(opt_sport, gtc_sportlist[i], 2)) {
         gtc_sport = i;
         break;
@@ -207,7 +204,7 @@ gtc_wr_init(const QString& fname)
 }
 
 static void
-gtc_wr_deinit(void)
+gtc_wr_deinit()
 {
   gbfclose(ofd);
 }
@@ -236,7 +233,7 @@ gtc_write_xml(int indent, const char* fmt, ...)
 }
 
 static void
-gtc_write_xml(int indent, const QString s)
+gtc_write_xml(int indent, const QString& s)
 {
   if (indent < 0) {
     gtc_indent_level--;
@@ -257,10 +254,10 @@ gtc_lap_start(const route_head*)
   gtc_most_time = gpsbabel::DateTime();
 }
 
-static void
+static computed_trkdata
 gtc_new_study_lap(const route_head* rte)
 {
-  track_recompute(rte, &tdata);  /* called routine allocates space for tdata */
+  return track_recompute(rte);
 }
 
 static void
@@ -341,7 +338,7 @@ gtc_waypt_pr(const Waypoint* wpt)
 }
 
 static void
-gtc_fake_hdr(void)
+gtc_fake_hdr(const computed_trkdata& tdata)
 {
   /* handle the CourseLap_t or the ActivityLap_t types. */
   /* note that the elements must appear in the order required by the schema. */
@@ -354,7 +351,7 @@ gtc_fake_hdr(void)
 
   /* write these in either case, course or activity format */
   gtc_write_xml(0, "<TotalTimeSeconds>%d</TotalTimeSeconds>\n", secs);
-  gtc_write_xml(0, "<DistanceMeters>%.2f</DistanceMeters>\n", tdata->distance_meters);
+  gtc_write_xml(0, "<DistanceMeters>%.2f</DistanceMeters>\n", tdata.distance_meters);
   if (gtc_course_flag) { /* course format */
     gtc_write_xml(1, "<BeginPosition>\n");
     gtc_write_xml(0, "<LatitudeDegrees>%lf</LatitudeDegrees>\n", gtc_start_lat);
@@ -366,24 +363,24 @@ gtc_fake_hdr(void)
     gtc_write_xml(-1,"</EndPosition>\n");
 
   } else {  /* activity (history) format */
-    if (tdata->max_spd) {
-      gtc_write_xml(0, "<MaximumSpeed>%.3f</MaximumSpeed>\n", tdata->max_spd);
+    if (tdata.max_spd) {
+      gtc_write_xml(0, "<MaximumSpeed>%.3f</MaximumSpeed>\n", *tdata.max_spd);
     }
     gtc_write_xml(0, "<Calories>0</Calories>\n"); /* element is required */
   }
-  if (tdata->avg_hrt) {
+  if (tdata.avg_hrt) {
     gtc_write_xml(1, "<AverageHeartRateBpm xsi:type=\"HeartRateInBeatsPerMinute_t\">\n");
-    gtc_write_xml(0, "<Value>%d</Value>\n", (int)(tdata->avg_hrt + 0.5));
+    gtc_write_xml(0, "<Value>%d</Value>\n", (int)(*tdata.avg_hrt + 0.5));
     gtc_write_xml(-1,"</AverageHeartRateBpm>\n");
   }
-  if (tdata->max_hrt) {
+  if (tdata.max_hrt) {
     gtc_write_xml(1, "<MaximumHeartRateBpm xsi:type=\"HeartRateInBeatsPerMinute_t\">\n");
-    gtc_write_xml(0, "<Value>%d</Value>\n", (int)(tdata->max_hrt + 0.5));
+    gtc_write_xml(0, "<Value>%d</Value>\n", *tdata.max_hrt);
     gtc_write_xml(-1,"</MaximumHeartRateBpm>\n");
   }
   gtc_write_xml(0, "<Intensity>Active</Intensity>\n");
-  if (tdata->avg_cad) {
-    gtc_write_xml(0, "<Cadence>%d</Cadence>\n", tdata->avg_cad);
+  if (tdata.avg_cad) {
+    gtc_write_xml(0, "<Cadence>%d</Cadence>\n", (int)(*tdata.avg_cad + 0.5));
   }
 
   if (!gtc_course_flag) { /* activity (history) format */
@@ -396,8 +393,8 @@ static void
 gtc_act_hdr(const route_head* rte)
 {
   gtc_write_xml(1, "<Activity Sport=\"%s\">\n", gtc_sportlist[gtc_sport]);
-  gtc_lap_start(NULL);
-  gtc_new_study_lap(rte);
+  gtc_lap_start(nullptr);
+  computed_trkdata tdata = gtc_new_study_lap(rte);
   route_disp(rte, gtc_study_lap);
   if (gtc_least_time.isValid()) {
     gtc_write_xml(0, "<Id>%s</Id>\n",
@@ -407,8 +404,7 @@ gtc_act_hdr(const route_head* rte)
   } else {
     gtc_write_xml(1, "<Lap>\n");
   }
-  gtc_fake_hdr();
-  xfree(tdata);
+  gtc_fake_hdr(tdata);
   gtc_write_xml(1,"<Track>\n");
 }
 
@@ -425,8 +421,8 @@ gtc_crs_hdr(const route_head* rte)
 {
 
   gtc_write_xml(1, "<Course>\n");
-  gtc_lap_start(NULL);
-  gtc_new_study_lap(rte);
+  gtc_lap_start(nullptr);
+  computed_trkdata tdata = gtc_new_study_lap(rte);
   route_disp(rte, gtc_study_lap);
 
   if (!rte->rte_name.isEmpty()) {
@@ -437,9 +433,8 @@ gtc_crs_hdr(const route_head* rte)
   }
   /* write_optional_xml_entity(ofd, "      ", "Name", rte->rte_name); */
   gtc_write_xml(1, "<Lap>\n");
-  gtc_fake_hdr();
+  gtc_fake_hdr(tdata);
   gtc_write_xml(-1, "</Lap>\n");
-  xfree(tdata);
   gtc_write_xml(1,"<Track>\n");
 }
 
@@ -451,8 +446,8 @@ gtc_crs_ftr(const route_head*)
 
 }
 
-void
-gtc_write(void)
+static void
+gtc_write()
 {
   gtc_write_xml(0, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n");
   gtc_write_xml(1, "<TrainingCenterDatabase xmlns=\"http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd\">\n");
@@ -522,7 +517,7 @@ gtc_trk_pnt_e(xg_string, const QXmlStreamAttributes*)
     delete wpt_tmp;
   }
 
-  wpt_tmp = NULL;
+  wpt_tmp = nullptr;
 }
 
 void
@@ -589,7 +584,7 @@ gtc_wpt_crs_e(xg_string, const QXmlStreamAttributes*)
     delete wpt_tmp;
   }
 
-  wpt_tmp = NULL;
+  wpt_tmp = nullptr;
 }
 
 void
@@ -611,7 +606,7 @@ gtc_wpt_pnt_e(xg_string, const QXmlStreamAttributes*)
     delete wpt_tmp;
   }
 
-  wpt_tmp = NULL;
+  wpt_tmp = nullptr;
 }
 
 void gtc_wpt_ident(const QString& args, const QXmlStreamAttributes*)
@@ -650,7 +645,9 @@ ff_vecs_t gtc_vecs = {
   gtc_wr_deinit,
   gtc_read,
   gtc_write,
-  NULL,
+  nullptr,
   gtc_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

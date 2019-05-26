@@ -51,38 +51,39 @@
 #include "defs.h"
 #include "cet_util.h"
 #include "csv_util.h"
-#include "strptime.h"
-#include "jeeps/gpsmath.h"
 #include "grtcirc.h"
-#include <stdlib.h>
-#include <stdio.h>
+#include "jeeps/gpsmath.h"
+#include "strptime.h"
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <QtCore/QDateTime>
+#include <QtCore/QString>
+
 #define MYNAME "gopal"
 
 static gbfile* fin, *fout;
 
 static struct tm tm,filenamedate, trackdate;
-time_t		tx;
-char tmp[64];
-char routename[64];
-static char* optdate=NULL;
-static char* optmaxspeed=NULL;
-static char* optminspeed=NULL;
-static char* optclean= NULL;
+static time_t		tx;
+static char* optdate=nullptr;
+static char* optmaxspeed=nullptr;
+static char* optminspeed=nullptr;
+static char* optclean= nullptr;
 static double minspeed,maxspeed;
 static struct tm opt_tm;	/* converted "date" parameter */
 static
 arglist_t gopal_args[] = {
-  {"date", &optdate, "Complete date-free tracks with given date (YYYYMMDD).", NULL, ARGTYPE_INT, ARG_NOMINMAX },
-  {"maxspeed", &optmaxspeed, "The maximum speed (km/h) traveling from waypoint to waypoint.", "200", ARGTYPE_INT, "1", "1000" },
-  {"minspeed", &optminspeed, "The minimum speed (km/h) traveling from waypoint to waypoint. Set >0 to remove duplicate waypoints", "0", ARGTYPE_INT, "0", "999" },
-  {"clean", &optclean, "Cleanup common errors in trackdata", "1", ARGTYPE_BOOL, ARG_NOMINMAX },
+  {"date", &optdate, "Complete date-free tracks with given date (YYYYMMDD).", nullptr, ARGTYPE_INT, ARG_NOMINMAX, nullptr },
+  {"maxspeed", &optmaxspeed, "The maximum speed (km/h) traveling from waypoint to waypoint.", "200", ARGTYPE_INT, "1", "1000", nullptr },
+  {"minspeed", &optminspeed, "The minimum speed (km/h) traveling from waypoint to waypoint. Set >0 to remove duplicate waypoints", "0", ARGTYPE_INT, "0", "999", nullptr },
+  {"clean", &optclean, "Cleanup common errors in trackdata", "1", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
   ARG_TERMINATOR
 };
 
 #define CHECK_BOOL(a) if (a && (*a == '0')) a = NULL
 
-int gopal_check_line(char* line)
+static int gopal_check_line(char* line)
 {
   char* c = line;
   int i = 0;
@@ -102,7 +103,6 @@ int gopal_check_line(char* line)
 static void
 gopal_rd_init(const QString& fname)
 {
-  char* ck;
   CHECK_BOOL(optclean);
   if (optminspeed) {
     minspeed=atof(optminspeed);
@@ -129,8 +129,8 @@ gopal_rd_init(const QString& fname)
   if (optdate) {
     memset(&opt_tm, 0, sizeof(opt_tm));
 
-    ck = (char*)strptime(optdate, "%Y%m%d", &opt_tm);
-    if ((ck == NULL) || (*ck != '\0') || (strlen(optdate) != 8)) {
+    char* ck = strptime(optdate, "%Y%m%d", &opt_tm);
+    if ((ck == nullptr) || (*ck != '\0') || (strlen(optdate) != 8)) {
       fatal(MYNAME ": Invalid date \"%s\"!\n", optdate);
     } else if (opt_tm.tm_year < 70) {
       fatal(MYNAME ": Date \"%s\" is out of range (have to be 19700101 or later)!\n", optdate);
@@ -158,45 +158,44 @@ gopal_rd_init(const QString& fname)
 }
 
 static void
-gopal_rd_deinit(void)
+gopal_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-gopal_read(void)
+gopal_read()
 {
 
   char* buff;
-  char* str, *c;
-  int column;
-  long line;
-  double hmsd,speed;
-  int fix, hms;
-  route_head* route;
-  Waypoint* wpt, *lastwpt=NULL;
-  double lat_old;
+  double hmsd;
+  int fix;
+  int hms;
+  Waypoint* lastwpt=nullptr;
   char tbuffer[64];
   struct tm tm2;
-  lat_old=0;
-  strftime(routename,sizeof(routename),"Tracklog %c",gmtime(&tx));
+  double lat_old = 0;
+  
 
-  route = route_head_alloc();
-  route->rte_name = routename;
+  route_head* route = route_head_alloc();
+  QDateTime qtx;
+  qtx.setTimeSpec(Qt::UTC);
+  qtx.setTime_t(tx);
+  route->rte_name = "Tracklog ";
+  route->rte_name += qtx.toString(Qt::ISODate);
   route_add_head(route);
 
-  line=0;
+  long line = 0;
   while ((buff = gbfgetstr(fin))) {
-    int nfields;
     if ((line == 0) && fin->unicode) {
       cet_convert_init(CET_CHARSET_UTF8, 1);
     }
 
-    str = buff = lrtrim(buff);
+    char* str = buff = lrtrim(buff);
     if (*buff == '\0') {
       continue;
     }
-    nfields = gopal_check_line(buff);
+    int nfields = gopal_check_line(buff);
     if ((nfields != 8) && (nfields != 11)) {
       continue;
     }
@@ -204,15 +203,15 @@ gopal_read(void)
     if ((nfields == 8) && (tx == 0)) {
       // fatal(MYNAME ": Invalid date in filename \"%s\", try to set manually using \"date\" switch!\n", buff);
     }
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
-    column = -1;
+    int column = -1;
     // the format of gopal is quite simple. Unfortunately the developers forgot the date as the first element...
     //TICK;    TIME;   LONG;     LAT;       HEIGHT; SPEED;  Fix; HDOP;    SAT
     //3801444, 080558, 2.944362, 43.262117, 295.28, 0.12964, 2, 2.900000, 3
-    c = csv_lineparse(str, ",", "", column++);
+    char* c = csv_lineparse(str, ",", "", column++);
     int millisecs = 0;
-    while (c != NULL) {
+    while (c != nullptr) {
       switch (column) {
       case  0: /* "-" */	/* unknown fields for the moment */
         unsigned long microsecs;
@@ -298,7 +297,7 @@ gopal_read(void)
       case 11:  // Bearing.  Ignored.
         break;
       }
-      c = csv_lineparse(NULL, ",", "", column++);
+      c = csv_lineparse(nullptr, ",", "", column++);
     }
     line++;
 
@@ -308,8 +307,8 @@ gopal_read(void)
       lastwpt=wpt;
     }
     //calculate the speed to reach this waypoint from the last. This way I try to sort out invalid waypoints
-    speed=0;
-    if (lastwpt !=NULL) {
+    double speed = 0;
+    if (lastwpt !=nullptr) {
       speed=3.6*radtometers(gcdist(RAD(lastwpt->latitude), RAD(lastwpt->longitude), RAD(wpt->latitude), RAD(wpt->longitude))) /
             abs((int)(wpt->creation_time.toTime_t() - lastwpt->GetCreationTime().toTime_t()));
       //printf("speed line %d %lf \n",line,speed);
@@ -335,13 +334,13 @@ gopal_read(void)
 }
 
 static void
-gopal_route_hdr(const route_head* route)
+gopal_route_hdr(const route_head*)
 {
 
 }
 
 static void
-gopal_route_tlr(const route_head* rte)
+gopal_route_tlr(const route_head*)
 {
 }
 
@@ -349,7 +348,6 @@ static void
 gopal_write_waypt(const Waypoint* wpt)
 {
   char tbuffer[64];
-  unsigned long timestamp;
   int fix=fix_unknown;
   //TICK;    TIME;   LONG;     LAT;       HEIGHT; SPEED;  UN; HDOP;     SAT
   //3801444, 080558, 2.944362, 43.262117, 295.28, 0.12964, 2, 2.900000, 3
@@ -368,7 +366,7 @@ gopal_write_waypt(const Waypoint* wpt)
     }
   }
   //MSVC handles time_t as int64, gcc and mac only int32, so convert it:
-  timestamp=(unsigned long)wpt->GetCreationTime().toTime_t();
+  unsigned long timestamp = (unsigned long)wpt->GetCreationTime().toTime_t();
   gbfprintf(fout, "%lu, %s, %lf, %lf, %5.1lf, %8.5lf, %d, %lf, %d\n",timestamp,tbuffer,  wpt->longitude, wpt->latitude,wpt->altitude,
             wpt->speed,fix,wpt->hdop,wpt->sat);
 }
@@ -381,19 +379,19 @@ gopal_wr_init(const QString& fname)
 }
 
 static void
-gopal_wr_deinit(void)
+gopal_wr_deinit()
 {
   gbfclose(fout);
 }
 
 static void
-gopal_write(void)
+gopal_write()
 {
   route_disp_all(gopal_route_hdr, gopal_route_tlr, gopal_write_waypt);
 }
 
 static void
-gopal_exit(void)		/* optional */
+gopal_exit()		/* optional */
 {
 }
 
@@ -419,5 +417,7 @@ ff_vecs_t gopal_vecs = {
   gopal_args,
   CET_CHARSET_ASCII, 0	/* ascii is the expected character set */
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };
 /**************************************************************************/

@@ -19,70 +19,44 @@
 
  */
 
+#include <cstdlib>              // for atoi, strtod
+
+#include <QtCore/QString>       // for QString
+#include <QtCore/QtGlobal>      // for qAsConst, QAddConst<>::Type, foreach
+
 #include "defs.h"
 #include "filterdefs.h"
-#include "grtcirc.h"
-#include <stdlib.h>
+#include "interpolate.h"
+#include "grtcirc.h"            // for linepart, RAD, gcdist, radtomiles
+#include "src/core/datetime.h"  // for DateTime
+
 
 #if FILTERS_ENABLED
 #define MYNAME "Interpolate filter"
 
-static char* opt_interval = NULL;
-unsigned int interval = 0;
-static char* opt_dist = NULL;
-double dist = 0;
-static char* opt_route = NULL;
-
-static
-arglist_t interpfilt_args[] = {
-  {
-    "time", &opt_interval, "Time interval in seconds", NULL,
-    ARGTYPE_BEGIN_EXCL | ARGTYPE_BEGIN_REQ | ARGTYPE_INT,
-    "0", NULL
-  },
-  {
-    "distance", &opt_dist, "Distance interval in miles or kilometers",
-    NULL, ARGTYPE_END_EXCL | ARGTYPE_END_REQ | ARGTYPE_STRING,
-    ARG_NOMINMAX
-  },
-  {
-    "route", &opt_route, "Interpolate routes instead", NULL,
-    ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
-void
-interpfilt_process(void)
+void InterpolateFilter::process()
 {
-  queue* backuproute = NULL;
-  queue* elem, *tmp, *elem2, *tmp2;
-  route_head* rte_new;
-  int count = 0;
-  int first = 0;
+  RouteList* backuproute = nullptr;
   double lat1 = 0, lon1 = 0;
+  double altitude1 = unknown_alt;
   unsigned int time1 = 0;
-  unsigned int timen;
-  double distn;
-  double curdist;
-  double rt1, rn1, rt2, rn2;
+  double frac;
 
   if (opt_route) {
-    route_backup(&count, &backuproute);
+    route_backup(&backuproute);
     route_flush_all_routes();
   } else {
-    track_backup(&count, &backuproute);
+    track_backup(&backuproute);
     route_flush_all_tracks();
   }
 
-  if (count == 0) {
+  if (backuproute->empty()) {
     fatal(MYNAME ": Found no routes or tracks to operate on.\n");
   }
 
-  QUEUE_FOR_EACH(backuproute, elem, tmp) {
-    route_head* rte_old = (route_head*)elem;
+  for (const auto* rte_old : qAsConst(*backuproute)) {
 
-    rte_new = route_head_alloc();
+    route_head* rte_new = route_head_alloc();
     rte_new->rte_name = rte_old->rte_name;
     rte_new->rte_desc = rte_old->rte_desc;
     rte_new->fs = fs_chain_copy(rte_old->fs);
@@ -92,15 +66,14 @@ interpfilt_process(void)
     } else {
       track_add_head(rte_new);
     }
-    first = 1;
-    QUEUE_FOR_EACH(&rte_old->waypoint_list, elem2, tmp2) {
-      Waypoint* wpt = (Waypoint*)elem2;
+    bool first = true;
+    foreach (const Waypoint* wpt, rte_old->waypoint_list) {
       if (first) {
-        first = 0;
+        first = false;
       } else {
         if (opt_interval &&
             wpt->creation_time.toTime_t() - time1 > interval) {
-          for (timen = time1+interval;
+          for (unsigned int timen = time1+interval;
                timen < wpt->creation_time.toTime_t();
                timen += interval) {
             Waypoint* wpt_new = new Waypoint(*wpt);
@@ -108,12 +81,15 @@ interpfilt_process(void)
             wpt_new->shortname = QString();
             wpt_new->description = QString();
 
+            frac = (double)(timen - time1) / (double)(wpt->creation_time.toTime_t() - time1);
             linepart(lat1, lon1,
                      wpt->latitude, wpt->longitude,
-                     (double)(timen-time1)/
-                     (double)(wpt->creation_time.toTime_t() - time1),
+                     frac,
                      &wpt_new->latitude,
                      &wpt_new->longitude);
+            if (altitude1 != unknown_alt && wpt->altitude != unknown_alt) {
+              wpt_new->altitude = altitude1 + frac * (wpt->altitude - altitude1);
+            }
             if (opt_route) {
               route_add_wpt(rte_new, wpt_new);
             } else {
@@ -121,26 +97,29 @@ interpfilt_process(void)
             }
           }
         } else if (opt_dist) {
-          rt1 = RAD(lat1);
-          rn1 = RAD(lon1);
-          rt2 = RAD(wpt->latitude);
-          rn2 = RAD(wpt->longitude);
-          curdist = gcdist(rt1, rn1, rt2, rn2);
+          double rt1 = RAD(lat1);
+          double rn1 = RAD(lon1);
+          double rt2 = RAD(wpt->latitude);
+          double rn2 = RAD(wpt->longitude);
+          double curdist = gcdist(rt1, rn1, rt2, rn2);
           curdist = radtomiles(curdist);
           if (curdist > dist) {
-            for (distn = dist;
+            for (double distn = dist;
                  distn < curdist;
                  distn += dist) {
               Waypoint* wpt_new = new Waypoint(*wpt);
-              wpt_new->SetCreationTime(distn/curdist*
-                                       (wpt->creation_time.toTime_t() - time1) + time1);
+              frac = distn / curdist;
+              wpt_new->SetCreationTime(frac * (wpt->creation_time.toTime_t() - time1) + time1);
               wpt_new->shortname = QString();
               wpt_new->description = QString();
               linepart(lat1, lon1,
                        wpt->latitude, wpt->longitude,
-                       distn/curdist,
+                       frac,
                        &wpt_new->latitude,
                        &wpt_new->longitude);
+              if (altitude1 != unknown_alt && wpt->altitude != unknown_alt) {
+                wpt_new->altitude = altitude1 + frac * (wpt->altitude - altitude1);
+              }
               if (opt_route) {
                 route_add_wpt(rte_new, wpt_new);
               } else {
@@ -158,15 +137,15 @@ interpfilt_process(void)
 
       lat1 = wpt->latitude;
       lon1 = wpt->longitude;
+      altitude1 = wpt->altitude;
       time1 = wpt->creation_time.toTime_t();
     }
   }
-  route_flush(backuproute);
-  xfree(backuproute);
+  backuproute->flush();
+  delete backuproute;
 }
 
-void
-interpfilt_init(const char* args)
+void InterpolateFilter::init()
 {
 
   char* fm;
@@ -187,11 +166,4 @@ interpfilt_init(const char* args)
   }
 }
 
-filter_vecs_t interpolatefilt_vecs = {
-  interpfilt_init,
-  interpfilt_process,
-  NULL,
-  NULL,
-  interpfilt_args
-};
 #endif // FILTERS_ENABLED

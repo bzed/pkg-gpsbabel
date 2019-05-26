@@ -22,31 +22,12 @@
 
 #include "defs.h"
 #include "filterdefs.h"
+#include "nukedata.h"
 
 #if FILTERS_ENABLED
 #define MYNAME "nukedata"
 
-static char* nukewpts, *nuketrks, *nukertes;
-
-static
-arglist_t nuke_args[] = {
-  {
-    "waypoints", &nukewpts, "Remove all waypoints from data stream",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
-  } ,
-  {
-    "tracks", &nuketrks, "Remove all tracks from data stream",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
-  } ,
-  {
-    "routes", &nukertes, "Remove all routes from data stream",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
-  } ,
-  ARG_TERMINATOR
-};
-
-static void
-nuke_process(void)
+void NukeDataFilter::process()
 {
   if (*nukewpts != '0') {
     waypt_flush_all();
@@ -58,13 +39,5 @@ nuke_process(void)
     route_flush_all_routes();
   }
 }
-
-filter_vecs_t nuke_vecs = {
-  NULL,
-  nuke_process,
-  NULL,
-  NULL,
-  nuke_args
-};
 
 #endif

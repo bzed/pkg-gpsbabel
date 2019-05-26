@@ -107,11 +107,11 @@ C - Checksum
  */
 
 #include "defs.h"
-#include <stdio.h> /* for sscanf */
+#include <cstdio> /* for sscanf */
 
 #define MYNAME "vpl"
 
-void vpl_parse_75_sentence(const char*);
+static void vpl_parse_75_sentence(const char*);
 
 static
 arglist_t vpl_args[] = {
@@ -132,18 +132,18 @@ vpl_rd_init(const QString& fname)
 }
 
 static void
-vpl_rd_deinit(void)
+vpl_rd_deinit()
 {
   gbfclose(vpl_file_in);
 }
 
 static void
-vpl_read(void)
+vpl_read()
 {
   char* ibuf;
 
   // Set up a track
-  if (track_head == NULL) {
+  if (track_head == nullptr) {
     track_head = route_head_alloc();
     track_add_head(track_head);
   }
@@ -156,7 +156,7 @@ vpl_read(void)
 }
 
 static void
-vpl_wr_init(const QString& fname)
+vpl_wr_init(const QString&)
 {
   fatal("Writing file of type %s is not support\n", MYNAME);
 }
@@ -173,7 +173,6 @@ vpl_parse_75_sentence(const char* ibuf)
   int16_t alt, speed_raw;
   uint16_t hdg_raw;
   uint8_t sats, hdop_raw, vdop_raw;
-  Waypoint* waypt;
   struct tm tm;
 
   // The files have DOS line endings (CR/LF) but we don't care, because we
@@ -194,7 +193,7 @@ vpl_parse_75_sentence(const char* ibuf)
   ymd /= 100;
   tm.tm_year = ymd % 100 + 100;
 
-  waypt = new Waypoint;
+  Waypoint* waypt = new Waypoint;
 
   // Lat/Lon are both stored *0xE1000 which we have to divide out
   // for decimal degrees
@@ -205,8 +204,8 @@ vpl_parse_75_sentence(const char* ibuf)
   // Speed comes in (MPH x 0x10) which we have to convert to m/s
   WAYPT_SET(waypt, speed, (speed_raw / (double) 0x10) * 0.44704);
   waypt->course    = hdg_raw * (double)(360/65535);
-  waypt->hdop      = hdop_raw / (double) 8;
-  waypt->vdop      = vdop_raw / (double) 8;
+  waypt->hdop      = hdop_raw / 8.0;
+  waypt->vdop      = vdop_raw / 8.0;
 
   waypt->SetCreationTime(mkgmtime(&tm));
 
@@ -225,12 +224,14 @@ ff_vecs_t vpl_vecs = {
   vpl_rd_init,
   vpl_wr_init,
   vpl_rd_deinit,
-  NULL,
+  nullptr,
   vpl_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   vpl_args,
   CET_CHARSET_ASCII, /* ascii is the expected character set */
   1	               /* fixed, can't be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };
 /**************************************************************************/

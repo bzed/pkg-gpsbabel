@@ -18,52 +18,50 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
+#include <algorithm>     // for reverse
+
+#include <QtCore/QList>  // for QList<>::iterator
+
 #include "defs.h"
 #include "filterdefs.h"
+#include "reverse_route.h"
 
 #if FILTERS_ENABLED
 
 #define MYNAME "Route reversal filter"
 
-static int prev_new_trkseg;
-
-static
-arglist_t reverse_route_args[] = {
-  ARG_TERMINATOR
-};
-
 /*
  * reverse_route_wpt fixes up the waypoint flag new_trkseg
  */
-static void reverse_route_wpt(const Waypoint* waypointp)
+void ReverseRouteFilter::reverse_route_wpt(const Waypoint* waypointp)
 {
 
   /* Cast away const-ness */
-  Waypoint* wpp = (Waypoint*) waypointp;
+  Waypoint* wpp = const_cast<Waypoint*>(waypointp);
 
-  int curr_new_trkseg;
-
-  curr_new_trkseg = waypointp->wpt_flags.new_trkseg;
+  int curr_new_trkseg = waypointp->wpt_flags.new_trkseg;
   wpp->wpt_flags.new_trkseg = prev_new_trkseg;
   prev_new_trkseg = curr_new_trkseg;
 }
 
-void
-reverse_route_head(const route_head* rte)
+void ReverseRouteFilter::reverse_route_head(const route_head* rte_hd)
 {
-  route_reverse(rte);
+  /* Cast away const-ness */
+  auto rh = const_cast<route_head*>(rte_hd);
+  std::reverse(rh->waypoint_list.begin(), rh->waypoint_list.end());
   prev_new_trkseg = 1;
 }
 
-void
-reverse_route_process(void)
+void ReverseRouteFilter::process()
 {
-  track_disp_all(reverse_route_head, NULL, reverse_route_wpt);
-  route_disp_all(reverse_route_head, NULL, NULL);
+  WayptFunctor<ReverseRouteFilter> reverse_route_wpt_f(this, &ReverseRouteFilter::reverse_route_wpt);
+  RteHdFunctor<ReverseRouteFilter> reverse_route_head_f(this, &ReverseRouteFilter::reverse_route_head);
+
+  track_disp_all(reverse_route_head_f, nullptr, reverse_route_wpt_f);
+  route_disp_all(reverse_route_head_f, nullptr, nullptr);
 }
 
-void
-reverse_route_init(const char* args)
+void ReverseRouteFilter::init()
 {
   switch (global_opts.objective) {
   case rtedata:
@@ -76,17 +74,4 @@ reverse_route_init(const char* args)
   }
 }
 
-void
-reverse_route_deinit(void)
-{
-  /* do nothing */
-}
-
-filter_vecs_t reverse_route_vecs = {
-  reverse_route_init,
-  reverse_route_process,
-  reverse_route_deinit,
-  NULL,
-  reverse_route_args
-};
 #endif

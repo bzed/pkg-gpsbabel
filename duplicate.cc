@@ -18,59 +18,35 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
+
+#include <cstdio>               // for sprintf
+#include <cstdlib>              // for qsort
+#include <cstring>              // for memset, strncpy
+
+#include <QtCore/QDateTime>     // for QDateTime
+#include <QtCore/QtGlobal>      // for foreach
+
 #include "defs.h"
 #include "filterdefs.h"
-#include <stdio.h>
-#include <stdlib.h> // qsort
+#include "duplicate.h"
+#include "src/core/datetime.h"  // for DateTime
+
 
 #if FILTERS_ENABLED
-static char* snopt = NULL;
-static char* lcopt = NULL;
-static char* purge_duplicates = NULL;
-static char* correct_coords = NULL;
 
-static
-arglist_t dup_args[] = {
-  {
-    "shortname", &snopt, "Suppress duplicate waypoints based on name",
-    NULL, ARGTYPE_BEGIN_REQ | ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "location", &lcopt, "Suppress duplicate waypoint based on coords",
-    NULL, ARGTYPE_END_REQ | ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "all", &purge_duplicates, "Suppress all instances of duplicates",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "correct", &correct_coords, "Use coords from duplicate points",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
-
-typedef struct btree_node {
-  struct btree_node* left, *right;
-  unsigned long data;
-  Waypoint* wpt;
-} btree_node;
-
-static btree_node*
-addnode(btree_node* tree, btree_node* newnode, btree_node** oldnode)
+DuplicateFilter::btree_node* DuplicateFilter::addnode(btree_node* tree, btree_node* newnode, btree_node** oldnode)
 {
-  btree_node* tmp, * last = NULL;
+  btree_node* last = nullptr;
 
   if (*oldnode) {
-    *oldnode = NULL;
+    *oldnode = nullptr;
   }
 
   if (!tree) {
     return (newnode);
   }
 
-  tmp = tree;
+  btree_node* tmp = tree;
 
   while (tmp) {
     last = tmp;
@@ -82,7 +58,7 @@ addnode(btree_node* tree, btree_node* newnode, btree_node** oldnode)
       if (oldnode) {
         *oldnode = tmp;
       }
-      return (NULL);
+      return (nullptr);
     }
   }
 
@@ -95,8 +71,7 @@ addnode(btree_node* tree, btree_node* newnode, btree_node** oldnode)
   return (tree);
 }
 
-void
-free_tree(btree_node* tree)
+void DuplicateFilter::free_tree(btree_node* tree)
 {
   if (tree->left) {
     free_tree(tree->left);
@@ -106,11 +81,6 @@ free_tree(btree_node* tree)
   }
   xfree(tree);
 }
-
-typedef struct {
-  Waypoint* wpt;
-  int index;
-} wpt_ptr;
 
 /*
 
@@ -146,9 +116,7 @@ because, sadly, quicksort can be O(n^2) on presorted elements.)
 */
 
 
-static
-int
-compare(const void* a, const void* b)
+int DuplicateFilter::compare(const void* a, const void* b)
 {
   const wpt_ptr* wa = (wpt_ptr*)a;
   const wpt_ptr* wb = (wpt_ptr*)b;
@@ -171,36 +139,27 @@ compare(const void* a, const void* b)
 
 }
 
-
-static void
-duplicate_process(void)
+void DuplicateFilter::process()
 {
   Waypoint* waypointp;
-  btree_node* newnode, * btmp, * sup_tree = NULL;
-  btree_node* oldnode = NULL;
+  btree_node* newnode, * btmp, * sup_tree = nullptr;
+  btree_node* oldnode = nullptr;
   unsigned long crc = 0;
   struct {
     char shortname[32];
     char lat[13];
     char lon[13];
   } dupe;
-  Waypoint* delwpt = NULL;
+  Waypoint* delwpt = nullptr;
 
-  int i, ct = waypt_count();
-  wpt_ptr* htable, *bh;
-  queue* elem, *tmp;
+  int ct = waypt_count();
 
-  htable = (wpt_ptr*) xmalloc(ct * sizeof(*htable));
-  bh = htable;
+  wpt_ptr* htable = (wpt_ptr*) xmalloc(ct * sizeof(*htable));
+  wpt_ptr* bh = htable;
 
-  i = 0;
-#if NEWQ
-  foreach(Waypoint* waypointp, waypt_list) {
+  int i = 0;
+  foreach (Waypoint* waypointp, *global_waypoint_list) {
     bh->wpt = waypointp;
-#else
-  QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-    bh->wpt = (Waypoint*) elem;
-#endif
     bh->index = i;
     i ++;
     bh ++;
@@ -237,10 +196,8 @@ duplicate_process(void)
 
     btmp = addnode(sup_tree, newnode, &oldnode);
 
-    if (btmp == NULL) {
-      if (delwpt) {
-        delete delwpt;
-      }
+    if (btmp == nullptr) {
+      delete delwpt;
       if (correct_coords && oldnode && oldnode->wpt) {
         oldnode->wpt->latitude = waypointp->latitude;
         oldnode->wpt->longitude = waypointp->longitude;
@@ -252,7 +209,7 @@ duplicate_process(void)
         if (oldnode->wpt) {
           waypt_del(oldnode->wpt);
           delete oldnode->wpt;
-          oldnode->wpt = NULL;
+          oldnode->wpt = nullptr;
         }
       }
 
@@ -261,9 +218,7 @@ duplicate_process(void)
     }
   }
 
-  if (delwpt) {
-    delete delwpt;
-  }
+  delete delwpt;
 
   xfree(htable);
   if (sup_tree) {
@@ -271,11 +226,4 @@ duplicate_process(void)
   }
 }
 
-filter_vecs_t duplicate_vecs = {
-  NULL,
-  duplicate_process,
-  NULL,
-  NULL,
-  dup_args
-};
 #endif

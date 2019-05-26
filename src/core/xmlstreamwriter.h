@@ -39,21 +39,20 @@ private:
 public:
   XmlTextCodec();
   static XmlTextCodec *instance;
-  virtual QByteArray name() const;
-  virtual int mibEnum() const;
+  QByteArray name() const override;
+  int mibEnum() const override;
 protected:
-  virtual QByteArray convertFromUnicode(const QChar* chars, int len, QTextCodec::ConverterState* state) const;
-  virtual QString convertToUnicode(const char* chars, int len, QTextCodec::ConverterState* state) const;
+  QByteArray convertFromUnicode(const QChar* chars, int len, QTextCodec::ConverterState* state) const override;
+  QString convertToUnicode(const char* chars, int len, QTextCodec::ConverterState* state) const override;
 };
 
 class XmlStreamWriter : public QXmlStreamWriter
 {
 public:
-  XmlStreamWriter(QString* string);
-  XmlStreamWriter(QFile* f);
+  explicit XmlStreamWriter(QString* string);
+  explicit XmlStreamWriter(QFile* f);
 
-  void writeStartDocument(void);
-  void writeOptionalAttribute(const QString& qualifiedName, const QString& value);
+  void writeStartDocument();
   void writeOptionalTextElement(const QString& qualifiedName, const QString& text);
 };
 

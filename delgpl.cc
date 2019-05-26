@@ -49,21 +49,18 @@ gpl_rd_init(const QString& fname)
 }
 
 static void
-gpl_read(void)
+gpl_read()
 {
-  Waypoint* wpt_tmp;
-  route_head* track_head;
   gpl_point_t gp;
-  double alt_feet;
 
-  track_head = route_head_alloc();
+  route_head* track_head = route_head_alloc();
   track_add_head(track_head);
 
   while (gbfread(&gp, sizeof(gp), 1, gplfile_in) > 0) {
-    wpt_tmp = new Waypoint;
+    Waypoint* wpt_tmp = new Waypoint;
     wpt_tmp->latitude = le_read_double(&gp.lat);
     wpt_tmp->longitude = le_read_double(&gp.lon);
-    alt_feet = le_read_double(&gp.alt);
+    double alt_feet = le_read_double(&gp.alt);
     wpt_tmp->altitude = FEET_TO_METERS(alt_feet);
     if (wpt_tmp->altitude <= unknown_alt + 1) {
       wpt_tmp->altitude = unknown_alt;
@@ -101,7 +98,7 @@ gpl_read(void)
 
 
 static void
-gpl_rd_deinit(void)
+gpl_rd_deinit()
 {
   gbfclose(gplfile_in);
 }
@@ -113,7 +110,7 @@ gpl_wr_init(const QString& fname)
 }
 
 static void
-gpl_wr_deinit(void)
+gpl_wr_deinit()
 {
   gbfclose(gplfile_out);
 }
@@ -123,7 +120,6 @@ gpl_trackpt(const Waypoint* wpt)
 {
   double alt_feet = METERS_TO_FEET(wpt->altitude);
   int status = 3;
-  gpl_point_t gp;
   double speed = 3600*METERS_TO_MILES(wpt->speed);
   double heading = wpt->course;
 
@@ -144,7 +140,7 @@ gpl_trackpt(const Waypoint* wpt)
     status = 3;   // a strategic lie for fix_unknown.
   }
 
-  memset(&gp, 0, sizeof(gp));
+  gpl_point_t gp = {0};
   le_write32(&gp.status, status);
   le_write_double(&gp.lat, wpt->latitude);
   le_write_double(&gp.lon, wpt->longitude);
@@ -157,9 +153,9 @@ gpl_trackpt(const Waypoint* wpt)
 }
 
 static void
-gpl_write(void)
+gpl_write()
 {
-  track_disp_all(NULL, NULL, gpl_trackpt);
+  track_disp_all(nullptr, nullptr, gpl_trackpt);
 }
 
 ff_vecs_t gpl_vecs = {
@@ -171,7 +167,9 @@ ff_vecs_t gpl_vecs = {
   gpl_wr_deinit,
   gpl_read,
   gpl_write,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   CET_CHARSET_UTF8, 1	/* there is no need to convert anything | CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

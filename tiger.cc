@@ -22,9 +22,9 @@
 #include "defs.h"
 #include "cet_util.h"
 #include "csv_util.h"
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 static gbfile* file_in, *file_out;
 static short_handle mkshort_handle;
@@ -34,19 +34,19 @@ static short_handle mkshort_whandle;
 
 static double maxlat, maxlon, minlat, minlon;
 static int rec_cnt;
-static char* nolabels = NULL;
-static char* genurl = NULL;
-static char* suppresswhite = NULL;
-static char* iconismarker = NULL;
-static char* snlen = NULL;
+static char* nolabels = nullptr;
+static char* genurl = nullptr;
+static char* suppresswhite = nullptr;
+static char* iconismarker = nullptr;
+static char* snlen = nullptr;
 
-static char* margin  = NULL;
-static char* xpixels = NULL;
-static char* ypixels = NULL;
-static char* oldthresh = NULL;
-static char* oldmarker  = NULL;
-static char* newmarker  = NULL;
-static char* unfoundmarker  = NULL;
+static char* margin  = nullptr;
+static char* xpixels = nullptr;
+static char* ypixels = nullptr;
+static char* oldthresh = nullptr;
+static char* oldmarker  = nullptr;
+static char* newmarker  = nullptr;
+static char* unfoundmarker  = nullptr;
 
 static int short_length;
 static double thresh_days;
@@ -66,59 +66,59 @@ static
 arglist_t tiger_args[] = {
   {
     "nolabels", &nolabels, "Suppress labels on generated pins",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "genurl", &genurl, "Generate file with lat/lon for centering map",
-    NULL, ARGTYPE_OUTFILE, ARG_NOMINMAX
+    nullptr, ARGTYPE_OUTFILE, ARG_NOMINMAX, nullptr
   },
   {
     "margin", &margin, "Margin for map.  Degrees or percentage",
-    "15%", ARGTYPE_FLOAT, ARG_NOMINMAX
+    "15%", ARGTYPE_FLOAT, ARG_NOMINMAX, nullptr
   },
   {
     "snlen", &snlen, "Max shortname length when used with -s",
-    "10", ARGTYPE_INT, "1", NULL
+    "10", ARGTYPE_INT, "1", nullptr, nullptr
   },
   {
     "oldthresh", &oldthresh,
     "Days after which points are considered old",
-    "14", ARGTYPE_INT, ARG_NOMINMAX
+    "14", ARGTYPE_INT, ARG_NOMINMAX, nullptr
   },
   {
     "oldmarker", &oldmarker, "Marker type for old points",
-    "redpin", ARGTYPE_STRING, ARG_NOMINMAX
+    "redpin", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "newmarker", &newmarker, "Marker type for new points",
-    "greenpin", ARGTYPE_STRING, ARG_NOMINMAX
+    "greenpin", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "suppresswhite", &suppresswhite,
     "Suppress whitespace in generated shortnames",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "unfoundmarker", &unfoundmarker, "Marker type for unfound points",
-    "bluepin", ARGTYPE_STRING, ARG_NOMINMAX
+    "bluepin", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "xpixels", &xpixels, "Width in pixels of map",
-    "768", ARGTYPE_INT, ARG_NOMINMAX
+    "768", ARGTYPE_INT, ARG_NOMINMAX, nullptr
   },
   {
     "ypixels", &ypixels, "Height in pixels of map",
-    "768", ARGTYPE_INT, ARG_NOMINMAX
+    "768", ARGTYPE_INT, ARG_NOMINMAX, nullptr
   },
   {
     "iconismarker", &iconismarker,
-    "The icon description is already the marker", NULL,
-    ARGTYPE_BOOL, ARG_NOMINMAX
+    "The icon description is already the marker", nullptr,
+    ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
 #if CLICKMAP
   {
     "clickmap", &clickmap, "Generate Clickable map web page",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    NULL, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
 #endif
   ARG_TERMINATOR
@@ -133,7 +133,7 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
   mkshort_del_handle(&mkshort_handle);
@@ -143,23 +143,22 @@ static void
 wr_init(const QString& fname)
 {
   file_out = gbfopen(fname, "w", MYNAME);
-  thresh_days = strtod(oldthresh, NULL);
+  thresh_days = strtod(oldthresh, nullptr);
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
 }
 
 static void
-data_read(void)
+data_read()
 {
   double lat,lon;
   char desc[101];
   char icon[101];
   char* ibuf;
-  Waypoint* wpt_tmp;
   int line = 0;
 
   while ((ibuf = gbfgetstr(file_in))) {
@@ -168,7 +167,7 @@ data_read(void)
     }
     if (sscanf(ibuf, "%lf,%lf:%100[^:]:%100[^\n]",
                &lon, &lat, icon, desc)) {
-      wpt_tmp = new Waypoint;
+      Waypoint* wpt_tmp = new Waypoint;
 
       wpt_tmp->longitude = lon;
       wpt_tmp->latitude = lat;
@@ -221,7 +220,7 @@ tiger_disp(const Waypoint* wpt)
       desc = mkshort(mkshort_whandle, desc);
     }
     gbfprintf(file_out, ":%s", CSTR(desc));
-    if (temp != NULL) {
+    if (temp != nullptr) {
       desc = temp;
     }
   }
@@ -254,16 +253,15 @@ dscale(double distance)
    */
 
   if (strchr(margin, '%')) {
-    return distance + strtod(margin, NULL) / 100.0 * distance;
+    return distance + strtod(margin, nullptr) / 100.0 * distance;
   } else {
-    return strtod(margin, NULL) + distance;
+    return strtod(margin, nullptr) + distance;
   }
 }
 
 static void
-data_write(void)
+data_write()
 {
-  double latsz,lonsz;
   maxlat = -9999.0;
   maxlon = -9999.0;
   minlat = 9999.0;
@@ -283,11 +281,9 @@ data_write(void)
   waypt_disp_all(tiger_disp);
 
   if (genurl) {
-    gbfile* urlf;
-
-    urlf = gbfopen(genurl, "w", MYNAME);
-    latsz = fabs(maxlat - minlat);
-    lonsz = fabs(maxlon - minlon);
+    gbfile* urlf = gbfopen(genurl, "w", MYNAME);
+    double latsz = fabs(maxlat - minlat);
+    double lonsz = fabs(maxlon - minlon);
 
     /*
      * Center the map along X and Y axis the midpoint of
@@ -326,7 +322,9 @@ ff_vecs_t tiger_vecs = {
   wr_deinit,
   data_read,
   data_write,
-  NULL,
+  nullptr,
   tiger_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

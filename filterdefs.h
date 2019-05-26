@@ -26,25 +26,34 @@
  * This is our (weak) attempt to make that distinction.
  */
 
-extern queue waypt_head;
-#if NEWQ
-extern QList<Waypoint*> waypt_list;
-#endif
+#ifndef FILTERDEFS_H_INCLUDED_
+#define FILTERDEFS_H_INCLUDED_
+
+#include "defs.h"
+#include "filter.h"
+
+extern WaypointList* global_waypoint_list;
+
+typedef void (*filter_init)();
+typedef void (*filter_process)();
+typedef void (*filter_deinit)();
+typedef void (*filter_exit)();
 
 typedef struct filter_vecs {
   filter_init f_init;
   filter_process f_process;
   filter_deinit f_deinit;
   filter_exit f_exit;
-  arglist_t* args;
+  struct arglist* args;
 } filter_vecs_t;
 
-filter_vecs_t* find_filter_vec(char* const, char**);
-void free_filter_vec(filter_vecs_t*);
+Filter* find_filter_vec(const char* const, const char**);
+void free_filter_vec(Filter*);
 void disp_filters(int version);
 void disp_filter(const char* vecname);
 void disp_filter_vec(const char* vecname);
-void disp_filter_vecs(void);
-void init_filter_vecs(void);
-void exit_filter_vecs(void);
+void disp_filter_vecs();
+void init_filter_vecs();
+void exit_filter_vecs();
 
+#endif // FILTERDEFS_H_INCLUDED_

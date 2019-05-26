@@ -20,11 +20,21 @@
 
  */
 
-#include <QtCore/QXmlStreamAttributes>
+#include <cstdio>                       // for SEEK_CUR, size_t
+#include <cstdint>                      // int32_t, int16_t, uint32_t
+#include <cstdlib>                      // for atoi
+#include <cstring>                      // for strncmp, memcpy, strcmp, strlen
+
+#include <QtCore/QByteArray>            // for QByteArray
+#include <QtCore/QString>               // for QString, operator+
+#include <QtCore/QXmlStreamAttributes>  // for QXmlStreamAttributes
+#include <QtCore/QtGlobal>              // for qPrintable
 
 #include "defs.h"
-#include "jeeps/gpsmath.h"
-#include "xmlgeneric.h"
+#include "gbfile.h"                     // for gbfgetdbl, gbfgetint32, gbfputint32, gbfgetint16, gbfputdbl, gbfputc, gbfread, gbfseek, gbfgetc, gbfile, gbfclose, gbfungetc, gbfeof, gbfputs, gbfwrite, gbfopen_le, gbfgetuint32, gbfputuint16, gbfputuint32
+#include "jeeps/gpsmath.h"              // for GPS_Lookup_Datum_Index, GPS_Math_Known_Datum_To_WGS84_C, GPS_Math_NGENToAiry1830LatLon
+#include "xmlgeneric.h"                 // for cb_cdata, xg_callback, xg_string, xml_deinit, xml_init, cb_end, cb_start, xg_cb_type, xml_read, xml_readstring, xg_tag_mapping
+
 
 #define MYNAME "dmtlog"
 
@@ -53,7 +63,7 @@ static
 arglist_t dmtlog_args[] = {
   {
     "index", &opt_index,
-    "Index of track (if more than one in source)", "1", ARGTYPE_INT, "1", NULL
+    "Index of track (if more than one in source)", "1", ARGTYPE_INT, "1", nullptr, nullptr
   },
   ARG_TERMINATOR
 };
@@ -66,7 +76,7 @@ static xg_tag_mapping tlog3a_xgcb_map[] = {
   { tlog3a_xgcb_version, 	cb_cdata, "/CXMLSafe/Version" },
   { tlog3a_xgcb_length, 	cb_cdata, "/CXMLSafe/Length" },
   { tlog3a_xgcb_data, 	cb_cdata, "/CXMLSafe/Data" },
-  { NULL,	(xg_cb_type)0,         NULL}
+  { nullptr,	(xg_cb_type)0,         nullptr}
 };
 #endif
 
@@ -97,7 +107,7 @@ static xg_tag_mapping tlog3b_xgcb_map[] = {
   { tlog3b_xgcb_wptno,	cb_cdata, "/CTrackFile/CTrackPoint/Northing" },
   { tlog3b_xgcb_wptal,	cb_cdata, "/CTrackFile/CTrackPoint/Altitude" },
   { tlog3b_xgcb_tpten,	cb_end,   "/CTrackFile/CTrackPoint" },
-  { NULL,	(xg_cb_type)0,         NULL}
+  { nullptr,	(xg_cb_type)0,         nullptr}
 };
 
 /* helpers */
@@ -152,7 +162,7 @@ tlog3a_xgcb_version(xg_string args, const QXmlStreamAttributes*)
 }
 
 static void
-tlog3a_xgcb_length(xg_string args, const QXmlStreamAttributes*)
+tlog3a_xgcb_length(xg_string, const QXmlStreamAttributes*)
 {
 }
 
@@ -215,7 +225,7 @@ tlog3a_xgcb_data(xg_string args, const QXmlStreamAttributes*)
 static void
 tlog3b_xgcb_tfna(xg_string args, const QXmlStreamAttributes*)
 {
-  if (xmltrk == NULL) {
+  if (xmltrk == nullptr) {
     xmltrk = route_head_alloc();
     track_add_head(xmltrk);
   }
@@ -226,7 +236,7 @@ tlog3b_xgcb_tfna(xg_string args, const QXmlStreamAttributes*)
 static void
 tlog3b_xgcb_tfdes(xg_string args, const QXmlStreamAttributes*)
 {
-  if (xmltrk == NULL) {
+  if (xmltrk == nullptr) {
     xmltrk = route_head_alloc();
     track_add_head(xmltrk);
   }
@@ -235,7 +245,7 @@ tlog3b_xgcb_tfdes(xg_string args, const QXmlStreamAttributes*)
 
 
 static void
-tlog3b_xgcb_wptst(xg_string args, const QXmlStreamAttributes*)
+tlog3b_xgcb_wptst(xg_string, const QXmlStreamAttributes*)
 {
   xmlwpt = new Waypoint;
   xmldatum = DATUM_WGS84;
@@ -243,7 +253,7 @@ tlog3b_xgcb_wptst(xg_string args, const QXmlStreamAttributes*)
 
 
 static void
-tlog3b_xgcb_tptst(xg_string args, const QXmlStreamAttributes*)
+tlog3b_xgcb_tptst(xg_string, const QXmlStreamAttributes*)
 {
   xmlwpt = new Waypoint;
   xmldatum = DATUM_WGS84;
@@ -251,16 +261,16 @@ tlog3b_xgcb_tptst(xg_string args, const QXmlStreamAttributes*)
 
 
 static void
-tlog3b_xgcb_tpten(xg_string args, const QXmlStreamAttributes*)
+tlog3b_xgcb_tpten(xg_string, const QXmlStreamAttributes*)
 {
   finalize_pt(xmlwpt);
 
-  if (xmltrk == NULL) {
+  if (xmltrk == nullptr) {
     xmltrk = route_head_alloc();
     track_add_head(xmltrk);
   }
   track_add_wpt(xmltrk, xmlwpt);
-  xmlwpt = NULL;
+  xmlwpt = nullptr;
 }
 
 
@@ -322,26 +332,23 @@ tlog3b_xgcb_tptdt(xg_string args, const QXmlStreamAttributes*)
 
 
 static void
-tlog3b_xgcb_wpten(xg_string args, const QXmlStreamAttributes*)
+tlog3b_xgcb_wpten(xg_string, const QXmlStreamAttributes*)
 {
   finalize_pt(xmlwpt);
   waypt_add(xmlwpt);
-  xmlwpt = NULL;
+  xmlwpt = nullptr;
 }
 
 
 static char*
 read_str(gbfile* f)
 {
-  int i;
-  char* res;
-
-  i = gbfgetc(f);
+  int i = gbfgetc(f);
   if (i == 0xff) {
     i = gbfgetint16(f);
   }
 
-  res = (char*) xmalloc(i + 1);
+  char* res = (char*) xmalloc(i + 1);
   res[i] = '\0';
   if (i) {
     gbfread(res, 1, i, f);
@@ -384,13 +391,10 @@ write_str(const QString& str, gbfile* f)
 static int
 read_datum(gbfile* f)
 {
-  int res;
-  char* d, *g;
+  char* d = read_str(f);
+  char* g = read_str(f);
 
-  d = read_str(f);
-  g = read_str(f);
-
-  res = GPS_Lookup_Datum_Index(d);
+  int res = GPS_Lookup_Datum_Index(d);
 
   if (*g && (strcmp(d, g) != 0)) {
     fatal(MYNAME ": Unsupported combination of datum '%s' and grid '%s'!\n",
@@ -407,14 +411,9 @@ static void
 read_CTrackFile(const int version)
 {
   char buf[128];
-  int32_t ver;
-  int32_t tcount, wcount;
-  int16_t u1;
-  int32_t ux;
-  route_head* track;
   int i;
 
-  u1 = gbfgetint16(fin);
+  int16_t u1 = gbfgetint16(fin);
 
   gbfread(buf, 1, 10, fin);
   if ((u1 != 0x0a) || (strncmp("CTrackFile", buf, 10) != 0)) {
@@ -425,17 +424,16 @@ read_CTrackFile(const int version)
     gbfseek(fin, 36, SEEK_CUR);  /* skip unknown 36 bytes */
   }
 
-  ver = gbfgetint32(fin);
+  int32_t ver = gbfgetint32(fin);
   if (ver != version) {
     fatal(MYNAME ": Unknown or invalid track file (%d).\n", ver);
   }
 
-  ux = gbfgetint32(fin); // Unknown 2
-  ux = gbfgetint32(fin); // Unknown 3
-  ux = gbfgetint32(fin); // Unknown 4
-  (void) ux; // Silence warning.
+  (void) gbfgetint32(fin); // Unknown 2
+  (void) gbfgetint32(fin); // Unknown 3
+  (void) gbfgetint32(fin); // Unknown 4
 
-  track = route_head_alloc();
+  route_head* track = route_head_alloc();
   track_add_head(track);
 
   /* S1 .. S9: comments, hints, jokes, aso */
@@ -444,29 +442,25 @@ read_CTrackFile(const int version)
     xfree(s);
   }
 
-  tcount = gbfgetint32(fin);
+  int32_t tcount = gbfgetint32(fin);
   int datum = 118;
   if (tcount > 0) {
     datum = read_datum(fin);
     if (version == 8) {
-      int len;
-
       gbfread(buf, 1, 4, fin);
-      len = gbfgetint16(fin);
+      int len = gbfgetint16(fin);
       gbfseek(fin, len, SEEK_CUR);
     }
   }
 
   while (tcount > 0) {
-    Waypoint* wpt;
-
     tcount--;
 
     if (version == 8) {
       datum = read_datum(fin);
     }
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
     wpt->latitude = gbfgetdbl(fin);
     wpt->longitude = gbfgetdbl(fin);
@@ -505,8 +499,6 @@ read_CTrackFile(const int version)
     }
 
     while (! gbfeof(fin)) {
-      Waypoint* wpt;
-
       i = gbfgetc(fin);
       if (i == 0) {
         break;
@@ -515,7 +507,7 @@ read_CTrackFile(const int version)
       gbfungetc(i, fin);
       datum = read_datum(fin);
 
-      wpt = new Waypoint;
+      Waypoint* wpt = new Waypoint;
 
       wpt->latitude = gbfgetdbl(fin);
       wpt->longitude = gbfgetdbl(fin);
@@ -532,7 +524,7 @@ read_CTrackFile(const int version)
     return;
   }
 
-  wcount = gbfgetint32(fin);
+  int32_t wcount = gbfgetint32(fin);
   if (wcount == 0) {
     return;
   }
@@ -540,12 +532,9 @@ read_CTrackFile(const int version)
   datum = read_datum(fin);
 
   while (wcount > 0) {
-    Waypoint* wpt;
-    int32_t namect, i;
-
     wcount--;
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
     wpt->latitude = gbfgetdbl(fin);
     wpt->longitude = gbfgetdbl(fin);
@@ -553,14 +542,12 @@ read_CTrackFile(const int version)
 
     convert_datum(wpt, datum);
 
-    namect = gbfgetint32(fin);
+    int32_t namect = gbfgetint32(fin);
 
     // variants of shortname
 
-    for (i = 0; i < namect; i++) {
-      char* name;
-
-      name = read_str(fin);
+    for (int32_t i = 0; i < namect; i++) {
+      char* name = read_str(fin);
       if (name && *name) {
         switch (i) {
         case 0:
@@ -584,12 +571,10 @@ read_CTrackFile(const int version)
 static int
 inflate_buff(const char* buff, const size_t size, char** out_buff)
 {
-  int res = Z_OK;
   z_stream strm;
   char out[DEFLATE_BUFF_SIZE];
-  char* cout = NULL;
+  char* cout = nullptr;
   uint32_t bytes = 0;
-  uint32_t have;
 
   strm.zalloc = Z_NULL;
   strm.zfree = Z_NULL;
@@ -597,7 +582,7 @@ inflate_buff(const char* buff, const size_t size, char** out_buff)
   strm.avail_in = 0;
   strm.next_in = Z_NULL;
 
-  res = inflateInit(&strm);
+  int res = inflateInit(&strm);
   if (res != Z_OK) {
     return res;
   }
@@ -618,7 +603,7 @@ inflate_buff(const char* buff, const size_t size, char** out_buff)
       (void)inflateEnd(&strm);
       return res;
     }
-    have = DEFLATE_BUFF_SIZE - strm.avail_out;
+    uint32_t have = DEFLATE_BUFF_SIZE - strm.avail_out;
     if (have > 0) {
       cout = (char*) xrealloc(cout, bytes + have);
       memcpy(cout+bytes, out, have);
@@ -632,22 +617,22 @@ inflate_buff(const char* buff, const size_t size, char** out_buff)
 
 
 static void
-read_CXMLSafe(void)
+read_CXMLSafe()
 {
-  char* xmlstr = NULL;
+  char* xmlstr = nullptr;
 
-  xmlbin = NULL;
+  xmlbin = nullptr;
   xmlbinsize = 0;
 
-  xml_init(fin->name, tlog3a_xgcb_map, NULL);
+  xml_init(fin->name, tlog3a_xgcb_map, nullptr);
   xml_read();
   xml_deinit();
 
-  if (xmlbin != NULL) {
+  if (xmlbin != nullptr) {
     inflate_buff(xmlbin, xmlbinsize, &xmlstr);
     xfree(xmlbin);
 
-    xml_init(NULL, tlog3b_xgcb_map, NULL);
+    xml_init(nullptr, tlog3b_xgcb_map, nullptr);
     xml_readstring(xmlstr);
     xml_deinit();
 
@@ -658,13 +643,11 @@ read_CXMLSafe(void)
 #endif
 
 static void
-read_XML(void)
+read_XML()
 {
-  xml_init(fin->name, tlog3b_xgcb_map, NULL);
+  xml_init(fin->name, tlog3b_xgcb_map, nullptr);
   xml_read();
   xml_deinit();
-
-  return;
 }
 
 /*******************************************************************************
@@ -676,20 +659,20 @@ dmtlog_rd_init(const QString& fname)
 {
   fin = gbfopen_le(fname, "rb", MYNAME);
 
-  xmlbin = NULL;
-  xmltrk = NULL;
-  xmlwpt = NULL;
+  xmlbin = nullptr;
+  xmltrk = nullptr;
+  xmlwpt = nullptr;
   xmlgrid = QString();
 }
 
 static void
-dmtlog_rd_deinit(void)
+dmtlog_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-dmtlog_read(void)
+dmtlog_read()
 {
   switch (gbfgetuint32(fin)) {
 
@@ -724,7 +707,7 @@ dmtlog_wr_init(const QString& fname)
 }
 
 static void
-dmtlog_wr_deinit(void)
+dmtlog_wr_deinit()
 {
   gbfclose(fout);
 }
@@ -732,15 +715,13 @@ dmtlog_wr_deinit(void)
 static void
 write_header(const route_head* trk)
 {
-  int count, i;
   const char ZERO = '\0';
 
   header_written = 1;
 
-  count = 0;
-  if (trk != NULL) {
-    queue* curr, *prev;
-    QUEUE_FOR_EACH(&trk->waypoint_list, curr, prev) count++;
+  int count = 0;
+  if (trk != nullptr) {
+    count = trk->waypoint_list.count();
   }
   if (!trk || trk->rte_name.isEmpty()) {
     write_str("Name", fout);
@@ -754,7 +735,7 @@ write_header(const route_head* trk)
                  QString::number(waypt_count()) + " waypoints";
   write_str(cout, fout);
 
-  for (i = 3; i <= 8; i++) {
+  for (int i = 3; i <= 8; i++) {
     gbfputc(ZERO, fout);
   }
   write_str("GPSBabel", fout);
@@ -777,7 +758,7 @@ track_hdr_cb(const route_head* trk)
 }
 
 static void
-track_tlr_cb(const route_head* trk)
+track_tlr_cb(const route_head*)
 {
 }
 
@@ -796,13 +777,11 @@ track_wpt_cb(const Waypoint* wpt)
 static void
 wpt_cb(const Waypoint* wpt)
 {
-  int names;
-
   gbfputdbl(wpt->latitude, fout);
   gbfputdbl(wpt->longitude, fout);
   gbfputdbl(wpt->altitude != unknown_alt ? wpt->altitude : 0, fout);
 
-  names = 1;
+  int names = 1;
   if (!wpt->description.isEmpty()) {
     names = 2;
   }
@@ -814,7 +793,7 @@ wpt_cb(const Waypoint* wpt)
 }
 
 static void
-dmtlog_write(void)
+dmtlog_write()
 {
   track_index = atoi(opt_index);
   /* ... validate index */
@@ -831,7 +810,7 @@ dmtlog_write(void)
   this_index = 0;
   track_disp_all(track_hdr_cb, track_tlr_cb, track_wpt_cb);
   if (!header_written) {
-    write_header(NULL);
+    write_header(nullptr);
   }
   gbfputint32(waypt_count(), fout);
   if (waypt_count() > 0) {
@@ -856,9 +835,11 @@ ff_vecs_t dmtlog_vecs = {
   dmtlog_wr_deinit,
   dmtlog_read,
   dmtlog_write,
-  NULL,
+  nullptr,
   dmtlog_args,
   CET_CHARSET_ASCII, 0
+  , NULL_POS_OPS,
+  nullptr
 
 };
 

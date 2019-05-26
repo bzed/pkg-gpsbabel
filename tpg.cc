@@ -40,7 +40,7 @@ static unsigned int waypt_out_count;
 
 static
 arglist_t tpg_args[] = {
-  {"datum", &tpg_datum_opt, "Datum (default=NAD27)", "N. America 1927 mean", ARGTYPE_STRING, ARG_NOMINMAX },
+  {"datum", &tpg_datum_opt, "Datum (default=NAD27)", "N. America 1927 mean", ARGTYPE_STRING, ARG_NOMINMAX , nullptr},
   ARG_TERMINATOR
 };
 
@@ -60,7 +60,7 @@ valid_tpg_header(char* header, int len)
 }
 
 static void
-tpg_common_init(void)
+tpg_common_init()
 {
   tpg_datum_idx = GPS_Lookup_Datum_Index(tpg_datum_opt);
   if (tpg_datum_idx < 0) {
@@ -76,7 +76,7 @@ tpg_rd_init(const QString& fname)
 }
 
 static void
-tpg_rd_deinit(void)
+tpg_rd_deinit()
 {
   gbfclose(tpg_file_in);
 }
@@ -91,22 +91,19 @@ tpg_wr_init(const QString& fname)
 }
 
 static void
-tpg_wr_deinit(void)
+tpg_wr_deinit()
 {
   mkshort_del_handle(&mkshort_handle);
   gbfclose(tpg_file_out);
 }
 
 static void
-tpg_read(void)
+tpg_read()
 {
   char buff[MAXTPGSTRINGSIZE + 1];
-  Waypoint* wpt_tmp;
-  double lat, lon, elev;
   double amt;
-  short int pointcount;
 
-  pointcount = gbfgetint16(tpg_file_in);
+  short int pointcount = gbfgetint16(tpg_file_in);
 
   /* the rest of the header */
   gbfread(&buff[0], 19, 1, tpg_file_in);
@@ -117,7 +114,7 @@ tpg_read(void)
 
 
   while (pointcount--) {
-    wpt_tmp = new Waypoint;
+    Waypoint* wpt_tmp = new Waypoint;
 
     /* pascal-like shortname */
     wpt_tmp->shortname = gbfgetpstr(tpg_file_in);
@@ -126,16 +123,16 @@ tpg_read(void)
     /* coordinates are in NAD27/CONUS datum                     */
 
     /* 8 bytes - longitude, sign swapped  */
-    lon = gbfgetdbl(tpg_file_in);
+    double lon = gbfgetdbl(tpg_file_in);
 
     /* 8 bytes - latitude */
-    lat = gbfgetdbl(tpg_file_in);
+    double lat = gbfgetdbl(tpg_file_in);
 
     /* swap sign before we do datum conversions */
     lon *= -1.0;
 
     /* 2 bytes - elevation in feet */
-    elev = FEET_TO_METERS(gbfgetint16(tpg_file_in));
+    double elev = FEET_TO_METERS(gbfgetint16(tpg_file_in));
 
     /* convert incoming NAD27/CONUS coordinates to WGS84 */
     GPS_Math_Known_Datum_To_WGS84_M(
@@ -168,9 +165,8 @@ tpg_waypt_pr(const Waypoint* wpt)
 {
   double lon, lat;
   double amt;
-  short int elev;
   char tbuf[64];
-  char c,ocount;
+  char ocount;
   QString shortname;
   QString description;
   int i;
@@ -227,10 +223,10 @@ tpg_waypt_pr(const Waypoint* wpt)
   lon *= -1.0;
 
   /* convert meters back to feets */
-  elev = (short int) METERS_TO_FEET(wpt->altitude);
+  short int elev = (short int) METERS_TO_FEET(wpt->altitude);
 
   /* 1 bytes stringsize for shortname */
-  c = shortname.length();
+  char c = shortname.length();
   ocount = 0;
   /*
    * It's reported the only legal characters are upper case
@@ -280,16 +276,15 @@ tpg_waypt_pr(const Waypoint* wpt)
 }
 
 static void
-tpg_write(void)
+tpg_write()
 {
-  int s;
   unsigned char header_bytes[] = { 0xFF, 0xFF, 0x01, 0x00, 0x0D,
                                    0x00, 0x43, 0x54, 0x6F, 0x70,
                                    0x6F, 0x57, 0x61, 0x79, 0x70,
                                    0x6F, 0x69, 0x6E, 0x74
                                  };
 
-  s = waypt_count();
+  int s = waypt_count();
 
   if (global_opts.synthesize_shortnames) {
     setshort_length(mkshort_handle, 32);
@@ -319,7 +314,8 @@ ff_vecs_t tpg_vecs = {
   tpg_wr_deinit,
   tpg_read,
   tpg_write,
-  NULL,
+  nullptr,
   tpg_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
-};
+  , NULL_POS_OPS,
+  nullptr};

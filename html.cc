@@ -23,17 +23,17 @@
 #include "defs.h"
 #include "jeeps/gpsmath.h"
 #include "src/core/xmltag.h"
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
 
 static gbfile* file_out;
 static short_handle mkshort_handle;
 
-static char* stylesheet = NULL;
-static char* html_encrypt = NULL;
-static char* includelogs = NULL;
-static char* degformat = NULL;
-static char* altunits = NULL;
+static char* stylesheet = nullptr;
+static char* html_encrypt = nullptr;
+static char* includelogs = nullptr;
+static char* degformat = nullptr;
+static char* altunits = nullptr;
 
 #define MYNAME "HTML"
 
@@ -41,23 +41,23 @@ static
 arglist_t html_args[] = {
   {
     "stylesheet", &stylesheet,
-    "Path to HTML style sheet", NULL, ARGTYPE_STRING, ARG_NOMINMAX
+    "Path to HTML style sheet", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "encrypt", &html_encrypt,
-    "Encrypt hints using ROT13", NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    "Encrypt hints using ROT13", nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "logs", &includelogs,
-    "Include groundspeak logs if present", NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    "Include groundspeak logs if present", nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "degformat", &degformat,
-    "Degrees output as 'ddd', 'dmm'(default) or 'dms'", "dmm", ARGTYPE_STRING, ARG_NOMINMAX
+    "Degrees output as 'ddd', 'dmm'(default) or 'dms'", "dmm", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "altunits", &altunits,
-    "Units for altitude (f)eet or (m)etres", "m", ARGTYPE_STRING, ARG_NOMINMAX
+    "Units for altitude (f)eet or (m)etres", "m", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -72,7 +72,7 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
   mkshort_del_handle(&mkshort_handle);
@@ -81,11 +81,10 @@ wr_deinit(void)
 static void
 html_disp(const Waypoint* wpt)
 {
-  char* cout;
   int32_t utmz;
-  double utme, utmn;
+  double utme;
+  double utmn;
   char utmzc;
-  fs_xml* fs_gpx = NULL;
 
 
   GPS_Math_WGS84_To_UTM_EN(wpt->latitude, wpt->longitude,
@@ -94,7 +93,7 @@ html_disp(const Waypoint* wpt)
   gbfprintf(file_out, "\n<a name=\"%s\"><hr></a>\n", CSTRc(wpt->shortname));
   gbfprintf(file_out, "<table width=\"100%%\">\n");
   gbfprintf(file_out, "<tr><td><p class=\"gpsbabelwaypoint\">%s - ",(global_opts.synthesize_shortnames) ? CSTRc(mkshort_from_wpt(mkshort_handle, wpt)) : CSTRc(wpt->shortname));
-  cout = pretty_deg_format(wpt->latitude, wpt->longitude, degformat[2], " ", 1);
+  char* cout = pretty_deg_format(wpt->latitude, wpt->longitude, degformat[2], " ", 1);
   gbfprintf(file_out, "%s (%d%c %6.0f %7.0f)", cout, utmz, utmzc, utme, utmn);
   xfree(cout);
   if (wpt->altitude != unknown_alt) {
@@ -151,22 +150,19 @@ html_disp(const Waypoint* wpt)
     gbfprintf(file_out, "<p class=\"gpsbabelnotes\">%s</p>\n", CSTRc(wpt->notes));
   }
 
-  fs_gpx = NULL;
+  fs_xml* fs_gpx = nullptr;
   if (includelogs) {
     fs_gpx = (fs_xml*)fs_chain_find(wpt->fs, FS_GPX);
   }
 
   if (fs_gpx && fs_gpx->tag) {
     xml_tag* root = fs_gpx->tag;
-    xml_tag* curlog = NULL;
-    xml_tag* logpart = NULL;
-    curlog = xml_findfirst(root, "groundspeak:log");
+    xml_tag* curlog = xml_findfirst(root, "groundspeak:log");
     while (curlog) {
       time_t logtime = 0;
-      struct tm* logtm = NULL;
       gbfprintf(file_out, "<p class=\"gpsbabellog\">\n");
 
-      logpart = xml_findfirst(curlog, "groundspeak:type");
+      xml_tag* logpart = xml_findfirst(curlog, "groundspeak:type");
       if (logpart) {
         gbfprintf(file_out, "<span class=\"gpsbabellogtype\">%s</span> by ", CSTR(logpart->cdata));
       }
@@ -181,7 +177,7 @@ html_disp(const Waypoint* wpt)
       logpart = xml_findfirst(curlog, "groundspeak:date");
       if (logpart) {
         logtime = xml_parse_time(logpart->cdata).toTime_t();
-        logtm = localtime(&logtime);
+        struct tm* logtm = localtime(&logtime);
         if (logtm) {
           gbfprintf(file_out,
                     "<span class=\"gpsbabellogdate\">%04d-%02d-%02d</span><br>\n",
@@ -193,10 +189,9 @@ html_disp(const Waypoint* wpt)
 
       logpart = xml_findfirst(curlog, "groundspeak:log_wpt");
       if (logpart) {
-        char* coordstr = NULL;
         double lat = 0;
         double lon = 0;
-        coordstr = xml_attribute(logpart, "lat");
+        char* coordstr = xml_attribute(logpart, "lat");
         if (coordstr) {
           lat = atof(coordstr);
         }
@@ -213,10 +208,8 @@ html_disp(const Waypoint* wpt)
 
       logpart = xml_findfirst(curlog, "groundspeak:text");
       if (logpart) {
-        char* encstr = NULL;
-        int encoded = 0;
-        encstr = xml_attribute(logpart, "encoded");
-        encoded = (toupper(encstr[0]) != 'F');
+        char* encstr = xml_attribute(logpart, "encoded");
+        int encoded = (toupper(encstr[0]) != 'F');
 
         QString s;
         if (html_encrypt && encoded) {
@@ -249,7 +242,7 @@ html_index(const Waypoint* wpt)
 }
 
 static void
-data_write(void)
+data_write()
 {
   setshort_length(mkshort_handle, 6);
 
@@ -260,7 +253,7 @@ data_write(void)
 
   // Don't write this line when running test suite.  Actually, we should
   // probably not write this line at all...
-  if (!getenv("GPSBABEL_FREEZE_TIME")) {
+  if (ugetenv("GPSBABEL_FREEZE_TIME").isNull()) {
     gbfprintf(file_out, " <meta name=\"Generator\" content=\"GPSBabel %s\">\n", gpsbabel_version);
   }
   gbfprintf(file_out, " <title>GPSBabel HTML Output</title>\n");
@@ -289,13 +282,15 @@ data_write(void)
 ff_vecs_t html_vecs = {
   ff_type_file,
   { ff_cap_write, ff_cap_none, ff_cap_none },
-  NULL,
+  nullptr,
   wr_init,
-  NULL,
+  nullptr,
   wr_deinit,
-  NULL,
+  nullptr,
   data_write,
-  NULL,
+  nullptr,
   html_args,
   CET_CHARSET_UTF8, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

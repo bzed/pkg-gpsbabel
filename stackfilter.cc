@@ -19,113 +19,41 @@
 
  */
 
+#include <cstdlib>  // for atoi
+
 #include "defs.h"
 #include "filterdefs.h"
-#include <stdlib.h>
+#include "stackfilter.h"
 
 #if FILTERS_ENABLED
 
 #define MYNAME "Stack filter"
 
-static char* opt_push = NULL;
-static char* opt_copy = NULL;
-static char* opt_pop = NULL;
-static char* opt_append = NULL;
-static char* opt_discard = NULL;
-static char* opt_replace = NULL;
-static char* opt_swap = NULL;
-static char* opt_depth = NULL;
-static char* nowarn = NULL;
-static int  warnings_enabled = 1;
-static int  swapdepth = 0;
-
-static
-arglist_t stackfilt_args[] = {
-  {
-    "push", &opt_push, "Push waypoint list onto stack", NULL,
-    ARGTYPE_BEGIN_EXCL | ARGTYPE_BEGIN_REQ | ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "pop", &opt_pop, "Pop waypoint list from stack", NULL,
-    ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "swap", &opt_swap, "Swap waypoint list with <depth> item on stack",
-    NULL, ARGTYPE_END_EXCL | ARGTYPE_END_REQ | ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "copy", &opt_copy, "(push) Copy waypoint list", NULL,
-    ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "append", &opt_append, "(pop) Append list", NULL,
-    ARGTYPE_BEGIN_EXCL | ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "discard", &opt_discard, "(pop) Discard top of stack",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "replace", &opt_replace, "(pop) Replace list (default)",
-    NULL, ARGTYPE_END_EXCL | ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "depth", &opt_depth, "(swap) Item to use (default=1)",
-    NULL, ARGTYPE_INT, "0", NULL
-  },
-  {
-    "nowarn", &nowarn, "Suppress cleanup warning", NULL,
-    ARGTYPE_BOOL | ARGTYPE_HIDDEN, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
-struct stack_elt {
-  queue waypts;
-  queue routes;
-  queue tracks;
-  unsigned int waypt_ct;
-  int route_count;
-  int track_count;
-  struct stack_elt* next;
-}* stack = NULL;
-
-
-void
-stackfilt_process(void)
+void StackFilter::process()
 {
-  struct stack_elt* tmp_elt = NULL;
-  queue* elem = NULL;
-  queue* tmp = NULL;
-  queue tmp_queue;
-  unsigned int tmp_count;
+  stack_elt* tmp_elt = nullptr;
+  WaypointList* waypt_list_ptr;
+  RouteList* route_list_ptr;
 
   if (opt_push) {
-    tmp_elt = (struct stack_elt*)xmalloc(sizeof(struct stack_elt));
-
-    QUEUE_MOVE(&(tmp_elt->waypts), &waypt_head);
-    tmp_elt->waypt_ct = waypt_count();
-    set_waypt_count(0);
+    tmp_elt = new stack_elt;
     tmp_elt->next = stack;
     stack = tmp_elt;
-    if (opt_copy) {
-      QUEUE_FOR_EACH(&(stack->waypts), elem, tmp) {
-        waypt_add(new Waypoint(*(Waypoint*)elem));
-      }
+
+    waypt_list_ptr = &(tmp_elt->waypts);
+    waypt_backup(&waypt_list_ptr);
+    if (!opt_copy) {
+      waypt_flush_all();
     }
 
-    tmp = NULL;
-    route_backup(&(tmp_elt->route_count), &tmp);
-    QUEUE_MOVE(&(tmp_elt->routes), tmp);
-    xfree(tmp);
+    route_list_ptr = &(tmp_elt->routes);
+    route_backup(&route_list_ptr);
     if (!opt_copy) {
       route_flush_all_routes();
     }
 
-    tmp = NULL;
-    track_backup(&(tmp_elt->track_count), &tmp);
-    QUEUE_MOVE(&(tmp_elt->tracks), tmp);
-    xfree(tmp);
+    route_list_ptr = &(tmp_elt->tracks);
+    track_backup(&route_list_ptr);
     if (!opt_copy) {
       route_flush_all_tracks();
     }
@@ -136,28 +64,24 @@ stackfilt_process(void)
       fatal(MYNAME ": stack empty\n");
     }
     if (opt_append) {
-      QUEUE_FOR_EACH(&(stack->waypts), elem, tmp) {
-        waypt_add((Waypoint*)elem);
-      }
+      waypt_append(&(stack->waypts));
+      stack->waypts.flush();
       route_append(&(stack->routes));
-      route_flush(&(stack->routes));
+      stack->routes.flush();
       track_append(&(stack->tracks));
-      route_flush(&(stack->tracks));
+      stack->tracks.flush();
     } else if (opt_discard) {
-      waypt_flush(&(stack->waypts));
-      route_flush(&(stack->routes));
-      route_flush(&(stack->tracks));
+      stack->waypts.flush();
+      stack->routes.flush();
+      stack->tracks.flush();
     } else {
-      waypt_flush(&waypt_head);
-      QUEUE_MOVE(&(waypt_head), &(stack->waypts));
-      set_waypt_count(stack->waypt_ct);
-
+      waypt_restore(&(stack->waypts));
       route_restore(&(stack->routes));
       track_restore(&(stack->tracks));
     }
 
     stack = tmp_elt->next;
-    xfree(tmp_elt);
+    delete tmp_elt;
   } else if (opt_swap) {
     tmp_elt = stack;
     while (swapdepth > 1) {
@@ -167,32 +91,16 @@ stackfilt_process(void)
       tmp_elt = tmp_elt->next;
       swapdepth--;
     }
-    QUEUE_MOVE(&tmp_queue, &(tmp_elt->waypts));
-    QUEUE_MOVE(&(tmp_elt->waypts), &waypt_head);
-    QUEUE_MOVE(&waypt_head, &tmp_queue);
 
-    QUEUE_MOVE(&tmp_queue, &(tmp_elt->routes));
-    tmp = NULL;
-    route_backup(&(tmp_elt->route_count), &tmp);
-    QUEUE_MOVE(&(tmp_elt->routes), tmp);
-    xfree(tmp);
-    route_restore(&tmp_queue);
+    waypt_swap(tmp_elt->waypts);
 
-    QUEUE_MOVE(&tmp_queue, &(tmp_elt->tracks));
-    tmp = NULL;
-    track_backup(&(tmp_elt->track_count), &tmp);
-    QUEUE_MOVE(&(tmp_elt->tracks), tmp);
-    xfree(tmp);
-    track_restore(&tmp_queue);
+    route_swap(tmp_elt->routes);
 
-    tmp_count = waypt_count();
-    set_waypt_count(tmp_elt->waypt_ct);
-    tmp_elt->waypt_ct = tmp_count;
+    track_swap(tmp_elt->tracks);
   }
 }
 
-void
-stackfilt_init(const char* args)
+void StackFilter::init()
 {
 
   int invalid = 0;
@@ -231,35 +139,27 @@ stackfilt_init(const char* args)
 
 }
 
-void
-stackfilt_deinit(void)
+void StackFilter::deinit()
 {
   swapdepth = 0;
 }
 
-void
-stackfilt_exit(void)
+void StackFilter::exit()
 {
-  struct stack_elt* tmp_elt = NULL;
+  stack_elt* tmp_elt = nullptr;
 
   if (warnings_enabled && stack) {
     warning(MYNAME " Warning: leftover stack entries; "
             "check command line for mistakes\n");
   }
   while (stack) {
-    waypt_flush(&(stack->waypts));
+    stack->waypts.flush();
+    stack->routes.flush();
+    stack->tracks.flush();
     tmp_elt = stack;
     stack = stack->next;
-    xfree(tmp_elt);
+    delete tmp_elt;
   }
 }
-
-filter_vecs_t stackfilt_vecs = {
-  stackfilt_init,
-  stackfilt_process,
-  stackfilt_deinit,
-  stackfilt_exit,
-  stackfilt_args
-};
 
 #endif // FILTERS_ENABLED

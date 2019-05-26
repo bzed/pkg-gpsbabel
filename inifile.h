@@ -21,30 +21,32 @@
 #ifndef HAVE_INIFILE_H
 #define HAVE_INIFILE_H
 
-#include "defs.h"
+#include <QtCore/QHash>    // for QHash
+#include <QtCore/QList>    // for QList
+#include <QtCore/QString>  // for QString
 
-typedef struct inifile_s {
-  int isecs;			/* number of sections */
-  queue secs;			/* sections */
-  uint8_t unicode:1;
-} inifile_t;
+class InifileSection;
+struct inifile_t {
+  QHash<QString, InifileSection> sections;
+  QString source;
+};
 
 /*
 	inifile_init:
 	  reads inifile filename into memory
 	  myname represents the calling module
  */
-inifile_t* inifile_init(const char* filename, const char* myname);
+inifile_t* inifile_init(const QString& filename, const char* myname);
 void inifile_done(inifile_t* inifile);
 
-int inifile_has_section(const inifile_t* inifile, const char* section);
+bool inifile_has_section(const inifile_t* inifile, const char* section);
 
 /*
      inifile_readstr:
-       returns NULL if not found, otherwise a pointer to the value of key ...
-       all key values are valid entities until "inifile_done"
+       returns a null QString if not found, otherwise a non-null but possibly
+       empty Qstring with the value of key ...
  */
-char* inifile_readstr(const inifile_t* inifile, const char* section, const char* key);
+QString inifile_readstr(const inifile_t* inifile, const char* section, const char* key);
 
 /*
      inifile_readint:
@@ -57,6 +59,6 @@ int inifile_readint(const inifile_t* inifile, const char* section, const char* k
      inifile_readint_def:
        if found inifile_readint_def returns value of key, otherwise a default value "def"
  */
-int inifile_readint_def(const inifile_t* inifile, const char* section, const char* key, const int def);
+int inifile_readint_def(const inifile_t* inifile, const char* section, const char* key, int def);
 
 #endif

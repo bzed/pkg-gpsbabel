@@ -17,539 +17,237 @@
 
  */
 
-#include <stdio.h>
-#include "defs.h"
-#include "grtcirc.h"
-#include "session.h"
+#include <cassert>              // for assert
+#include <cstddef>              // for nullptr_t
+#include <algorithm>            // for sort
+#include <iterator>
 
-static queue my_route_head;
-static queue my_track_head;
-static int rte_head_ct;
-static int rte_waypts;
-static int trk_head_ct;
-static int trk_waypts;
+#include <QtCore/QDateTime>     // for QDateTime
+#include <QtCore/QList>         // for QList<>::iterator
+#include <QtCore/QString>       // for QString
+#include <QtCore/QtGlobal>      // for foreach
+
+#include "defs.h"
+#include "grtcirc.h"            // for RAD, gcdist, heading_true_degrees, radtometers
+#include "session.h"            // for curr_session, session_t (ptr only)
+#include "src/core/datetime.h"  // for DateTime
+#include "src/core/optional.h"  // for optional, operator>, operator<
+
+
+RouteList* global_route_list;
+RouteList* global_track_list;
 
 extern void update_common_traits(const Waypoint* wpt);
 
 void
-route_init(void)
+route_init()
 {
-  QUEUE_INIT(&my_route_head);
-  QUEUE_INIT(&my_track_head);
+  global_route_list = new RouteList;
+  global_track_list = new RouteList;
 }
 
 unsigned int
-route_waypt_count(void)
+route_waypt_count()
 {
-  /* total wapoint count -- all routes */
-  return rte_waypts;
+  /* total waypoint count -- all routes */
+  return global_route_list->waypt_count();
 }
 
 unsigned int
-route_count(void)
+route_count()
 {
-  return rte_head_ct;	/* total # of routes */
+  return global_route_list->count();	/* total # of routes */
 }
 
 unsigned int
-track_waypt_count(void)
+track_waypt_count()
 {
-  /* totaly waypoint count -- all tracks */
-  return trk_waypts;
+  /* total waypoint count -- all tracks */
+  return global_track_list->waypt_count();
 }
 
 unsigned int
-track_count(void)
+track_count()
 {
-  return trk_head_ct;	/* total # of tracks */
+  return global_track_list->count();	/* total # of tracks */
 }
 
+// FIXME: provide a method to deallocate a head that isn't added onto a route list,
+// or just let the users allocate with new and deallocate with delete.
 route_head*
-route_head_alloc(void)
+route_head_alloc()
 {
-  route_head* rte_head = new route_head;
-  return rte_head;
-}
-
-static void
-any_route_free(route_head* rte)
-{
-  delete rte;
-  rte = NULL;
-}
-
-static void
-any_route_add_head(route_head* rte, queue* head)
-{
-  ENQUEUE_TAIL(head, &rte->Q);
-}
-
-static void
-any_route_del_head(route_head* rte)
-{
-  dequeue(&rte->Q);
-  any_route_free(rte);
+  return new route_head;
 }
 
 void
 route_add_head(route_head* rte)
 {
-  any_route_add_head(rte, &my_route_head);
-  rte_head_ct++;
+  global_route_list->add_head(rte);
 }
 
 void
 route_del_head(route_head* rte)
 {
-  rte_waypts -= rte->rte_waypt_ct;
-  any_route_del_head(rte);
-  rte_head_ct--;
+  global_route_list->del_head(rte);
 }
 
 void
 track_add_head(route_head* rte)
 {
-  any_route_add_head(rte, &my_track_head);
-  trk_head_ct++;
+  global_track_list->add_head(rte);
 }
 
 void
 track_del_head(route_head* rte)
 {
-  trk_waypts -= rte->rte_waypt_ct;
-  any_route_del_head(rte);
-  trk_head_ct--;
+  global_track_list->del_head(rte);
 }
 
 void
 track_insert_head(route_head* rte, route_head* predecessor)
 {
-  ENQUEUE_AFTER(&predecessor->Q, &rte->Q);
-  trk_head_ct++;
-}
-
-static
-route_head*
-common_route_by_name(queue* routes, const char* name)
-{
-  queue* elem, *tmp;
-  route_head* rte;
-
-  QUEUE_FOR_EACH(routes, elem, tmp) {
-    rte = (route_head*) elem;
-    if (rte->rte_name == name) {
-      return rte;
-    }
-  }
-
-  return NULL;
-}
-
-route_head*
-route_find_route_by_name(const char* name)
-{
-  return common_route_by_name(&my_route_head, name);
-}
-
-route_head*
-route_find_track_by_name(const char* name)
-{
-  return common_route_by_name(&my_track_head, name);
-}
-
-static void
-any_route_add_wpt(route_head* rte, Waypoint* wpt, int* ct, int synth, const QString& namepart, int number_digits)
-{
-  ENQUEUE_TAIL(&rte->waypoint_list, &wpt->Q);
-  rte->rte_waypt_ct++;	/* waypoints in this route */
-  if (ct) {
-    (*ct)++;
-  }
-  if (synth && wpt->shortname.isEmpty()) {
-    wpt->shortname = QString().sprintf("%s%0*d", CSTRc(namepart), number_digits, *ct);
-    wpt->wpt_flags.shortname_is_synthetic = 1;
-  }
-  update_common_traits(wpt);
+  global_track_list->insert_head(rte, predecessor);
 }
 
 void
-route_add_wpt_named(route_head* rte, Waypoint* wpt, const QString& namepart, int number_digits)
+route_add_wpt(route_head* rte, Waypoint* wpt, const QString& namepart, int number_digits)
 {
   // First point in a route is always a new segment.
   // This improves compatibility when reading from
   // segment-unaware formats.
-  if (QUEUE_EMPTY(&rte->waypoint_list)) {
+  if (rte->waypoint_list.empty()) {
     wpt->wpt_flags.new_trkseg = 1;
   }
 
-  any_route_add_wpt(rte, wpt, &rte_waypts, 1, namepart, number_digits);
+  global_route_list->add_wpt(rte, wpt, true, namepart, number_digits);
 }
 
 void
-route_add_wpt(route_head* rte, Waypoint* wpt)
-{
-  const char RPT[] = "RPT";
-  route_add_wpt_named(rte, wpt, RPT, 3);
-}
-
-void
-track_add_wpt_named(route_head* rte, Waypoint* wpt, const QString& namepart, int number_digits)
+track_add_wpt(route_head* rte, Waypoint* wpt, const QString& namepart, int number_digits)
 {
   // First point in a track is always a new segment.
   // This improves compatibility when reading from
   // segment-unaware formats.
-  if (QUEUE_EMPTY(&rte->waypoint_list)) {
+  if (rte->waypoint_list.empty()) {
     wpt->wpt_flags.new_trkseg = 1;
   }
 
-  any_route_add_wpt(rte, wpt, &trk_waypts, 0, namepart, number_digits);
-}
-
-void
-track_add_wpt(route_head* rte, Waypoint* wpt)
-{
-  const char RPT[] = "RPT";
-  track_add_wpt_named(rte, wpt, RPT, 3);
-}
-
-Waypoint*
-route_find_waypt_by_name(route_head* rh, const char* name)
-{
-  queue* elem, *tmp;
-
-  QUEUE_FOR_EACH(&rh->waypoint_list, elem, tmp) {
-    Waypoint* waypointp = (Waypoint*) elem;
-    if (waypointp->shortname == name) {
-      return waypointp;
-    }
-  }
-  return NULL;
-}
-
-static void
-any_route_del_wpt(route_head* rte, Waypoint* wpt, int* ct)
-{
-  if (wpt->wpt_flags.new_trkseg && wpt != (Waypoint*)QUEUE_LAST(&rte->waypoint_list)) {
-    Waypoint* wpt_next = (Waypoint*)QUEUE_NEXT(&wpt->Q);
-    wpt_next->wpt_flags.new_trkseg = 1;
-  }
-  wpt->wpt_flags.new_trkseg = 0;
-  dequeue(&wpt->Q);
-  rte->rte_waypt_ct--;
-  if (ct) {
-    (*ct)--;
-  }
+  // FIXME: It is misleading to accept namepart and number_digits parameters which
+  // are ignored because synth is set to false.
+  global_track_list->add_wpt(rte, wpt, false, namepart, number_digits);
 }
 
 void
 route_del_wpt(route_head* rte, Waypoint* wpt)
 {
-  any_route_del_wpt(rte, wpt, &rte_waypts);
+  global_route_list->del_wpt(rte, wpt);
 }
 
 void
 track_del_wpt(route_head* rte, Waypoint* wpt)
 {
-  any_route_del_wpt(rte, wpt, &trk_waypts);
+  global_track_list->del_wpt(rte, wpt);
 }
 
 void
-route_disp(const route_head* rh, waypt_cb cb)
+route_disp(const route_head* /* rh */, std::nullptr_t /* wc */)
 {
-  queue* elem, *tmp;
-  if (!cb)  {
-    return;
-  }
-  QUEUE_FOR_EACH(&rh->waypoint_list, elem, tmp) {
-    Waypoint* waypointp;
-    waypointp = (Waypoint*) elem;
-    (*cb)(waypointp);
-  }
-
-}
-
-void
-route_reverse(const route_head* rte_hd)
-{
-  /* Cast away const-ness */
-  route_head* rh = (route_head*) rte_hd;
-  queue* elem, *tmp;
-  QUEUE_FOR_EACH(&rh->waypoint_list, elem, tmp) {
-    ENQUEUE_HEAD(&rh->waypoint_list, dequeue(elem));
-  }
-}
-
-static void
-common_disp_all(queue* qh, route_hdr rh, route_trl rt, waypt_cb wc)
-{
-  queue* elem, *tmp;
-  QUEUE_FOR_EACH(qh, elem, tmp) {
-    const route_head* rhp;
-    rhp = (route_head*) elem;
-    if (rh) {
-      (*rh)(rhp);
-    }
-    route_disp(rhp, wc);
-    if (rt) {
-      (*rt)(rhp);
-    }
-  }
-}
-
-static void
-common_disp_session(const session_t* se, queue* qh, route_hdr rh, route_trl rt, waypt_cb wc)
-{
-  queue* elem, *tmp;
-  QUEUE_FOR_EACH(qh, elem, tmp) {
-    const route_head* rhp;
-    rhp = (route_head*) elem;
-    if (rhp->session == se) {
-      if (rh) {
-        (*rh)(rhp);
-      }
-      route_disp(rhp, wc);
-      if (rt) {
-        (*rt)(rhp);
-      }
-    }
-  }
-}
-
-void
-route_disp_all(route_hdr rh, route_trl rt, waypt_cb wc)
-{
-  common_disp_all(&my_route_head, rh, rt, wc);
+// wc == nullptr
 }
 
 void
 route_disp_session(const session_t* se, route_hdr rh, route_trl rt, waypt_cb wc)
 {
-  common_disp_session(se, &my_route_head, rh, rt, wc);
-}
-
-void
-track_disp_all(route_hdr rh, route_trl rt, waypt_cb wc)
-{
-  common_disp_all(&my_track_head, rh, rt, wc);
+  global_route_list->common_disp_session(se, rh, rt, wc);
 }
 
 void
 track_disp_session(const session_t* se, route_hdr rh, route_trl rt, waypt_cb wc)
 {
-  common_disp_session(se, &my_track_head, rh, rt, wc);
-}
-
-static void
-route_flush_q(queue* head)
-{
-  queue* elem, *tmp;
-  queue* q;
-
-  QUEUE_FOR_EACH(head, elem, tmp) {
-    q = dequeue(elem);
-    any_route_free((route_head*) q);
-  }
+  global_track_list->common_disp_session(se, rh, rt, wc);
 }
 
 void
-route_flush_all_routes(void)
+route_flush_all_routes()
 {
-  route_flush_q(&my_route_head);
-  rte_head_ct = 0;
-  rte_waypts = 0;
+  global_route_list->flush();
 }
 
 void
-route_flush_all_tracks(void)
+route_flush_all_tracks()
 {
-  route_flush_q(&my_track_head);
-  trk_head_ct = 0;
-  trk_waypts = 0;
+  global_track_list->flush();
 }
 
 void
-route_flush_all()
+route_deinit()
 {
-  route_flush_all_tracks();
   route_flush_all_routes();
+  route_flush_all_tracks();
+  delete global_route_list;
+  delete global_track_list;
 }
 
 void
-route_flush(queue* head)
+route_append(RouteList* src)
 {
-  queue* elem, *tmp;
-  queue* q;
-  QUEUE_FOR_EACH(head, elem, tmp) {
-    q = dequeue(elem);
-    any_route_free((route_head*)q);
-  }
+  src->copy(&global_route_list);
 }
 
 void
-route_copy(int* dst_count, int* dst_wpt_count, queue** dst, queue* src)
+track_append(RouteList* src)
 {
-  queue* elem, *tmp, *elem2, *tmp2;
-  route_head* rte_new;
-  int junk;
-  if (!dst_wpt_count) {
-    dst_wpt_count = &junk;
-  }
-
-  if (!*dst) {
-    *dst = (queue*)xcalloc(1, sizeof(queue));
-    QUEUE_INIT(*dst);
-    *dst_count = 0;
-    *dst_wpt_count = 0;
-  }
-
-  const char RPT[] = "RPT";
-  QUEUE_FOR_EACH(src, elem, tmp) {
-    route_head* rte_old = (route_head*)elem;
-
-    rte_new = route_head_alloc();
-    rte_new->rte_name = rte_old->rte_name;
-    rte_new->rte_desc = rte_old->rte_desc;
-    rte_new->rte_url = rte_old->rte_url;
-    rte_new->fs = fs_chain_copy(rte_old->fs);
-    rte_new->rte_num = rte_old->rte_num;
-    any_route_add_head(rte_new, *dst);
-    QUEUE_FOR_EACH(&rte_old->waypoint_list, elem2, tmp2) {
-      any_route_add_wpt(rte_new, new Waypoint(*(Waypoint*)elem2), dst_wpt_count, 0, RPT, 3);
-    }
-    (*dst_count)++;
-  }
+  src->copy(&global_track_list);
 }
 
 void
-route_append(queue* src)
+route_backup(RouteList** head_bak)
 {
-  queue* dst = &my_route_head;
-  route_copy(&rte_head_ct, &rte_waypts, &dst, src);
+  global_route_list->copy(head_bak);
 }
 
 void
-track_append(queue* src)
+route_restore(RouteList* head_bak)
 {
-  queue* dst = &my_track_head;
-  route_copy(&trk_head_ct, &trk_waypts, &dst, src);
+  global_route_list->restore(head_bak);
 }
 
 void
-route_backup(signed int* count, queue** head_bak)
+route_swap(RouteList& other)
 {
-  route_copy(count, NULL, head_bak, &my_route_head);
-}
-
-static void
-route_restore_hdr(const route_head* rte)
-{
-  (void)rte;
-  rte_head_ct++;
-}
-
-static void
-track_restore_hdr(const route_head* trk)
-{
-  (void)trk;
-  trk_head_ct++;
-}
-
-static void
-route_restore_tlr(const route_head* rte)
-{
-  (void)rte;
-}
-
-static void
-route_restore_wpt(const Waypoint* wpt)
-{
-  (void)wpt;
-  rte_waypts++;
-}
-
-static void
-track_restore_wpt(const Waypoint* wpt)
-{
-  (void)wpt;
-  trk_waypts++;
-}
-
-static void
-common_restore_finish(void)
-{
-  rte_head_ct = 0;
-  trk_head_ct = 0;
-  rte_waypts = 0;
-  trk_waypts = 0;
-  route_disp_all(route_restore_hdr, route_restore_tlr, route_restore_wpt);
-  track_disp_all(track_restore_hdr, route_restore_tlr, track_restore_wpt);
+  global_route_list->swap(other);
 }
 
 void
-route_restore(queue* head_bak)
+route_sort(RouteList::Compare cmp)
 {
-  if (head_bak == NULL) {
-    return;
-  }
-
-  route_flush_q(&my_route_head);
-  QUEUE_INIT(&my_route_head);
-  QUEUE_MOVE(&my_route_head, head_bak);
-
-  common_restore_finish();
+  global_route_list->sort(cmp);
 }
 
 void
-track_backup(signed int* count, queue** head_bak)
+track_backup(RouteList** head_bak)
 {
-  route_copy(count, NULL, head_bak, &my_track_head);
+  global_track_list->copy(head_bak);
 }
 
 void
-track_restore(queue* head_bak)
+track_restore(RouteList* head_bak)
 {
-  if (head_bak == NULL) {
-    return;
-  }
-
-  route_flush_q(&my_track_head);
-  QUEUE_INIT(&my_track_head);
-  QUEUE_MOVE(&my_track_head, head_bak);
-
-  common_restore_finish();
+  global_track_list->restore(head_bak);
 }
 
-/*
- * Move the entire track queue onto the route queue making no attempt
- * at all to "fix" anything in the process.
- */
 void
-routes_to_tracks(void)
+track_swap(RouteList& other)
 {
-  queue* elem, *tmp;
-
-  QUEUE_FOR_EACH(&my_route_head, elem, tmp) {
-    route_head* trk = (route_head*) elem;
-    dequeue(&trk->Q);
-    ENQUEUE_TAIL(&my_track_head, &trk->Q);
-  }
+  global_track_list->swap(other);
 }
 
-/*
- * Same, but in opposite direction.
- */
 void
-tracks_to_routes(void)
+track_sort(RouteList::Compare cmp)
 {
-  queue* elem, *tmp;
-
-  QUEUE_FOR_EACH(&my_track_head, elem, tmp) {
-    route_head* trk = (route_head*) elem;
-    dequeue(&trk->Q);
-    ENQUEUE_TAIL(&my_route_head, &trk->Q);
-  }
+  global_track_list->sort(cmp);
 }
-
 
 /*
  * This really makes more sense for tracks than routes.
@@ -559,51 +257,39 @@ tracks_to_routes(void)
  * If trkdatap is non-null upon entry, a pointer to an allocated collection
  * (hopefully interesting) statistics about the track will be placed there.
  */
-void track_recompute(const route_head* trk, computed_trkdata** trkdatap)
+computed_trkdata track_recompute(const route_head* trk)
 {
   Waypoint first;
-  Waypoint* thisw;
-  Waypoint* prev = &first;
-  queue* elem, *tmp;
+  const Waypoint* prev = &first;
   int tkpt = 0;
   int pts_hrt = 0;
   double tot_hrt = 0.0;
   int pts_cad = 0;
   double tot_cad = 0.0;
-  computed_trkdata* tdata = (computed_trkdata*)xcalloc(1, sizeof(computed_trkdata));
-
-  if (trkdatap) {
-    *trkdatap = tdata;
-  }
+  computed_trkdata tdata;
 
 //  first.latitude = 0;
 //  first.longitude = 0;
 //  first.creation_time = 0;
-  tdata->min_hrt =  9999;
-  tdata->min_alt = -unknown_alt;
-  tdata->max_alt =  unknown_alt;
 
-  QUEUE_FOR_EACH((queue*)&trk->waypoint_list, elem, tmp) {
-    double tlat, tlon, plat, plon, dist;
-
-    thisw = (Waypoint*)elem;
+  foreach (Waypoint* thisw, trk->waypoint_list) {
 
     /*
      * gcdist and heading want radians, not degrees.
      */
-    tlat = RAD(thisw->latitude);
-    tlon = RAD(thisw->longitude);
-    plat = RAD(prev->latitude);
-    plon = RAD(prev->longitude);
+    double tlat = RAD(thisw->latitude);
+    double tlon = RAD(thisw->longitude);
+    double plat = RAD(prev->latitude);
+    double plon = RAD(prev->longitude);
     WAYPT_SET(thisw, course, heading_true_degrees(plat, plon,
               tlat, tlon));
-    dist = radtometers(gcdist(plat, plon, tlat, tlon));
+    double dist = radtometers(gcdist(plat, plon, tlat, tlon));
 
     /*
      * Avoid that 6300 mile jump as we move from 0,0.
      */
     if (plat && plon) {
-      tdata->distance_meters += dist;
+      tdata.distance_meters += dist;
     }
 
     /*
@@ -622,92 +308,217 @@ void track_recompute(const route_head* trk, computed_trkdata** trkdatap)
       }
     }
     if (WAYPT_HAS(thisw, speed)) {
-      if (thisw->speed > tdata->max_spd) {
-        tdata->max_spd = thisw->speed;
+      if ((!tdata.min_spd) || (thisw->speed < tdata.min_spd)) {
+        tdata.min_spd = thisw->speed;
       }
-      if (thisw->speed < tdata->min_spd) {
-        tdata->min_spd = thisw->speed;
+      if ((!tdata.max_spd) || (thisw->speed > tdata.max_spd)) {
+        tdata.max_spd = thisw->speed;
       }
     }
 
     if (thisw->altitude != unknown_alt) {
-      if (thisw->altitude < tdata->min_alt) {
-        tdata->min_alt = thisw->altitude;
+      if ((!tdata.min_alt) || (thisw->altitude < tdata.min_alt)) {
+        tdata.min_alt = thisw->altitude;
       }
-      if (thisw->altitude > tdata->max_alt) {
-        tdata->max_alt = thisw->altitude;
+      if ((!tdata.max_alt) || (thisw->altitude > tdata.max_alt)) {
+        tdata.max_alt = thisw->altitude;
       }
     }
 
     if (thisw->heartrate > 0) {
       pts_hrt++;
-      tot_hrt += (float) thisw->heartrate;
+      tot_hrt += thisw->heartrate;
     }
 
-    if ((thisw->heartrate > 0) && (thisw->heartrate < tdata->min_hrt)) {
-      tdata->min_hrt = (int) thisw->heartrate;
-    }
-
-    if ((thisw->heartrate > 0) && (thisw->heartrate > tdata->max_hrt)) {
-      tdata->max_hrt = (int) thisw->heartrate;
+    if (thisw->heartrate > 0) {
+      if ((!tdata.min_hrt) || (thisw->heartrate < tdata.min_hrt)) {
+        tdata.min_hrt = thisw->heartrate;
+      }
+      if ((!tdata.max_hrt) || (thisw->heartrate > tdata.max_hrt)) {
+        tdata.max_hrt = thisw->heartrate;
+      }
     }
 
     if (thisw->cadence > 0) {
       pts_cad++;
-      tot_cad += (float) thisw->cadence;
+      tot_cad += thisw->cadence;
     }
 
-    if ((thisw->cadence > 0) && (thisw->cadence > tdata->max_cad)) {
-      tdata->max_cad = (int) thisw->cadence;
+    if ((thisw->cadence > 0) && ((!tdata.max_cad) || (thisw->cadence > tdata.max_cad))) {
+      tdata.max_cad = thisw->cadence;
     }
 
-    if (thisw->GetCreationTime().isValid() && (thisw->GetCreationTime().toTime_t() < tdata->start)) {
-      tdata->start = thisw->GetCreationTime().toTime_t();
-    }
+    if (thisw->GetCreationTime().isValid()) {
+      if (!tdata.start.isValid() || (thisw->GetCreationTime() < tdata.start)) {
+        tdata.start = thisw->GetCreationTime();
+      }
 
-    if (thisw->creation_time.toTime_t() > tdata->end) {
-      tdata->end = thisw->GetCreationTime().toTime_t();
-      if (tdata->start == 0) {
-        tdata->start = tdata->end;
+      if (!tdata.end.isValid() || (thisw->GetCreationTime() > tdata.end)) {
+        tdata.end = thisw->GetCreationTime();
       }
     }
-    prev = thisw;
+
     if (thisw->shortname.isEmpty()) {
       thisw->shortname = QString("%1-%2").arg(trk->rte_name).arg(tkpt);
     }
     tkpt++;
+    prev = thisw;
   }
 
   if (pts_hrt > 0) {
-    tdata->avg_hrt = tot_hrt / (float) pts_hrt;
+    tdata.avg_hrt = tot_hrt / pts_hrt;
   }
 
   if (pts_cad > 0) {
-    tdata->avg_cad = tot_cad / (float) pts_cad;
+    tdata.avg_cad = tot_cad / pts_cad;
   }
 
-  if (!trkdatap) {
-    xfree(tdata);
-  }
+  return tdata;
 }
 
 route_head::route_head() :
   rte_num(0),
   rte_waypt_ct(0),
-  fs(NULL),
+  fs(nullptr),
   cet_converted(0),
   // line_color(),
   line_width(-1),
   session(curr_session())
 {
-  QUEUE_INIT(&Q);
-  QUEUE_INIT(&waypoint_list);
 };
 
 route_head::~route_head()
 {
-  waypt_flush(&waypoint_list);
+  waypoint_list.flush();
   if (fs) {
     fs_chain_destroy(fs);
   }
+}
+
+int RouteList::waypt_count() const
+{
+  return waypt_ct;
+}
+
+// rte may or may not contain waypoints in it's waypoint_list.
+// FIXME: In the case that it does, our count of total waypoints won't
+// match until after rte is added.
+// examples are in tests for garmin_txt, gdb, ggv_log, ik3d, navitel, osm.
+void
+RouteList::add_head(route_head* rte)
+{
+  this->append(rte);
+}
+
+void
+RouteList::del_head(route_head* rte)
+{
+  waypt_ct -= rte->rte_waypt_ct;
+  const int idx = this->indexOf(rte);
+  assert(idx >= 0);
+  removeAt(idx);
+  delete rte;
+}
+
+void
+RouteList::insert_head(route_head* rte, route_head* predecessor)
+{
+  const int idx = this->indexOf(predecessor);
+  assert(idx >= 0);
+  this->insert(idx + 1, rte);
+}
+
+// Synthesizing names based on the total number of waypoints in the RouteList makes
+// it advantageous to keep a count of the total number of waypoints in all the routes
+// in the RouteList AND any routes that have had waypoints added but haven't been
+// added themselves yet.
+void
+RouteList::add_wpt(route_head* rte, Waypoint* wpt, bool synth, const QString& namepart, int number_digits)
+{
+  rte->rte_waypt_ct++;	/* waypoints in this route */
+  ++waypt_ct;
+  rte->waypoint_list.add_rte_waypt(waypt_ct, wpt, synth, namepart, number_digits);
+  if ((this == global_route_list) || (this == global_track_list)) {
+    update_common_traits(wpt);
+  }
+}
+
+void
+RouteList::del_wpt(route_head* rte, Waypoint* wpt)
+{
+  rte->waypoint_list.del_rte_waypt(wpt);
+  rte->rte_waypt_ct--;
+  --waypt_ct;
+}
+
+void
+RouteList::common_disp_session(const session_t* se, route_hdr rh, route_trl rt, waypt_cb wc)
+{
+  foreach (const route_head* rhp, *this) {
+    if (rhp->session == se) {
+      if (rh) {
+        (*rh)(rhp);
+      }
+      route_disp(rhp, wc);
+      if (rt) {
+        (*rt)(rhp);
+      }
+    }
+  }
+}
+
+void
+RouteList::flush()
+{
+  while (!isEmpty()) {
+    delete takeFirst();
+  }
+  waypt_ct = 0;
+}
+
+void
+RouteList::copy(RouteList** dst) const
+{
+  if (*dst == nullptr) {
+    *dst = new RouteList;
+  }
+
+  const char RPT[] = "RPT";
+  foreach (const route_head* rte_old, *this) {
+    route_head* rte_new = route_head_alloc();
+    rte_new->rte_name = rte_old->rte_name;
+    rte_new->rte_desc = rte_old->rte_desc;
+    rte_new->rte_urls = rte_old->rte_urls;
+    rte_new->fs = fs_chain_copy(rte_old->fs);
+    rte_new->rte_num = rte_old->rte_num;
+    (*dst)->add_head(rte_new);
+    foreach (const Waypoint* old_wpt, rte_old->waypoint_list) {
+      (*dst)->add_wpt(rte_new, new Waypoint(*old_wpt), false, RPT, 3);
+    }
+  }
+}
+
+void
+RouteList::restore(RouteList* src)
+{
+  if (src == nullptr) {
+    return;
+  }
+  flush();
+
+  *this = *src;
+  src->clear();
+  src->waypt_ct = 0;
+}
+
+void RouteList::swap(RouteList& other)
+{
+  const RouteList tmp_list = *this;
+  *this = other;
+  other = tmp_list;
+}
+
+void RouteList::sort(Compare cmp)
+{
+  std::sort(begin(), end(), cmp);
 }

@@ -19,175 +19,345 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
+#include <QtCore/QLatin1String>
+#include <QtCore/QString>
+#include <QtCore/QStringList>
+#include <QtCore/QVector>
+
 #include "defs.h"
 #include "shapelib/shapefil.h"
-#include <stdlib.h>
+#include <cstdlib>
 
 #if SHAPELIB_ENABLED
 static SHPHandle ihandle;
 static DBFHandle ihandledb;
 static SHPHandle ohandle;
+static DBFHandle ohandledb;
 #define MYNAME "shape"
 
 static unsigned poly_count;
 static double* polybufx;
 static double* polybufy;
 static double* polybufz;
+static QString ifname;
 static QString ofname;
-static int nameidx;
-static int urlidx;
+static int nameFieldIdx;	// the field index of the field with fieldName "name" in the output DBF.
 
-static char* opt_name = NULL;
-static char* opt_url = NULL;
+static char* opt_name = nullptr;
+static char* opt_url = nullptr;
 
 static
 arglist_t shp_args[] = {
   {
-    "name", &opt_name, "Index of name field in .dbf",
-    NULL, ARGTYPE_STRING, "0", NULL
+    "name", &opt_name, "Source for name field in .dbf",
+    nullptr, ARGTYPE_STRING, "0", nullptr, nullptr
   },
   {
-    "url", &opt_url, "Index of URL field in .dbf",
-    NULL, ARGTYPE_INT, "0", NULL
+    "url", &opt_url, "Source for URL field in .dbf",
+    nullptr, ARGTYPE_STRING, "0", nullptr, nullptr
   },
   ARG_TERMINATOR
 };
 
-static void
-my_rd_init(const QString& fname)
+
+/************************************************************************/
+/*                              SHPOpenGpsbabel()                       */
+/************************************************************************/
+
+static SHPHandle SHPAPI_CALL
+SHPOpenGpsbabel(const QString& pszLayer, const char* pszAccess)
+
 {
-  ihandle = SHPOpen(qPrintable(fname), "rb");
-  if (ihandle == NULL) {
-    fatal(MYNAME ":Cannot open shp file %s for reading\n", qPrintable(fname));
-  }
+  SAHooks sHooks;
 
-  ihandledb = DBFOpen(qPrintable(fname), "rb");
-  if (ihandledb == NULL) {
-    fatal(MYNAME ":Cannot open dbf file %s for reading\n", qPrintable(fname));
-  }
+#ifdef SHPAPI_UTF8_HOOKS
+  SASetupUtf8Hooks(&sHooks);
+  return SHPOpenLL(pszLayer.toUtf8().constData(), pszAccess, &sHooks);
+#else
+  SASetupDefaultHooks(&sHooks);
+  return SHPOpenLL(qPrintable(pszLayer), pszAccess, &sHooks);
+#endif
 
-  if (opt_name) {
-    if (opt_name[0] == '?') {
-      int nFields = 0;
-      int i = 0;
-      char name[12];
-      char* txt = xstrdup("  Database fields\n");
-      nFields = DBFGetFieldCount(ihandledb);
-      for (i = 0; i < nFields; i++) {
-        char txtName[50];
-        DBFGetFieldInfo(ihandledb, i, name, NULL, NULL);
-        sprintf(txtName,"%2d %s\n", i, name);
-        txt = xstrappend(txt, txtName);
-      }
-      txt = xstrappend(txt,  "\n");
-      fatal("%s",  txt);
-    }
-    if (strchr(opt_name, '+')) {
-      nameidx = -2;
-    } else if (opt_name[0] >= '0' && opt_name[0] <= '9') {
-      nameidx = atoi(opt_name);
-    } else {
-      nameidx = DBFGetFieldIndex(ihandledb, opt_name);
-      if (nameidx == -1) {
-        fatal(MYNAME ":dbf file for %s doesn't have '%s' field.\n", qPrintable(fname), opt_name);
-      }
-    }
-  } else {
-    nameidx = DBFGetFieldIndex(ihandledb, "NAME");
-    if (nameidx == -1) {
-//			fatal(MYNAME ":dbf file for %s doesn't have 'NAME' field.\n  Please specify the name index with the 'name' option.\n", qPrintable(fname));
-    }
+}
+
+/************************************************************************/
+/*                             SHPCreateGpsbabel()                      */
+/*                                                                      */
+/*      Create a new shape file and return a handle to the open         */
+/*      shape file with read/write access.                              */
+/************************************************************************/
+
+static SHPHandle SHPAPI_CALL
+SHPCreateGpsbabel(const QString& pszLayer, int nShapeType)
+
+{
+  SAHooks sHooks;
+
+#ifdef SHPAPI_UTF8_HOOKS
+  SASetupUtf8Hooks(&sHooks);
+  return SHPCreateLL(pszLayer.toUtf8().constData(), nShapeType, &sHooks);
+#else
+  SASetupDefaultHooks(&sHooks);
+  return SHPCreateLL(qPrintable(pszLayer), nShapeType, &sHooks);
+#endif
+
+}
+
+/************************************************************************/
+/*                              DBFOpenGpsbabel()                       */
+/*                                                                      */
+/*      Open a .dbf file.                                               */
+/************************************************************************/
+
+static DBFHandle SHPAPI_CALL
+DBFOpenGpsbabel(const QString& pszFilename, const char* pszAccess)
+
+{
+  SAHooks sHooks;
+
+#ifdef SHPAPI_UTF8_HOOKS
+  SASetupUtf8Hooks(&sHooks);
+  return DBFOpenLL(pszFilename.toUtf8().constData(), pszAccess, &sHooks);
+#else
+  SASetupDefaultHooks(&sHooks);
+  return DBFOpenLL(qPrintable(pszFilename), pszAccess, &sHooks);
+#endif
+
+}
+
+/************************************************************************/
+/*                            DBFCreateExGpsbabel()                     */
+/*                                                                      */
+/*      Create a new .dbf file.                                         */
+/************************************************************************/
+
+static DBFHandle SHPAPI_CALL
+DBFCreateExGpsbabel(const QString& pszFilename, const char* pszCodePage)
+
+{
+  SAHooks sHooks;
+
+#ifdef SHPAPI_UTF8_HOOKS
+  SASetupUtf8Hooks(&sHooks);
+  return DBFCreateLL(pszFilename.toUtf8().constData(), pszCodePage , &sHooks);
+#else
+  SASetupDefaultHooks(&sHooks);
+  return DBFCreateLL(qPrintable(pszFilename), pszCodePage , &sHooks);
+#endif
+
+}
+
+#ifdef DEAD_CODE_IS_REBORN
+/************************************************************************/
+/*                             DBFCreateGpsbabel()                      */
+/*                                                                      */
+/* Create a new .dbf file with default code page LDID/87 (0x57)         */
+/************************************************************************/
+
+static DBFHandle SHPAPI_CALL
+DBFCreateGpsbabel(const QString& pszFilename)
+
+{
+  return DBFCreateExGpsbabel(pszFilename, "LDID/87");   // 0x57
+}
+#endif
+
+static
+void dump_fields()
+{
+  char name[12];
+  warning(MYNAME ": Database fields:\n");
+  const int nFields = DBFGetFieldCount(ihandledb);
+  for (int i = 0; i < nFields; i++) {
+    DBFFieldType type = DBFGetFieldInfo(ihandledb, i, name, nullptr, nullptr);
+    warning(MYNAME ": Field Index: %2d, Field Name: %12s, Field Type %d\n", i, name, type);
   }
-  if (opt_url) {
-    if (opt_url[0] >= '0' && opt_url[0] <= '9') {
-      urlidx = atoi(opt_url);
-    } else {
-      urlidx = DBFGetFieldIndex(ihandledb, opt_url);
-    }
-  } else {
-    urlidx = DBFGetFieldIndex(ihandledb, "URL");
+  fatal("\n");
+}
+
+static
+void check_field_index(const int fieldIdx)
+{
+  const int maxFields = DBFGetFieldCount(ihandledb);
+  if (fieldIdx < 0 || fieldIdx >= maxFields) {
+    warning(MYNAME ": dbf file for %s doesn't have a field index number %d.\n", qPrintable(ifname), fieldIdx);
+    warning(MYNAME ": the minimum field number is 0 and the maximum field number is %d.\n",maxFields-1);
+    dump_fields();
   }
 }
 
-void
-my_read(void)
+static
+int get_field_index(const QString& fieldName)
 {
+  const int fieldIdx = DBFGetFieldIndex(ihandledb, CSTR(fieldName));
+  if (fieldIdx < 0) {
+    warning(MYNAME ": dbf file for %s doesn't have a field named '%s'.\n", qPrintable(ifname), qPrintable(fieldName));
+    dump_fields();
+  }
+  return fieldIdx;
+}
+
+static void
+my_rd_init(const QString& fname)
+{
+  ifname = fname;
+  // TODO: The .prj file can define the the coordinate system and projection information.
+  ihandle = SHPOpenGpsbabel(fname, "rb");
+  if (ihandle == nullptr) {
+    fatal(MYNAME ": Cannot open shp file %s for reading\n", qPrintable(ifname));
+  }
+
+  ihandledb = DBFOpenGpsbabel(fname, "rb");
+  if (ihandledb == nullptr) {
+    fatal(MYNAME ": Cannot open dbf file %s for reading\n", qPrintable(ifname));
+  }
+  const char* codepage = DBFGetCodePage(ihandledb);
+  if (codepage) {
+    QString qcodepage(codepage);
+    if (qcodepage.compare(QLatin1String("UTF-8"), Qt::CaseInsensitive)) {
+      warning(MYNAME ": dbf file %s is in code page %s, but we always process dbf files as UTF-8.\n",qPrintable(ifname),codepage);
+    }
+  } else {
+    warning(MYNAME ": dbf file %s uses unknown code page, assuming UTF-8.\n", qPrintable(ifname));
+  }
+}
+
+static void
+my_read()
+{
+  // option processing here instead of in my_rd_init
+  // lets the results of option processing be automatic.
+  int nameidx;
+  int urlidx;
+  QVector<int> nameindices;
+
+  if (opt_name) {
+    const QString qopt_name(opt_name);
+    if (qopt_name.startsWith('?')) {
+      dump_fields();
+    }
+    if (qopt_name.contains('+')) {
+      // form a compound name from one or more fields.
+      nameidx = -2;
+      QStringList opt_name_fields = qopt_name.split('+', QString::SkipEmptyParts);
+      nameindices.reserve(opt_name_fields.size());
+      for (int oidx=0; oidx<opt_name_fields.size(); oidx++) {
+        bool ok;
+        int fieldIdx = opt_name_fields.at(oidx).toInt(&ok);
+        if (ok) {
+          // retrieve name commponent from given field number
+          check_field_index(fieldIdx);
+        } else {
+          // retrieve name component from given field name.
+          fieldIdx = get_field_index(opt_name_fields.at(oidx));
+        }
+        nameindices.append(fieldIdx);
+      }
+    } else {
+      // if we can convert it to a number assume it is a field index
+      // otherwise assume it is a field name.
+      bool ok;
+      nameidx = qopt_name.toInt(&ok);
+      if (ok) {
+        check_field_index(nameidx);
+      } else {
+        nameidx = get_field_index(qopt_name);
+      }
+    }
+  } else {
+    // will return -1 if "NAME" is not a field (case insensitive).
+    nameidx = DBFGetFieldIndex(ihandledb, "NAME");
+  }
+
+  if (opt_url) {
+    const QString qopt_url(opt_url);
+    // if we can convert it to a number assume it is a field index
+    // otherwise assume it is a field name.
+    bool ok;
+    urlidx = qopt_url.toInt(&ok);
+    if (ok) {
+      check_field_index(urlidx);
+    } else {
+      urlidx = get_field_index(qopt_url);
+    }
+  } else {
+    // will return -1 if "URL" is not a field (case insensitive).
+    urlidx = DBFGetFieldIndex(ihandledb, "URL");
+  }
+
   int npts;
   const char* etype = "unknown";
 
-  SHPGetInfo(ihandle, &npts, NULL, NULL, NULL);
-
-  while (npts) {
-    SHPObject* shp;
+  SHPGetInfo(ihandle, &npts, nullptr, nullptr, nullptr);
+  for (int iShape=0; iShape<npts; iShape++) {
     Waypoint* wpt;
-    const char* name = "";
-    const char* url;
-    char* tmpName = NULL;
-    char* tmpIndex = opt_name;
+    QString name;
+    QString url;
 
-    shp = SHPReadObject(ihandle, npts-1);
-    if (nameidx >0) {
-      name = DBFReadStringAttribute(ihandledb, npts-1, nameidx);
-    } else {
-      if (nameidx == -1) {
-        name = "";
-      } else if (nameidx == -2) {
-        tmpName = xstrdup("");
-        tmpIndex = opt_name;
-        while (tmpIndex) {
-          char* tmp2 = tmpIndex;
-          tmpIndex = strchr(tmpIndex,'+');
-          if (tmpIndex) {
-            *tmpIndex = '\0';
-            tmpIndex++;
-          }
-          if (tmp2[0]>='0' && tmp2[0]<='9') {
-            name = DBFReadStringAttribute(
-                     ihandledb, npts-1, atoi(tmp2));
-          } else {
-            int idx = 0;
-            idx = DBFGetFieldIndex(ihandledb, tmp2);
-            if (idx >= 0) {
-              name = DBFReadStringAttribute(
-                       ihandledb, npts-1, idx);
-            }
-          }
-
-          tmpName = xstrappend(tmpName, name);
-          if (tmpIndex) {
-            tmpName = xstrappend(tmpName, " / ");
-          }
+    SHPObject* shp = SHPReadObject(ihandle, iShape);
+    if (nameidx >= 0) {
+      name = DBFReadStringAttribute(ihandledb, iShape, nameidx);
+//  } else if (nameidx == -1) {
+//      leave name as a null QString.
+    } else if (nameidx == -2) {
+      for (int nameindice : nameindices) {
+        // form a compound name from one or more dbf fields.
+        QString namecomponent = DBFReadStringAttribute(
+                                  ihandledb, iShape, nameindice);
+        if (!name.isEmpty() && !namecomponent.isEmpty()) {
+          name.append(QLatin1String(" / "));
         }
-        name = tmpName;
+        name.append(namecomponent);
       }
     }
-    if (urlidx > 0) {
-      url = DBFReadStringAttribute(ihandledb, npts-1, urlidx);
-    } else {
-      url = NULL;
+    if (urlidx >= 0) {
+      url = DBFReadStringAttribute(ihandledb, iShape, urlidx);
     }
+    const bool hasZ = shp->nSHPType == SHPT_ARCZ
+                      || shp->nSHPType == SHPT_POINTZ
+                      || shp->nSHPType == SHPT_POLYGONZ
+                      || shp->nSHPType == SHPT_MULTIPOINTZ
+                      || shp->nSHPType == SHPT_MULTIPATCH;
     switch (shp->nSHPType) {
-    case SHPT_ARC: {
-      int j;
-      route_head* routehead = route_head_alloc();
-      routehead->rte_name = name;
-      route_add_head(routehead);
-      for (j = 0; j < shp->nVertices; j++) {
-        wpt = new Waypoint;
-        wpt->latitude = shp->padfY[j];
-        wpt->longitude = shp->padfX[j];
-        wpt->altitude = shp->padfZ[j];
-        route_add_wpt(routehead, wpt);
+    case SHPT_ARC:
+    case SHPT_ARCZ:
+    case SHPT_ARCM: {
+// A part is a connected sequence of two or more points.
+// Parts may or may not be connected to one another.
+// Parts may or may not intersect one another.
+      for (int part=0; part < shp->nParts; part++) {
+        route_head* routehead = route_head_alloc();
+        routehead->rte_name = name;
+        route_add_head(routehead);
+        int endVertex;
+        if (part < (shp->nParts - 1)) {
+          endVertex = shp->panPartStart[part+1];
+        } else {
+          endVertex = shp->nVertices;
+        }
+        for (int j = shp->panPartStart[part]; j < endVertex; j++) {
+          wpt = new Waypoint;
+          wpt->latitude = shp->padfY[j];
+          wpt->longitude = shp->padfX[j];
+          if (hasZ) {
+            wpt->altitude = shp->padfZ[j];
+          }
+          route_add_wpt(routehead, wpt);
+        }
       }
+      break;
     }
-    break;
-
     case SHPT_POINT:
+    case SHPT_POINTZ:
+    case SHPT_POINTM:
       wpt = new Waypoint;
       wpt->latitude = shp->dfYMin;
       wpt->longitude = shp->dfXMin;
+      if (hasZ) {
+        wpt->altitude = shp->dfZMin;
+      }
       wpt->shortname = name;
-      if (url) {
+      if (!url.isEmpty()) {
         wpt->AddUrlLink(url);
       }
       waypt_add(wpt);
@@ -198,23 +368,11 @@ my_read(void)
     case SHPT_MULTIPOINT:
       etype = "multipoint";
       goto err;
-    case SHPT_POINTZ:
-      etype = "pointz" ;
-      goto err;
-    case SHPT_ARCZ:
-      etype = "arcz" ;
-      goto err;
     case SHPT_POLYGONZ:
       etype = "polygonz" ;
       goto err;
     case SHPT_MULTIPOINTZ:
       etype = "multipointz" ;
-      goto err;
-    case SHPT_POINTM:
-      etype = "pointm" ;
-      goto err;
-    case SHPT_ARCM:
-      etype = "arcm" ;
       goto err;
     case SHPT_POLYGONM:
       etype = "polygonm" ;
@@ -235,58 +393,61 @@ err:
 
     SHPDestroyObject(shp);
 
-    npts--;
-    if (tmpName) {
-      xfree(tmpName);
-      tmpName = NULL;
-    }
   }
 
 }
 
-void
-my_rd_deinit(void)
+static void
+my_rd_deinit()
 {
   SHPClose(ihandle);
+  DBFClose(ihandledb);
+  ifname.clear();
 }
 
-void
+static void
 my_wr_init(const QString& fname)
 {
   ofname = fname;
 }
 
-void
-my_wr_deinit(void)
+static void
+my_wr_deinit()
 {
   SHPClose(ohandle);
+  DBFClose(ohandledb);
   ofname.clear();
 }
 
-void
+static void
 my_write_wpt(const Waypoint* wpt)
 {
-  SHPObject* shpobject;
-
-  shpobject = SHPCreateSimpleObject(SHPT_POINT, 1,
-                                    (double*)(void*)&wpt->longitude,
-                                    (double*)(void*)&wpt->latitude,
-                                    (double*)(void*)&wpt->altitude);
-  SHPWriteObject(ohandle, -1, shpobject);
+  // note that the z coordinate (&wpt->altitude) does not apply
+  // to SHPT_POINT.
+  // We could potentially write SHPT_POINTZ, but we would have
+  // to address what to do when we don't have altitude data.
+  SHPObject* shpobject = SHPCreateSimpleObject(SHPT_POINT, 1,
+                                                &wpt->longitude,
+                                                &wpt->latitude,
+                                                &wpt->altitude);
+  int iShape = SHPWriteObject(ohandle, -1, shpobject);
   SHPDestroyObject(shpobject);
+  DBFWriteStringAttribute(ohandledb, iShape, nameFieldIdx,
+                          CSTR(wpt->shortname));
 }
 
-void
-poly_init(const route_head* h)
+static void
+poly_init(const route_head* rte)
 {
-  int ct = track_waypt_count();
+  const int ct = rte->rte_waypt_ct;
+  poly_count = 0;
   polybufx = (double*) xcalloc(ct, sizeof(double));
   polybufy = (double*) xcalloc(ct, sizeof(double));
   polybufz = (double*) xcalloc(ct, sizeof(double));
 }
 
 
-void
+static void
 poly_point(const Waypoint* wpt)
 {
   polybufx[poly_count] = wpt->longitude;
@@ -295,47 +456,69 @@ poly_point(const Waypoint* wpt)
   poly_count++;
 }
 
-void
-poly_deinit(const route_head* h)
+static void
+poly_deinit(const route_head* rte)
 {
-  SHPObject* shpobject;
-  shpobject = SHPCreateSimpleObject(SHPT_ARC, track_waypt_count(),
-                                    polybufx, polybufy, polybufz);
-  SHPWriteObject(ohandle, -1,  shpobject);
+  // note that the z coordinate (polybufz) does not apply
+  // to SHPT_ARC.
+  // We could potentially write SHPT_ARCZ, but we would have
+  // to address what to do when we don't have altitude data.
+  SHPObject* shpobject = SHPCreateSimpleObject(SHPT_ARC, poly_count,
+                                                polybufx, polybufy, polybufz);
+  int iShape = SHPWriteObject(ohandle, -1,  shpobject);
   SHPDestroyObject(shpobject);
+  DBFWriteStringAttribute(ohandledb, iShape, nameFieldIdx,
+                          CSTR(rte->rte_name));
   xfree(polybufx);
   xfree(polybufy);
   xfree(polybufz);
-  fprintf(stderr, "Done\n");
   poly_count = 0;
 }
 
 
-void
-my_write(void)
+static void
+my_write()
 {
+  // shape files can only contain one shape type in addition
+  // to the null shape type.
+  // Therefore we must pick whether to output waypoint or
+  // route/track data.
   switch (global_opts.objective) {
   case wptdata:
   case unknown_gpsdata:
-    ohandle = SHPCreate(qPrintable(ofname), SHPT_POINT);
+    ohandle = SHPCreateGpsbabel(ofname, SHPT_POINT);
 
-    if (ohandle == NULL) {
-      fatal(MYNAME ":Cannot open %s for writing\n",
+    if (ohandle == nullptr) {
+      fatal(MYNAME ": Cannot open shp file %s for writing\n",
             qPrintable(ofname));
     }
+    ohandledb = DBFCreateExGpsbabel(ofname, "UTF-8\n");
+    if (ohandledb == nullptr) {
+      fatal(MYNAME ": Cannot open dbf file %s for writing\n",
+            qPrintable(ofname));
+    }
+    nameFieldIdx=DBFAddField(ohandledb,"name",FTString,100,0);
     waypt_disp_all(my_write_wpt);
     break;
+  case rtedata:
   case trkdata:
-    ohandle = SHPCreate(qPrintable(ofname), SHPT_ARC);
+    ohandle = SHPCreateGpsbabel(ofname, SHPT_ARC);
 
-    if (ohandle == NULL) {
-      fatal(MYNAME ":Cannot open %s for writing\n",
+    if (ohandle == nullptr) {
+      fatal(MYNAME ": Cannot open shp file %s for writing\n",
             qPrintable(ofname));
     }
-    route_disp_all(poly_init, poly_deinit, poly_point);
-    break;
-  case rtedata:
-    fatal(MYNAME ": Routes are not supported\n");
+    ohandledb = DBFCreateExGpsbabel(ofname, "UTF-8\n");
+    if (ohandledb == nullptr) {
+      fatal(MYNAME ": Cannot open dbf file %s for writing\n",
+            qPrintable(ofname));
+    }
+    nameFieldIdx=DBFAddField(ohandledb,"name",FTString,100,0);
+    if (global_opts.objective == trkdata) {
+      track_disp_all(poly_init, poly_deinit, poly_point);
+    } else { // rtedata
+      route_disp_all(poly_init, poly_deinit, poly_point);
+    }
     break;
   case posndata:
     fatal(MYNAME ": Realtime positioning not supported\n");
@@ -344,7 +527,7 @@ my_write(void)
 }
 
 ff_vecs_t shape_vecs = {
-  ff_type_internal,
+  ff_type_file,
   FF_CAP_RW_ALL,
   my_rd_init,
   my_wr_init,
@@ -352,8 +535,10 @@ ff_vecs_t shape_vecs = {
   my_wr_deinit,
   my_read,
   my_write,
-  NULL,
+  nullptr,
   shp_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };
 #endif /* SHAPELIB_ENABLED */

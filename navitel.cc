@@ -40,32 +40,28 @@ navitel_rd_init(const QString& fname)
 }
 
 static void
-navitel_rd_deinit(void)
+navitel_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-navitel_read_track(void)
+navitel_read_track()
 {
-  int points, i;
-  route_head* trk = NULL;
+  route_head* trk = nullptr;
 
-  points = gbfgetint32(fin);
+  int points = gbfgetint32(fin);
   (void) gbfgetint32(fin); /* unknown */
 
-  for (i = 0; i < points; i++) {
-    int lat, lon;
-    Waypoint* wpt;
+  for (int i = 0; i < points; i++) {
+    int lon = gbfgetint32(fin);
+    int lat = gbfgetint32(fin);
 
-    lon = gbfgetint32(fin);
-    lat = gbfgetint32(fin);
-
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
     wpt->latitude = GPS_Math_Semi_To_Deg(lat & 0x7FFFFFFF);
     wpt->longitude = GPS_Math_Semi_To_Deg(lon);
 
-    if ((lat >> 31) || (trk == NULL)) {
+    if ((lat >> 31) || (trk == nullptr)) {
       trk = route_head_alloc();
       track_add_head(trk);
     }
@@ -80,19 +76,19 @@ navitel_wr_init(const QString& fname)
 }
 
 static void
-navitel_wr_deinit(void)
+navitel_wr_deinit()
 {
   gbfclose(fout);
 }
 
 static void
-navitel_enum_trkpts(const Waypoint* wpt)
+navitel_enum_trkpts(const Waypoint*)
 {
   trkpts++;
 }
 
 static void
-navitel_disp_trk_head(const route_head* trk)
+navitel_disp_trk_head(const route_head*)
 {
   new_track = 1;
 }
@@ -100,10 +96,8 @@ navitel_disp_trk_head(const route_head* trk)
 static void
 navitel_disp_trkpts(const Waypoint* wpt)
 {
-  int lat, lon;
-
-  lat = GPS_Math_Deg_To_Semi(wpt->latitude);
-  lon = GPS_Math_Deg_To_Semi(wpt->longitude);
+  int lat = GPS_Math_Deg_To_Semi(wpt->latitude);
+  int lon = GPS_Math_Deg_To_Semi(wpt->longitude);
 
   if (new_track) {
     lat |= (1 << 31);
@@ -115,10 +109,10 @@ navitel_disp_trkpts(const Waypoint* wpt)
 }
 
 static void
-navitel_write_track(void)
+navitel_write_track()
 {
   trkpts = 0;
-  track_disp_all(NULL, NULL, navitel_enum_trkpts);
+  track_disp_all(nullptr, nullptr, navitel_enum_trkpts);
   if (trkpts > 10000) {
     trkpts = 10000;
     warning(MYNAME ": Can store only 10000 points per file!\n");
@@ -126,7 +120,7 @@ navitel_write_track(void)
 
   gbfputint32(trkpts, fout);
   gbfputint32(1, fout);		/* ? */
-  track_disp_all(navitel_disp_trk_head, NULL, navitel_disp_trkpts);
+  track_disp_all(navitel_disp_trk_head, nullptr, navitel_disp_trkpts);
 }
 
 /**************************************************************************/
@@ -144,9 +138,11 @@ ff_vecs_t navitel_trk_vecs = {
   navitel_wr_deinit,
   navitel_read_track,
   navitel_write_track,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   CET_CHARSET_UTF8, 1			/* Nothing to convert */
+  , NULL_POS_OPS,
+  nullptr
 };
 
 /**************************************************************************/

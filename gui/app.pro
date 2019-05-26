@@ -1,23 +1,20 @@
 # $Id: app.pro,v 1.19 2010-11-01 03:30:42 robertl Exp $
 #
 
-CONFIG += qt release 
-#CONFIG += qt debug console
-
-# For Mac, x86 and x64, but not PPC binary.   Ignored on other OSes.
-# macx:CONFIG -= x86_64 
-# macx:CONFIG += x86
-macx:DEFINES += HAVE_CONFIG_H
+CONFIG += qt
+CONFIG(debug, debug|release) {
+  CONFIG += console
+}
 
 ICON = images/appicon.icns
 
 QT += core \
       gui \
       network \
-      xml \
+      xml
 
-greaterThan(QT_MINOR_VERSION, 5) {
-  QT += webenginewidgets
+qtHaveModule(webenginewidgets) {
+  QT += webenginewidgets webchannel
   DEFINES += HAVE_WEBENGINE
 } else {
   QT += webkit webkitwidgets 
@@ -27,6 +24,7 @@ unix:DESTDIR = objects
 unix:MOC_DIR = objects
 unix:OBJECTS_DIR = objects
 unix:RCC_DIR = objects
+mac:DESTDIR = .
 
 mac:LIBS += -framework IOKit -framework CoreFoundation
 unix {
@@ -44,9 +42,11 @@ RC_FILE = app.rc
 
 win32 { 
   TARGET=GPSBabelFE
+}
+win32-g++ {
   QMAKE_LFLAGS_RELEASE += -static-libgcc
 }
-unix:TARGET=gpsbabelfe-bin
+unix:TARGET=gpsbabelfe
 mac:TARGET=GPSBabelFE
 
 FORMS += aboutui.ui
@@ -116,9 +116,20 @@ TRANSLATIONS += gpsbabelfe_es.ts
 TRANSLATIONS += gpsbabelfe_fr.ts
 TRANSLATIONS += gpsbabelfe_hu.ts
 TRANSLATIONS += gpsbabelfe_it.ts
-TRANSLATIONS += gpsbabelfe.ts
-TRANSLATIONS += gpsbabel.ts
 
+macx|linux{
+  package.commands = QMAKE=$(QMAKE) ./package_app
+  package.depends = $(TARGET)
+  QMAKE_EXTRA_TARGETS += package
+}
+linux: QMAKE_DISTCLEAN += -r GPSBabelFE
 
-
+# build the compilation data base used by clang tools including clang-tidy,
+# as well as CLion.
+macx|linux{
+  compile_command_database.target = compile_commands.json
+  compile_command_database.commands = make clean; bear make
+  QMAKE_EXTRA_TARGETS += compile_command_database
+  QMAKE_DISTCLEAN += compile_commands.json
+}
 

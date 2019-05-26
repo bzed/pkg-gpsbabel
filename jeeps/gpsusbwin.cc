@@ -19,19 +19,19 @@
 
  */
 
-#include <stdio.h>
-#include <ctype.h>
-#include <malloc.h>
-#include <windows.h>
-#include <winioctl.h>
+#include <cctype>
+#include <cstdio>
+#include <windows.h> // Boost this out of alpha order.
 #include <initguid.h>
+#include <malloc.h>
 #include <setupapi.h>
+#include <winioctl.h>
 
+#include "../garmin_device_xml.h"
+#include "garminusb.h"
 #include "gps.h"
 #include "gpsapp.h"
-#include "garminusb.h"
 #include "gpsusbcommon.h"
-#include "../garmin_device_xml.h"
 
 /* Constants from Garmin doc. */
 
@@ -58,7 +58,7 @@ static int usb_tx_packet_size ;
 static const gdx_info* gdx;
 
 static int
-gusb_win_close(gpsdevh* handle)
+gusb_win_close(gpsdevh* /* handle */)
 {
   if (usb_handle != INVALID_HANDLE_VALUE) {
     CloseHandle(usb_handle);

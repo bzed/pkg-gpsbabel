@@ -19,51 +19,19 @@
 
  */
 
+#include <cmath>            // for fabs
+#include <cstdlib>          // for strtod
+
+#include <QtCore/QtGlobal>  // for foreach
+
 #include "defs.h"
 #include "filterdefs.h"
-#include "grtcirc.h"
-#include <math.h>
-#include <stdlib.h>
+#include "grtcirc.h"        // for RAD, gcdist, radtomiles
+#include "position.h"
 
 #if FILTERS_ENABLED
 
-#ifndef M_PI
-#  define M_PI 3.14159265358979323846
-#endif
-
-static route_head* cur_rte = NULL;
-
-static double pos_dist;
-static double max_diff_time;
-static char* distopt = NULL;
-static char* timeopt = NULL;
-static char* purge_duplicates = NULL;
-static int check_time;
-
-typedef struct {
-  double distance;
-} extra_data;
-
-static
-arglist_t position_args[] = {
-  {
-    "distance", &distopt, "Maximum positional distance",
-    NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED, ARG_NOMINMAX
-  },
-  {
-    "all", &purge_duplicates,
-    "Suppress all points close to other points",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  {
-    "time", &timeopt, "Maximum time in seconds beetween two points",
-    NULL, ARGTYPE_FLOAT | ARGTYPE_REQUIRED, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
-static double
-gc_distance(double lat1, double lon1, double lat2, double lon2)
+double PositionFilter::gc_distance(double lat1, double lon1, double lat2, double lon2)
 {
   return gcdist(
            RAD(lat1),
@@ -74,25 +42,16 @@ gc_distance(double lat1, double lon1, double lat2, double lon2)
 }
 
 /* tear through a waypoint queue, processing points by distance */
-static void
-position_runqueue(queue* q, int nelems, int qtype)
+void PositionFilter::position_runqueue(WaypointList* waypt_list, int nelems, int qtype)
 {
-  queue* elem, * tmp;
-  Waypoint** comp;
-  int* qlist;
   double dist, diff_time;
-  int i = 0, j, anyitem;
+  int i = 0, anyitem;
 
-  comp = (Waypoint**) xcalloc(nelems, sizeof(*comp));
-  qlist = (int*) xcalloc(nelems, sizeof(*qlist));
+  Waypoint** comp = (Waypoint**) xcalloc(nelems, sizeof(*comp));
+  int* qlist = (int*) xcalloc(nelems, sizeof(*qlist));
 
-#if NEWQ
-  foreach(Waypoint* waypointp, waypt_list) {
+  foreach (Waypoint* waypointp, *waypt_list) {
     comp[i] = waypointp;
-#else
-  QUEUE_FOR_EACH(q, elem, tmp) {
-    comp[i] = (Waypoint*)elem;
-#endif
     qlist[i] = 0;
     i++;
   }
@@ -101,7 +60,7 @@ position_runqueue(queue* q, int nelems, int qtype)
     anyitem = 0;
 
     if (!qlist[i]) {
-      for (j = i + 1 ; j < nelems ; j++) {
+      for (int j = i + 1 ; j < nelems ; j++) {
         if (!qlist[j]) {
           dist = gc_distance(comp[j]->latitude,
                              comp[j]->longitude,
@@ -125,9 +84,11 @@ position_runqueue(queue* q, int nelems, int qtype)
               break;
             case trkdata:
               track_del_wpt(cur_rte, comp[j]);
+              delete comp[j];
               break;
             case rtedata:
               route_del_wpt(cur_rte, comp[j]);
+              delete comp[j];
               break;
             default:
               break;
@@ -141,17 +102,19 @@ position_runqueue(queue* q, int nelems, int qtype)
         switch (qtype) {
         case wptdata:
           waypt_del(comp[i]);
+          delete comp[i];
           break;
         case trkdata:
           track_del_wpt(cur_rte, comp[i]);
+          delete comp[i];
           break;
         case rtedata:
           route_del_wpt(cur_rte, comp[i]);
+          delete comp[i];
           break;
         default:
           break;
         }
-        delete comp[i];
       }
     }
   }
@@ -165,43 +128,44 @@ position_runqueue(queue* q, int nelems, int qtype)
   }
 }
 
-static void
-position_process_route(const route_head* rh)
+void PositionFilter::position_process_any_route(const route_head* rh, int type)
 {
   int i = rh->rte_waypt_ct;
 
   if (i) {
-    cur_rte = (route_head*)rh;
-    position_runqueue((queue*)&rh->waypoint_list, i, rtedata);
-    cur_rte = NULL;
+    cur_rte = const_cast<route_head*>(rh);
+    position_runqueue(&cur_rte->waypoint_list, i, type);
+    cur_rte = nullptr;
   }
 
 }
 
-static void
-position_noop_w(const Waypoint* w)
+void PositionFilter::position_process_rte(const route_head* rh)
 {
+  position_process_any_route(rh, rtedata);
 }
 
-static void
-position_noop_t(const route_head* h)
+void PositionFilter::position_process_trk(const route_head* rh)
 {
+  position_process_any_route(rh, trkdata);
 }
 
-void position_process(void)
+void PositionFilter::process()
 {
+  RteHdFunctor<PositionFilter> position_process_rte_f(this, &PositionFilter::position_process_rte);
+  RteHdFunctor<PositionFilter> position_process_trk_f(this, &PositionFilter::position_process_trk);
+
   int i = waypt_count();
 
   if (i) {
-    position_runqueue(&waypt_head, i, wptdata);
+    position_runqueue(global_waypoint_list, i, wptdata);
   }
 
-  route_disp_all(position_process_route, position_noop_t, position_noop_w);
-  track_disp_all(position_process_route, position_noop_t, position_noop_w);
+  route_disp_all(position_process_rte_f, nullptr, nullptr);
+  track_disp_all(position_process_trk_f, nullptr, nullptr);
 }
 
-void
-position_init(const char* args)
+void PositionFilter::init()
 {
   char* fm;
 
@@ -223,18 +187,5 @@ position_init(const char* args)
     max_diff_time = strtod(timeopt, &fm);
   }
 }
-
-void
-position_deinit(void)
-{
-}
-
-filter_vecs_t position_vecs = {
-  position_init,
-  position_process,
-  position_deinit,
-  NULL,
-  position_args
-};
 
 #endif // FILTERS_ENABLED

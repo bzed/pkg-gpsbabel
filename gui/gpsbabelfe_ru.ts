@@ -226,12 +226,12 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>FileDlgManager</name>
     <message>
-        <location filename="optionsdlg.cc" line="73"/>
+        <location filename="optionsdlg.cc" line="72"/>
         <source>Select input file</source>
         <translation>Выберите входной файл</translation>
     </message>
     <message>
-        <location filename="optionsdlg.cc" line="77"/>
+        <location filename="optionsdlg.cc" line="76"/>
         <source>Select output file</source>
         <translation>Выберите выходной файл</translation>
     </message>
@@ -259,7 +259,7 @@ p, li { white-space: pre-wrap; }
         <translation>Прочие</translation>
     </message>
     <message>
-        <location filename="filterdlg.cc" line="104"/>
+        <location filename="filterdlg.cc" line="105"/>
         <source>Are you sure you want to reset all filter options to default values?</source>
         <translation>Cбросить все настройки фильтра в значения по умолчанию?</translation>
     </message>
@@ -327,101 +327,101 @@ p, li { white-space: pre-wrap; }
         <translation>Описание: %1</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="86"/>
+        <location filename="gmapdlg.cc" line="87"/>
         <source>Cmt: %1</source>
         <translation>Комментарий: %1</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="88"/>
+        <location filename="gmapdlg.cc" line="90"/>
         <source>Ele: %1</source>
         <translation>Высота: %1</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="118"/>
+        <location filename="gmapdlg.cc" line="123"/>
         <source>Start: %1</source>
         <translation>Начало: %1</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="120"/>
+        <location filename="gmapdlg.cc" line="125"/>
         <source>Stop: %1</source>
         <translation>Конец: %1</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="123"/>
+        <location filename="gmapdlg.cc" line="128"/>
         <source>Points: %1</source>
         <translation>Точек: %1</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="150"/>
+        <location filename="gmapdlg.cc" line="155"/>
         <source>Waypoints</source>
         <translation>Маршрутные точки</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="165"/>
+        <location filename="gmapdlg.cc" line="170"/>
         <source>Tracks</source>
         <translation>Треки</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="180"/>
+        <location filename="gmapdlg.cc" line="185"/>
         <source>Routes</source>
         <translation>Маршруты</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="521"/>
+        <location filename="gmapdlg.cc" line="540"/>
         <source>Show All Waypoints</source>
         <translation>Показать все маршрутные точки</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="522"/>
+        <location filename="gmapdlg.cc" line="541"/>
         <source>Hide All Waypoints</source>
         <translation>Скрыть все маршрутные точки</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="523"/>
-        <location filename="gmapdlg.cc" line="531"/>
-        <location filename="gmapdlg.cc" line="539"/>
+        <location filename="gmapdlg.cc" line="542"/>
+        <location filename="gmapdlg.cc" line="549"/>
+        <location filename="gmapdlg.cc" line="556"/>
         <source>Expand All</source>
         <translation>Развернуть все</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="524"/>
-        <location filename="gmapdlg.cc" line="532"/>
-        <location filename="gmapdlg.cc" line="540"/>
+        <location filename="gmapdlg.cc" line="543"/>
+        <location filename="gmapdlg.cc" line="550"/>
+        <location filename="gmapdlg.cc" line="557"/>
         <source>Collapse All</source>
         <translation>Свернуть все</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="529"/>
+        <location filename="gmapdlg.cc" line="547"/>
         <source>Show All Routes</source>
         <translation>Показать все маршруты</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="530"/>
+        <location filename="gmapdlg.cc" line="548"/>
         <source>Hide All Routes</source>
         <translation>Скрыть все маршруты</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="537"/>
+        <location filename="gmapdlg.cc" line="554"/>
         <source>Show All Tracks</source>
         <translation>Показать все треки</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="538"/>
+        <location filename="gmapdlg.cc" line="555"/>
         <source>Hide All Tracks</source>
         <translation>Скрыть все треки</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="545"/>
+        <location filename="gmapdlg.cc" line="561"/>
         <source>Show Only This Waypoint</source>
         <translation>Показать только эту маршрутную точку</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="551"/>
+        <location filename="gmapdlg.cc" line="566"/>
         <source>Show Only This Track</source>
         <translation>Показать только этот трек</translation>
     </message>
     <message>
-        <location filename="gmapdlg.cc" line="557"/>
+        <location filename="gmapdlg.cc" line="571"/>
         <source>Show Only This Route</source>
         <translation>Показать только этот маршрут</translation>
     </message>
@@ -686,17 +686,17 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">по умолчанию</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="528"/>
+        <location filename="mainwindow.cc" line="565"/>
         <source>Select one or more input files</source>
         <translation>Выберите один или несколько файлов</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="555"/>
+        <location filename="mainwindow.cc" line="593"/>
         <source>Output File Name</source>
         <translation>Имя выходного файла</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="615"/>
+        <location filename="mainwindow.cc" line="657"/>
         <source>Error reading format configuration.  Check that the backend program &quot;gpsbabel&quot; is properly installed and is in the current PATH
 
 This program cannot continue.</source>
@@ -705,7 +705,7 @@ This program cannot continue.</source>
 Выполнение программы не может быть продолжено.</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="626"/>
+        <location filename="mainwindow.cc" line="668"/>
         <source>Some file/device formats were not found during initialization.  Check that the backend program &quot;gpsbabel&quot; is properly installed and is in the current PATH
 
 This program cannot continue.</source>
@@ -714,114 +714,122 @@ This program cannot continue.</source>
 Выполнение программы не может быть продолжено.</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="648"/>
+        <location filename="mainwindow.cc" line="689"/>
         <source>Input and output formats do not support %1</source>
         <translation>Входной и выходной форматы не поддерживают %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="651"/>
         <source>Input does not support %1; output format supports %2</source>
-        <translation>Входной формат не поддерживает %1; выходной формат поддерживает %2</translation>
+        <translation type="vanished">Входной формат не поддерживает %1; выходной формат поддерживает %2</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="654"/>
         <source>Input format supports %1; output format does not support %2</source>
-        <translation>Входной формат поддерживает %1; выходной формат не поддерживаетt %2</translation>
+        <translation type="vanished">Входной формат поддерживает %1; выходной формат не поддерживаетt %2</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="657"/>
+        <location filename="mainwindow.cc" line="692"/>
+        <source>Input does not support %1; output format supports %1</source>
+        <translation type="unfinished">Входной формат не поддерживает %1; выходной формат поддерживает %1 {1;?}</translation>
+    </message>
+    <message>
+        <location filename="mainwindow.cc" line="695"/>
+        <source>Input format supports %1; output format does not support %1</source>
+        <translation type="unfinished">Входной формат поддерживает %1; выходной формат не поддерживаетt %1 {1;?}</translation>
+    </message>
+    <message>
+        <location filename="mainwindow.cc" line="698"/>
         <source>Both input and output formats support %1</source>
         <translation>Входной и выходной формат поддерживают %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="678"/>
+        <location filename="mainwindow.cc" line="719"/>
         <source>waypoints</source>
         <translation>маршрутные точки</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="679"/>
+        <location filename="mainwindow.cc" line="720"/>
         <source>tracks</source>
         <translation>треки</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="680"/>
+        <location filename="mainwindow.cc" line="721"/>
         <source>routes</source>
         <translation>маршруты</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="770"/>
+        <location filename="mainwindow.cc" line="816"/>
         <source>There are no input options for format &quot;%1&quot;</source>
         <translation>Нет входных параметров для формата &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="777"/>
-        <location filename="mainwindow.cc" line="797"/>
+        <location filename="mainwindow.cc" line="822"/>
+        <location filename="mainwindow.cc" line="841"/>
         <source>Options for %1</source>
         <translation>Параметры %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="790"/>
+        <location filename="mainwindow.cc" line="835"/>
         <source>There are no output options for format &quot;%1&quot;</source>
         <translation>Нет выходных параметров для формата &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="811"/>
+        <location filename="mainwindow.cc" line="855"/>
         <source>No valid waypoints/routes/tracks translation specified</source>
         <translation>Не выбрано преобразование маршрутных точек/маршрутов/треков</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="830"/>
+        <location filename="mainwindow.cc" line="874"/>
         <source>No input file specified</source>
         <translation>Не выбран входной файл</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="837"/>
+        <location filename="mainwindow.cc" line="881"/>
         <source>No valid output specified</source>
         <translation>Не выбран выходной файл</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="842"/>
+        <location filename="mainwindow.cc" line="886"/>
         <source>No output file specified</source>
         <translation>Не выбран выходной файл</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="858"/>
+        <location filename="mainwindow.cc" line="902"/>
         <source>Process &quot;%1&quot; did not start</source>
         <translation>Процесс &quot;%1&quot; не запустился</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="872"/>
-        <source>Process exited unsucessfully with code %1</source>
+        <location filename="mainwindow.cc" line="916"/>
+        <source>Process exited unsuccessfully with code %1</source>
         <translation>Процесс завершился неудачей с кодом %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="1007"/>
+        <location filename="mainwindow.cc" line="1058"/>
         <source>Translation successful</source>
         <translation>Конвертация выполнена</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="1018"/>
+        <location filename="mainwindow.cc" line="1068"/>
         <source>Error running gpsbabel: %1
 </source>
         <translation>Ошибка запуска gpsbabel: %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="1132"/>
+        <location filename="mainwindow.cc" line="1188"/>
         <source>Are you sure you want to reset all format options to default values?</source>
         <translation>Вы действительно желаете сбросить все параметры формата в значения по умолчанию?</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="1155"/>
+        <location filename="mainwindow.cc" line="1212"/>
         <source>About %1</source>
         <translation>О %1</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="1198"/>
+        <location filename="mainwindow.cc" line="1255"/>
         <source>One or more data filters are active</source>
         <translation>Один или более фильтров данных активны</translation>
     </message>
     <message>
-        <location filename="mainwindow.cc" line="1200"/>
+        <location filename="mainwindow.cc" line="1257"/>
         <source>No data filters are active</source>
         <translation>Фильтры данных не активны</translation>
     </message>
@@ -829,12 +837,12 @@ This program cannot continue.</source>
 <context>
     <name>Map</name>
     <message>
-        <location filename="map.cc" line="76"/>
+        <location filename="map.cc" line="96"/>
         <source>Missing &quot;gmapbase.html&quot; file.  Check installation</source>
         <translation>Отсутствует файл &quot;gmapbase.html&quot;. Попробуйте переустановить программу</translation>
     </message>
     <message>
-        <location filename="map.cc" line="96"/>
+        <location filename="map.cc" line="134"/>
         <source>Failed to load Google maps base page</source>
         <translation>Не удалось загрузить базовую страницу Google Maps</translation>
     </message>
@@ -847,49 +855,54 @@ This program cannot continue.</source>
         <translation>Форма</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="27"/>
+        <location filename="miscfltui.ui" line="232"/>
         <source>Misc. Filters</source>
         <translation>Прочие фильтры</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="34"/>
+        <location filename="miscfltui.ui" line="78"/>
         <source>Nuke (Remove) Data Types</source>
         <translation>Очистить типы данных</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="46"/>
-        <location filename="filterwidgets.cc" line="222"/>
-        <location filename="filterwidgets.cc" line="223"/>
-        <location filename="filterwidgets.cc" line="224"/>
+        <location filename="miscfltui.ui" line="90"/>
         <location filename="filterwidgets.cc" line="225"/>
+        <location filename="filterwidgets.cc" line="226"/>
+        <location filename="filterwidgets.cc" line="227"/>
+        <location filename="filterwidgets.cc" line="228"/>
         <source>Routes</source>
         <translation>Маршруты</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="53"/>
-        <location filename="filterwidgets.cc" line="221"/>
-        <location filename="filterwidgets.cc" line="222"/>
+        <location filename="miscfltui.ui" line="97"/>
+        <location filename="filterwidgets.cc" line="224"/>
         <location filename="filterwidgets.cc" line="225"/>
-        <location filename="filterwidgets.cc" line="226"/>
+        <location filename="filterwidgets.cc" line="228"/>
+        <location filename="filterwidgets.cc" line="229"/>
         <source>Tracks</source>
         <translation>Треки</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="60"/>
-        <location filename="filterwidgets.cc" line="221"/>
-        <location filename="filterwidgets.cc" line="223"/>
+        <location filename="miscfltui.ui" line="104"/>
         <location filename="filterwidgets.cc" line="224"/>
         <location filename="filterwidgets.cc" line="226"/>
+        <location filename="filterwidgets.cc" line="227"/>
+        <location filename="filterwidgets.cc" line="229"/>
         <source>Waypoints</source>
         <translation>Маршрутные точки</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="72"/>
+        <location filename="miscfltui.ui" line="31"/>
         <source>Convert routes, waypoints and tracks to different types.</source>
         <translation>Преобразование маршрутов, маршрутных точек и треков в различные типы.</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="75"/>
+        <location filename="miscfltui.ui" line="22"/>
+        <source>Sort Routes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="34"/>
         <source>This filter can be used to convert GPS data between different data types.
 
 Some GPS data formats support only some subset of waypoints, tracks, and routes. The transform filter allows you to convert between these types. For example, it can be used to convert a pile of waypoints (such as those from a CSV file) into a track or vice versa. </source>
@@ -898,46 +911,93 @@ Some GPS data formats support only some subset of waypoints, tracks, and routes.
 Некоторые форматы данных GPS не предоставляют полную поддержку маршрутных точек, треков и маршрутов. Фильтр трансформации позволяет переводить данные между этими типами. Например, он может быть использован для конвертации точек (например из CSV файла) в трек и обратно.</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="80"/>
+        <location filename="miscfltui.ui" line="39"/>
         <source>Transform</source>
         <translation>Трансформация</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="87"/>
+        <location filename="miscfltui.ui" line="46"/>
         <source>Type of transformation. </source>
         <translation>Тип трансформации.</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="94"/>
+        <location filename="miscfltui.ui" line="53"/>
         <source>Delete original data after transform to prevent duplicated data. </source>
         <translation>Удалить исходные данные после преобразования с целью предотвращения дублирования.</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="97"/>
+        <location filename="miscfltui.ui" line="56"/>
         <source>Delete</source>
         <translation>Удалить</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="119"/>
+        <location filename="miscfltui.ui" line="116"/>
+        <location filename="miscfltui.ui" line="171"/>
+        <location filename="miscfltui.ui" line="248"/>
+        <source>By</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="124"/>
+        <location filename="miscfltui.ui" line="179"/>
+        <location filename="miscfltui.ui" line="256"/>
+        <source>Description</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="129"/>
+        <source>GCID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="134"/>
+        <location filename="miscfltui.ui" line="184"/>
+        <location filename="miscfltui.ui" line="261"/>
+        <source>Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="139"/>
+        <source>Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="162"/>
+        <source>Sort Waypoints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="189"/>
+        <location filename="miscfltui.ui" line="266"/>
+        <source>Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="212"/>
         <source>Swap Longitude and Latitudes for badly formatted data formats.</source>
         <translation>Поменять местами долготу и широту для неправильно сформатированных форматов.</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="122"/>
+        <location filename="miscfltui.ui" line="215"/>
         <source>Simple filter to swap the coordinate values (latitude and longitude) of all points. This can be helpful for wrong defined/coded data. Or if you think, you can use one of our xcsv formats, but latitude and longitude are in opposite order. </source>
         <translation>Простой фильтр для cмены местами координат (широта и долгота) всех точек. Может быть полезен для неправильно заданных/закодированных данных. Можно также использовать один из xcsv форматов, указав широту и долготу в обратном порядке.</translation>
     </message>
     <message>
-        <location filename="miscfltui.ui" line="125"/>
+        <location filename="miscfltui.ui" line="218"/>
         <source>Swap Coordinates</source>
         <translation>Поменять координаты местами</translation>
+    </message>
+    <message>
+        <location filename="miscfltui.ui" line="239"/>
+        <source>Sort Tracks</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>OptionsDlg</name>
     <message>
-        <location filename="optionsdlg.cc" line="192"/>
-        <location filename="optionsdlg.cc" line="203"/>
+        <location filename="optionsdlg.cc" line="191"/>
+        <location filename="optionsdlg.cc" line="202"/>
         <source>Help</source>
         <translation>Помощь</translation>
     </message>
@@ -993,52 +1053,52 @@ Some GPS data formats support only some subset of waypoints, tracks, and routes.
 <context>
     <name>ProcessWaitDialog</name>
     <message>
-        <location filename="processwait.cc" line="43"/>
+        <location filename="processwait.cc" line="42"/>
         <source>Process failed to start</source>
         <translation>Неудача при запуске процесса</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="46"/>
+        <location filename="processwait.cc" line="45"/>
         <source>Process crashed</source>
         <translation>Неудача</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="49"/>
+        <location filename="processwait.cc" line="48"/>
         <source>Process timedout</source>
         <translation>Процесс остановлен</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="52"/>
+        <location filename="processwait.cc" line="51"/>
         <source>Error while trying to write to process</source>
         <translation>Ошибка записи процесса</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="55"/>
+        <location filename="processwait.cc" line="54"/>
         <source>Error while trying to read from process</source>
         <translation>Ошибка чтения процесса</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="59"/>
+        <location filename="processwait.cc" line="58"/>
         <source>Unknown process error</source>
         <translation>Неизвестная ошибка</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="68"/>
+        <location filename="processwait.cc" line="67"/>
         <source> ... Process GPSBabel</source>
         <translation>...GPSBabel Работает</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="83"/>
+        <location filename="processwait.cc" line="82"/>
         <source>Stop Process</source>
         <translation>Остановить процесс</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="155"/>
+        <location filename="processwait.cc" line="156"/>
         <source>Process did not terminate successfully</source>
         <translation>Процесс завершился неудачей</translation>
     </message>
     <message>
-        <location filename="processwait.cc" line="174"/>
+        <location filename="processwait.cc" line="175"/>
         <source>Process crashed whle running</source>
         <translation>Неудача в процессе исполнения</translation>
     </message>
@@ -1046,7 +1106,7 @@ Some GPS data formats support only some subset of waypoints, tracks, and routes.
 <context>
     <name>QObject</name>
     <message>
-        <location filename="formatload.cc" line="155"/>
+        <location filename="formatload.cc" line="177"/>
         <source>Error processing formats from running process &quot;gpsbabel -^3&quot; at line %1</source>
         <translation>Ошибка обработки форматов при запуске процесса &quot;gpsbabel -^3&quot; в строке %1</translation>
     </message>
@@ -1450,49 +1510,49 @@ This option computes (or recomputes) a value for the GPS heading at each trackpo
 <context>
     <name>UpgradeCheck</name>
     <message>
-        <location filename="upgrade.cc" line="234"/>
-        <location filename="upgrade.cc" line="238"/>
-        <location filename="upgrade.cc" line="272"/>
+        <location filename="upgrade.cc" line="213"/>
+        <location filename="upgrade.cc" line="217"/>
+        <location filename="upgrade.cc" line="251"/>
         <source>HTTP</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="upgrade.cc" line="235"/>
+        <location filename="upgrade.cc" line="214"/>
         <source>Unexpected reply.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="upgrade.cc" line="239"/>
+        <location filename="upgrade.cc" line="218"/>
         <source>Download failed: %1.</source>
         <translation>Загрузка завершилась неудачей: %1.</translation>
     </message>
     <message>
-        <location filename="upgrade.cc" line="273"/>
+        <location filename="upgrade.cc" line="252"/>
         <source>Download failed: %1: %2.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="upgrade.cc" line="289"/>
+        <location filename="upgrade.cc" line="268"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="upgrade.cc" line="290"/>
+        <location filename="upgrade.cc" line="269"/>
         <source>Invalid return data at line %1: %2.</source>
         <translation>Некорректные данные возвращены в строке %1: %2.</translation>
     </message>
     <message>
-        <location filename="upgrade.cc" line="331"/>
+        <location filename="upgrade.cc" line="311"/>
         <source>A new version of GPSBabel is available.&lt;br /&gt;Your version is %1 &lt;br /&gt;The latest version is %2</source>
         <translation>Доступна новая версия GPSBabel.&lt;br /&gt;Используемая версия %1 &lt;br /&gt;Последняя доступная версия %2</translation>
     </message>
     <message>
-        <location filename="upgrade.cc" line="342"/>
+        <location filename="upgrade.cc" line="321"/>
         <source>Upgrade</source>
         <translation>Обновить</translation>
     </message>
     <message>
-        <location filename="upgrade.cc" line="349"/>
+        <location filename="upgrade.cc" line="328"/>
         <source>Do you wish to download an upgrade?</source>
         <translation>Загрузить обновление?</translation>
     </message>
@@ -1533,32 +1593,32 @@ This option computes (or recomputes) a value for the GPS heading at each trackpo
         <translation>Форма</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="29"/>
+        <location filename="wayptsui.ui" line="93"/>
         <source>Waypoints Filters</source>
         <translation>Фильтр Маршрутных точек</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="36"/>
+        <location filename="wayptsui.ui" line="165"/>
         <source>Remove duplicates</source>
         <translation>Удалить дубликаты</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="39"/>
+        <location filename="wayptsui.ui" line="168"/>
         <source>The duplicate filter is designed to remove duplicate points based on their short name (traditionally a waypoint&apos;s name on the GPS receiver), and/or their location (to a precision of 6 decimals). This filter supports two options that specify how duplicates will be recognized, shortname and location. Generally, at least one of these options is required. </source>
         <translation>Фильтр дубликатов предназначен для того, чтобы убирать дублирующиеся точки используя информацию о их которком названии (обычно имя точки на приёмнике GPS), и/или их местоположении (с точностью до 6 знаков после запятой). Этот фильтр поддерживает две опции, которые указывают сколько дубликатов будет распознано, имя и местоположени. Обычно необходимо указать по крайней мере одну из этих опций.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="42"/>
+        <location filename="wayptsui.ui" line="171"/>
         <source>Duplicates</source>
         <translation>Дубликаты</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="55"/>
+        <location filename="wayptsui.ui" line="184"/>
         <source>Suppress duplicate waypoints based on name.</source>
         <translation>Предотвращать дублирование маршрутных точек с одинаковыми именами.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="58"/>
+        <location filename="wayptsui.ui" line="187"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -1573,17 +1633,17 @@ p, li { white-space: pre-wrap; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Этот параметр чаще всего используется с фильтром дубликатов. Он говорит фильтру убирать все точки, имеющие такое же имя, как и рассматриваемая точка. Может быть использован, чтобы удалять дубликаты при объединении двух наборов данных, созданных на основе общего источника.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="66"/>
+        <location filename="wayptsui.ui" line="195"/>
         <source>Short Names</source>
         <translation>Короткие имена</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="73"/>
+        <location filename="wayptsui.ui" line="133"/>
         <source>Suppress duplicate waypoint based on coords. </source>
         <translation>Предотвращать дублирование маршрутных точек с одинаковыми координатами.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="76"/>
+        <location filename="wayptsui.ui" line="136"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -1598,17 +1658,17 @@ p, li { white-space: pre-wrap; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Этот параметр говорит фильтру дубликатов убирать любые дополнительные точки, имеющие такие же координаты (до 6 знаков после запятой) как и рассматриваемая точка. Может быть использован для очистки дубликатов, имеющих разные названия. Также может быть полезен вместе с параметром очистки по &lt;span style=&quot; font-family:&apos;Courier New,courier&apos;;&quot;&gt;именам&lt;/span&gt;, чтобы удалять дубликаты, если имена нескольких несвязанных групп точек могут быть одинаковыми. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="84"/>
+        <location filename="wayptsui.ui" line="144"/>
         <source>Locations</source>
         <translation>Наложение</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="91"/>
+        <location filename="wayptsui.ui" line="37"/>
         <source>Remove points based on proximity</source>
         <translation>Удалить точки, исходя из оценки их близости</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="94"/>
+        <location filename="wayptsui.ui" line="40"/>
         <source>Maximum positional distance.
 
 This option specifies the minimum allowable distance between two points. If two points are closer than this distance, only one of them is kept. </source>
@@ -1617,32 +1677,32 @@ This option specifies the minimum allowable distance between two points. If two 
 Этот параметр определяет минимально допустимое расстояние между двумя точками. Если две точки ближе, чем это расстояние, одна из них удаляется.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="99"/>
+        <location filename="wayptsui.ui" line="45"/>
         <source>Position</source>
         <translation>Положение</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="112"/>
+        <location filename="wayptsui.ui" line="119"/>
         <source>Maximum positional distance.</source>
         <translation>Максимальное позиционное расстояние.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="120"/>
+        <location filename="wayptsui.ui" line="152"/>
         <source>Feet</source>
         <translation>футов</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="125"/>
+        <location filename="wayptsui.ui" line="157"/>
         <source>Meters</source>
         <translation>м</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="133"/>
+        <location filename="wayptsui.ui" line="22"/>
         <source>Include points only within radius</source>
         <translation>Включать точки в пределах указанного радиуса</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="136"/>
+        <location filename="wayptsui.ui" line="25"/>
         <source>This filter includes or excludes waypoints based on their proximity to a central point. All waypoints more than the specified distance from the specified point will be removed from the dataset.
 
 By default, all remaining points are sorted so that points closer to the center appear earlier in the output file. </source>
@@ -1651,55 +1711,52 @@ By default, all remaining points are sorted so that points closer to the center 
 По умолчанию все оставшиеся точки отсортированы таким образом, что точки, расположенные ближе к центральной точке, будут идти первыми в выходном файле.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="141"/>
+        <location filename="wayptsui.ui" line="30"/>
         <source>Radius</source>
         <translation>Радиус</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="154"/>
+        <location filename="wayptsui.ui" line="208"/>
         <source>Maximum distance from center. </source>
         <translation>Максимальное расстояние от центра.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="162"/>
+        <location filename="wayptsui.ui" line="73"/>
         <source>Miles</source>
         <translation>миль</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="167"/>
+        <location filename="wayptsui.ui" line="78"/>
         <source>km</source>
         <translation>км</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="175"/>
+        <location filename="wayptsui.ui" line="52"/>
         <source>Lat.</source>
         <translation>Широта</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="188"/>
+        <location filename="wayptsui.ui" line="65"/>
         <source>Latitude of the central point in decimal degrees.  South latitudes should be expressed as a negative number.</source>
         <translation>Широта центральной точки в десятичных степенях. Южные широты должны быть выражены отрицательным числом.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="195"/>
+        <location filename="wayptsui.ui" line="126"/>
         <source>Long.</source>
         <translation>Долгота</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="208"/>
+        <location filename="wayptsui.ui" line="106"/>
         <source>Longitude of the central point in decimal degrees. West longitudes should be expressed as a negative number.</source>
         <translation>Долгота центральной точки в десятичных степенях. Западные долготы должны быть выражены отрицательным числом.</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="215"/>
-        <location filename="wayptsui.ui" line="218"/>
         <source>This filter sorts waypoints into alphabetical order</source>
-        <translation>Данный фильтр позволяет отсортировать маршрутные точки в алфавитном порядке</translation>
+        <translation type="vanished">Данный фильтр позволяет отсортировать маршрутные точки в алфавитном порядке</translation>
     </message>
     <message>
-        <location filename="wayptsui.ui" line="221"/>
         <source>Sort</source>
-        <translation>Сортировать</translation>
+        <translation type="vanished">Сортировать</translation>
     </message>
 </context>
 </TS>

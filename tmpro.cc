@@ -35,7 +35,7 @@
 #include "defs.h"
 #include "cet_util.h"
 #include "csv_util.h"
-#include <stdlib.h>
+#include <cstdlib>
 
 #define MYNAME	"TMPro"
 
@@ -49,7 +49,7 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
@@ -61,18 +61,15 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   gbfclose(file_out);
 }
 
 static void
-data_read(void)
+data_read()
 {
   char* buff;
-  char* s;
-  Waypoint* wpt_tmp;
-  int i;
   int linecount = 0;
 
   while ((buff = gbfgetstr(file_in))) {
@@ -81,15 +78,15 @@ data_read(void)
     }
 
     /* skip the line if it contains "sHyperLink" as it is a header (I hope :) */
-    if ((strlen(buff)) && (strstr(buff, "sHyperLink") == NULL)) {
+    if ((strlen(buff)) && (strstr(buff, "sHyperLink") == nullptr)) {
 
-      wpt_tmp = new Waypoint;
+      Waypoint* wpt_tmp = new Waypoint;
 
       /* data delimited by tabs, not enclosed in quotes.  */
-      s = buff;
+      char* s = buff;
       s = csv_lineparse(s, "\t", "", linecount);
 
-      i = 0;
+      int i = 0;
       while (s) {
         switch (i) {
 
@@ -151,7 +148,7 @@ data_read(void)
         }
         i++;
 
-        s = csv_lineparse(NULL, "\t", "\"", linecount);
+        s = csv_lineparse(nullptr, "\t", "\"", linecount);
       }
 
       if (i != 11) {
@@ -206,7 +203,7 @@ tmpro_waypt_pr(const Waypoint* wpt)
   /* Number of characters */
   /*  25    6      80         8    8      8         8       8    4       4       128      */
 
-  const char* l = NULL;
+  const char* l = nullptr;
   if (wpt->HasUrlLink()) {
     // Yes, it's lame to allocate/copy here.
     UrlLink link = wpt->GetUrlLink();
@@ -229,7 +226,7 @@ tmpro_waypt_pr(const Waypoint* wpt)
 }
 
 static void
-data_write(void)
+data_write()
 {
   /* Short names */
   if (global_opts.synthesize_shortnames) {
@@ -255,8 +252,10 @@ ff_vecs_t tmpro_vecs = {
   wr_deinit,
   data_read,
   data_write,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };
 

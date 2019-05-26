@@ -50,7 +50,7 @@ static garmin_fs_t*
 gmsd_init(Waypoint* wpt)
 {
   garmin_fs_t* gmsd = GMSD_FIND(wpt);
-  if (gmsd == NULL) {
+  if (gmsd == nullptr) {
     gmsd = garmin_fs_alloc(-1);
     fs_chain_add(&wpt->fs, (format_specific_data*) gmsd);
   }
@@ -60,7 +60,7 @@ gmsd_init(Waypoint* wpt)
 static QString
 read_wcstr(const int discard)
 {
-  int16_t* buff = NULL, c;
+  int16_t* buff = nullptr, c;
   int size = 0, pos = 0;
 
   while (gbfread(&c, sizeof(c), 1, fin) && (c != 0)) {
@@ -78,13 +78,13 @@ read_wcstr(const int discard)
   if (pos != 0) {
     char* res;
     if (discard) {
-      res = NULL;
+      res = nullptr;
     } else {
       res = cet_str_uni_to_utf8(buff, pos);
       res = lrtrim(res);
       if (*res == '\0') {
         xfree(res);
-        res = NULL;
+        res = nullptr;
       }
     }
     xfree(buff);
@@ -93,7 +93,7 @@ read_wcstr(const int discard)
     return rv;
     //return res;
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -101,9 +101,8 @@ static void
 write_wcstr(const QString& str)
 {
   int len;
-  short* unicode;
 
-  unicode = cet_str_utf8_to_uni(CSTR(str), &len);
+  short* unicode = cet_str_utf8_to_uni(CSTR(str), &len);
   gbfwrite((void*)unicode, 2, len + 1, fout);
   xfree(unicode);
 }
@@ -111,13 +110,11 @@ write_wcstr(const QString& str)
 static int
 read_until_wcstr(const char* str)
 {
-  char* buff;
-  int len, sz;
   int eos = 0, res = 0;
 
-  len = strlen(str);
-  sz = (len + 1) * 2;
-  buff = (char*) xcalloc(sz, 1);
+  int len = strlen(str);
+  int sz = (len + 1) * 2;
+  char* buff = (char*) xcalloc(sz, 1);
 
   while (! gbfeof(fin)) {
 
@@ -146,16 +143,14 @@ read_until_wcstr(const char* str)
 }
 
 static void
-destinator_read_poi(void)
+destinator_read_poi()
 {
-  Waypoint* wpt;
   int count = 0;
 
   gbfrewind(fin);
 
   while (!(gbfeof(fin))) {
-    QString str, hnum;
-    double ll;
+    QString str;
     garmin_fs_t* gmsd;
 
     if (count == 0) {
@@ -169,12 +164,12 @@ destinator_read_poi(void)
 
     count++;
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
     wpt->shortname = read_wcstr(0);
     wpt->notes = read_wcstr(0);		/* comment */
 
-    hnum = read_wcstr(0);			/* house number */
+    QString hnum = read_wcstr(0);			/* house number */
 
     str = read_wcstr(0); 			/* street */
     if (str.isEmpty()) {
@@ -208,7 +203,7 @@ destinator_read_poi(void)
 
     wpt->longitude = gbfgetdbl(fin);
     wpt->latitude = gbfgetdbl(fin);
-    ll = gbfgetdbl(fin);
+    double ll = gbfgetdbl(fin);
     if (ll != wpt->longitude) {
       fatal(MYNAME "_poi: Invalid file!\n");
     }
@@ -222,19 +217,16 @@ destinator_read_poi(void)
 }
 
 static void
-destinator_read_rte(void)
+destinator_read_rte()
 {
   int count = 0;
-  route_head* rte = NULL;
+  route_head* rte = nullptr;
 
   gbfrewind(fin);
 
   while (!(gbfeof(fin))) {
-    QString str;
-    Waypoint* wpt;
-
     if (count == 0) {
-      str = read_wcstr(0);
+      QString str = read_wcstr(0);
       if ((str != DST_ITINERARY)) {
         fatal(MYNAME "_itn: Invalid record header!\n");
       }
@@ -244,7 +236,7 @@ destinator_read_rte(void)
 
     count++;
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
     wpt->shortname = read_wcstr(0);
     wpt->notes = read_wcstr(0);
@@ -274,19 +266,17 @@ destinator_read_rte(void)
 }
 
 static void
-destinator_read_trk(void)
+destinator_read_trk()
 {
   char TXT[4] = "TXT";
   int recno = -1;
-  route_head* trk = NULL;
+  route_head* trk = nullptr;
 
   gbfrewind(fin);
 
   while (!(gbfeof(fin))) {
-    Waypoint* wpt;
     struct tm tm;
     char buff[20];
-    int date;
 
     recno++;
 
@@ -294,7 +284,7 @@ destinator_read_trk(void)
       break;
     }
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
     wpt->longitude = gbfgetdbl(fin);
     wpt->latitude = gbfgetdbl(fin);
@@ -309,7 +299,7 @@ destinator_read_trk(void)
 
     gbfseek(fin, 12 * sizeof(int32_t), SEEK_CUR);	/* SAT info */
 
-    date = gbfgetint32(fin);
+    int date = gbfgetint32(fin);
     double milliseconds = gbfgetflt(fin);
 
     gbfseek(fin, 2 * 12, SEEK_CUR);			/* SAT info */
@@ -341,9 +331,8 @@ destinator_read_trk(void)
 }
 
 static void
-destinator_read(void)
+destinator_read()
 {
-  int i0, i1;
   double d0, d1;
   char buff[16];
 
@@ -351,8 +340,8 @@ destinator_read(void)
     fatal(MYNAME ": Unexpected EOF (end of file)!\n");
   }
 
-  i0 = le_read32(&buff[0]);
-  i1 = le_read32(&buff[4]);
+  int i0 = le_read32(&buff[0]);
+  int i1 = le_read32(&buff[4]);
 
   if ((i0 == 0x690043) && (i1 == 0x790074)) {
     if (data_type != rtedata) {
@@ -391,12 +380,12 @@ destinator_wpt_disp(const Waypoint* wpt)
   write_wcstr((!wpt->shortname.isEmpty()) ? wpt->shortname : "WPT");
   write_wcstr((!wpt->notes.isEmpty()) ? wpt->notes : wpt->description);
 
-  write_wcstr(NULL);				/* house number */
+  write_wcstr(nullptr);				/* house number */
   write_wcstr(GMSD_GET(addr, NULL));		/* street */
   write_wcstr(GMSD_GET(city, NULL));		/* city */
-  write_wcstr(NULL);				/* unknown */
+  write_wcstr(nullptr);				/* unknown */
   write_wcstr(GMSD_GET(postal_code, NULL));	/* postcode */
-  write_wcstr(NULL);				/* unknown */
+  write_wcstr(nullptr);				/* unknown */
 
   gbfputint32(0, fout);
   gbfputint32(0, fout);
@@ -428,17 +417,14 @@ destinator_trkpt_disp(const Waypoint* wpt)
   }
 
   if (wpt->creation_time.isValid()) {
-    struct tm tm;
-    double milliseconds;
-    int date;
     const time_t ct = wpt->GetCreationTime().toTime_t();
-    tm = *gmtime(&ct);
+    struct tm tm = *gmtime(&ct);
     tm.tm_mon += 1;
     tm.tm_year -= 100;
-    date = ((int)tm.tm_mday * 10000) + ((int)tm.tm_mon * 100) + tm.tm_year;
+    int date = (tm.tm_mday * 10000) + (tm.tm_mon * 100) + tm.tm_year;
     gbfputint32(date, fout);
-    milliseconds = ((int)tm.tm_hour * 10000) +
-                   ((int)tm.tm_min * 100) + tm.tm_sec;
+    double milliseconds = (tm.tm_hour * 10000) +
+      (tm.tm_min * 100) + tm.tm_sec;
     milliseconds = (milliseconds * 1000) + (wpt->GetCreationTime().time().msec());
 
     gbfputflt(milliseconds, fout);
@@ -487,27 +473,27 @@ destinator_rd_init(const QString& fname)
 }
 
 static void
-destinator_rd_deinit(void)
+destinator_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-destinator_read_poi_wrapper(void)
+destinator_read_poi_wrapper()
 {
   data_type = wptdata;
   destinator_read();
 }
 
 static void
-destinator_read_rte_wrapper(void)
+destinator_read_rte_wrapper()
 {
   data_type = rtedata;
   destinator_read();
 }
 
 static void
-destinator_read_trk_wrapper(void)
+destinator_read_trk_wrapper()
 {
   data_type = trkdata;
   destinator_read();
@@ -520,27 +506,27 @@ destinator_wr_init(const QString& fname)
 }
 
 static void
-destinator_wr_deinit(void)
+destinator_wr_deinit()
 {
   gbfclose(fout);
 }
 
 static void
-destinator_write_poi(void)
+destinator_write_poi()
 {
   waypt_disp_all(destinator_wpt_disp);
 }
 
 static void
-destinator_write_rte(void)
+destinator_write_rte()
 {
-  route_disp_all(NULL, NULL, destinator_rtept_disp);
+  route_disp_all(nullptr, nullptr, destinator_rtept_disp);
 }
 
 static void
-destinator_write_trk(void)
+destinator_write_trk()
 {
-  track_disp_all(NULL, NULL, destinator_trkpt_disp);
+  track_disp_all(nullptr, nullptr, destinator_trkpt_disp);
 }
 
 /**************************************************************************/
@@ -558,10 +544,11 @@ ff_vecs_t destinator_poi_vecs = {
   destinator_wr_deinit,
   destinator_read_poi_wrapper,
   destinator_write_poi,
-  NULL,
+  nullptr,
   destinator_args,
   CET_CHARSET_UTF8, 1			/* fixed */
-};
+  , NULL_POS_OPS,
+  nullptr};
 
 ff_vecs_t destinator_itn_vecs = {
   ff_type_file,
@@ -576,10 +563,11 @@ ff_vecs_t destinator_itn_vecs = {
   destinator_wr_deinit,
   destinator_read_rte_wrapper,
   destinator_write_rte,
-  NULL,
+  nullptr,
   destinator_args,
   CET_CHARSET_UTF8, 1			/* fixed */
-};
+  , NULL_POS_OPS,
+  nullptr};
 
 ff_vecs_t destinator_trl_vecs = {
   ff_type_file,
@@ -594,9 +582,10 @@ ff_vecs_t destinator_trl_vecs = {
   destinator_wr_deinit,
   destinator_read_trk_wrapper,
   destinator_write_trk,
-  NULL,
+  nullptr,
   destinator_args,
   CET_CHARSET_UTF8, 1			/* fixed */
-};
+  , NULL_POS_OPS,
+  nullptr };
 
 /**************************************************************************/

@@ -18,12 +18,23 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
  */
 
+#include <cmath>                // for lround
+#include <cstdio>               // for sprintf
+#include <cstdlib>              // for atoi
+#include <cstring>              // for strncpy
+#include <ctime>
+
+#include <QtCore/QCharRef>      // for QCharRef
+#include <QtCore/QString>       // for QString
+#include <QtCore/QTime>         // for QTime
+#include <QtCore/QtGlobal>      // for Q_UNUSED
+
 #include "defs.h"
 #include "mapsend.h"
-#include "magellan.h"
-#include <cmath>
-#include <stdio.h>
-#include <stdlib.h>
+#include "gbfile.h"             // for gbfputint32, gbfgetint32, gbfgetdbl, gbfputdbl, gbfgetpstr, gbfwrite, gbfputpstr, gbfputc, gbfread, gbfclose, gbfgetc, gbfgetflt, gbfopen, gbfputflt, gbfile, gbfgetuint32, gbfopen_le, gbsize_t
+#include "magellan.h"           // for mag_find_token_from_descr, mag_find_descr_from_token
+#include "src/core/datetime.h"  // for DateTime
+
 
 static gbfile* mapsend_file_in;
 static gbfile* mapsend_file_out;
@@ -36,7 +47,7 @@ static int trk_version = 30;
 
 #define MYNAME "mapsend"
 
-static char* mapsend_opt_trkver = NULL;
+static char* mapsend_opt_trkver = nullptr;
 #define MAPSEND_TRKVER_MIN 3
 #define MAPSEND_TRKVER_MAX 4
 
@@ -45,7 +56,7 @@ arglist_t mapsend_args[] = {
   {
     "trkver", &mapsend_opt_trkver,
     "MapSend version TRK file to generate (3,4)",
-    "4", ARGTYPE_INT, "3", "4"
+    "4", ARGTYPE_INT, "3", "4", nullptr
   },
   ARG_TERMINATOR
 };
@@ -53,8 +64,6 @@ arglist_t mapsend_args[] = {
 static void
 mapsend_init_opts(const char isReading)  	/* 1=read, 2=write */
 {
-  int opt_trkver;
-
   /* read & write options here */
 
   if (isReading) {
@@ -63,7 +72,7 @@ mapsend_init_opts(const char isReading)  	/* 1=read, 2=write */
     /* writing-only options here */
 
     // TRK MapSend version
-    opt_trkver = atoi(mapsend_opt_trkver);
+    int opt_trkver = atoi(mapsend_opt_trkver);
     if ((opt_trkver < MAPSEND_TRKVER_MIN) || (opt_trkver > MAPSEND_TRKVER_MAX)) {
       fatal(MYNAME ": Unsupported MapSend TRK version \"%s\"!\n", mapsend_opt_trkver);
     }
@@ -79,7 +88,7 @@ mapsend_rd_init(const QString& fname)
 }
 
 static void
-mapsend_rd_deinit(void)
+mapsend_rd_deinit()
 {
   gbfclose(mapsend_file_in);
 }
@@ -99,7 +108,7 @@ mapsend_wr_init(const QString& fname)
 }
 
 static void
-mapsend_wr_deinit(void)
+mapsend_wr_deinit()
 {
   gbfclose(mapsend_file_out);
   mkshort_del_handle(&mkshort_handle);
@@ -107,17 +116,13 @@ mapsend_wr_deinit(void)
 }
 
 static void
-mapsend_wpt_read(void)
+mapsend_wpt_read()
 {
   char tbuf[256];
-  int wpt_count, rte_count, rte_num;
-  int wpt_number;
   char wpt_icon;
-  char wpt_status;
   Waypoint* wpt_tmp;
-  route_head* rte_head;
 
-  wpt_count = gbfgetint32(mapsend_file_in);
+  int wpt_count = gbfgetint32(mapsend_file_in);
 
   while (wpt_count--) {
     wpt_tmp = new Waypoint;
@@ -125,10 +130,10 @@ mapsend_wpt_read(void)
     wpt_tmp->shortname = gbfgetpstr(mapsend_file_in);
     wpt_tmp->description = gbfgetpstr(mapsend_file_in);
 
-    wpt_number = gbfgetint32(mapsend_file_in);
+    int wpt_number = gbfgetint32(mapsend_file_in);
     (void) wpt_number; // hush warning.
     wpt_icon = gbfgetc(mapsend_file_in);
-    wpt_status = gbfgetc(mapsend_file_in);
+    char wpt_status = gbfgetc(mapsend_file_in);
     (void) wpt_status; // hush warning.
 
     wpt_tmp->altitude = gbfgetdbl(mapsend_file_in);
@@ -146,17 +151,17 @@ mapsend_wpt_read(void)
   }
 
   /* now read the routes... */
-  rte_count = gbfgetint32(mapsend_file_in);
+  int rte_count = gbfgetint32(mapsend_file_in);
 
   while (rte_count--) {
-    rte_head = route_head_alloc();
+    route_head* rte_head = route_head_alloc();
     route_add_head(rte_head);
 
     /* route name */
     rte_head->rte_name = gbfgetpstr(mapsend_file_in);
 
     /* route # */
-    rte_num = gbfgetint32(mapsend_file_in);
+    int rte_num = gbfgetint32(mapsend_file_in);
     rte_head->rte_num = rte_num;
 
     /* points this route */
@@ -169,7 +174,8 @@ mapsend_wpt_read(void)
       wpt_tmp->shortname = gbfgetpstr(mapsend_file_in);
 
       /* waypoint # */
-      wpt_number = gbfgetint32(mapsend_file_in);
+      int wpt_number = gbfgetint32(mapsend_file_in);
+      Q_UNUSED(wpt_number)
       wpt_tmp->longitude = gbfgetdbl(mapsend_file_in);
       wpt_tmp->latitude = -gbfgetdbl(mapsend_file_in);
 
@@ -188,22 +194,16 @@ mapsend_wpt_read(void)
 }
 
 static void
-mapsend_track_read(void)
+mapsend_track_read()
 {
-  unsigned int trk_count;
-  int valid;
-  unsigned char centisecs;
-  route_head* track_head;
-  Waypoint* wpt_tmp;
-
-  track_head = route_head_alloc();
+  route_head* track_head = route_head_alloc();
   track_head->rte_name = gbfgetpstr(mapsend_file_in);
   track_add_head(track_head);
 
-  trk_count = gbfgetuint32(mapsend_file_in);
+  unsigned int trk_count = gbfgetuint32(mapsend_file_in);
 
   while (trk_count--) {
-    wpt_tmp = new Waypoint;
+    Waypoint* wpt_tmp = new Waypoint;
 
     wpt_tmp->longitude = gbfgetdbl(mapsend_file_in);
     wpt_tmp->latitude = -gbfgetdbl(mapsend_file_in);
@@ -217,9 +217,11 @@ mapsend_track_read(void)
       wpt_tmp->altitude = unknown_alt;
     }
     time_t t = gbfgetint32(mapsend_file_in);
-    valid = gbfgetint32(mapsend_file_in);
+    int32_t valid = gbfgetint32(mapsend_file_in);
+    Q_UNUSED(valid);
 
     /* centiseconds only in >= version 3.0 */
+    unsigned char centisecs;
     if (mapsend_infile_version >= 34) {
       gbfread(&centisecs, 1, 1, mapsend_file_in);
     } else {
@@ -232,11 +234,9 @@ mapsend_track_read(void)
 }
 
 static void
-mapsend_read(void)
+mapsend_read()
 {
   mapsend_hdr hdr;
-  int type;
-  gbsize_t len;
   char buf[3];
 
   /*
@@ -244,10 +244,10 @@ mapsend_read(void)
    * strings, each member has to be read in one at a time.  Grrr.
    */
 
-  len = gbfread(&hdr, 1, sizeof(hdr), mapsend_file_in);
+  gbsize_t len = gbfread(&hdr, 1, sizeof(hdr), mapsend_file_in);
   is_fatal(len < sizeof(hdr), MYNAME ": No mapsend or empty file!");
 
-  type = le_read16(&hdr.ms_type);
+  int type = le_read16(&hdr.ms_type);
   strncpy(buf, hdr.ms_version, 2);
   buf[2] = '\0';
 
@@ -273,8 +273,6 @@ mapsend_read(void)
 static void
 mapsend_waypt_pr(const Waypoint* waypointp)
 {
-  unsigned int c = 0;
-  double falt;
   static int cnt = 0;
   QString sn = global_opts.synthesize_shortnames ?
                    mkshort_from_wpt(mkshort_handle, waypointp) :
@@ -301,7 +299,7 @@ mapsend_waypt_pr(const Waypoint* waypointp)
 
   // This is funny looking to ensure that no more than 30 bytes
   // get written to the file.
-  c = waypointp->description.length();
+  unsigned int c = waypointp->description.length();
   if (c > 30) {
     c = 30;
   }
@@ -332,10 +330,10 @@ mapsend_waypt_pr(const Waypoint* waypointp)
     }
   }
 
-  gbfwrite(&c, 1, 1, mapsend_file_out);
+  gbfputc(c, mapsend_file_out);
   gbfputc(1, mapsend_file_out);
 
-  falt = waypointp->altitude;
+  double falt = waypointp->altitude;
   if (falt == unknown_alt) {
     falt = 0;
   }
@@ -367,7 +365,7 @@ mapsend_route_hdr(const route_head* rte)
 }
 
 static void
-mapsend_noop(const route_head* wp)
+mapsend_noop(const route_head*)
 {
   /* no-op */
 }
@@ -376,7 +374,6 @@ static void
 mapsend_route_disp(const Waypoint* waypointp)
 {
   unsigned char c;
-  QString iconp;
 
   route_wp_count++;
 
@@ -390,7 +387,7 @@ mapsend_route_disp(const Waypoint* waypointp)
   gbfputdbl(-waypointp->latitude, mapsend_file_out);
 
   if (!waypointp->icon_descr.isNull()) {
-    iconp = mag_find_token_from_descr(waypointp->icon_descr);
+    QString iconp = mag_find_token_from_descr(waypointp->icon_descr);
     if (1 == iconp.size()) {
       c = iconp[0].toLatin1() - 'a';
     } else {
@@ -402,15 +399,13 @@ mapsend_route_disp(const Waypoint* waypointp)
   gbfwrite(&c, 1, 1, mapsend_file_out);
 }
 
-void mapsend_track_hdr(const route_head* trk)
+static void mapsend_track_hdr(const route_head* trk)
 {
   /*
    * we write mapsend v3.0 tracks as mapsend v2.0 tracks get
    * tremendously out of whack time/date wise.
    */
   const char* verstring = "30";
-  queue* elem, *tmp;
-  int i;
   mapsend_hdr hdr = {13, {'4','D','5','3','3','3','3','4',' ','M','S'},
     {'3','0'}, ms_type_track, {0, 0, 0}
   };
@@ -443,19 +438,15 @@ void mapsend_track_hdr(const route_head* trk)
   gbfputpstr(tname, mapsend_file_out);
 
   /* total nodes (waypoints) this track */
-  i = 0;
-  QUEUE_FOR_EACH(&trk->waypoint_list, elem, tmp) {
-    i++;
-  }
+  int i = trk->waypoint_list.count();
 
   gbfputint32(i, mapsend_file_out);
 
 }
 
-void mapsend_track_disp(const Waypoint* wpt)
+static void mapsend_track_disp(const Waypoint* wpt)
 {
   unsigned char c;
-  int32_t t;
   static int last_time;
 
   /*
@@ -468,7 +459,7 @@ void mapsend_track_disp(const Waypoint* wpt)
    *
    * This is rumoured (but yet unconfirmed) to be fixed in f/w 5.12.
    */
-  t = wpt->GetCreationTime().toTime_t();
+  int32_t t = wpt->GetCreationTime().toTime_t();
   if (t < last_time)  {
     t = last_time;
   }
@@ -502,19 +493,18 @@ void mapsend_track_disp(const Waypoint* wpt)
   }
 }
 
-void
-mapsend_track_write(void)
+static void
+mapsend_track_write()
 {
   track_disp_all(mapsend_track_hdr, mapsend_noop, mapsend_track_disp);
 }
 
 static void
-mapsend_wpt_write(void)
+mapsend_wpt_write()
 {
   mapsend_hdr hdr = {13, {'4','D','5','3','3','3','3','0',' ','M','S'},
     {'3', '0'}, ms_type_wpt, {0, 0, 0}
   };
-  int n = 0;
   int wpt_count = waypt_count();
 
   if (global_opts.objective == trkdata) {
@@ -534,7 +524,7 @@ mapsend_wpt_write(void)
       route_disp_all(mapsend_noop, mapsend_noop, mapsend_waypt_pr);
     }
 
-    n = route_count();
+    int n = route_count();
 
     gbfputint32(n, mapsend_file_out);
 
@@ -555,7 +545,9 @@ ff_vecs_t mapsend_vecs = {
   mapsend_wr_deinit,
   mapsend_read,
   mapsend_wpt_write,
-  NULL,
+  nullptr,
   mapsend_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

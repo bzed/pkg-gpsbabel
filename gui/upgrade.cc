@@ -24,26 +24,21 @@
 #include "format.h"
 #include "upgrade.h"
 #include "../gbversion.h"
-#if HAVE_CONFIG_H
-#include "../config.h"
-#endif
 
-#include <stdio.h>
-#if HAVE_UNAME
-#include <sys/utsname.h>
-#endif // HAVE_UNAME
+#include <cstdio>
 
-#include <QDebug>
-#include <QDesktopServices>
-#include <QDomDocument>
-#include <QLocale>
-#include <QMessageBox>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
-#include <QSysInfo>
-#include <QUrl>
-#include <QVariant>
+#include <QtCore/QDebug>
+#include <QtCore/QLocale>
+#include <QtCore/QSysInfo>
+#include <QtCore/QUrl>
+#include <QtCore/QVariant>
+#include <QtCore/QVersionNumber>
+#include <QtGui/QDesktopServices>
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
+#include <QtNetwork/QNetworkRequest>
+#include <QtWidgets/QMessageBox>
+#include <QtXml/QDomDocument>
 
 
 #if 0
@@ -52,13 +47,13 @@ static const bool testing = true;
 static const bool testing = false;
 #endif
 
-UpgradeCheck::UpgradeCheck(QWidget *parent, QList<Format> &formatList,
+UpgradeCheck::UpgradeCheck(QWidget* parent, QList<Format>& formatList,
                            BabelData& bd) :
   QObject(parent),
-  manager_(0), 
-  replyId_(0),
+  manager_(nullptr),
+  replyId_(nullptr),
   upgradeUrl_(QUrl("http://www.gpsbabel.org/upgrade_check.html")),
-  formatList_(formatList), 
+  formatList_(formatList),
   updateStatus_(updateUnknown),
   babelData_(bd)
 {
@@ -66,13 +61,13 @@ UpgradeCheck::UpgradeCheck(QWidget *parent, QList<Format> &formatList,
 
 UpgradeCheck::~UpgradeCheck()
 {
-  if (replyId_) {
+  if (replyId_ != nullptr) {
     replyId_->abort();
-    replyId_ = 0;
+    replyId_ = nullptr;
   }
-  if (manager_) {
+  if (manager_ != nullptr) {
     delete manager_;
-    manager_ = 0;
+    manager_ = nullptr;
   }
 }
 
@@ -81,75 +76,27 @@ bool UpgradeCheck::isTestMode()
   return testing;
 }
 
+// Since Qt 5.4 QSysInfo makes it easy to get the OsName,
+// OsVersion and CpuArchitecture.
 QString UpgradeCheck::getOsName()
 {
-  // Do not translate these strings.
-#if defined (Q_OS_LINUX)
-    return "Linux";
-#elif defined (Q_OS_MAC)
-  return "Mac";
-#elif defined (Q_OS_WIN)
-  return "Windows";
-#else
-  return "Unknown";
-#endif
-
+  return QSysInfo::productType();
 }
-// See http://doc.trolltech.com/4.5/qsysinfo.html to interpret results
+
 QString UpgradeCheck::getOsVersion()
 {
-#if defined (Q_OS_MAC)
-  switch (QSysInfo::MacintoshVersion) {
-  case QSysInfo::MV_10_3: return "10.3"; break;
-  case QSysInfo::MV_10_4: return "10.4"; break;
-  case QSysInfo::MV_10_5: return "10.5"; break;
-  case QSysInfo::MV_10_6: return "10.6"; break;  // Snow Leopard.
-  case QSysInfo::MV_10_7: return "10.7"; break;  // Lion.
-  case QSysInfo::MV_10_8: return "10.8"; break;  // Mountain Lion
-  case QSysInfo::MV_10_9: return "10.9"; break;  // Mavericks
-  case QSysInfo::MV_10_10: return "10.10"; break;  // Yosemite
-  case QSysInfo::MV_10_11: return "10.11"; break;  // El Capitan
-  case QSysInfo::MV_10_12: return "10.12"; break;  // Sierra
-  default:
-    // This probably doesn't work...
-    if (QSysInfo::MacintoshVersion == 0x000E) {
-      return "10.13";
-      break;
-    }
-    return QString("Unknown Mac %1").arg(QSysInfo::MacintoshVersion);
-  };
-#elif defined (Q_OS_WIN)
+  return QSysInfo::productVersion();
+}
 
-  switch (QSysInfo::WindowsVersion) {
-  // Wildly improbable...
-  case QSysInfo::WV_95: return "95"; break;
-  case QSysInfo::WV_98: return "98"; break;
-  case QSysInfo::WV_Me: return "Me"; break;
-
-  case QSysInfo::WV_4_0: return "NT 4"; break;
-  case QSysInfo::WV_5_0: return "2000"; break;
-  case QSysInfo::WV_5_1: return "XP"; break;
-  case QSysInfo::WV_5_2: return "2003"; break;
-  case QSysInfo::WV_6_0: return "Vista"; break;
-  case QSysInfo::WV_6_1: return "7"; break;
-  case QSysInfo::WV_6_2: return "8"; break;
-  case QSysInfo::WV_6_3: return "8.1"; break;
-//  case QSysInfo::WV_10_0: return "10"; break;
-  default:
-       if (QSysInfo::WindowsVersion == 0x00a0) return "8";
-       if (QSysInfo::WindowsVersion == 0x00b0) return "8.1";
-       if (QSysInfo::WindowsVersion == 0x00c0) return "10.0";
-      return "Windows/Unknown";
-  }
-#endif
-  // FIXME: find something appropriately clever to do for Linux, etc. here.
-  return "Unknown";
+QString UpgradeCheck::getCpuArchitecture()
+{
+  return QSysInfo::currentCpuArchitecture();
 }
 
 UpgradeCheck::updateStatus UpgradeCheck::checkForUpgrade(
-               const QString &currentVersionIn,
-               const QDateTime &lastCheckTime,
-               bool allowBeta)
+  const QString& currentVersionIn,
+  const QDateTime& lastCheckTime,
+  bool allowBeta)
 {
   currentVersion_ = currentVersionIn;
   currentVersion_.remove("GPSBabel Version ");
@@ -175,23 +122,17 @@ UpgradeCheck::updateStatus UpgradeCheck::checkForUpgrade(
   args += "&current_gui_version=" VERSION;
   args += "&installation=" + babelData_.installationUuid_;
   args += "&os=" + getOsName();
-#if HAVE_UNAME || defined (Q_OS_MAC)
-  struct utsname utsname;
-  if (0 == uname(&utsname)) {
-    args += "&cpu=" + QString(utsname.machine);
-  }
-#endif
-
+  args += "&cpu=" + getCpuArchitecture();
   args += "&os_ver=" + getOsVersion();
-  args += QString("&beta_ok=%1").arg(allowBeta); 
+  args += QString("&beta_ok=%1").arg(static_cast<int>(allowBeta));
   args += "&lang=" + QLocale::languageToString(locale.language());
   args += "&last_checkin=" + lastCheckTime.toString(Qt::ISODate);
-  args += QString("&ugcb=%1").arg(babelData_.upgradeCallbacks_); 
-  args += QString("&ugdec=%1").arg(babelData_.upgradeDeclines_); 
-  args += QString("&ugacc=%1").arg(babelData_.upgradeAccept_); 
-  args += QString("&ugoff=%1").arg(babelData_.upgradeOffers_); 
-  args += QString("&ugerr=%1").arg(babelData_.upgradeErrors_); 
-  args += QString("&rc=%1").arg(babelData_.runCount_); 
+  args += QString("&ugcb=%1").arg(babelData_.upgradeCallbacks_);
+  args += QString("&ugdec=%1").arg(babelData_.upgradeDeclines_);
+  args += QString("&ugacc=%1").arg(babelData_.upgradeAccept_);
+  args += QString("&ugoff=%1").arg(babelData_.upgradeOffers_);
+  args += QString("&ugerr=%1").arg(babelData_.upgradeErrors_);
+  args += QString("&rc=%1").arg(babelData_.runCount_);
 
   int j = 0;
 
@@ -199,13 +140,16 @@ UpgradeCheck::updateStatus UpgradeCheck::checkForUpgrade(
     int rc = formatList_[i].getReadUseCount();
     int wc = formatList_[i].getWriteUseCount();
     QString formatName = formatList_[i].getName();
-    if (rc)
+    if (rc != 0) {
       args += QString("&uc%1=rd/%2/%3").arg(j++).arg(formatName).arg(rc);
-    if (wc)
+    }
+    if (wc != 0) {
       args += QString("&uc%1=wr/%2/%3").arg(j++).arg(formatName).arg(wc);
+    }
   }
-  if (j && babelData_.reportStatistics_)
+  if ((j != 0) && babelData_.reportStatistics_) {
     args += QString("&uc=%1").arg(j);
+  }
 
   if (false && testing) {
     qDebug() << "Posting " << args;
@@ -216,29 +160,64 @@ UpgradeCheck::updateStatus UpgradeCheck::checkForUpgrade(
   return UpgradeCheck::updateUnknown;
 }
 
-QDateTime UpgradeCheck::getUpgradeWarningTime() {
+QDateTime UpgradeCheck::getUpgradeWarningTime()
+{
   return upgradeWarningTime_;
 }
 
-UpgradeCheck::updateStatus UpgradeCheck::getStatus() {
+UpgradeCheck::updateStatus UpgradeCheck::getStatus()
+{
   return updateStatus_;
 }
+
+// GPSBabel version numbers throughout the code mostly predate QVersionNumber
+// and are stored as strings. They may be of the form "1.6.0-beta20200413" 
+// which, if sorted as a string, will be after "1.6.0" which is bad. Use
+// this function to sort that out. (See what I did there? Bwaaaahah!) 
+bool UpgradeCheck::suggestUpgrade(QString from, QString to) 
+{
+  int fromIndex = 0;
+  int toIndex = 0;
+  QVersionNumber fromVersion  = QVersionNumber::fromString(from, &fromIndex);
+  QVersionNumber toVersion  = QVersionNumber::fromString(to, &toIndex);
+
+  // We don't have to handle every possible range because the server won't
+  // have more than a version or two live at any time.
+  if (fromVersion < toVersion) {
+    return true;
+  }
+  // Just look for the presence of stuff (not even the contents) of the 
+  // string. Shorter string (no "-betaXXX" wins)
+  if (fromVersion == toVersion) {
+    if (from.length() - fromIndex > to.length() - toIndex) {
+      return true;
+    }
+  }
+  return false;
+}
+// Some day when we have Gunit or equiv, add unit tests for: 
+//suggestUpgrade(updateVersion, currentVersion_);
+//suggestUpgrade("1.6.0-beta20190413", "1.6.0");
+//suggestUpgrade("1.6.0", "1.6.0-beta20190413");
+//suggestUpgrade("1.6.0-beta20190413", "1.7.0");
+//suggestUpgrade("1.7.0", "1.6.0-beta20190413");
 
 void UpgradeCheck::httpRequestFinished(QNetworkReply* reply)
 {
 
-  if (reply == 0 ) {
+  if (reply == nullptr) {
     babelData_.upgradeErrors_++;
     return;
-  } else if (reply != replyId_) {
-    QMessageBox::information(0, tr("HTTP"),
-           tr("Unexpected reply."));
-  } else if (reply->error() != QNetworkReply::NoError ) {
+  }
+  if (reply != replyId_) {
+    QMessageBox::information(nullptr, tr("HTTP"),
+                             tr("Unexpected reply."));
+  } else if (reply->error() != QNetworkReply::NoError) {
     babelData_.upgradeErrors_++;
-    QMessageBox::information(0, tr("HTTP"),
-           tr("Download failed: %1.")
-           .arg(reply->errorString()));
-    replyId_ = 0;
+    QMessageBox::information(nullptr, tr("HTTP"),
+                             tr("Download failed: %1.")
+                             .arg(reply->errorString()));
+    replyId_ = nullptr;
     reply->deleteLater();
     return;
   }
@@ -255,25 +234,25 @@ void UpgradeCheck::httpRequestFinished(QNetworkReply* reply)
         qDebug() << "redirect to " << redirectUrl.toString();
       }
       // Change the url for the next update check.
-      // TOODO: kick off another update check.  
+      // TOODO: kick off another update check.
       upgradeUrl_ = redirectUrl;
-      replyId_ = 0;
+      replyId_ = nullptr;
       reply->deleteLater();
       return;
     }
   }
-  
+
   QVariant statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
   if (testing) {
     qDebug() << "http status code " << statusCode.toInt();
   }
   if (statusCode != 200) {
     QVariant reason = reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute);
-    QMessageBox::information(0, tr("HTTP"),
-           tr("Download failed: %1: %2.")
-           .arg(statusCode.toInt())
-           .arg(reason.toString()));
-    replyId_ = 0;
+    QMessageBox::information(nullptr, tr("HTTP"),
+                             tr("Download failed: %1: %2.")
+                             .arg(statusCode.toInt())
+                             .arg(reason.toString()));
+    replyId_ = nullptr;
     reply->deleteLater();
     return;
   }
@@ -284,14 +263,14 @@ void UpgradeCheck::httpRequestFinished(QNetworkReply* reply)
   QDomDocument document;
   int line = -1;
   QString error_text;
-  // This shouldn't ever be seen by a user.  
+  // This shouldn't ever be seen by a user.
   if (!document.setContent(oresponse, &error_text, &line)) {
-    QMessageBox::critical(0, tr("Error"),
-           tr("Invalid return data at line %1: %2.")
-           .arg(line)
-           .arg( error_text));
+    QMessageBox::critical(nullptr, tr("Error"),
+                          tr("Invalid return data at line %1: %2.")
+                          .arg(line)
+                          .arg(error_text));
     babelData_.upgradeErrors_++;
-    replyId_ = 0;
+    replyId_ = nullptr;
     reply->deleteLater();
     return;
   }
@@ -299,8 +278,9 @@ void UpgradeCheck::httpRequestFinished(QNetworkReply* reply)
   QString response;
   QString upgradeText;
 
-  if (testing)
-    currentVersion_ =  "1.3.1"; // for testing
+  if (testing) {
+    currentVersion_ =  "1.3.1";  // for testing
+  }
 
   bool allowBeta = true;  // TODO: come from prefs or current version...
 
@@ -325,19 +305,18 @@ void UpgradeCheck::httpRequestFinished(QNetworkReply* reply)
     upgradeText = upgrade.firstChildElement("overview").text();
 
     // String compare, not a numeric one.  Server will return "best first".
-    if((updateVersion > currentVersion_) && updateCandidate) {
+    if (suggestUpgrade(currentVersion_, updateVersion) && updateCandidate) {
       babelData_.upgradeOffers_++;
       updateStatus_ = updateNeeded;
       response = tr("A new version of GPSBabel is available.<br />"
-        "Your version is %1 <br />"
-        "The latest version is %2")
-          .arg(currentVersion_)
-          .arg(updateVersion);
+                    "Your version is %1 <br />"
+                    "The latest version is %2")
+                 .arg(currentVersion_, updateVersion);
       break;
     }
   }
 
-  if (response.length()) {
+  if (response.length() != 0) {
     QMessageBox information;
     information.setWindowTitle(tr("Upgrade"));
 
@@ -345,27 +324,28 @@ void UpgradeCheck::httpRequestFinished(QNetworkReply* reply)
     information.setDefaultButton(QMessageBox::Yes);
     information.setTextFormat(Qt::RichText);
     information.setText(response);
-    
+
     information.setInformativeText(tr("Do you wish to download an upgrade?"));
     // The text field can be RichText, but DetailedText can't be. Odd.
     information.setDetailedText(upgradeText);
 
     switch (information.exec()) {
-      case QMessageBox::Yes:
-        // downloadUrl.addQueryItem("os", getOsName());
-        QDesktopServices::openUrl(downloadUrl);
-        babelData_.upgradeAccept_++;
-        break;
-      default: ;
-        babelData_.upgradeDeclines_++;
+    case QMessageBox::Yes:
+      // downloadUrl.addQueryItem("os", getOsName());
+      QDesktopServices::openUrl(downloadUrl);
+      babelData_.upgradeAccept_++;
+      break;
+    default:
+      ;
+      babelData_.upgradeDeclines_++;
     }
   }
 
   upgradeWarningTime_ = QDateTime(QDateTime::currentDateTime());
 
   for (int i = 0; i < formatList_.size(); i++) {
-     formatList_[i].zeroUseCounts();
+    formatList_[i].zeroUseCounts();
   }
-  replyId_ = 0;
+  replyId_ = nullptr;
   reply->deleteLater();
 }

@@ -24,35 +24,16 @@
 
 #include "defs.h"
 #include "filterdefs.h"
-#include <math.h>
-#include <stdlib.h>
+#include "height.h"
+#include <cmath>
+#include <cstdlib>
 
 #define MYNAME "height"
 
 #if FILTERS_ENABLED
-static char* addopt        = NULL;
-static char* wgs84tomslopt = NULL;
-static double addf;
 
-
-static
-arglist_t height_args[] = {
-  {
-    "add", &addopt, "Adds a constant value to every altitude (meter, append \"f\" (x.xxf) for feet)",
-    NULL, ARGTYPE_BEGIN_REQ | ARGTYPE_FLOAT, ARG_NOMINMAX
-  },
-  {
-    "wgs84tomsl", &wgs84tomslopt, "Converts WGS84 ellipsoidal height to orthometric height (MSL)",
-    NULL, ARGTYPE_END_REQ | ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
-
-static double bilinear(double x1, double y1, double x2, double y2, double x, double y, double z11, double z12, double z21, double z22)
+double HeightFilter::bilinear(double x1, double y1, double x2, double y2, double x, double y, double z11, double z12, double z21, double z22)
 {
-  double delta;
-
   if (y1 == y2 && x1 == x2) {
     return (z11);
   }
@@ -63,18 +44,16 @@ static double bilinear(double x1, double y1, double x2, double y2, double x, dou
     return (z22*(y-y1)+z11*(y2-y))/(y2-y1);
   }
 
-  delta=(y2-y1)*(x2-x1);
+  double delta = (y2-y1)*(x2-x1);
 
   return (z22*(y-y1)*(x-x1)+z12*(y2-y)*(x-x1)+z21*(y-y1)*(x2-x)+z11*(y2-y)*(x2-x))/delta;
 }
 
-
 /* return geoid separation (MSL - WGS84) in meters, given a lat/lot in degrees */
-static double wgs84_separation(double lat, double lon)
+double HeightFilter::wgs84_separation(double lat, double lon)
 {
-#include "height.h"
-  int	ilat, ilon;
-  int	ilat1, ilat2, ilon1, ilon2;
+#include "heightgrid.h"
+
 
   /* sanity checks to prevent segfault on bad data */
   if ((lat > 90.0) || (lat < -90.0)) {
@@ -84,13 +63,13 @@ static double wgs84_separation(double lat, double lon)
     fatal(MYNAME ": Invalid longitude value (%f)\n", lon);
   }
 
-  ilat=(int)floor((90.0+lat)/GEOID_GRID_DEG);
-  ilon=(int)floor((180.0+lon)/GEOID_GRID_DEG);
+  int ilat = (int)floor((90.0+lat)/GEOID_GRID_DEG);
+  int ilon = (int)floor((180.0+lon)/GEOID_GRID_DEG);
 
-  ilat1=ilat;
-  ilon1=ilon;
-  ilat2=(ilat < GEOID_ROW-1)? ilat+1:ilat;
-  ilon2=(ilon < GEOID_COL-1)? ilon+1:ilon;
+  int ilat1 = ilat;
+  int ilon1 = ilon;
+  int ilat2 = (ilat < GEOID_ROW-1)? ilat+1:ilat;
+  int ilon2 = (ilon < GEOID_COL-1)? ilon+1:ilon;
 
   return bilinear(
            ilon1*GEOID_GRID_DEG-180.0,ilat1*GEOID_GRID_DEG-90.0,
@@ -103,26 +82,22 @@ static double wgs84_separation(double lat, double lon)
          );
 }
 
-
-static void
-correct_height(const Waypoint* wpt)
+void HeightFilter::correct_height(const Waypoint* wpt)
 {
-  Waypoint* waypointp = (Waypoint*) wpt;
+  Waypoint* waypointp = const_cast<Waypoint*>(wpt);
 
   if (waypointp->altitude != unknown_alt) {
     if (addopt) {
       waypointp->altitude += addf;
     }
-  
+
     if (wgs84tomslopt) {
-        waypointp->altitude -= wgs84_separation(waypointp->latitude, waypointp->longitude);
+      waypointp->altitude -= wgs84_separation(waypointp->latitude, waypointp->longitude);
     }
   }
 }
 
-
-static void
-height_init(const char* args)
+void HeightFilter::init()
 {
   char* unit;
 
@@ -139,23 +114,13 @@ height_init(const char* args)
   }
 }
 
-
-static void
-height_process(void)	/* this procedure must be present in vecs */
+void HeightFilter::process()
 {
-  waypt_disp_all(correct_height);
-  route_disp_all(NULL, NULL, correct_height);
-  track_disp_all(NULL, NULL, correct_height);
+  WayptFunctor<HeightFilter> correct_height_f(this, &HeightFilter::correct_height);
+
+  waypt_disp_all(correct_height_f);
+  route_disp_all(nullptr, nullptr, correct_height_f);
+  track_disp_all(nullptr, nullptr, correct_height_f);
 }
-
-
-filter_vecs_t height_vecs = {
-  height_init,
-  height_process,
-  NULL,
-  NULL,
-  height_args
-};
-
 
 #endif // FILTERS_ENABLED

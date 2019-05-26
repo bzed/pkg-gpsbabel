@@ -19,18 +19,20 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 */
 
-#ifndef CET_UTIL_H
-#define CET_UTIL_H
+#ifndef CET_UTIL_H_INCLUDED_
+#define CET_UTIL_H_INCLUDED_
 
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include <QtCore/QString>
 #include "cet.h"
+#include "defs.h"
 
 cet_cs_vec_t* cet_find_cs_by_name(const QString& name);
-void cet_register(void);
-void cet_deregister(void);
+void cet_register();
+void cet_deregister();
 
 /* short hand transmissions */
 
@@ -53,18 +55,14 @@ extern cet_cs_vec_t cet_cs_vec_utf8;
 
 char* cet_str_any_to_any(const char* src, const cet_cs_vec_t* src_vec, const cet_cs_vec_t* dest_vec);
 
-int cet_gbfprintf(gbfile* stream, const cet_cs_vec_t* src_vec, const char* fmt, ...);
-
 /* cet_convert_string: !!! ONLY VALID WITHIN 'cet_convert_strings' process !!! */
 char* cet_convert_string(char* str);
 const char* cet_convert_string(const QString& str);
 
 /* gpsbabel extensions */
 
-void cet_convert_init(const QString& cs_name, const int force);
+void cet_convert_init(const QString& cs_name, int force);
 void cet_convert_strings(const cet_cs_vec_t* source, const cet_cs_vec_t* target, const char* format);
-void cet_convert_deinit(void);
+void cet_convert_deinit();
 
-void cet_disp_character_set_names(FILE* fout);
-
-#endif
+#endif  // CET_UTIL_H_INCLUDED_

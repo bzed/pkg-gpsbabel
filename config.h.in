@@ -1,16 +1,16 @@
-/* config.h.in.  Generated from configure.in by autoheader.  */
+/* config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define if building universal (internal helper macro) */
 #undef AC_APPLE_UNIVERSAL_BUILD
-
-/* 0 for most-used character sets */
-#undef CET_WANTED
 
 /* 1 to enable the CSV formats support */
 #undef CSVFMTS_ENABLED
 
 /* 1 to enable all the filters. */
 #undef FILTERS_ENABLED
+
+/* define if the compiler supports basic C++14 syntax */
+#undef HAVE_CXX14
 
 /* Define to 1 if you have the `glob' function. */
 #undef HAVE_GLOB
@@ -32,12 +32,6 @@
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
-
-/* Define to 1 if you have the `nanosleep' function. */
-#undef HAVE_NANOSLEEP
-
-/* Define to 1 if you have the `sleep' function. */
-#undef HAVE_SLEEP
 
 /* Define to 1 if you have the <stdarg.h> header file. */
 #undef HAVE_STDARG_H
@@ -92,9 +86,6 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
-
-/* 1 to enable Palm PDB support */
-#undef PDBFMTS_ENABLED
 
 /* 1 to enable shapefile support */
 #undef SHAPELIB_ENABLED

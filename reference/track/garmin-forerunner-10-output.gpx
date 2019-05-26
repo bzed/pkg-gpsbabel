@@ -2,6 +2,61 @@
 <gpx version="1.0" creator="GPSBabel - http://www.gpsbabel.org" xmlns="http://www.topografix.com/GPX/1/0">
   <time>1970-01-01T00:00:00Z</time>
   <bounds minlat="52.402762795" minlon="13.313763036" maxlat="52.429130670" maxlon="13.419362946"/>
+  <wpt lat="52.405359257" lon="13.411235518">
+    <name>LAP001</name>
+    <cmt>LAP001</cmt>
+    <desc>LAP001</desc>
+  </wpt>
+  <wpt lat="52.410497029" lon="13.403836309">
+    <name>LAP002</name>
+    <cmt>LAP002</cmt>
+    <desc>LAP002</desc>
+  </wpt>
+  <wpt lat="52.413102543" lon="13.394398621">
+    <name>LAP003</name>
+    <cmt>LAP003</cmt>
+    <desc>LAP003</desc>
+  </wpt>
+  <wpt lat="52.410614962" lon="13.380171598">
+    <name>LAP004</name>
+    <cmt>LAP004</cmt>
+    <desc>LAP004</desc>
+  </wpt>
+  <wpt lat="52.410783354" lon="13.366606074">
+    <name>LAP005</name>
+    <cmt>LAP005</cmt>
+    <desc>LAP005</desc>
+  </wpt>
+  <wpt lat="52.413863369" lon="13.352951954">
+    <name>LAP006</name>
+    <cmt>LAP006</cmt>
+    <desc>LAP006</desc>
+  </wpt>
+  <wpt lat="52.417012869" lon="13.339746265">
+    <name>LAP007</name>
+    <cmt>LAP007</cmt>
+    <desc>LAP007</desc>
+  </wpt>
+  <wpt lat="52.424533615" lon="13.332924989">
+    <name>LAP008</name>
+    <cmt>LAP008</cmt>
+    <desc>LAP008</desc>
+  </wpt>
+  <wpt lat="52.427703316" lon="13.324095240">
+    <name>LAP009</name>
+    <cmt>LAP009</cmt>
+    <desc>LAP009</desc>
+  </wpt>
+  <wpt lat="52.425872121" lon="13.313921789">
+    <name>LAP010</name>
+    <cmt>LAP010</cmt>
+    <desc>LAP010</desc>
+  </wpt>
+  <wpt lat="52.427264607" lon="13.313978702">
+    <name>LAP011</name>
+    <cmt>LAP011</cmt>
+    <desc>LAP011</desc>
+  </wpt>
   <trk>
     <trkseg>
       <trkpt lat="52.403174095" lon="13.419362946">
@@ -12,6 +67,8 @@
         <time>2013-06-13T03:56:36Z</time>
         <speed>0.376000</speed>
       </trkpt>
+    </trkseg>
+    <trkseg>
       <trkpt lat="52.403139059" lon="13.419341572">
         <time>2013-06-13T03:56:40Z</time>
         <speed>1.953000</speed>
@@ -516,6 +573,8 @@
         <time>2013-06-13T04:03:00Z</time>
         <speed>0.091000</speed>
       </trkpt>
+    </trkseg>
+    <trkseg>
       <trkpt lat="52.414478684" lon="13.401474540">
         <time>2013-06-13T04:03:20Z</time>
         <speed>3.568000</speed>
@@ -536,6 +595,8 @@
         <time>2013-06-13T04:03:34Z</time>
         <speed>0.123000</speed>
       </trkpt>
+    </trkseg>
+    <trkseg>
       <trkpt lat="52.414743552" lon="13.401259963">
         <time>2013-06-13T04:04:05Z</time>
         <speed>2.382000</speed>
@@ -656,6 +717,8 @@
         <time>2013-06-13T04:05:38Z</time>
         <speed>0.164000</speed>
       </trkpt>
+    </trkseg>
+    <trkseg>
       <trkpt lat="52.412753772" lon="13.392770772">
         <time>2013-06-13T04:06:06Z</time>
         <speed>3.186000</speed>
@@ -804,6 +867,8 @@
         <time>2013-06-13T04:07:52Z</time>
         <speed>0.177000</speed>
       </trkpt>
+    </trkseg>
+    <trkseg>
       <trkpt lat="52.411193397" lon="13.382592794">
         <time>2013-06-13T04:09:23Z</time>
         <speed>2.474000</speed>
@@ -1088,6 +1153,8 @@
         <time>2013-06-13T04:13:00Z</time>
         <speed>0.079000</speed>
       </trkpt>
+    </trkseg>
+    <trkseg>
       <trkpt lat="52.412378598" lon="13.362509922">
         <time>2013-06-13T04:13:22Z</time>
         <speed>3.287000</speed>

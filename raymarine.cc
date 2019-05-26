@@ -44,13 +44,13 @@
 */
 
 #include "defs.h"
-#include "cet_util.h"
 #include "csv_util.h"
 #include "inifile.h"
 
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <QtCore/QString>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
 
 typedef unsigned long long guid_t;
 
@@ -66,7 +66,7 @@ static char* opt_location;
 
 static
 arglist_t raymarine_args[] = {
-  { "location", &opt_location, "Default location", "My Waypoints", ARGTYPE_STRING, ARG_NOMINMAX },
+  { "location", &opt_location, "Default location", "My Waypoints", ARGTYPE_STRING, ARG_NOMINMAX , nullptr},
   ARG_TERMINATOR
 };
 
@@ -85,54 +85,54 @@ typedef struct {
 } raymarine_symbol_mapping_t;
 
 static raymarine_symbol_mapping_t raymarine_symbols[] = {
-  { /* 0 */  "Unknown Symbol 0" },
-  { /* 1 */  "Unknown Symbol 1" },
-  { /* 2 */  "Unknown Symbol 2" },
-  { /* 3 */  "Red Square" },
-  { /* 4 */  "Big Fish" },
-  { /* 5 */  "Anchor" },
+  { /* 0 */  "Unknown Symbol 0", nullptr },
+  { /* 1 */  "Unknown Symbol 1", nullptr },
+  { /* 2 */  "Unknown Symbol 2", nullptr },
+  { /* 3 */  "Red Square", nullptr },
+  { /* 4 */  "Big Fish", nullptr },
+  { /* 5 */  "Anchor", nullptr },
   { /* 6 */  "Smiley", "Contact, Smiley" },
-  { /* 7 */  "Sad" },
+  { /* 7 */  "Sad", nullptr },
   { /* 8 */  "Red Button", "Navaid, Red" },
-  { /* 9 */  "Sailfish" },
+  { /* 9 */  "Sailfish", nullptr },
   { /* 10 */ "Danger", "Skull and Crossbones" },
-  { /* 11 */ "Attention" },
-  { /* 12 */ "Black Square" },
+  { /* 11 */ "Attention", nullptr },
+  { /* 12 */ "Black Square", nullptr },
   { /* 13 */ "Intl. Dive Flag", "Diver Down Flag 2" },
   { /* 14 */ "Vessel", "Marina" },
-  { /* 15 */ "Lobster" },
+  { /* 15 */ "Lobster", nullptr },
   { /* 16 */ "Buoy", "Buoy, White" },
-  { /* 17 */ "Exclamation" },
-  { /* 18 */ "Red X" },
-  { /* 19 */ "Check Mark" },
-  { /* 20 */ "Black Plus" },
-  { /* 21 */ "Black Cross" },
-  { /* 22 */ "MOB" },
-  { /* 23 */ "Billfish" },
-  { /* 24 */ "Bottom Mark" },
+  { /* 17 */ "Exclamation", nullptr },
+  { /* 18 */ "Red X", nullptr },
+  { /* 19 */ "Check Mark", nullptr },
+  { /* 20 */ "Black Plus", nullptr },
+  { /* 21 */ "Black Cross", nullptr },
+  { /* 22 */ "MOB", nullptr },
+  { /* 23 */ "Billfish", nullptr },
+  { /* 24 */ "Bottom Mark", nullptr },
   { /* 25 */ "Circle", "Circle, Red" },
   { /* 26 */ "Diamond", "Block, Red" },
   { /* 27 */ "Diamond Quarters", "Diamond, Red" },
   { /* 28 */ "U.S. Dive Flag", "Diver Down Flag 1" },
-  { /* 29 */ "Dolphin" },
-  { /* 30 */ "Few Fish" },
-  { /* 31 */ "Multiple Fish" },
-  { /* 32 */ "Many Fish" },
-  { /* 33 */ "Single Fish" },
-  { /* 34 */ "Small Fish" },
-  { /* 35 */ "Marker" },
+  { /* 29 */ "Dolphin", nullptr },
+  { /* 30 */ "Few Fish", nullptr },
+  { /* 31 */ "Multiple Fish", nullptr },
+  { /* 32 */ "Many Fish", nullptr },
+  { /* 33 */ "Single Fish", nullptr },
+  { /* 34 */ "Small Fish", nullptr },
+  { /* 35 */ "Marker", nullptr },
   { /* 36 */ "Cocktails", "Bar" },
-  { /* 37 */ "Red Box Marker" },
-  { /* 38 */ "Reef" },
-  { /* 39 */ "Rocks" },
-  { /* 40 */ "Fish School" },
+  { /* 37 */ "Red Box Marker", nullptr },
+  { /* 38 */ "Reef", nullptr },
+  { /* 39 */ "Rocks", nullptr },
+  { /* 40 */ "Fish School", nullptr },
   { /* 41 */ "Seaweed", "Weed Bed" },
-  { /* 42 */ "Shark" },
-  { /* 43 */ "Sportfisher" },
+  { /* 42 */ "Shark", nullptr },
+  { /* 43 */ "Sportfisher", nullptr },
   { /* 44 */ "Swimmer", "Swimming Area" },
-  { /* 45 */ "Top Mark" },
-  { /* 46 */ "Trawler" },
-  { /* 47 */ "Tree" },
+  { /* 45 */ "Top Mark", nullptr },
+  { /* 46 */ "Trawler", nullptr },
+  { /* 47 */ "Tree", nullptr },
   { /* 48 */ "Triangle", "Triangle, Red" },
   { /* 49 */ "Wreck", "Shipwreck" }
 };
@@ -144,10 +144,7 @@ static int
 find_symbol_num(const QString& descr)
 {
   if (!descr.isNull()) {
-
-    raymarine_symbol_mapping_t* a;
-
-    a = &raymarine_symbols[0];
+    raymarine_symbol_mapping_t* a = &raymarine_symbols[0];
 
     for (unsigned int i = 0; i < RAYMARINE_SYMBOL_CT; i++, a++) {
       if (descr.compare(a->name, Qt::CaseInsensitive) == 0) {
@@ -169,60 +166,59 @@ find_symbol_num(const QString& descr)
 static void
 raymarine_rd_init(const QString& fname)
 {
-  fin = inifile_init(qPrintable(fname), MYNAME);
-  if (fin->unicode) {
-    cet_convert_init(CET_CHARSET_UTF8, 1);
-  }
+  fin = inifile_init(fname, MYNAME);
 }
 
 static void
-raymarine_rd_done(void)
+raymarine_rd_done()
 {
   inifile_done(fin);
 }
 
 static void
-raymarine_read(void)
+raymarine_read()
 {
-  Waypoint* wpt;
-  unsigned int ix;
-  unsigned int rx;
-
   /* Read all waypoints */
 
-  for (ix = 0; ix < 0x3FFF; ix++) {
+  for (unsigned int ix = 0; ix < 0x3FFF; ix++) {
     char sect[10];
-    char* str, *name, *lat, *lon;
+    QString str, name, lat, lon;
 
     /* built section identifier */
     snprintf(sect, sizeof(sect), "Wp%d", ix);
 
     /* try to read our most expected values */
-    if (NULL == (name = inifile_readstr(fin, sect, "Name"))) {
+    name = inifile_readstr(fin, sect, "Name");
+    if (name.isNull()) {
       break;
     }
-    if (NULL == (lat = inifile_readstr(fin, sect, "Lat"))) {
+    lat = inifile_readstr(fin, sect, "Lat");
+    if (lat.isNull()) {
       break;
     }
-    if (NULL == (lon = inifile_readstr(fin, sect, "Long"))) {
+    lon = inifile_readstr(fin, sect, "Long");
+    if (lon.isNull()) {
       break;
     }
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
     wpt->shortname = name;
-    wpt->latitude = atof(lat);
-    wpt->longitude = atof(lon);
+    wpt->latitude = lat.toDouble();
+    wpt->longitude = lon.toDouble();
     waypt_add(wpt);
 
     /* try to read optional values */
-    if (((str = inifile_readstr(fin, sect, "Notes"))) && *str) {
+    str = inifile_readstr(fin, sect, "Notes");
+    if (!str.isEmpty()) {
       wpt->notes = str;
     }
-    if (((str = inifile_readstr(fin, sect, "Time"))) && *str) {
-      wpt->SetCreationTime(EXCEL_TO_TIMET(atof(str)));
+    str = inifile_readstr(fin, sect, "Time");
+    if (!str.isEmpty()) {
+      wpt->SetCreationTime(EXCEL_TO_TIMET(str.toDouble()));
     }
-    if (((str = inifile_readstr(fin, sect, "Bmp"))) && *str) {
-      unsigned int symbol = atoi(str);
+    str = inifile_readstr(fin, sect, "Bmp");
+    if (!str.isEmpty()) {
+      unsigned int symbol = str.toInt();
 
       if ((symbol < 3) && (symbol >= RAYMARINE_SYMBOL_CT)) {
         symbol = RAYMARINE_STD_SYMBOL;
@@ -233,36 +229,33 @@ raymarine_read(void)
 
   /* Read all routes */
 
-  for (rx = 0; rx < 0x3FFF; rx++) {
+  for (unsigned int rx = 0; rx < 0x3FFF; rx++) {
     char sect[10];
-    char* name;
-    route_head* rte;
-    int wx;
+    QString name;
 
-    snprintf(sect, sizeof(sect), "Rt%d", rx);
-    if (NULL == (name = inifile_readstr(fin, sect, "Name"))) {
+    snprintf(sect, sizeof(sect), "Rt%u", rx);
+    name = inifile_readstr(fin, sect, "Name");
+    if (name.isNull()) {
       break;
     }
 
-    rte = route_head_alloc();
+    route_head* rte = route_head_alloc();
     rte->rte_name = name;
     route_add_head(rte);
 
-    for (wx = 0; wx < 0x3FFF; wx++) {
+    for (int wx = 0; wx < 0x3FFF; wx++) {
       char buff[32];
-      char* str;
-      Waypoint* wpt;
 
       snprintf(buff, sizeof(buff), "Mk%d", wx);
-      str = inifile_readstr(fin, sect, buff);
-      if ((str == NULL) || (*str == '\0')) {
+      QString str = inifile_readstr(fin, sect, buff);
+      if (str.isEmpty()) {
         break;
       }
 
-      wpt = find_waypt_by_name(str);
-      if (wpt == NULL)
+      Waypoint* wpt = find_waypt_by_name(str);
+      if (wpt == nullptr)
         fatal(MYNAME ": No associated waypoint for route point %s (Route %s)!\n",
-              str, qPrintable(rte->rte_name));
+              qPrintable(str), qPrintable(rte->rte_name));
 
       route_add_wpt(rte, new Waypoint(*wpt));
     }
@@ -285,12 +278,11 @@ same_points(const Waypoint* A, const Waypoint* B)
 }
 
 static void
-register_waypt(const Waypoint* ref, const char is_rtept)
+register_waypt(const Waypoint* ref, const char)
 {
-  int i;
-  Waypoint* wpt = (Waypoint*) ref;
+  Waypoint* wpt = const_cast<Waypoint*>(ref);
 
-  for (i = 0; i < waypt_table_ct; i++) {
+  for (int i = 0; i < waypt_table_ct; i++) {
     Waypoint* cmp = waypt_table[i];
 
     if (same_points(wpt, cmp)) {
@@ -310,20 +302,20 @@ register_waypt(const Waypoint* ref, const char is_rtept)
 
   wpt->extra_data = (void*)mkshort(hshort_wpt, CSTRc(wpt->shortname));
 
-  waypt_table[waypt_table_ct] = (Waypoint*)wpt;
+  waypt_table[waypt_table_ct] = wpt;
   waypt_table_ct++;
 }
 
 static void
 enum_waypt_cb(const Waypoint* wpt)
 {
-  register_waypt((Waypoint*) wpt, 0);
+  register_waypt(wpt, 0);
 }
 
 static void
 enum_rtept_cb(const Waypoint* wpt)
 {
-  register_waypt((Waypoint*) wpt, 1);
+  register_waypt(wpt, 1);
 }
 
 static int
@@ -337,20 +329,16 @@ qsort_cb(const void* a, const void* b)
 static void
 write_waypoint(gbfile* fout, const Waypoint* wpt, const int waypt_no, const char* location)
 {
-  QString notes;
-  char* name;
-  double time;
-
-  notes = wpt->notes;
-  if (notes == NULL) {
+  QString notes = wpt->notes;
+  if (notes == nullptr) {
     notes = wpt->description;
-    if (notes == NULL) {
+    if (notes == nullptr) {
       notes = "";
     }
   }
   notes = csv_stringclean(notes, LINE_FEED);
-  time = wpt->creation_time.isValid() ? TIMET_TO_EXCEL(wpt->GetCreationTime().toTime_t()) : TIMET_TO_EXCEL(gpsbabel_time);
-  name = (char*)wpt->extra_data;
+  double time = wpt->creation_time.isValid() ? TIMET_TO_EXCEL(wpt->GetCreationTime().toTime_t()) : TIMET_TO_EXCEL(gpsbabel_time);
+  char* name = (char*)wpt->extra_data;
 
   gbfprintf(fout, "[Wp%d]" LINE_FEED
             "Loc=%s" LINE_FEED
@@ -385,9 +373,7 @@ write_waypoint(gbfile* fout, const Waypoint* wpt, const int waypt_no, const char
 static void
 write_route_head_cb(const route_head* rte)
 {
-  QString name;
-
-  name = rte->rte_name;
+  QString name = rte->rte_name;
   if (name.isEmpty()) {
     name=QString("Route%1").arg(rte_index);
   }
@@ -419,12 +405,11 @@ write_route_wpt_cb(const Waypoint* wpt)
   };
 
   gbfprintf(fout, "Mk%d=%s" LINE_FEED, rte_wpt_index, (char*)wpt->extra_data);
-  for (unsigned i = 0; i < sizeof(items) / sizeof(char*); i++) {
-    gbfprintf(fout, "%s%d=%.15f" LINE_FEED, items[i], rte_wpt_index, 0.0);
+  for (auto & item : items) {
+    gbfprintf(fout, "%s%d=%.15f" LINE_FEED, item, rte_wpt_index, 0.0);
   }
 
   rte_wpt_index++;
-  return;
 }
 
 static void
@@ -435,11 +420,9 @@ enum_route_hdr_cb(const route_head* rte)
 }
 
 static short_handle
-raymarine_new_short_handle(void)
+raymarine_new_short_handle()
 {
-  short_handle res;
-
-  res = mkshort_new_handle();
+  short_handle res = mkshort_new_handle();
 
   setshort_length(res, 16);
   setshort_badchars(res, ",");
@@ -461,7 +444,7 @@ raymarine_wr_init(const QString& fname)
 }
 
 static void
-raymarine_wr_done(void)
+raymarine_wr_done()
 {
   mkshort_del_handle(&hshort_wpt);
   mkshort_del_handle(&hshort_rte);
@@ -470,18 +453,17 @@ raymarine_wr_done(void)
 }
 
 static void
-raymarine_write(void)
+raymarine_write()
 {
   int i;
-  Waypoint* wpt;
 
   waypt_table_sz = 0;
   waypt_table_ct = 0;
-  waypt_table = NULL;
+  waypt_table = nullptr;
 
   /* enumerate all possible waypoints */
   waypt_disp_all(enum_waypt_cb);
-  route_disp_all(enum_route_hdr_cb, NULL, enum_rtept_cb);
+  route_disp_all(enum_route_hdr_cb, nullptr, enum_rtept_cb);
 
   if (waypt_table_ct == 0) {
     return;
@@ -497,13 +479,13 @@ raymarine_write(void)
 
   /* write out all routes with their waypoints */
   rte_index = 0;
-  route_disp_all(write_route_head_cb, NULL, write_route_wpt_cb);
+  route_disp_all(write_route_head_cb, nullptr, write_route_wpt_cb);
 
   /* release local used data */
   for (i = 0; i < waypt_table_ct; i++) {
-    wpt = waypt_table[i];
+    Waypoint* wpt = waypt_table[i];
     xfree(wpt->extra_data);
-    wpt->extra_data = NULL;
+    wpt->extra_data = nullptr;
   }
   xfree(waypt_table);
 }
@@ -525,7 +507,9 @@ ff_vecs_t raymarine_vecs = {
   raymarine_wr_done,
   raymarine_read,
   raymarine_write,
-  NULL,
+  nullptr,
   raymarine_args,
   CET_CHARSET_ASCII, 0	/* should we force this to 1 ? */
+  , NULL_POS_OPS,
+  nullptr
 };

@@ -18,15 +18,20 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111 USA
 
  */
+
+#include <cstdio>           // for sscanf
+#include <cstring>          // for strchr, strlen, strspn
+
+#include <QtCore/QtGlobal>  // for foreach
+
 #include "defs.h"
-#include "filterdefs.h"
-#include <stdio.h>
+#include "filterdefs.h"     // for global_waypoint_list
+#include "polygon.h"
+#include "gbfile.h"         // for gbfclose, gbfgetstr, gbfopen, gbfile
+
 
 #if FILTERS_ENABLED
 #define MYNAME "Polygon filter"
-
-static char* polyfileopt = NULL;
-static char* exclopt = NULL;
 
 /*
  * This test for insideness is essentially an odd/even test.  The
@@ -103,28 +108,10 @@ static char* exclopt = NULL;
 #define BEGIN_HOR   32
 #define UP          64
 
-typedef struct {
-  unsigned short state;
-  unsigned short override;
-} extra_data;
-
-static
-arglist_t polygon_args[] = {
-  {
-    "file", &polyfileopt,  "File containing vertices of polygon",
-    NULL, ARGTYPE_FILE | ARGTYPE_REQUIRED, ARG_NOMINMAX
-  },
-  {
-    "exclude", &exclopt, "Exclude points inside the polygon",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
-  },
-  ARG_TERMINATOR
-};
-
-static void polytest(double lat1, double lon1,
-                     double lat2, double lon2,
-                     double wlat, double wlon,
-                     unsigned short* state, int first, int last)
+void PolygonFilter::polytest(double lat1, double lon1,
+                             double lat2, double lon2,
+                             double wlat, double wlon,
+                             unsigned short* state, int first, int last)
 {
 
   if (lat1 == wlat) {
@@ -233,36 +220,32 @@ static void polytest(double lat1, double lon1,
 
 #define BADVAL 999999
 
-void
-polygon_process(void)
+void PolygonFilter::process()
 {
-  queue* elem, * tmp;
-  Waypoint* waypointp;
   extra_data* ed;
-  double lat1, lon1, lat2, lon2;
-  double olat, olon;
   int fileline = 0;
   int first = 1;
   int last = 0;
   char* line;
-  gbfile* file_in;
 
-  file_in = gbfopen(polyfileopt, "r", MYNAME);
+  gbfile* file_in = gbfopen(polyfileopt, "r", MYNAME);
 
-  olat = olon = lat1 = lon1 = lat2 = lon2 = BADVAL;
+  double olat = BADVAL;
+  double olon = BADVAL;
+  double lat1 = BADVAL;
+  double lon1 = BADVAL;
+  double lat2 = BADVAL;
+  double lon2 = BADVAL;
   while ((line = gbfgetstr(file_in))) {
-    char* pound = NULL;
-    int argsfound = 0;
-
     fileline++;
 
-    pound = strchr(line, '#');
+    char* pound = strchr(line, '#');
     if (pound) {
       *pound = '\0';
     }
 
     lat2 = lon2 = BADVAL;
-    argsfound = sscanf(line, "%lf %lf", &lat2, &lon2);
+    int argsfound = sscanf(line, "%lf %lf", &lat2, &lon2);
 
     if (argsfound != 2 && strspn(line, " \t\n") < strlen(line)) {
       warning(MYNAME
@@ -270,19 +253,14 @@ polygon_process(void)
               fileline);
     } else if (lat1 != BADVAL && lon1 != BADVAL &&
                lat2 != BADVAL && lon2 != BADVAL) {
-#if NEWQ
-      foreach(Waypoint* waypointp, waypt_list) {
-#else
-      QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-        waypointp = (Waypoint*)elem;
-#endif
+      foreach (Waypoint* waypointp, *global_waypoint_list) {
         if (waypointp->extra_data) {
           ed = (extra_data*) waypointp->extra_data;
         } else {
           ed = (extra_data*) xcalloc(1, sizeof(*ed));
           ed->state = OUTSIDE;
           ed->override = 0;
-          waypointp->extra_data = (extra_data*) ed;
+          waypointp->extra_data = ed;
         }
         if (lat2 == waypointp->latitude &&
             lon2 == waypointp->longitude) {
@@ -319,19 +297,14 @@ polygon_process(void)
   }
   gbfclose(file_in);
 
-#if NEWQ
-  foreach(Waypoint* wp, waypt_list) {
-#else
-  QUEUE_FOR_EACH(&waypt_head, elem, tmp) {
-    Waypoint* wp = (Waypoint*) elem;
-#endif
+  foreach (Waypoint* wp, *global_waypoint_list) {
     ed = (extra_data*) wp->extra_data;
-    wp->extra_data = NULL;
+    wp->extra_data = nullptr;
     if (ed) {
       if (ed->override) {
         ed->state = INSIDE;
       }
-      if (((ed->state & INSIDE) == OUTSIDE) == (exclopt == NULL)) {
+      if (((ed->state & INSIDE) == OUTSIDE) == (exclopt == nullptr)) {
         waypt_del(wp);
         delete wp;
       }
@@ -340,23 +313,4 @@ polygon_process(void)
   }
 }
 
-void
-polygon_init(const char* args)
-{
-  /* do nothing */
-}
-
-void
-polygon_deinit(void)
-{
-  /* do nothing */
-}
-
-filter_vecs_t polygon_vecs = {
-  polygon_init,
-  polygon_process,
-  polygon_deinit,
-  NULL,
-  polygon_args
-};
 #endif // FILTERS_ENABLED

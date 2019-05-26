@@ -55,13 +55,13 @@ gnav_trl_rw_init(const QString& fname)
 }
 
 static void
-gnav_trl_rd_deinit(void)
+gnav_trl_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-gnav_trl_rw_deinit(void)
+gnav_trl_rw_deinit()
 {
   gbfclose(fout);
 }
@@ -85,26 +85,25 @@ write_altitude(void* ptr, const float alt)
 }
 
 static void
-gnav_trl_read(void)
+gnav_trl_read()
 {
-  route_head* trk = NULL;
+  route_head* trk = nullptr;
 
   while (! gbfeof(fin)) {
     gnav_trl_t rec;
-    Waypoint* wpt;
 
     if (gbfread(&rec, sizeof(rec), 1, fin) != 1) {
       fatal(MYNAME ": Unexpected EOF (end of file)!\n");
     }
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
     wpt->SetCreationTime(le_read32(&rec.time));
     wpt->latitude = le_read_float(&rec.lat);
     wpt->longitude = le_read_float(&rec.lon);
     wpt->altitude = read_altitude(&rec.alt);
 
-    if (trk == NULL) {
+    if (trk == nullptr) {
       trk = route_head_alloc();
       track_add_head(trk);
     }
@@ -130,9 +129,9 @@ gnav_trl_write_trkpt(const Waypoint* wpt)
 }
 
 static void
-gnav_trl_write(void)
+gnav_trl_write()
 {
-  track_disp_all(NULL, NULL, gnav_trl_write_trkpt);
+  track_disp_all(nullptr, nullptr, gnav_trl_write_trkpt);
 }
 
 
@@ -151,9 +150,11 @@ ff_vecs_t gnav_trl_vecs = {
   gnav_trl_rw_deinit,
   gnav_trl_read,
   gnav_trl_write,
-  NULL,
+  nullptr,
   gnav_trl_args,
   CET_CHARSET_UTF8, 1	/* CET - do nothing ! */
+  , NULL_POS_OPS,
+  nullptr
 
 };
 

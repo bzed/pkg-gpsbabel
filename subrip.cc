@@ -21,7 +21,7 @@
  */
 
 #include "defs.h"
-#include <stdio.h> /* for gmtime */
+#include <cstdio> /* for gmtime */
 
 #define MYNAME "subrip"
 
@@ -58,8 +58,7 @@ sync_time(time_t arg_gpstime, char* arg_videotime)
 static void
 subrip_prevwp_pr(const Waypoint* waypointp)
 {
-  QDateTime startdtime, enddtime;
-  QTime starttime, endtime;
+  QDateTime enddtime;
 
   /* Now that we have the next waypoint, we can write out the subtitle for
    * the previous one.
@@ -75,14 +74,14 @@ subrip_prevwp_pr(const Waypoint* waypointp)
   gbfprintf(fout, "%d\n", stnum++);
 
   /* Writes start and end time for subtitle display to file. */
-  startdtime = prevwpp->GetCreationTime().addSecs(-time_offset);
+  QDateTime startdtime = prevwpp->GetCreationTime().addSecs(-time_offset);
   if (!waypointp) {
     enddtime = startdtime.addSecs(1);
   } else {
     enddtime = waypointp->GetCreationTime().addSecs(-time_offset);
   }
-  starttime = startdtime.toUTC().time();
-  endtime = enddtime.toUTC().time();
+  QTime starttime = startdtime.toUTC().time();
+  QTime endtime = enddtime.toUTC().time();
   gbfprintf(fout, "%02d:%02d:%02d,%03d --> %02d:%02d:%02d,%03d\n",
     starttime.hour(), starttime.minute(), starttime.second(), starttime.msec(),
     endtime.hour(), endtime.minute(), endtime.second(), endtime.msec());
@@ -198,19 +197,18 @@ static void
 subrip_wr_init(const QString& fname)
 {
   time_t gpstime_t;
-  struct tm* ptm_gps;
 
   stnum = 1;
 
   time_offset = 0;
 
-  prevwpp = NULL;
+  prevwpp = nullptr;
   vspeed = 0;
   gradient = 0;
 
-  if ((opt_gpstime != NULL) && (opt_gpsdate != NULL)) {
+  if ((opt_gpstime != nullptr) && (opt_gpsdate != nullptr)) {
     time(&gpstime_t);
-    ptm_gps = gmtime(&gpstime_t);
+    struct tm* ptm_gps = gmtime(&gpstime_t);
     if (opt_gpstime) {
       sscanf(opt_gpstime, "%2d%2d%2d", &ptm_gps->tm_hour, &ptm_gps->tm_min, &ptm_gps->tm_sec);
     }
@@ -241,33 +239,33 @@ subrip_wr_init(const QString& fname)
 }
 
 static void
-subrip_wr_deinit(void)
+subrip_wr_deinit()
 {
   gbfclose(fout);
 }
 
 static void
-subrip_write(void)
+subrip_write()
 {
-  track_disp_all(NULL, NULL, subrip_trkpt_pr);
+  track_disp_all(nullptr, nullptr, subrip_trkpt_pr);
 
   /*
    * Due to the necessary hack, one waypoint is still in memory (unless we
    * did not get any waypoints). Check if there is one and, if so, write it.
    */
   if (prevwpp) {
-    subrip_prevwp_pr(NULL);
+    subrip_prevwp_pr(nullptr);
   }
 }
 
 /* arguments: definitions of format-specific arguments */
 
-arglist_t subrip_args[] = {
+static arglist_t subrip_args[] = {
   // FIXME: document that gps_date and gps_time must be specified together or they will both be ignored and the timestamp of the first trackpoint will be used.
-  {"video_time", &opt_videotime, "Video position for which exact GPS time is known (hhmmss, default is 0:00:00)", 0, ARGTYPE_STRING, ARG_NOMINMAX },
-  {"gps_time", &opt_gpstime, "GPS time at position video_time (hhmmss, default is first timestamp of track)", 0, ARGTYPE_STRING, ARG_NOMINMAX },
-  {"gps_date", &opt_gpsdate, "GPS date at position video_time (hhmmss, default is first timestamp of track)", 0, ARGTYPE_STRING, ARG_NOMINMAX },
-  {"format", &opt_format, "Format for subtitles", "%s km/h %e m\\n%t %l", ARGTYPE_STRING, ARG_NOMINMAX },
+  {"video_time", &opt_videotime, "Video position for which exact GPS time is known (hhmmss, default is 0:00:00)", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
+  {"gps_time", &opt_gpstime, "GPS time at position video_time (hhmmss, default is first timestamp of track)", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
+  {"gps_date", &opt_gpsdate, "GPS date at position video_time (hhmmss, default is first timestamp of track)", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
+  {"format", &opt_format, "Format for subtitles", "%s km/h %e m\\n%t %l", ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
   ARG_TERMINATOR
 };
 
@@ -276,13 +274,15 @@ arglist_t subrip_args[] = {
 ff_vecs_t subrip_vecs = {
   ff_type_file,
   { ff_cap_none, ff_cap_write, ff_cap_none }, // waypoints, track, route; for now, we just do tracks
-  NULL,
+  nullptr,
   subrip_wr_init,
-  NULL,
+  nullptr,
   subrip_wr_deinit,
-  NULL,
+  nullptr,
   subrip_write,
-  NULL,
+  nullptr,
   subrip_args,
   CET_CHARSET_ASCII, 0
+  , NULL_POS_OPS,
+  nullptr
 };

@@ -18,17 +18,17 @@
  */
 #include "defs.h"
 #include "cet_util.h"
-#include <QtCore/QXmlStreamReader>
 #include "src/core/file.h"
+#include <QtCore/QXmlStreamReader>
 
-static char* noretired = NULL;
+static char* noretired = nullptr;
 static QString read_fname;
 
 static
 arglist_t nav_args[] = {
   {
     "noretired", &noretired, "Suppress retired geocaches",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -64,10 +64,9 @@ static
 geocache_type
 nc_mktype(const QString& t)
 {
-  int i;
   int sz = sizeof(nc_type_map) / sizeof(nc_type_map[0]);
 
-  for (i = 0; i < sz; i++) {
+  for (int i = 0; i < sz; i++) {
     if (0 == t.compare(nc_type_map[i].name, Qt::CaseInsensitive)) {
       return nc_type_map[i].type;
     }
@@ -79,10 +78,9 @@ static
 geocache_container
 nc_mkcont(const QString& t)
 {
-  int i;
   int sz = sizeof(nc_container_map) / sizeof(nc_container_map[0]);
 
-  for (i = 0; i < sz; i++) {
+  for (int i = 0; i < sz; i++) {
     if (0 == t.compare(nc_container_map[i].name, Qt::CaseInsensitive)) {
       return nc_container_map[i].type;
     }
@@ -101,8 +99,7 @@ NaviReadCache(const QXmlStreamReader& reader)
 {
   const QXmlStreamAttributes a = reader.attributes();
   Waypoint* wpt_tmp = new Waypoint;
-  geocache_data* gc_data;
-  gc_data = wpt_tmp->AllocGCData();
+  geocache_data* gc_data = wpt_tmp->AllocGCData();
   if (a.hasAttribute("cache_id")) {
     int n = a.value("cache_id").toString().toInt();
     QString fn = QString("N%1").arg(n, 5, 16, QChar('0'));
@@ -178,7 +175,7 @@ NaviReadCache(const QXmlStreamReader& reader)
 }
 
 static void
-nav_read(void)
+nav_read()
 {
   QXmlStreamReader reader;
   gpsbabel::File file(read_fname);
@@ -203,23 +200,23 @@ nav_read(void)
 }
 
 static void
-nav_rd_deinit(void)
+nav_rd_deinit()
 {
 }
 
 static void
-nav_wr_init(const QString& fname)
+nav_wr_init(const QString&)
 {
   fatal(MYNAME ": Does not support writing Navicache files.\n");
 }
 
 static void
-nav_wr_deinit(void)
+nav_wr_deinit()
 {
 }
 
 static void
-nav_write(void)
+nav_write()
 {
 }
 
@@ -232,7 +229,9 @@ ff_vecs_t navicache_vecs = {
   nav_wr_deinit,
   nav_read,
   nav_write,
-  NULL,
+  nullptr,
   nav_args,
   CET_CHARSET_UTF8, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

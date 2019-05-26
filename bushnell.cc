@@ -21,13 +21,13 @@
 
 
 #include "defs.h"
-#include <math.h>
 #include <QtCore/QFileInfo>
+#include <cmath>
 #define MYNAME "Bushnell"
 
 static gbfile* file_in;
 static QString ofname;
-static short_handle mkshort_handle = NULL;
+static short_handle mkshort_handle = nullptr;
 
 static
 arglist_t bushnell_args[] = {
@@ -42,7 +42,7 @@ typedef struct  {
   const char* icon;
 } icon_mapping_t;
 
-icon_mapping_t bushnell_icons[] = {
+static icon_mapping_t bushnell_icons[] = {
   { 0x00, "Yellow Square"},
   { 0x01, "Blue Grey Circle" },
   { 0x02, "Yellow Diamond" },
@@ -124,19 +124,17 @@ icon_mapping_t bushnell_icons[] = {
   { 0x42, "Officer" }, // "see 3b: duplicate"
   { 0x43, "Railroad" },
   { 0x44, "Auto Ferry" },
-  {-1, NULL}
+  {-1, nullptr}
 };
 
 static unsigned int
 bushnell_get_icon_from_name(QString name)
 {
-  icon_mapping_t* t;
-
   if (name.isNull()) {
     name = "Waypoint";
   }
 
-  for (t = bushnell_icons; t->icon > 0; t++) {
+  for (icon_mapping_t* t = bushnell_icons; t->icon != nullptr; t++) {
     if (0 == name.compare(t->icon, Qt::CaseInsensitive)) {
       return t->symbol;
     }
@@ -147,8 +145,7 @@ bushnell_get_icon_from_name(QString name)
 static const char*
 bushnell_get_name_from_symbol(signed int s)
 {
-  icon_mapping_t* t;
-  for (t = bushnell_icons; t->icon > 0; t++) {
+  for (icon_mapping_t* t = bushnell_icons; t->icon != nullptr; t++) {
     if (s == t->symbol) {
       return t->icon;
     }
@@ -163,7 +160,7 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(file_in);
 }
@@ -189,7 +186,7 @@ wr_init(const QString& fname)
 }
 
 static void
-wr_deinit(void)
+wr_deinit()
 {
   mkshort_del_handle(&mkshort_handle);
   ofname.clear();
@@ -199,19 +196,16 @@ wr_deinit(void)
  * Each file contains a single waypoint.
  */
 static void
-bushnell_read(void)
+bushnell_read()
 {
-  int32_t lat_tmp,lon_tmp;
-  unsigned int proximity;
-  unsigned int icon;
   Waypoint* wpt_tmp = new Waypoint;
 
-  lat_tmp = gbfgetint32(file_in);
-  lon_tmp = gbfgetint32(file_in);
+  int32_t lat_tmp = gbfgetint32(file_in);
+  int32_t lon_tmp = gbfgetint32(file_in);
 
-  icon = gbfgetc(file_in);
+  unsigned int icon = gbfgetc(file_in);
   wpt_tmp->icon_descr = bushnell_get_name_from_symbol(icon);
-  proximity = gbfgetc(file_in); // 1 = off, 3 = proximity alarm.
+  unsigned int proximity = gbfgetc(file_in); // 1 = off, 3 = proximity alarm.
   (void) proximity;
   wpt_tmp->latitude = lat_tmp /  10000000.0;
   wpt_tmp->longitude = lon_tmp / 10000000.0;
@@ -228,14 +222,13 @@ bushnell_write_one(const Waypoint* wpt)
 {
   char tbuf[20]; // 19 text bytes + null terminator.
   char padding[2] = {0, 0};
-  gbfile* file_out;
   static int wpt_count;
   QString fname(ofname);
   fname += "-";
   fname += QString::number(wpt_count++);
   fname += ".wpt";
 
-  file_out = gbfopen_le(fname, "wb", MYNAME);
+  gbfile* file_out = gbfopen_le(fname, "wb", MYNAME);
   gbfputint32(round(wpt->latitude  * 10000000), file_out);
   gbfputint32(round(wpt->longitude * 10000000), file_out);
   gbfputc(bushnell_get_icon_from_name(wpt->icon_descr), file_out);
@@ -252,7 +245,7 @@ bushnell_write_one(const Waypoint* wpt)
 }
 
 static void
-bushnell_write(void)
+bushnell_write()
 {
   waypt_disp_all(bushnell_write_one);
 }
@@ -266,7 +259,9 @@ ff_vecs_t bushnell_vecs = {
   wr_deinit,
   bushnell_read,
   bushnell_write,
-  NULL,
+  nullptr,
   bushnell_args,
-  CET_CHARSET_MS_ANSI, 0  /* Not really sure... */
+  CET_CHARSET_MS_ANSI, 0,  /* Not really sure... */
+  NULL_POS_OPS,
+  nullptr
 };

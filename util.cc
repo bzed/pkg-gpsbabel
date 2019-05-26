@@ -19,19 +19,33 @@
 
  */
 
-#include "defs.h"
-#include "src/core/xmltag.h"
-#include "jeeps/gpsmath.h"
+#include <cctype>                  // for isspace, isalpha, ispunct, tolower, toupper
+#include <cerrno>                  // for errno
+#include <cmath>                   // for fabs, floor
+#include <cstdarg>                 // for va_list, va_end, va_start, va_copy
+#include <cstdint>                 // for uint32_t
+#include <cstdio>                  // for size_t, vsnprintf, FILE, fopen, printf, sprintf, stderr, stdin, stdout
+#include <cstdlib>                 // for abs, getenv, calloc, free, malloc, realloc
+#include <cstring>                 // for strlen, strcat, strstr, memcpy, strcmp, strcpy, strdup, strchr, strerror
+#include <ctime>                   // for mktime, localtime
 
-#include <ctype.h>
-#include <errno.h>
-#include <math.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h> // for va_copy
-#include <time.h>
-#include <QtCore/QFileInfo>
+#include <QtCore/QByteArray>       // for QByteArray
+#include <QtCore/QChar>            // for QChar, operator<=, operator>=
+#include <QtCore/QCharRef>         // for QCharRef
+#include <QtCore/QDateTime>        // for QDateTime
+#include <QtCore/QFileInfo>        // for QFileInfo
+#include <QtCore/QList>            // for QList
+#include <QtCore/QString>          // for QString, operator+
+#include <QtCore/QTextCodec>       // for QTextCodec
+#include <QtCore/QTextStream>      // for operator<<, QTextStream, qSetFieldWidth, endl, QTextStream::AlignLeft
+#include <QtCore/Qt>               // for CaseInsensitive
+#include <QtCore/QtGlobal>         // for qPrintable
+
+#include "defs.h"
+#include "cet.h"                   // for cet_utf8_to_ucs4
+#include "src/core/datetime.h"     // for DateTime
+#include "src/core/xmltag.h"
+
 
 // First test Apple's clever macro that's really a runtime test so
 // that our universal binaries work right.
@@ -45,51 +59,11 @@
 #endif
 #endif
 
-#ifdef DEBUG_MEM
-#define DEBUG_FILENAME "/tmp/gpsbabel.debug"
-
-static FILE* debug_mem_file = NULL;
-void
-debug_mem_open()
-{
-  debug_mem_file = xfopen(DEBUG_FILENAME, "a", "debug");
-}
-
-void
-debug_mem_output(char* format, ...)
-{
-  va_list args;
-  va_start(args, format);
-  if (debug_mem_file) {
-    vfprintf(debug_mem_file, format, args);
-    fflush(debug_mem_file);
-  }
-  va_end(args);
-}
-
-void
-debug_mem_close()
-{
-  if (debug_mem_file) {
-    fclose(debug_mem_file);
-  }
-  debug_mem_file = NULL;
-}
-#endif
-
 void*
-#ifdef DEBUG_MEM
-XMALLOC(size_t size, DEBUG_PARAMS)
-#else
 xmalloc(size_t size)
-#endif
 {
   void* obj = malloc(size);
 
-#ifdef DEBUG_MEM
-  debug_mem_output("malloc, %x, %d, %s, %d\n",
-                   obj, size, file, line);
-#endif
   if (!obj) {
     fatal("gpsbabel: Unable to allocate %ld bytes of memory.\n", (unsigned long) size);
   }
@@ -98,17 +72,9 @@ xmalloc(size_t size)
 }
 
 void*
-#ifdef DEBUG_MEM
-XCALLOC(size_t nmemb, size_t size, DEBUG_PARAMS)
-#else
 xcalloc(size_t nmemb, size_t size)
-#endif
 {
   void* obj = calloc(nmemb, size);
-#ifdef DEBUG_MEM
-  debug_mem_output("calloc, %x, %d, %d, %s, %d\n",
-                   obj, nmemb, size, file, line);
-#endif
 
   if (!obj) {
     fatal("gpsbabel: Unable to allocate %ld units of %ld bytes of memory.\n", (unsigned long) nmemb, (unsigned long) size);
@@ -118,31 +84,15 @@ xcalloc(size_t nmemb, size_t size)
 }
 
 void
-#ifdef DEBUG_MEM
-XFREE(const void* mem, DEBUG_PARAMS)
-#else
 xfree(const void* mem)
-#endif
 {
-  free((void*) mem);
-#ifdef DEBUG_MEM
-  debug_mem_output("free, %x, %s, %d\n",
-                   mem, file, line);
-#endif
+  free(const_cast<void*>(mem));
 }
 
 char*
-#ifdef DEBUG_MEM
-XSTRDUP(const char* s, DEBUG_PARAMS)
-#else
 xstrdup(const char* s)
-#endif
 {
   char* o = s ? strdup(s) : strdup("");
-#ifdef DEBUG_MEM
-  debug_mem_output("strdup, %x, %x, %s, %d\n",
-                   o, s, file, line);
-#endif
 
   if (!o) {
     fatal("gpsbabel: Unable to allocate %ld bytes of memory.\n", (unsigned long) strlen(s));
@@ -160,22 +110,17 @@ char* xstrdup(const QString& s)
  * Duplicate at most sz bytes in str.
  */
 char*
-#ifdef DEBUG_MEM
-XSTRNDUP(const char* str, size_t sz, DEBUG_PARAMS)
-#else
 xstrndup(const char* str, size_t sz)
-#endif
 {
   size_t newlen = 0;
-  char* cin = (char*)str;
-  char* newstr;
+  const char* cin = str;
 
   while ((newlen < sz) && (*cin != '\0')) {
     newlen++;
     cin++;
   }
 
-  newstr = (char*) xmalloc(newlen + 1);
+  char* newstr = (char*) xmalloc(newlen + 1);
   memcpy(newstr, str, newlen);
   newstr[newlen] = 0;
 
@@ -183,20 +128,9 @@ xstrndup(const char* str, size_t sz)
 }
 
 void*
-#ifdef DEBUG_MEM
-XREALLOC(void* p, size_t s, DEBUG_PARAMS)
-#else
 xrealloc(void* p, size_t s)
-#endif
 {
-  char* o = (char*) realloc(p,s);
-#ifdef DEBUG_MEM
-  if (p != NULL) {
-    debug_mem_output("realloc, %x, %x, %x, %s, %d\n", o, p, s, file, line);
-  } else {
-    debug_mem_output("malloc, %x, %d, %s, %d\n", o, s, file, line);
-  }
-#endif
+  char* o = (char*) realloc(p, s);
 
   if (!o) {
     fatal("gpsbabel: Unable to realloc %ld bytes of memory.\n", (unsigned long) s);
@@ -209,23 +143,17 @@ xrealloc(void* p, size_t s)
 * For an allocated string, realloc it and append 's'
 */
 char*
-#ifdef DEBUG_MEM
-XSTRAPPEND(char* src, const char* newd, DEBUG_PARAMS)
-#else
 xstrappend(char* src, const char* newd)
-#endif
 {
-  size_t newsz;
-
   if (!src) {
-    return xxstrdup(newd, file, line);
+    return xstrdup(newd);
   }
   if (!newd) {
-    return xxstrdup(src, file, line);
+    return xstrdup(src);
   }
 
-  newsz = strlen(src) + strlen(newd) + 1;
-  src = (char*) xxrealloc(src, newsz, file, line);
+  size_t newsz = strlen(src) + strlen(newd) + 1;
+  src = (char*) xrealloc(src, newsz);
   strcat(src, newd);
 
   return src;
@@ -237,10 +165,9 @@ xstrappend(char* src, const char* newd)
 FILE*
 xfopen(const char* fname, const char* type, const char* errtxt)
 {
-  FILE* f;
-  int am_writing = strchr(type, 'w') != NULL;
+  int am_writing = strchr(type, 'w') != nullptr;
 
-  if (fname == NULL) {
+  if (fname == nullptr) {
     fatal("%s must have a filename specified for %s.\n",
           errtxt, am_writing ? "write" : "read");
   }
@@ -248,14 +175,45 @@ xfopen(const char* fname, const char* type, const char* errtxt)
   if (0 == strcmp(fname, "-")) {
     return am_writing ? stdout : stdin;
   }
-  f = fopen(fname, type);
-  if (NULL == f) {
+  FILE* f = ufopen(QString::fromUtf8(fname), type);
+  if (nullptr == f) {
     fatal("%s cannot open '%s' for %s.  Error was '%s'.\n",
           errtxt, fname,
           am_writing ? "write" : "read",
           strerror(errno));
   }
   return f;
+}
+
+/*
+ * Thin wrapper around fopen() that supports UTF-8 fname on all platforms.
+ */
+FILE*
+ufopen(const QString& fname, const char* mode)
+{
+#if __WIN32__
+  // On Windows standard fopen() doesn't support UTF-8, so we have to convert
+  // to wchar_t* (UTF-16) and use the wide-char version of fopen(), _wfopen().
+  return _wfopen((const wchar_t*) fname.utf16(),
+                 (const wchar_t*) QString(mode).utf16());
+#else
+  // On other platforms, convert to native locale (UTF-8 or other 8-bit).
+  return fopen(qPrintable(fname), mode);
+#endif
+}
+
+/*
+ * OS-abstracting wrapper for getting Unicode environment variables.
+ */
+QString ugetenv(const char* env_var) {
+#ifdef __WIN32__
+  // Use QString to convert 8-bit env_var argument to wchar_t* for _wgetenv().
+  return QString::fromWCharArray(
+      _wgetenv((const wchar_t*) QString(env_var).utf16()));
+#else
+  // Everyone else uses UTF-8 or some other locale-specific 8-bit encoding.
+  return QString::fromLocal8Bit(std::getenv(env_var));
+#endif
 }
 
 /*
@@ -271,10 +229,9 @@ int
 xasprintf(char** strp, const char* fmt, ...)
 {
   va_list args;
-  int res;
 
   va_start(args, fmt);
-  res = xvasprintf(strp, fmt, args);
+  int res = xvasprintf(strp, fmt, args);
   va_end(args);
 
   return res;
@@ -284,10 +241,9 @@ int
 xasprintf(QString* strp, const char* fmt, ...)
 {
   va_list args;
-  int res;
   va_start(args, fmt);
   char* cstrp;
-  res = xvasprintf(&cstrp, fmt, args);
+  int res = xvasprintf(&cstrp, fmt, args);
   *strp = cstrp;
   xfree(cstrp);
   va_end(args);
@@ -300,32 +256,27 @@ xvasprintf(char** strp, const char* fmt, va_list ap)
 {
   /* From http://perfec.to/vsnprintf/pasprintf.c */
   /* size of first buffer malloc; start small to exercise grow routines */
-#ifdef DEBUG_MEM
-# define	FIRSTSIZE	64
-#else
 # define	FIRSTSIZE	1
-#endif
-  char* buf = NULL;
-  int bufsize;
+  char* buf = nullptr;
   char* newbuf;
   size_t nextsize = 0;
   int outsize;
   va_list args;
 
-  bufsize = 0;
+  int bufsize = 0;
   for (;;) {
     if (bufsize == 0) {
-      if ((buf = (char*) xmalloc(FIRSTSIZE)) == NULL) {
-        *strp = NULL;
+      if ((buf = (char*) xmalloc(FIRSTSIZE)) == nullptr) {
+        *strp = nullptr;
         return -1;
       }
       bufsize = FIRSTSIZE;
-    } else if ((newbuf = (char*) xrealloc(buf, nextsize)) != NULL) {
+    } else if ((newbuf = (char*) xrealloc(buf, nextsize)) != nullptr) {
       buf = newbuf;
       bufsize = nextsize;
     } else {
       xfree(buf);
-      *strp = NULL;
+      *strp = nullptr;
       return -1;
     }
 
@@ -408,13 +359,11 @@ rtrim(char* s)
 char*
 lrtrim(char* buff)
 {
-  char* c;
-
   if (buff[0] == '\0') {
     return buff;
   }
 
-  c = buff + strlen(buff);
+  char* c = buff + strlen(buff);
   while ((c >= buff) && ((unsigned char)*c <= ' ')) {
     *c-- = '\0';
   }
@@ -451,10 +400,8 @@ lrtrim(char* buff)
 int
 str_match(const char* str, const char* match)
 {
-  char* m, *s;
-
-  s = (char*)str;
-  m = (char*)match;
+  const char* s = str;
+  const char* m = match;
 
   while (*m || *s) {
     switch (*m) {
@@ -480,8 +427,6 @@ str_match(const char* str, const char* match)
       }
 
       do {
-        char* mx, *sx;
-
         while (*s && (*s != *m)) {
           s++;
         }
@@ -489,8 +434,8 @@ str_match(const char* str, const char* match)
           return 0;
         }
 
-        sx = s + 1;
-        mx = m + 1;
+        const char* sx = s + 1;
+        const char* mx = m + 1;
 
         while (*sx) {
           if (*mx == '\\') {	/* ? escaped ? */
@@ -548,41 +493,6 @@ str_match(const char* str, const char* match)
   return ((*s == '\0') && (*m == '\0'));
 }
 
-/*
- * as str_match, but case insensitive
- */
-
-int
-case_ignore_str_match(const char* str, const char* match)
-{
-  char* s1, *s2;
-  int res;
-
-  s1 = strupper(xstrdup(str));
-  s2 = strupper(xstrdup(match));
-  res = str_match(s1, s2);
-  xfree(s1);
-  xfree(s2);
-
-  return res;
-}
-
-// for ruote_char = "
-// make str = blank into nothing
-// make str = foo into "foo"
-// make str = foo"bar into "foo""bar"
-// No, that doesn't seem obvious to me, either...
-
-QString
-strenquote(const QString& str, const QChar quot_char)
-{
-  QString replacement = QString("%1%1").arg(quot_char);
-  QString t = str;
-  t.replace(quot_char, replacement);
-  QString r = quot_char + t + quot_char;
-  return r;
-}
-
 void
 printposn(const double c, int is_lat)
 {
@@ -624,71 +534,70 @@ is_fatal(const int condition, const char* fmt, ...)
  * Read 4 bytes in big-endian.   Return as "int" in native endianness.
  */
 signed int
-be_read32(const void* p)
+be_read32(const void* ptr)
 {
-  unsigned char* i = (unsigned char*) p;
+  const unsigned char* i = (const unsigned char*) ptr;
   return i[0] << 24 | i[1] << 16  | i[2] << 8 | i[3];
 }
 
 signed int
-be_read16(const void* p)
+be_read16(const void* ptr)
 {
-  unsigned char* i = (unsigned char*) p;
+  const unsigned char* i = (const unsigned char*) ptr;
   return i[0] << 8 | i[1];
 }
 
 unsigned int
-be_readu16(const void* p)
+be_readu16(const void* ptr)
 {
-  const unsigned char* i = (unsigned char*) p;
+  const unsigned char* i = (const unsigned char*) ptr;
   return i[0] << 8 | i[1];
 }
 
 void
-be_write16(void* addr, const unsigned value)
+be_write16(void* ptr, const unsigned value)
 {
-  unsigned char* p = (unsigned char*) addr;
+  unsigned char* p = (unsigned char*) ptr;
   p[0] = value >> 8;
   p[1] = value;
-
 }
 
 void
-be_write32(void* pp, const unsigned i)
+be_write32(void* ptr, const unsigned value)
 {
-  char* p = (char*)pp;
+  unsigned char* p = (unsigned char*) ptr;
 
-  p[0] = (i >> 24) & 0xff;
-  p[1] = (i >> 16) & 0xff;
-  p[2] = (i >> 8) & 0xff;
-  p[3] = i & 0xff;
+  p[0] = value >> 24;
+  p[1] = value >> 16;
+  p[2] = value >> 8;
+  p[3] = value;
 }
 
 signed int
-le_read16(const void* addr)
+le_read16(const void* ptr)
 {
-  const unsigned char* p = (const unsigned char*) addr;
+  const unsigned char* p = (const unsigned char*) ptr;
   return p[0] | (p[1] << 8);
 }
 
 unsigned int
-le_readu16(const void* addr)
+le_readu16(const void* ptr)
 {
-  const unsigned char* p = (const unsigned char*) addr;
+  const unsigned char* p = (const unsigned char*) ptr;
   return p[0] | (p[1] << 8);
 }
 
 signed int
-le_read32(const void* addr)
+le_read32(const void* ptr)
 {
-  const unsigned char* p = (const unsigned char*) addr;
+  const unsigned char* p = (const unsigned char*) ptr;
   return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
 }
 
 unsigned int
-le_readu32(const void* addr)
+le_readu32(const void* ptr)
 {
-  const unsigned char* p = (const unsigned char*) addr;
+  const unsigned char* p = (const unsigned char*) ptr;
   return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
 }
 
@@ -713,18 +622,17 @@ le_read64(void* dest, const void* src)
 }
 
 void
-le_write16(void* addr, const unsigned value)
+le_write16(void* ptr, const unsigned value)
 {
-  unsigned char* p = (unsigned char*) addr;
+  unsigned char* p = (unsigned char*) ptr;
   p[0] = value;
   p[1] = value >> 8;
-
 }
 
 void
-le_write32(void* addr, const unsigned value)
+le_write32(void* ptr, const unsigned value)
 {
-  unsigned char* p = (unsigned char*) addr;
+  unsigned char* p = (unsigned char*) ptr;
   p[0] = value;
   p[1] = value >> 8;
   p[2] = value >> 16;
@@ -758,19 +666,17 @@ si_round(double d)
 time_t
 mkgmtime(struct tm* t)
 {
-  short  month, year;
-  time_t result;
   static int      m_to_d[12] =
   {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
 
-  month = t->tm_mon;
-  year = t->tm_year + month / 12 + 1900;
+  short month = t->tm_mon;
+  short year = t->tm_year + month / 12 + 1900;
   month %= 12;
   if (month < 0) {
     year -= 1;
     month += 12;
   }
-  result = (year - 1970) * 365 + m_to_d[month];
+  time_t result = (year - 1970) * 365 + m_to_d[month];
   if (month <= 1) {
     year -= 1;
   }
@@ -817,7 +723,7 @@ mklocaltime(struct tm* t)
  * reference files would be tedious, so we uphold that convention.
  */
 gpsbabel::DateTime
-current_time(void)
+current_time()
 {
   if (getenv("GPSBABEL_FREEZE_TIME")) {
     return QDateTime::fromTime_t(0);
@@ -834,11 +740,10 @@ month_lookup(const char* m)
 {
   static const char* months[] = {
     "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC", NULL
+    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC", nullptr
   };
-  const char** mp;
 
-  for (mp = months; *mp; mp++) {
+  for (const char** mp = months; *mp; mp++) {
     if (0 == case_ignore_strcmp(*mp, m)) {
       return mp - months;
     }
@@ -879,7 +784,7 @@ const char*
 get_cache_icon(const Waypoint* waypointp)
 {
   if (!global_opts.smart_icons) {
-    return NULL;
+    return nullptr;
   }
 
   /*
@@ -913,7 +818,7 @@ get_cache_icon(const Waypoint* waypointp)
     return "Geocache";
   }
 
-  return NULL;
+  return nullptr;
 }
 
 double
@@ -922,12 +827,11 @@ endian_read_double(const void* ptr, int read_le)
   double ret;
   char r[8];
   const void* p;
-  int i;
 
   if (i_am_little_endian == read_le) {
     p = ptr;
   } else {
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
       r[i] = ((char*)ptr)[7-i];
     }
     p = r;
@@ -950,12 +854,11 @@ endian_read_float(const void* ptr, int read_le)
   float ret;
   char r[4];
   const void* p;
-  int i;
 
   if (i_am_little_endian == read_le) {
     p = ptr;
   } else {
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
       r[i] = ((char*)ptr)[3-i];
     }
     p = r;
@@ -966,40 +869,38 @@ endian_read_float(const void* ptr, int read_le)
 }
 
 void
-endian_write_double(void* ptr, double d, int write_le)
+endian_write_double(void* ptr, double value, int write_le)
 {
-  int i;
   char* optr = (char*) ptr;
 // Word order is different on arm, but not on arm-eabi.
 #if defined(__arm__) && !defined(__ARM_EABI__)
   char r[8];
-  memcpy(r + 4, &d, 4);
-  memcpy(r, ((void*)&d) + 4, 4);
+  memcpy(r + 4, &value, 4);
+  memcpy(r, ((void*)&value) + 4, 4);
 #else
-  char* r = (char*)(void*)&d;
+  char* r = (char*)(void*)&value;
 #endif
 
 
   if (i_am_little_endian == write_le) {
     memcpy(ptr, r, 8);
   } else {
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
       *optr++ = r[7-i];
     }
   }
 }
 
 void
-endian_write_float(void* ptr, float f, int write_le)
+endian_write_float(void* ptr, float value, int write_le)
 {
-  char* r = (char*)(void*)&f;
-  int i;
+  char* r = (char*)(void*)&value;
   char* optr = (char*) ptr;
 
   if (i_am_little_endian == write_le) {
-    memcpy(ptr, &f, 4);
+    memcpy(ptr, &value, 4);
   } else {
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
       *optr++ = r[3-i];
     }
   }
@@ -1012,9 +913,9 @@ le_read_float(const void* ptr)
 }
 
 void
-le_write_float(void* ptr, float f)
+le_write_float(void* ptr, float value)
 {
-  endian_write_float(ptr,f,1);
+  endian_write_float(ptr, value, 1);
 }
 
 float
@@ -1024,51 +925,48 @@ be_read_float(void* ptr)
 }
 
 void
-be_write_float(void* ptr, float f)
+be_write_float(void* ptr, float value)
 {
-  endian_write_float(ptr,f,0);
+  endian_write_float(ptr, value, 0);
 }
 
 double
 le_read_double(const void* ptr)
 {
-  return endian_read_double(ptr,1);
+  return endian_read_double(ptr, 1);
 }
 
 void
-le_write_double(void* ptr, double d)
+le_write_double(void* ptr, double value)
 {
-  endian_write_double(ptr,d,1);
+  endian_write_double(ptr, value, 1);
 }
 
 double
 be_read_double(void* ptr)
 {
-  return endian_read_double(ptr,0);
+  return endian_read_double(ptr, 0);
 }
 
 void
-be_write_double(void* ptr, double d)
+be_write_double(void* ptr, double value)
 {
-  endian_write_double(ptr,d,0);
+  endian_write_double(ptr, value, 0);
 }
 
 
 /* Magellan and PCX formats use this DDMM.mm format */
 double ddmm2degrees(double pcx_val)
 {
-  double minutes;
-  signed int deg;
-  deg = (signed int)(pcx_val / 100.0);
-  minutes = (((pcx_val / 100.0) - deg) * 100.0) / 60.0;
+  signed int deg = (signed int)(pcx_val / 100.0);
+  double minutes = (((pcx_val / 100.0) - deg) * 100.0) / 60.0;
   return (double) deg + minutes;
 }
 
 double degrees2ddmm(double deg_val)
 {
-  signed int deg;
-  deg = (signed int) deg_val;
-  return (double)(deg * 100.0) + ((deg_val - deg) * 60.0);
+  signed int deg = (signed int) deg_val;
+  return (deg * 100.0) + ((deg_val - deg) * 60.0);
 }
 
 /*
@@ -1079,18 +977,16 @@ double degrees2ddmm(double deg_val)
 char*
 strsub(const char* s, const char* search, const char* replace)
 {
-  const char* p;
   int len = strlen(s);
   int slen = strlen(search);
   int rlen = strlen(replace);
-  char* d;
 
-  p = strstr(s, search);
+  const char* p = strstr(s, search);
   if (!slen || !p) {
-    return NULL;
+    return nullptr;
   }
 
-  d = (char*) xmalloc(len + rlen + 1);
+  char* d = (char*) xmalloc(len + rlen + 1);
 
   /* Copy first part */
   len = p - s;
@@ -1112,13 +1008,13 @@ char*
 gstrsub(const char* s, const char* search, const char* replace)
 {
   int ooffs = 0;
-  char* o, *c;
-  char* src = (char*)s;
+  const char* c;
+  const char* src = s;
   int olen = strlen(src);
   int slen = strlen(search);
   int rlen = strlen(replace);
 
-  o = (char*) xmalloc(olen + 1);
+  char* o = (char*) xmalloc(olen + 1);
 
   while ((c = strstr(src, search))) {
     olen += (rlen - slen);
@@ -1145,9 +1041,7 @@ gstrsub(const char* s, const char* search, const char* replace)
 char*
 strupper(char* src)
 {
-  char* c;
-
-  for (c = src; *c; c++) {
+  for (char* c = src; *c; c++) {
     *c = toupper(*c);
   }
   return src;
@@ -1159,9 +1053,7 @@ strupper(char* src)
 char*
 strlower(char* src)
 {
-  char* c;
-
-  for (c = src; *c; c++) {
+  for (char* c = src; *c; c++) {
     *c = tolower(*c);
   }
   return src;
@@ -1195,16 +1087,12 @@ rot13(const QString& s)
 char*
 convert_human_date_format(const char* human_datef)
 {
-  char* result, *cin, *cout;
-  char prev;
-  int ylen;
+  char* result = (char*) xcalloc((2*strlen(human_datef)) + 1, 1);
+  char* cout = result;
+  char prev = '\0';
+  int ylen = 0;
 
-  result = (char*) xcalloc((2*strlen(human_datef)) + 1, 1);
-  cout = result;
-  prev = '\0';
-  ylen = 0;
-
-  for (cin = (char*)human_datef; *cin; cin++) {
+  for (const char* cin = human_datef; *cin; cin++) {
     char okay = 1;
 
     if (toupper(*cin) != 'Y') {
@@ -1263,14 +1151,11 @@ convert_human_date_format(const char* human_datef)
 char*
 convert_human_time_format(const char* human_timef)
 {
-  char* result, *cin, *cout;
-  char prev;
+  char* result = (char*) xcalloc((2*strlen(human_timef)) + 1, 1);
+  char* cout = result;
+  char prev = '\0';
 
-  result = (char*) xcalloc((2*strlen(human_timef)) + 1, 1);
-  cout = result;
-  prev = '\0';
-
-  for (cin = (char*)human_timef; *cin; cin++) {
+  for (const char* cin = human_timef; *cin; cin++) {
     int okay = 1;
 
     if (isalpha(*cin)) {
@@ -1359,19 +1244,16 @@ convert_human_time_format(const char* human_timef)
 char*
 pretty_deg_format(double lat, double lon, char fmt, const char* sep, int html)
 {
-  double  latmin, lonmin, latsec, lonsec;
-  int     latint, lonint;
-  char	latsig, lonsig;
   char*	result;
-  latsig = lat < 0 ? 'S':'N';
-  lonsig = lon < 0 ? 'W':'E';
-  latint = abs((int) lat);
-  lonint = abs((int) lon);
-  latmin = 60.0 * (fabs(lat) - latint);
-  lonmin = 60.0 * (fabs(lon) - lonint);
-  latsec = 60.0 * (latmin - floor(latmin));
-  lonsec = 60.0 * (lonmin - floor(lonmin));
-  if (sep == NULL) {
+  char latsig = lat < 0 ? 'S':'N';
+  char lonsig = lon < 0 ? 'W':'E';
+  int latint = abs((int) lat);
+  int lonint = abs((int) lon);
+  double latmin = 60.0 * (fabs(lat) - latint);
+  double lonmin = 60.0 * (fabs(lon) - lonint);
+  double latsec = 60.0 * (latmin - floor(latmin));
+  double lonsec = 60.0 * (lonmin - floor(lonmin));
+  if (sep == nullptr) {
     sep = " ";  /* default " " */
   }
   if (fmt == 'd') { /* ddd */
@@ -1402,13 +1284,13 @@ pretty_deg_format(double lat, double lon, char fmt, const char* sep, int html)
 char*
 strip_nastyhtml(const QString& in)
 {
-  char* returnstr, *sp;
-  char* lcstr, *lcp;
+  char* returnstr;
+  char* lcstr;
 
-  sp = returnstr = xstrdup(in);
-  lcp = lcstr = strlower(xstrdup(in));
+  char* sp = returnstr = xstrdup(in);
+  char* lcp = lcstr = strlower(xstrdup(in));
 
-  while (lcp = strstr(lcstr, "<body>"), NULL != lcp) {
+  while (lcp = strstr(lcstr, "<body>"), nullptr != lcp) {
     sp = returnstr + (lcp - lcstr) ; /* becomes <!   > */
     sp++;
     *sp++ = '!';
@@ -1417,7 +1299,7 @@ strip_nastyhtml(const QString& in)
     *sp++ = ' ';
     *lcp = '*';         /* so we wont find it again */
   }
-  while (lcp = strstr(lcstr, "<body"), lcp != NULL) {   /* becomes <!--        --> */
+  while (lcp = strstr(lcstr, "<body"), lcp != nullptr) {   /* becomes <!--        --> */
     sp = returnstr + (lcp - lcstr) ;
     sp++;
     *sp++ = '!';
@@ -1430,7 +1312,7 @@ strip_nastyhtml(const QString& in)
     *--sp = '-';
     *lcp = '*';         /* so we wont find it again */
   }
-  while (lcp = strstr(lcstr, "</body>"), NULL != lcp) {
+  while (lcp = strstr(lcstr, "</body>"), nullptr != lcp) {
     sp = returnstr + (lcp - lcstr) ; /* becomes <!---- */
     sp++;
     *sp++ = '!';
@@ -1440,7 +1322,7 @@ strip_nastyhtml(const QString& in)
     *sp++ = '-';
     *lcp = '*';         /* so we wont find it again */
   }
-  while (lcp = strstr(lcstr, "</html>"), NULL != lcp) {
+  while (lcp = strstr(lcstr, "</html>"), nullptr != lcp) {
     sp = returnstr + (lcp - lcstr) ; /* becomes </---- */
     sp++;
     *sp++ = '!';
@@ -1450,7 +1332,7 @@ strip_nastyhtml(const QString& in)
     *sp++ = '-';
     *lcp = '*';         /* so we wont find it again */
   }
-  while (lcp = strstr(lcstr, "<style"), NULL != lcp) {
+  while (lcp = strstr(lcstr, "<style"), nullptr != lcp) {
     sp = returnstr + (lcp - lcstr) ; /* becomes <!--   */
     sp++;
     *sp++ = '!';
@@ -1461,7 +1343,7 @@ strip_nastyhtml(const QString& in)
     *sp = ' ';
     *lcp = '*';         /* so we wont find it again */
   }
-  while (lcp = strstr(lcstr, "</style>"), NULL != lcp) {
+  while (lcp = strstr(lcstr, "</style>"), nullptr != lcp) {
     sp = returnstr + (lcp - lcstr) ; /* becomes    --> */
     *sp++ = ' ';
     *sp++ = ' ';
@@ -1472,7 +1354,7 @@ strip_nastyhtml(const QString& in)
     *sp++ = '-';
     *lcp = '*';         /* so we wont find it again */
   }
-  while (lcp = strstr(lcstr, "<image"), NULL != lcp) {
+  while (lcp = strstr(lcstr, "<image"), nullptr != lcp) {
     sp = returnstr + (lcp - lcstr) ; /* becomes <img */
     sp+=3;
     *sp++ = 'g';
@@ -1501,19 +1383,19 @@ strip_html(const utf_string* in)
   doc.setHtml(in->utfstring);
   return xstrdup(CSTR(doc.toPlainText().simplified()));
 #else
-  char* outstring, *out;
-  char* incopy, *instr;
+  char* out;
+  char* instr;
   char tag[8];
   unsigned short int taglen = 0;
 
-  incopy = instr = xstrdup(in->utfstring);
+  char* incopy = instr = xstrdup(in->utfstring);
   if (!in->is_html) {
     return instr;
   }
   /*
    * We only shorten, so just dupe the input buf for space.
    */
-  outstring = out = xstrdup(in->utfstring);
+  char* outstring = out = xstrdup(in->utfstring);
 
   tag[0] = 0;
   while (*instr) {
@@ -1541,7 +1423,7 @@ strip_html(const utf_string* in)
 
     if (((tag[0] == '<') && (*instr == '>')) ||
         ((tag[0] == '&') && (*instr == ';'))) {
-      if (! strcmp(tag,"&amp;")) {
+      if (! strcmp(tag, "&amp;")) {
         *out++ = '&';
       } else if (! strcmp(tag, "&lt;")) {
         *out++ = '<';
@@ -1592,7 +1474,7 @@ typedef struct {
 static
 entity_types stdentities[] =  {
   { "&",	"&amp;", 0 },
-  { "'", 	"&apos;", 1 },
+  { "'",	"&apos;", 1 },
   { "<",	"&lt;", 0 },
   { ">",	"&gt;", 0 },
   { "\"",	"&quot;", 0 },
@@ -1627,27 +1509,28 @@ entity_types stdentities[] =  {
   { "\x1d",	" ", 1 }, //illegal xml 1.0 character
   { "\x1e",	" ", 1 }, //illegal xml 1.0 character
   { "\x1f",	" ", 1 }, //illegal xml 1.0 character
-  { NULL,	NULL, 0 }
+  { nullptr,	nullptr, 0 }
 };
 
 static
 char*
-entitize(const char* str, int is_html)
+entitize(const char* str, bool is_html)
 {
-  int elen, ecount, nsecount;
-  entity_types* ep;
-  const char* cp;
-  char* p, * tmp, * xstr;
+  int ecount;
+  int nsecount;
+  char* p;
+  char* tmp;
+  char* xstr;
 
   int bytes = 0;
   int value = 0;
-  ep = stdentities;
-  elen = ecount = nsecount = 0;
+  entity_types* ep = stdentities;
+  int elen = ecount = nsecount = 0;
 
   /* figure # of entity replacements and additional size. */
   while (ep->text) {
-    cp = str;
-    while ((cp = strstr(cp, ep->text)) != NULL) {
+    const char* cp = str;
+    while ((cp = strstr(cp, ep->text)) != nullptr) {
       elen += strlen(ep->entity) - strlen(ep->text);
       ecount++;
       cp += strlen(ep->text);
@@ -1684,7 +1567,7 @@ entitize(const char* str, int is_html)
       if (is_html && ep->not_html)  {
         continue;
       }
-      while ((p = strstr(p, ep->text)) != NULL) {
+      while ((p = strstr(p, ep->text)) != nullptr) {
         elen = strlen(ep->entity);
 
         xstr = xstrdup(p + strlen(ep->text));
@@ -1707,7 +1590,7 @@ entitize(const char* str, int is_html)
         if (p[bytes]) {
           xstr = xstrdup(p + bytes);
         } else {
-          xstr = NULL;
+          xstr = nullptr;
         }
         sprintf(p, "&#x%x;", value);
         p = p+strlen(p);
@@ -1729,16 +1612,16 @@ entitize(const char* str, int is_html)
 
 char* xml_entitize(const char* str)
 {
-  return entitize(str, 0);
+  return entitize(str, false);
 }
 
 char* html_entitize(const char* str)
 {
-  return entitize(str, 1);
+  return entitize(str, true);
 }
 char* html_entitize(const QString& str)
 {
-  return entitize(CSTR(str), 1);
+  return entitize(CSTR(str), true);
 }
 
 /*
@@ -1754,7 +1637,7 @@ xml_tag* xml_next(xml_tag* root, xml_tag* cur)
   } else {
     cur = cur->parent;
     if (cur == root) {
-      cur = NULL;
+      cur = nullptr;
     }
     if (cur) {
       cur = cur->sibling;
@@ -1779,7 +1662,7 @@ xml_tag* xml_findfirst(xml_tag* root, const char* tagname)
 
 char* xml_attribute(xml_tag* tag, const char* attrname)
 {
-  char* result = NULL;
+  char* result = nullptr;
   if (tag->attributes) {
     char** attr = tag->attributes;
     while (attr && *attr) {
@@ -1827,7 +1710,7 @@ void* gb_int2ptr(const int i)
   union {
     void* p;
     int i;
-  } x = { NULL };
+  } x = { nullptr };
 
   x.i = i;
   return x.p;
@@ -1845,3 +1728,36 @@ int gb_ptr2int(const void* p)
 
   return x.i;
 }
+
+void
+list_codecs()
+{
+  QTextStream info(stderr);
+  info.setFieldAlignment(QTextStream::AlignLeft);
+  auto mibs = QTextCodec::availableMibs();
+  int maxlen = 0;
+  for (auto mib : mibs) {
+    auto codec = QTextCodec::codecForMib(mib);
+    if (codec->name().size() > maxlen) {
+      maxlen = codec->name().size();
+    }
+  }
+  info << "Avaialble Codecs:" << endl;
+  info << qSetFieldWidth(8) << "MIBenum" << qSetFieldWidth(maxlen+1) << "Name" << qSetFieldWidth(0) << "Aliases" << endl;
+  for (auto mib : mibs) {
+    auto codec = QTextCodec::codecForMib(mib);
+    info << qSetFieldWidth(8) << mib << qSetFieldWidth(maxlen+1) << codec->name() << qSetFieldWidth(0);
+    bool first = true;
+    const auto aliases = codec->aliases();
+    for (const auto& alias : aliases) {
+      if (first) {
+        first = false;
+      } else {
+        info << ", ";
+      }
+      info << alias;
+    }
+    info << endl;
+  }
+}
+

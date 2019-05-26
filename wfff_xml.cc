@@ -20,35 +20,35 @@
 #include "defs.h"
 #include "xmlgeneric.h"
 #include <QtCore/QXmlStreamAttributes>
-#include <stdio.h>
+#include <cstdio>
 
 /* argument storage */
-static char* 	aicicon	=0;
-static char* 	aioicon =0;
-static char* 	ahcicon =0;
-static char* 	ahoicon =0;
-static char* 	snmac	=0;
+static char* 	aicicon	=nullptr;
+static char* 	aioicon =nullptr;
+static char* 	ahcicon =nullptr;
+static char* 	ahoicon =nullptr;
+static char* 	snmac	=nullptr;
 
 static
 arglist_t wfff_xml_args[] = {
   {
     "aicicon", &aicicon, "Infrastructure closed icon name",
-    "Red Square", ARGTYPE_STRING
+    "Red Square", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "aioicon", &aioicon, "Infrastructure open icon name",
-    "Green Square", ARGTYPE_STRING
+    "Green Square", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "ahcicon", &ahcicon, "Ad-hoc closed icon name",
-    "Red Diamond", ARGTYPE_STRING
+    "Red Diamond", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "ahoicon", &ahoicon, "Ad-hoc open icon name",
-    "Green Diamond", ARGTYPE_STRING
+    "Green Diamond", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
-  {"snmac", &snmac, "Shortname is MAC address", NULL, ARGTYPE_BOOL },
-  {0, 0, 0, 0, 0}
+  {"snmac", &snmac, "Shortname is MAC address", nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
+  ARG_TERMINATOR
 };
 
 #define xfreez(p) { if (p) xfree(p); p=0; }
@@ -78,7 +78,7 @@ xg_tag_mapping loc_map[] = {
   { wfff_hdop, 	cb_cdata, 	"/DocumentElement/AP/HDOP"		},
   { wfff_lat, 	cb_cdata, 	"/DocumentElement/AP/Lat"		},
   { wfff_lon, 	cb_cdata, 	"/DocumentElement/AP/Lon"		},
-  { 0,(xg_cb_type)0,0 }
+  { nullptr,(xg_cb_type)0,nullptr }
 };
 
 /* work variables for wfff_xxx */
@@ -148,13 +148,12 @@ void wfff_lon(const QString& args, const QXmlStreamAttributes*) {
 /*	End of AP Block, set waypoint and add */
 static long tosscount=0;
 
-void wfff_e(xg_string args, const QXmlStreamAttributes*)
+void wfff_e(xg_string, const QXmlStreamAttributes*)
 {
-  Waypoint*	wpt_tmp		=0;
   char		desc[255]	="\0";
 
   if ((ap_hdop>=1)&&(ap_hdop<50)) { // Discard invalid GPS fix
-    wpt_tmp = new Waypoint;
+    Waypoint*	wpt_tmp = new Waypoint;
 
     if (snmac) {
       wpt_tmp->shortname = ap_mac;
@@ -199,22 +198,22 @@ void wfff_e(xg_string args, const QXmlStreamAttributes*)
   }
 }
 
-void
+static void
 wfff_xml_rd_init(const QString& fname)
 {
   tosscount = 0;
 
-  xml_init(fname, loc_map, NULL);
+  xml_init(fname, loc_map, nullptr);
 }
 
 void
-wfff_xml_read(void)
+static wfff_xml_read()
 {
   xml_read();
 }
 
 void
-wfff_xml_rd_deinit(void)
+static wfff_xml_rd_deinit()
 {
   xml_deinit();
 
@@ -229,11 +228,14 @@ ff_vecs_t wfff_xml_vecs = {
   ff_type_file,
   {ff_cap_read, ff_cap_none, ff_cap_none},
   wfff_xml_rd_init,
-  0,
+  nullptr,
   wfff_xml_rd_deinit,
-  0,
+  nullptr,
   wfff_xml_read,
-  0,
-  0,
-  wfff_xml_args
+  nullptr,
+  nullptr,
+  wfff_xml_args,
+  CET_CHARSET_UTF8, 0,
+  NULL_POS_OPS,
+  nullptr
 };

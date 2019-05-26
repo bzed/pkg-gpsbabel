@@ -64,7 +64,7 @@
 #include "defs.h"
 #include "cet.h"
 #include "cet_util.h"
-#include <stdlib.h>
+#include <cstdlib>
 
 #define FLOAT_TO_INT(x) ((int)((x) + ((x)<0?-0.5:0.5)))
 #define IGO8_HEADER_SIZE (sizeof(igo8_id_block) + 256)
@@ -95,9 +95,9 @@ static gbfile* igo8_file_in;
 static gbfile* igo8_file_out;
 
 // Options
-static char* igo8_option_tracknum = NULL;
-static char* igo8_option_title = NULL;
-static char* igo8_option_description = NULL;
+static char* igo8_option_tracknum = nullptr;
+static char* igo8_option_title = nullptr;
+static char* igo8_option_description = nullptr;
 
 // Internal state
 static uint32_t invented_time;
@@ -106,9 +106,9 @@ static int in_point_count;
 
 // Exported options list
 static arglist_t igo8_options[] = {
-  { "tracknum", &igo8_option_tracknum, "Track identification number", NULL, ARGTYPE_INT, ARG_NOMINMAX },
-  { "title", &igo8_option_title, "Track title", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
-  { "description", &igo8_option_description, "Track description", NULL, ARGTYPE_STRING, ARG_NOMINMAX },
+  { "tracknum", &igo8_option_tracknum, "Track identification number", nullptr, ARGTYPE_INT, ARG_NOMINMAX, nullptr },
+  { "title", &igo8_option_title, "Track title", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
+  { "description", &igo8_option_description, "Track description", nullptr, ARGTYPE_STRING, ARG_NOMINMAX, nullptr },
   ARG_TERMINATOR
 };
 
@@ -148,19 +148,17 @@ static void igo8_read_init(const QString& fname)
 }
 
 // Reader callback
-static void igo8_read(void)
+static void igo8_read()
 {
-  Waypoint* wpt_tmp;
-  route_head* track_head;
   igo8_point point;
 
-  track_head = route_head_alloc();
+  route_head* track_head = route_head_alloc();
   track_add_head(track_head);
 
   while (in_point_count &&
          gbfread(&point, sizeof(point), 1, igo8_file_in) > 0) {
     in_point_count--;
-    wpt_tmp = new Waypoint;
+    Waypoint* wpt_tmp = new Waypoint;
 
     wpt_tmp->latitude = le_read32(&point.lat) / (double)0x800000;
     wpt_tmp->longitude = le_read32(&point.lon) / (double)0x800000;
@@ -171,7 +169,7 @@ static void igo8_read(void)
 }
 
 // Reader close callback
-static void igo8_read_deinit(void)
+static void igo8_read_deinit()
 {
   gbfclose(igo8_file_in);
 }
@@ -188,7 +186,7 @@ static void igo8_write_init(const QString& fname)
 }
 
 // Writer close callback
-static void igo8_write_deinit(void)
+static void igo8_write_deinit()
 {
   uint32_t normalized_file_size;
 
@@ -238,7 +236,7 @@ static void write_igo8_track_point(const Waypoint* wpt)
 
 // Write src unicode str to the dst cstring using unicode characters
 // All lengths are in bytes
-unsigned int print_unicode(char* dst, const unsigned int dst_max_length, short* src, unsigned int src_len)
+static unsigned int print_unicode(char* dst, const unsigned int dst_max_length, short* src, unsigned int src_len)
 {
   // Check to see what length we were passed, if the length doesn't include the null
   // then we make it include the null
@@ -277,12 +275,11 @@ unsigned int print_unicode(char* dst, const unsigned int dst_max_length, short* 
 //                     string, validate that the use of the CET library provides
 //                     conmforming output, remove my old junk converter code.
 
-unsigned int ascii_to_unicode_2(char* dst, const unsigned int dst_max_length, const char* src)
+static unsigned int ascii_to_unicode_2(char* dst, const unsigned int dst_max_length, const char* src)
 {
-  short* unicode;
   int len;
 
-  unicode = cet_str_any_to_uni(src, &cet_cs_vec_ansi_x3_4_1968, &len);
+  short* unicode = cet_str_any_to_uni(src, &cet_cs_vec_ansi_x3_4_1968, &len);
 
   len *= 2;	/* real size in bytes */
   len = print_unicode(dst, dst_max_length, unicode, len);
@@ -292,7 +289,7 @@ unsigned int ascii_to_unicode_2(char* dst, const unsigned int dst_max_length, co
   return len;
 }
 
-void write_header()
+static void write_header()
 {
   char header[IGO8_HEADER_SIZE] = {'\0'};
   igo8_id_block tmp_id_block;
@@ -335,22 +332,22 @@ void write_header()
   if (igo8_option_title) {
     title = igo8_option_title;
   }
-  current_position += ascii_to_unicode_2((char*)(header+current_position), IGO8_HEADER_SIZE - current_position - 2, title);
+  current_position += ascii_to_unicode_2((header+current_position), IGO8_HEADER_SIZE - current_position - 2, title);
 
   // Set the description of the track
   if (igo8_option_description) {
     description = igo8_option_description;
   }
-  current_position += ascii_to_unicode_2((char*)(header+current_position), IGO8_HEADER_SIZE - current_position, description);
+  current_position += ascii_to_unicode_2((header+current_position), IGO8_HEADER_SIZE - current_position, description);
 
   gbfwrite(&header, IGO8_HEADER_SIZE, 1, igo8_file_out);
 }
 
 // Writer callback
-static void igo8_write(void)
+static void igo8_write()
 {
   write_header();
-  track_disp_all(NULL, NULL, write_igo8_track_point);
+  track_disp_all(nullptr, nullptr, write_igo8_track_point);
 }
 
 // Callback definitions
@@ -363,8 +360,10 @@ ff_vecs_t igo8_vecs = {
   igo8_write_deinit,
   igo8_read,
   igo8_write,
-  NULL,
+  nullptr,
   igo8_options,
   CET_CHARSET_UTF8,
   1
+  , NULL_POS_OPS,
+  nullptr
 };

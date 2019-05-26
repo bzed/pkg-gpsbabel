@@ -29,12 +29,12 @@
  */
 
 #include "defs.h"
-#include <ctype.h>
+#include <cctype>
 
 #include "gbser.h"
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
 
 #define MYNAME "DG-100"
 
@@ -77,7 +77,7 @@ struct dg100_command {
   const char* text;	/* Textual description for debugging */
 };
 
-struct dg100_command dg100_commands[] = {
+static struct dg100_command dg100_commands[] = {
   { dg100cmd_getfile,        2, 1024,    2, "getfile" },
   /* the getfileheader answer has variable length, -1 is a dummy value */
   { dg100cmd_getfileheader,  2,   -1,    2, "getfileheader"  },
@@ -89,7 +89,7 @@ struct dg100_command dg100_commands[] = {
   { dg100cmd_gpsmouse,       1,    0,    0, "gpsmouse" }
 };
 
-struct dg100_command dg200_commands[] = {
+static struct dg100_command dg200_commands[] = {
   { dg100cmd_getfile,        2, 1024,    2, "getfile" },
   /* the getfileheader answer has variable length, -1 is a dummy value */
   { dg100cmd_getfileheader,  2,   -1,    2, "getfileheader"  },
@@ -111,16 +111,14 @@ struct dynarray16 {
 /* helper functions */
 static struct dg100_command*
 dg100_findcmd(int id) {
-  unsigned int i;
-
   /* linear search should be OK as long as dg100_numcommands is small */
-  for (i = 0; i < model->numcommands; i++) {
+  for (unsigned int i = 0; i < model->numcommands; i++) {
     if (model->commands[i].id == id) {
       return(&model->commands[i]);
     }
   }
 
-  return NULL;
+  return nullptr;
 }
 
 static void
@@ -134,14 +132,13 @@ dynarray16_init(struct dynarray16* a, unsigned limit)
 static int16_t*
 dynarray16_alloc(struct dynarray16* a, unsigned n)
 {
-  unsigned oldcount, need;
   const unsigned elements_per_chunk = 4096 / sizeof(a->data[0]);
 
-  oldcount = a->count;
+  unsigned oldcount = a->count;
   a->count += n;
 
   if (a->count > a->limit) {
-    need = a->count - a->limit;
+    unsigned need = a->count - a->limit;
     need = (need > elements_per_chunk) ? need : elements_per_chunk;
     a->limit += need;
     a->data = (int16_t*) xrealloc(a->data, sizeof(a->data[0]) * a->limit);
@@ -176,8 +173,6 @@ bintime2utc(int date, int time)
 static void
 dg100_debug(const char* hdr, int include_nl, size_t sz, unsigned char* buf)
 {
-  unsigned int i;
-
   /* Only give byte dumps for higher debug levels */
   if (global_opts.debug_level < 5) {
     return;
@@ -185,7 +180,7 @@ dg100_debug(const char* hdr, int include_nl, size_t sz, unsigned char* buf)
 
   fprintf(stderr, "%s", hdr);
 
-  for (i = 0; i < sz; i++)  {
+  for (unsigned int i = 0; i < sz; i++)  {
     fprintf(stderr, "%02x ", buf[i]);
   }
 
@@ -216,18 +211,14 @@ bin2deg(int val)
    * ffff: the fractional part of minutes (decimal fraction 0.ffff)
    */
 
-  float deg;
-  int deg_int, min_scaled, isneg;
-  unsigned absval;
-
   /* avoid division of negative integers,
    * which has platform-dependent results */
-  absval = abs(val);
-  isneg = (val < 0);
+  unsigned absval = abs(val);
+  bool isneg = (val < 0);
 
-  deg_int = absval / 1000000;      /* extract ddd */
-  min_scaled = absval % 1000000;   /* extract mmffff (minutes * 10^4) */
-  deg = deg_int + (double) min_scaled / (10000 * 60);
+  int deg_int = absval / 1000000;      /* extract ddd */
+  int min_scaled = absval % 1000000;   /* extract mmffff (minutes * 10^4) */
+  float deg = deg_int + (double) min_scaled / (10000 * 60);
 
   /* restore the sign */
   deg = isneg ? -deg : deg;
@@ -238,25 +229,21 @@ static void
 process_gpsfile(uint8_t data[], route_head** track)
 {
   const int recordsizes[3] = {8, 20, 32};
-  int i, style, recsize;
-  int lat, lon, bintime, bindate;
-  Waypoint* wpt;
 
   /* the first record of each file is always full-sized; its style field
    * determines the format of all subsequent records in the file */
-  style = be_read32(data + 28);
+  int style = be_read32(data + 28);
   if (style > 2) {
     fprintf(stderr, "unknown GPS record style %d", style);
     return;
   }
-  recsize = recordsizes[style];
+  int recsize = recordsizes[style];
 
-  for (i = 0; i <= 2048 - recsize; i += (i == 0) ? 32 : recsize) {
-    float latitude;
+  for (int i = 0; i <= 2048 - recsize; i += (i == 0) ? 32 : recsize) {
     int manual_point = 0;
 
-    lat = be_read32(data + i + 0);
-    lon = be_read32(data + i + 4);
+    int lat = be_read32(data + i + 0);
+    int lon = be_read32(data + i + 4);
 
     /* skip invalid trackpoints (blank records) */
     if (lat == -1 && lon == -1) {
@@ -265,14 +252,14 @@ process_gpsfile(uint8_t data[], route_head** track)
 
     if ((i == 0) && (be_read32(data + i + 8) & 0x80000000)) {
       /* This is the first point recorded after power-on; start a new track */
-      *track = NULL;
+      *track = nullptr;
     }
 
-    if (*track == NULL) {
+    if (*track == nullptr) {
       time_t creation_time;
       char buf[1024];
-      bintime = be_read32(data + i +  8) & 0x7FFFFFFF;
-      bindate = be_read32(data + i + 12);
+      int bintime = be_read32(data + i +  8) & 0x7FFFFFFF;
+      int bindate = be_read32(data + i + 12);
       creation_time = bintime2utc(bindate, bintime);
       strncpy(buf, model->name, sizeof(buf));
       strftime(&buf[strlen(model->name)], sizeof(buf)-strlen(model->name), " tracklog (%Y/%m/%d %H:%M:%S)",
@@ -283,8 +270,8 @@ process_gpsfile(uint8_t data[], route_head** track)
       track_add_head(*track);
     }
 
-    wpt = new Waypoint;
-    latitude = bin2deg(lat);
+    Waypoint* wpt = new Waypoint;
+    float latitude = bin2deg(lat);
     if (latitude >= 100) {
       manual_point = 1;
       latitude -= 100;
@@ -296,8 +283,8 @@ process_gpsfile(uint8_t data[], route_head** track)
     wpt->longitude = bin2deg(lon);
 
     if (style >= 1) {
-      bintime = be_read32(data + i +  8) & 0x7FFFFFFF;
-      bindate = be_read32(data + i + 12);
+      int bintime = be_read32(data + i +  8) & 0x7FFFFFFF;
+      int bindate = be_read32(data + i + 12);
       wpt->SetCreationTime(bintime2utc(bindate, bintime));
       /* The device presents the speed as a fixed-point number
        * with a scaling factor of 100, in km/h.
@@ -320,12 +307,11 @@ process_gpsfile(uint8_t data[], route_head** track)
 }
 
 static uint16_t
-dg100_checksum(uint8_t buf[], int count)
+dg100_checksum(const uint8_t buf[], int count)
 {
   uint16_t sum = 0;
-  int i;
 
-  for (i = 0; i < count; i++) {
+  for (int i = 0; i < count; i++) {
     sum += buf[i];
   }
   sum &= (1<<15) - 1;
@@ -338,16 +324,13 @@ static size_t
 dg100_send(uint8_t cmd, const void* payload, size_t param_len)
 {
   uint8_t frame[FRAME_MAXLEN];
-  uint16_t checksum, payload_len;
-  size_t framelen;
-  int n;
 
-  payload_len = 1 + param_len;
+  uint16_t payload_len = 1 + param_len;
   /* Frame length calculation:
    * frame start sequence(2), payload length field(2), command id(1),
    * param(variable length),
    * checksum(2), frame end sequence(2) */
-  framelen = 2 + 2 + 1 + param_len + 2 + 2;
+  size_t framelen = 2 + 2 + 1 + param_len + 2 + 2;
   assert(framelen <= FRAME_MAXLEN);
 
   /* create frame head + command */
@@ -359,11 +342,11 @@ dg100_send(uint8_t cmd, const void* payload, size_t param_len)
   memcpy(frame + 5, payload, param_len);
 
   /* create frame tail */
-  checksum = dg100_checksum(frame + 4, framelen - 8);
+  uint16_t checksum = dg100_checksum(frame + 4, framelen - 8);
   be_write16(frame + framelen - 4, checksum);
   be_write16(frame + framelen - 2, 0xB0B3);
 
-  n = gbser_write(serial_handle, frame, framelen);
+  int n = gbser_write(serial_handle, frame, framelen);
 
   if (global_opts.debug_level) {
     struct dg100_command* cmdp = dg100_findcmd(cmd);
@@ -383,11 +366,9 @@ dg100_send(uint8_t cmd, const void* payload, size_t param_len)
 static int
 dg100_recv_byte()
 {
-  int result;
-
   /* allow for a delay of 40s;
    *  erasing the whole DG-100 memory takes about 21s */
-  result = gbser_readc_wait(serial_handle, 40000);
+  int result = gbser_readc_wait(serial_handle, 40000);
   switch (result) {
   case gbser_ERROR:
     fatal("dg100_recv_byte(): error reading one byte\n");
@@ -404,16 +385,12 @@ static int
 dg100_recv_frame(struct dg100_command** cmdinfo_result, uint8_t** payload)
 {
   static uint8_t buf[FRAME_MAXLEN];
-  uint16_t frame_start_seq, payload_len_field;
-  uint16_t payload_end_seq, payload_checksum, frame_end_seq;
-  uint16_t frame_head, numheaders, sum;
-  uint8_t c, cmd;
-  int i, param_len, frame_len;
-  struct dg100_command* cmdinfo;
+  uint16_t payload_end_seq;
+  uint8_t c;
 
   /* consume input until frame head sequence 0xA0A2 was received */
-  frame_head = 0;
-  dg100_debug("Receiving ", 0, 0, NULL);
+  uint16_t frame_head = 0;
+  dg100_debug("Receiving ", 0, 0, nullptr);
   do {
     c = dg100_recv_byte();
     dg100_debug("", 0, 1, &c);
@@ -443,14 +420,14 @@ dg100_recv_frame(struct dg100_command** cmdinfo_result, uint8_t** payload)
    */
 
   /* read Payload Length, Command ID, and two further bytes */
-  i = gbser_read_wait(serial_handle, &buf[2], 5, 1000);
+  int i = gbser_read_wait(serial_handle, &buf[2], 5, 1000);
   if (i < 5) {
     fatal("Expected to read 5 bytes, but got %d\n", i);
   }
   dg100_debug("", 0, 5, &buf[2]);
 
-  payload_len_field = be_read16(buf + 2);
-  cmd = buf[4];
+  uint16_t payload_len_field = be_read16(buf + 2);
+  uint8_t cmd = buf[4];
 
   /*
    * getconfig/setconfig have the same answer ID -
@@ -462,21 +439,21 @@ dg100_recv_frame(struct dg100_command** cmdinfo_result, uint8_t** payload)
     cmd = dg100cmd_setconfig;
   }
 
-  cmdinfo = dg100_findcmd(cmd);
+  struct dg100_command* cmdinfo = dg100_findcmd(cmd);
   if (!cmdinfo) {
     /* TODO: consume data until frame end signature,
      * then report failure to the caller? */
     fatal("unknown answer ID %02x\n", cmd);
   }
 
-  param_len = cmdinfo->recvsize;
+  int param_len = cmdinfo->recvsize;
 
   /*
    * the getfileheader answer has a varying param_len,
    * we need to calculate it
    */
   if (cmd == dg100cmd_getfileheader) {
-    numheaders = be_read16(buf + 5);
+    uint16_t numheaders = be_read16(buf + 5);
     param_len = 2 + 2 + 12 * numheaders;
   }
 
@@ -488,7 +465,7 @@ dg100_recv_frame(struct dg100_command** cmdinfo_result, uint8_t** payload)
    * frame start sequence(2), payload length field(2), command id(1),
    * param(variable length),
    * payload end sequence(2 or 0), checksum(2), frame end sequence(2) */
-  frame_len = 2 + 2 + 1 + param_len + ((model->has_payload_end_seq) ? 2 : 0) + 2 + 2;
+  int frame_len = 2 + 2 + 1 + param_len + ((model->has_payload_end_seq) ? 2 : 0) + 2 + 2;
 
   if (frame_len > FRAME_MAXLEN) {
     fatal("frame too large (frame_len=%d, FRAME_MAXLEN=%d)\n",
@@ -502,13 +479,13 @@ dg100_recv_frame(struct dg100_command** cmdinfo_result, uint8_t** payload)
   }
   dg100_debug("", 0, frame_len - 7, &buf[7]);
 
-  frame_start_seq   = be_read16(buf + 0);
+  uint16_t frame_start_seq = be_read16(buf + 0);
   payload_len_field = be_read16(buf + 2);
   if (model->has_payload_end_seq) {
     payload_end_seq   = be_read16(buf + frame_len - 6);
   }
-  payload_checksum  = be_read16(buf + frame_len - 4);
-  frame_end_seq     = be_read16(buf + frame_len - 2);
+  uint16_t payload_checksum = be_read16(buf + frame_len - 4);
+  uint16_t frame_end_seq = be_read16(buf + frame_len - 2);
   (void) payload_end_seq;
   (void) frame_end_seq;
 
@@ -516,7 +493,7 @@ dg100_recv_frame(struct dg100_command** cmdinfo_result, uint8_t** payload)
             frame_start_seq, payload_len_field, cmdinfo->text);
 
   /* calculate checksum */
-  sum = dg100_checksum(buf + 4, frame_len - 8);
+  uint16_t sum = dg100_checksum(buf + 4, frame_len - 8);
   if (sum != payload_checksum) {
     fatal("checksum mismatch: data sum is 0x%04x, checksum received is 0x%04x\n",
           sum, payload_checksum);
@@ -537,12 +514,10 @@ dg100_recv_frame(struct dg100_command** cmdinfo_result, uint8_t** payload)
 static int
 dg100_recv(uint8_t expected_id, void* buf, unsigned int len)
 {
-  int n;
   struct dg100_command* cmdinfo;
   uint8_t* data;
-  unsigned int copysize, trailing_bytes;
 
-  n = dg100_recv_frame(&cmdinfo, &data);
+  int n = dg100_recv_frame(&cmdinfo, &data);
 
   /* check whether the received frame matches the expected answer type */
   if (cmdinfo->id != expected_id) {
@@ -550,12 +525,12 @@ dg100_recv(uint8_t expected_id, void* buf, unsigned int len)
     return -1;
   }
 
-  trailing_bytes = (model->has_trailing_bytes) ? (cmdinfo->trailing_bytes) : 0;
-  copysize = n - trailing_bytes;
+  unsigned int trailing_bytes = (model->has_trailing_bytes) ? (cmdinfo->trailing_bytes) : 0;
+  unsigned int copysize = n - trailing_bytes;
 
   /* check for buffer overflow */
   if (len < copysize) {
-    fprintf(stderr, "ERROR: buffer too small, size=%d, need=%d", len, copysize);
+    fprintf(stderr, "ERROR: buffer too small, size=%u, need=%u", len, copysize);
     return -1;
   }
 
@@ -568,21 +543,17 @@ dg100_recv(uint8_t expected_id, void* buf, unsigned int len)
 static int
 dg100_request(uint8_t cmd, const void* sendbuf, void* recvbuf, size_t count)
 {
-  struct dg100_command* cmdinfo;
-  int n, i, frames, fill;
-  uint8_t* buf;
-
-  cmdinfo = dg100_findcmd(cmd);
-  assert(cmdinfo != NULL);
+  struct dg100_command* cmdinfo = dg100_findcmd(cmd);
+  assert(cmdinfo != nullptr);
   dg100_send(cmd, sendbuf, cmdinfo->sendsize);
 
   /* the number of frames the answer will comprise */
-  frames = (cmd == dg100cmd_getfile) ? 2 : 1;
+  int frames = (cmd == dg100cmd_getfile) ? 2 : 1;
   /* alias pointer for easy typecasting */
-  buf = (uint8_t*) recvbuf;
-  fill = 0;
-  for (i = 0; i < frames; i++) {
-    n = dg100_recv(cmd, buf + fill, count - fill);
+  uint8_t* buf = (uint8_t*) recvbuf;
+  int fill = 0;
+  for (int i = 0; i < frames; i++) {
+    int n = dg100_recv(cmd, buf + fill, count - fill);
     if (n < 0) {
       return(-1);
     }
@@ -597,18 +568,15 @@ dg100_getfileheaders(struct dynarray16* headers)
 {
   uint8_t request[2];
   uint8_t answer[FRAME_MAXLEN];
-  int seqnum;
-  int16_t numheaders, nextheader, *h;
-  int i, offset;
 
-  nextheader = 0;
+  int16_t nextheader = 0;
   do {
     /* request the next batch of headers */
     be_write16(request, nextheader);
     dg100_request(dg100cmd_getfileheader, request, answer, sizeof(answer));
 
     /* process the answer */
-    numheaders = be_read16(answer);
+    int16_t numheaders = be_read16(answer);
     nextheader = be_read16(answer + 2);
     dg100_log("found %d headers, nextheader=%d\n",
               numheaders, nextheader);
@@ -617,10 +585,10 @@ dg100_getfileheaders(struct dynarray16* headers)
       break;
     }
 
-    h = dynarray16_alloc(headers, numheaders);
-    for (i = 0; i < numheaders; i++) {
-      offset = 4 + i * 12;
-      seqnum = be_read32(answer + offset + 8);
+    int16_t*h = dynarray16_alloc(headers, numheaders);
+    for (int i = 0; i < numheaders; i++) {
+      int offset = 4 + i * 12;
+      int seqnum = be_read32(answer + offset + 8);
       h[i] = seqnum;
       if (global_opts.debug_level) {
         int time   = be_read32(answer + offset) & 0x7FFFFFFF;
@@ -638,7 +606,7 @@ dg100_getconfig()
 {
   uint8_t answer[45];
 
-  dg100_request(dg100cmd_getconfig, NULL, answer, sizeof(answer));
+  dg100_request(dg100cmd_getconfig, nullptr, answer, sizeof(answer));
 }
 
 static void
@@ -655,10 +623,8 @@ dg100_getfile(int16_t num, route_head** track)
 static void
 dg100_getfiles()
 {
-  unsigned int i;
-  int filenum;
   struct dynarray16 headers;
-  route_head* track = NULL;
+  route_head* track = nullptr;
 
   /* maximum number of headers observed so far: 672
    * if necessary, the dynarray will grow even further */
@@ -666,8 +632,8 @@ dg100_getfiles()
 
   dg100_getfileheaders(&headers);
 
-  for (i = 0; i < headers.count; i++) {
-    filenum = headers.data[i];
+  for (unsigned int i = 0; i < headers.count; i++) {
+    int filenum = headers.data[i];
     dg100_getfile(filenum, &track);
   }
   dg100_getconfig();       // To light on the green LED on the DG-200
@@ -696,11 +662,11 @@ static
 arglist_t dg100_args[] = {
   {
     "erase", &erase, "Erase device data after download",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
+    "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "erase_only", &erase_only, "Only erase device data, do not download anything",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
+    "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -712,7 +678,7 @@ arglist_t dg100_args[] = {
 static void
 common_rd_init(const QString& fname)
 {
-  if (serial_handle = gbser_init(qPrintable(fname)), NULL == serial_handle) {
+  if (serial_handle = gbser_init(qPrintable(fname)), nullptr == serial_handle) {
     fatal(MYNAME ": Can't open port '%s'\n", qPrintable(fname));
   }
   if (gbser_set_speed(serial_handle, model->speed) != gbser_OK) {
@@ -740,14 +706,14 @@ dg200_rd_init(const QString& fname)
 }
 
 static void
-dg100_rd_deinit(void)
+dg100_rd_deinit()
 {
   gbser_deinit(serial_handle);
-  serial_handle = NULL;
+  serial_handle = nullptr;
 }
 
 static void
-dg100_read(void)
+dg100_read()
 {
   if (*erase_only == '1') {
     dg100_erase();
@@ -771,15 +737,17 @@ ff_vecs_t dg100_vecs = {
     ff_cap_none 			/* routes */
   },
   dg100_rd_init,
-  NULL,
+  nullptr,
   dg100_rd_deinit,
-  NULL,
+  nullptr,
   dg100_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   dg100_args,
   CET_CHARSET_ASCII, 0			/* ascii is the expected character set */
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };
 
 ff_vecs_t dg200_vecs = {
@@ -790,14 +758,16 @@ ff_vecs_t dg200_vecs = {
     ff_cap_none 			/* routes */
   },
   dg200_rd_init,
-  NULL,
+  nullptr,
   dg100_rd_deinit,
-  NULL,
+  nullptr,
   dg100_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   dg100_args,
   CET_CHARSET_ASCII, 0			/* ascii is the expected character set */
   /* not fixed, can be changed through command line parameter */
+  , NULL_POS_OPS,
+  nullptr
 };
 /**************************************************************************/

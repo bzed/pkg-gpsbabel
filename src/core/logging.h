@@ -24,11 +24,11 @@
 
 #include <QtCore/QTextStream>
 #include <QtCore/QFile>
-#include <stdlib.h> //exit()
+#include <cstdlib> //exit()
 
 class Warning {
  public:
-  Warning(bool fatal = false) :
+    explicit Warning(bool fatal = false) :
    fatal_(fatal) {
     file_.open(stderr, QIODevice::WriteOnly);
     fileStream_.setDevice(&file_);
@@ -52,7 +52,7 @@ class Warning {
   inline Warning& operator << (float d) { fileStream_ << d; return optionalSpace(); }
   inline Warning& operator << (double d) { fileStream_ << d; return optionalSpace(); }
   inline Warning& operator << (const char* d) { fileStream_ << QString::fromUtf8(d); return optionalSpace(); }
-  inline Warning& operator << (QString d) { fileStream_ << '\"' << d << '\"'; return optionalSpace(); }
+  inline Warning& operator << (const QString& d) { fileStream_ << '\"' << d << '\"'; return optionalSpace(); }
   inline Warning& operator << (const void* d) { fileStream_ << '\"' << d << '\"'; return optionalSpace(); }
 
   inline Warning& optionalSpace() {

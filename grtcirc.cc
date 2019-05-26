@@ -22,9 +22,10 @@
 #include "defs.h"
 #include "grtcirc.h"
 
-#include <errno.h>
-#include <math.h>
-#include <stdio.h>
+#include <cerrno>
+#include <cmath>
+#include <cmath>
+#include <cstdio>
 
 static const double EARTH_RAD = 6378137.0;
 
@@ -32,15 +33,15 @@ static void crossproduct(double x1, double y1, double z1,
                          double x2, double y2, double z2,
                          double* xa, double* ya, double* za)
 {
-  *xa = y1*z2-y2*z1;
-  *ya = z1*x2-z2*x1;
-  *za = x1*y2-y1*x2;
+  *xa = y1 * z2 - y2 * z1;
+  *ya = z1 * x2 - z2 * x1;
+  *za = x1 * y2 - y1 * x2;
 }
 
 static double dotproduct(double x1, double y1, double z1,
                          double x2, double y2, double z2)
 {
-  return (x1*x2+y1*y2+z1*z2);
+  return (x1 * x2 + y1 * y2 + z1 * z2);
 }
 
 /*
@@ -56,8 +57,8 @@ static double dotproduct(double x1, double y1, double z1,
 
 double radtomiles(double rads)
 {
-  const double radmiles = EARTH_RAD*100.0/2.54/12.0/5280.0;
-  return (rads*radmiles);
+  const double radmiles = EARTH_RAD * 100.0 / 2.54 / 12.0 / 5280.0;
+  return (rads * radmiles);
 }
 
 double radtometers(double rads)
@@ -67,15 +68,12 @@ double radtometers(double rads)
 
 double gcdist(double lat1, double lon1, double lat2, double lon2)
 {
-  double res;
-  double sdlat, sdlon;
-
   errno = 0;
 
-  sdlat = sin((lat1 - lat2) / 2.0);
-  sdlon = sin((lon1 - lon2) / 2.0);
+  double sdlat = sin((lat1 - lat2) / 2.0);
+  double sdlon = sin((lon1 - lon2) / 2.0);
 
-  res = sqrt(sdlat * sdlat + cos(lat1) * cos(lat2) * sdlon * sdlon);
+  double res = sqrt(sdlat * sdlat + cos(lat1) * cos(lat2) * sdlon * sdlon);
 
   if (res > 1.0) {
     res = 1.0;
@@ -85,15 +83,9 @@ double gcdist(double lat1, double lon1, double lat2, double lon2)
 
   res = asin(res);
 
-  if (
-#if defined isnan
-    /* This is a C99-ism. */
-    (isnan(res)) ||
-#endif
-    (errno == EDOM)) { /* this should never happen: */
-    errno = 0;         /* Math argument out of domain of
-		function, */
-    return 0;          /* or value returned is not a number */
+  if (std::isnan(res) || (errno == EDOM)) { /* this should never happen: */
+    errno = 0; /* Math argument out of domain of function, */
+    return 0;  /* or value returned is not a number */
   }
 
   return 2.0 * res;
@@ -104,9 +96,8 @@ double gcdist(double lat1, double lon1, double lat2, double lon2)
  */
 double heading(double lat1, double lon1, double lat2, double lon2)
 {
-  double v1, v2;
-  v1 = sin(lon1 - lon2) * cos(lat2);
-  v2 = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(lon1 - lon2);
+  double v1 = sin(lon1 - lon2) * cos(lat2);
+  double v2 = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(lon1 - lon2);
   /* rounding error protection */
   if (fabs(v1) < 1e-15) {
     v1 = 0.0;
@@ -134,28 +125,19 @@ double linedistprj(double lat1, double lon1,
                    double* prjlat, double* prjlon,
                    double* frac)
 {
-
   static double _lat1 = -9999;
   static double _lat2 = -9999;
   static double _lon1 = -9999;
   static double _lon2 = -9999;
 
-  static double x1,y1,z1;
-  static double x2,y2,z2;
-  static double xa,ya,za,la;
+  static double x1, y1, z1;
+  static double x2, y2, z2;
+  static double xa, ya, za, la;
 
-  double x3,y3,z3;
-  double xp,yp,zp,lp;
-
-  double xa1,ya1,za1;
-  double xa2,ya2,za2;
-
-  double d1, d2;
-  double c1, c2;
+  double xa1, ya1, za1;
+  double xa2, ya2, za2;
 
   double dot;
-
-  int newpoints;
 
   *prjlat = lat1;
   *prjlon = lon1;
@@ -169,7 +151,7 @@ double linedistprj(double lat1, double lon1,
   lat3 = RAD(lat3);
   lon3 = RAD(lon3);
 
-  newpoints = 1;
+  int newpoints = 1;
   if (lat1 == _lat1 && lat2 == _lat2 && lon1 == _lon1 && lon2 == _lon2) {
     newpoints = 0;
   } else {
@@ -181,23 +163,23 @@ double linedistprj(double lat1, double lon1,
 
   /* polar to ECEF rectangular */
   if (newpoints) {
-    x1 = cos(lon1)*cos(lat1);
+    x1 = cos(lon1) * cos(lat1);
     y1 = sin(lat1);
-    z1 = sin(lon1)*cos(lat1);
-    x2 = cos(lon2)*cos(lat2);
+    z1 = sin(lon1) * cos(lat1);
+    x2 = cos(lon2) * cos(lat2);
     y2 = sin(lat2);
-    z2 = sin(lon2)*cos(lat2);
+    z2 = sin(lon2) * cos(lat2);
   }
-  x3 = cos(lon3)*cos(lat3);
-  y3 = sin(lat3);
-  z3 = sin(lon3)*cos(lat3);
+  double x3 = cos(lon3) * cos(lat3);
+  double y3 = sin(lat3);
+  double z3 = sin(lon3) * cos(lat3);
 
   if (newpoints) {
     /* 'a' is the axis; the line that passes through the center of the earth
      * and is perpendicular to the great circle through point 1 and point 2
      * It is computed by taking the cross product of the '1' and '2' vectors.*/
     crossproduct(x1, y1, z1, x2, y2, z2, &xa, &ya, &za);
-    la = sqrt(xa*xa+ya*ya+za*za);
+    la = sqrt(xa * xa + ya * ya + za * za);
 
     if (la) {
       xa /= la;
@@ -206,31 +188,29 @@ double linedistprj(double lat1, double lon1,
     }
   }
   if (la) {
-
     /* dot is the component of the length of '3' that is along the axis.
      * What's left is a non-normalized vector that lies in the plane of
      * 1 and 2. */
 
-    dot = dotproduct(x3,y3,z3,xa,ya,za);
+    dot = dotproduct(x3, y3, z3, xa, ya, za);
 
-    xp = x3-dot*xa;
-    yp = y3-dot*ya;
-    zp = z3-dot*za;
+    double xp = x3 - dot * xa;
+    double yp = y3 - dot * ya;
+    double zp = z3 - dot * za;
 
-    lp = sqrt(xp*xp+yp*yp+zp*zp);
+    double lp = sqrt(xp * xp + yp * yp + zp * zp);
 
     if (lp) {
-
       /* After this, 'p' is normalized */
       xp /= lp;
       yp /= lp;
       zp /= lp;
 
-      crossproduct(x1,y1,z1,xp,yp,zp,&xa1,&ya1,&za1);
-      d1 = dotproduct(xa1, ya1, za1, xa, ya, za);
+      crossproduct(x1, y1, z1, xp, yp, zp, &xa1, &ya1, &za1);
+      double d1 = dotproduct(xa1, ya1, za1, xa, ya, za);
 
-      crossproduct(xp,yp,zp,x2,y2,z2,&xa2,&ya2,&za2);
-      d2 = dotproduct(xa2, ya2, za2, xa, ya, za);
+      crossproduct(xp, yp, zp, x2, y2, z2, &xa2, &ya2, &za2);
+      double d2 = dotproduct(xa2, ya2, za2, xa, ya, za);
 
       if (d1 >= 0 && d2 >= 0) {
         /* rather than call gcdist and all its sines and cosines and
@@ -248,14 +228,14 @@ double linedistprj(double lat1, double lon1,
         } else {
           *prjlon = DEG(atan2(zp, xp));
         }
-        *frac = d1/(d1 + d2);
+        *frac = d1 / (d1 + d2);
 
-        return atan(fabs(dot)/lp);
+        return atan(fabs(dot) / lp);
       }
 
       /* otherwise, get the distance from the closest endpoint */
-      c1 = dotproduct(x1,y1,z1,xp,yp,zp);
-      c2 = dotproduct(x2,y2,z2,xp,yp,zp);
+      double c1 = dotproduct(x1, y1, z1, xp, yp, zp);
+      double c2 = dotproduct(x2, y2, z2, xp, yp, zp);
       d1 = fabs(d1);
       d2 = fabs(d2);
 
@@ -276,28 +256,27 @@ double linedistprj(double lat1, double lon1,
       }
 
       if (fabs(d1) < fabs(d2)) {
-        return gcdist(lat1,lon1,lat3,lon3);
+        return gcdist(lat1, lon1, lat3, lon3);
       } else {
         *prjlat = DEG(lat2);
         *prjlon = DEG(lon2);
         *frac = 1.0;
-        return gcdist(lat2,lon2,lat3,lon3);
+        return gcdist(lat2, lon2, lat3, lon3);
       }
     } else {
       /* lp is 0 when 3 is 90 degrees from the great circle */
-      return M_PI/2;
+      return M_PI / 2;
     }
   } else {
     /* la is 0 when 1 and 2 are either the same point or 180 degrees apart */
-    dot = dotproduct(x1,y1,z1,x2,y2,z2);
+    dot = dotproduct(x1, y1, z1, x2, y2, z2);
     if (dot >= 0) {
-      return gcdist(lat1,lon1,lat3,lon3);
+      return gcdist(lat1, lon1, lat3, lon3);
     } else {
       return 0;
     }
   }
 }
-
 
 double linedist(double lat1, double lon1,
                 double lat2, double lon2,
@@ -319,17 +298,7 @@ void linepart(double lat1, double lon1,
               double frac,
               double* reslat, double* reslon)
 {
-
-  double x1,y1,z1;
-  double x2,y2,z2;
-  double xa,ya,za,la;
-  double xr, yr, zr;
-  double xx, yx, zx;
-
-  double theta = 0;
-  double phi = 0;
-  double cosphi = 0;
-  double sinphi = 0;
+  double xa, ya, za;
 
   /* result must be in degrees */
   *reslat = lat1;
@@ -342,18 +311,18 @@ void linepart(double lat1, double lon1,
   lon2 = RAD(lon2);
 
   /* polar to ECEF rectangular */
-  x1 = cos(lon1)*cos(lat1);
-  y1 = sin(lat1);
-  z1 = sin(lon1)*cos(lat1);
-  x2 = cos(lon2)*cos(lat2);
-  y2 = sin(lat2);
-  z2 = sin(lon2)*cos(lat2);
+  double x1 = cos(lon1) * cos(lat1);
+  double y1 = sin(lat1);
+  double z1 = sin(lon1) * cos(lat1);
+  double x2 = cos(lon2) * cos(lat2);
+  double y2 = sin(lat2);
+  double z2 = sin(lon2) * cos(lat2);
 
   /* 'a' is the axis; the line that passes through the center of the earth
    * and is perpendicular to the great circle through point 1 and point 2
    * It is computed by taking the cross product of the '1' and '2' vectors.*/
   crossproduct(x1, y1, z1, x2, y2, z2, &xa, &ya, &za);
-  la = sqrt(xa*xa+ya*ya+za*za);
+  double la = sqrt(xa * xa + ya * ya + za * za);
 
   if (la) {
     xa /= la;
@@ -363,22 +332,21 @@ void linepart(double lat1, double lon1,
   /* if la is zero, the points are either equal or directly opposite
    * each other.  Either way, there's no single geodesic, so we punt. */
   if (la) {
+    double xx, yx, zx;
     crossproduct(x1, y1, z1, xa, ya, za, &xx, &yx, &zx);
 
+    double theta = atan2(dotproduct(xx,yx,zx,x2,y2,z2),
+                         dotproduct(x1,y1,z1,x2,y2,z2));
 
-    theta = atan2(dotproduct(xx,yx,zx,x2,y2,z2),
-                  dotproduct(x1,y1,z1,x2,y2,z2));
-
-    phi = frac * theta;
-    cosphi = cos(phi);
-    sinphi = sin(phi);
-
+    double phi = frac * theta;
+    double cosphi = cos(phi);
+    double sinphi = sin(phi);
 
     /* The second term of the formula from the mathworld reference is always
      * zero, because r (lat1,lon1) is always perpendicular to n (a here) */
-    xr = x1*cosphi + xx * sinphi;
-    yr = y1*cosphi + yx * sinphi;
-    zr = z1*cosphi + zx * sinphi;
+    double xr = x1*cosphi + xx * sinphi;
+    double yr = y1*cosphi + yx * sinphi;
+    double zr = z1*cosphi + zx * sinphi;
 
     if (xr > 1) {
       xr = 1;

@@ -3,7 +3,7 @@
 
 #include "../defs.h"
 #include "gpsport.h"
-#include <time.h>
+#include <ctime>
 
 #define FRAMING_ERROR  -1
 #define PROTOCOL_ERROR -2
@@ -15,9 +15,6 @@
 
 #define MAX_GPS_PACKET_SIZE	1024
 #define GPS_TIME_OUT		5
-
-#define gpsTrue  1
-#define gpsFalse 0
 
 #define DLE 0x10
 #define ETX 0x03
@@ -39,12 +36,9 @@ typedef struct GPS_SPacket {
 
 class GPS_PPacket {
 public:
-  GPS_PPacket() : type(0), n(0) {
-    memset(data, 0, MAX_GPS_PACKET_SIZE);
-  }
-  US type;
-  uint32 n;
-  UC data[MAX_GPS_PACKET_SIZE];
+  US type{0};
+  uint32 n{0};
+  UC data[MAX_GPS_PACKET_SIZE]{};
 };
 
 
@@ -246,10 +240,10 @@ typedef struct GPS_SCourse_Point {
 } GPS_OCourse_Point, *GPS_PCourse_Point;
 
 typedef struct GPS_SCourse_Limits {
-  uint32 max_courses;
-  uint32 max_course_laps;
-  uint32 max_course_pnt;
-  uint32 max_course_trk_pnt;
+  int32 max_courses;
+  int32 max_course_laps;
+  int32 max_course_pnt;
+  int32 max_course_trk_pnt;
 } GPS_OCourse_Limits, *GPS_PCourse_Limits;
 
 
@@ -266,8 +260,6 @@ typedef int (*pcb_fn)(int, struct GPS_SWay**);
 #include "gpsmath.h"
 #include "gpsmem.h"
 #include "gpsrqst.h"
-#include "gpsinput.h"
-#include "gpsproj.h"
 
 extern time_t gps_save_time;
 extern double gps_save_lat;
@@ -282,10 +274,10 @@ extern struct COMMANDDATA COMMAND_ID[2];
 extern struct LINKDATA LINK_ID[3];
 extern struct GPS_MODEL_PROTOCOL GPS_MP[];
 
-extern char* gps_marine_sym[];
-extern char* gps_land_sym[];
-extern char* gps_aviation_sym[];
-extern char* gps_16_sym[];
+extern const char* gps_marine_sym[];
+extern const char* gps_land_sym[];
+extern const char* gps_aviation_sym[];
+extern const char* gps_16_sym[];
 
 
 #endif

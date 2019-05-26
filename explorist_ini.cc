@@ -1,36 +1,36 @@
 #include "defs.h"
-#include "inifile.h"
 #include "explorist_ini.h"
+#include "inifile.h"
 
 static inifile_t* inifile;
 static const char myname[] = "explorist";
 
-const char*
+#ifdef DEAD_CODE_IS_REBORN
+static const char*
 explorist_read_value(const char* section, const char* key)
 {
   return inifile_readstr(inifile, section, key);
 }
+#endif
 
 static mag_info*
 explorist_ini_try(const char* path)
 {
-  mag_info* info = NULL;
   char* inipath;
-  char* s;
 
   xasprintf(&inipath, "%s/%s", path, "APP/Atlas.ini");
-  inifile = inifile_init(inipath, myname);
+  inifile = inifile_init(QString::fromUtf8(inipath), myname);
   if (!inifile) {
     xfree(inipath);
-    return NULL;
+    return nullptr;
   }
 
-  info = (mag_info*) xmalloc(sizeof(mag_info));
-  info->geo_path = NULL;
-  info->track_path = NULL;
-  info->waypoint_path = NULL;
+  mag_info* info = (mag_info*) xmalloc(sizeof(mag_info));
+  info->geo_path = nullptr;
+  info->track_path = nullptr;
+  info->waypoint_path = nullptr;
 
-  s = xstrdup(inifile_readstr(inifile,  "UGDS", "WpFolder"));
+  char* s = xstrdup(inifile_readstr(inifile,  "UGDS", "WpFolder"));
   if (s) {
     s = gstrsub(s, "\\", "/");
     xasprintf(&info->waypoint_path, "%s/%s", path, s);
@@ -54,7 +54,7 @@ explorist_ini_try(const char* path)
 mag_info*
 explorist_ini_get(const char** dirlist)
 {
-  mag_info* r = NULL;
+  mag_info* r = nullptr;
   while (dirlist && *dirlist) {
     r = explorist_ini_try(*dirlist);
     if (r) {

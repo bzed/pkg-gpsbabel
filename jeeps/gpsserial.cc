@@ -24,14 +24,15 @@
 ** Boston, MA  02111-1307, USA.
 ********************************************************************/
 #include "gps.h"
-#include "gpsserial.h"
 #include "../gbser.h"
-#include <sys/types.h>
-#include <sys/stat.h>
+#include "gpsserial.h"
+#include <QtCore/QThread>
+#include <cerrno>
+#include <cstdio>
+#include <ctime>
 #include <fcntl.h>
-#include <errno.h>
-#include <stdio.h>
-#include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 int gps_baud_rate = DEFAULT_BAUD;
 
@@ -191,7 +192,7 @@ int32 GPS_Serial_Wait(gpsdevh* fd)
   return GPS_Serial_Chars_Ready(fd);
 }
 
-int32 GPS_Serial_Flush(gpsdevh* fd)
+int32 GPS_Serial_Flush(gpsdevh* /* fd */)
 {
   return 1;
 }
@@ -235,7 +236,7 @@ int32 GPS_Serial_Set_Baud_Rate(gpsdevh* fd, int br)
   GPS_PPacket tra;
   GPS_PPacket rec;
   win_serial_data* wsd = (win_serial_data*)fd;
-  
+
   DWORD speed = mkspeed(br);
 
   // Turn off all requests by transmitting packet
@@ -247,7 +248,7 @@ int32 GPS_Serial_Set_Baud_Rate(gpsdevh* fd, int br)
   if (!GPS_Get_Ack(fd, &tra, &rec)) {
     return gps_errno;
   }
-  
+
   GPS_Util_Put_Int(data, br);
   GPS_Make_Packet(&tra, 0x30, data, 4);
   if (!GPS_Write_Packet(fd,tra)) {
@@ -268,11 +269,11 @@ int32 GPS_Serial_Set_Baud_Rate(gpsdevh* fd, int br)
   }
   GPS_Device_Flush(fd);
   GPS_Device_Wait(fd);
-  
+
   // Sleep for a small amount of time, about 100 milliseconds,
   // to make sure the packet was successfully transmitted to the GPS unit.
-  gb_sleep(100000); 
-  
+  QThread::usleep(100000);
+
   // Change port speed
   DCB tio;
   tio.DCBlength = sizeof(DCB);
@@ -302,10 +303,10 @@ int32 GPS_Serial_Set_Baud_Rate(gpsdevh* fd, int br)
   if (!GPS_Get_Ack(fd, &tra, &rec)) {
     return gps_errno;
   }
-  
+
   if (global_opts.debug_level >= 1) fprintf(stderr, "Serial port speed set to %d\n", br);
   return 0;
-  
+
 }
 #else
 
@@ -522,7 +523,7 @@ int32 GPS_Serial_Chars_Ready(gpsdevh* dh)
 
   t.tv_sec  = 0;
   t.tv_usec = 1000;
-  (void) select(fd+1,&rec,NULL,NULL,&t);
+  (void) select(fd+1,&rec,nullptr,nullptr,&t);
   if (FD_ISSET(fd,&rec)) {
     return 1;
   }
@@ -555,7 +556,7 @@ int32 GPS_Serial_Wait(gpsdevh* dh)
   t.tv_sec  = 0;
   t.tv_usec = 180000;	/* Microseconds before GPS sends A001 */
 
-  (void) select(psd->fd+1,&rec,NULL,NULL,&t);
+  (void) select(psd->fd+1,&rec,nullptr,nullptr,&t);
   if (FD_ISSET(psd->fd,&rec)) {
     return 1;
   }
@@ -609,8 +610,6 @@ int32 GPS_Serial_Off(gpsdevh* dh)
     gps_errno = HARDWARE_ERROR;
     return 0;
   }
-  dh = NULL;
-
   return 1;
 }
 
@@ -623,7 +622,7 @@ int32 GPS_Serial_Set_Baud_Rate(gpsdevh* fd, int br)
   static UC data[4];
   GPS_PPacket tra;
   GPS_PPacket rec;
-  
+
   speed_t speed = mkspeed(br);
 
   // Turn off all requests by transmitting packet
@@ -635,7 +634,7 @@ int32 GPS_Serial_Set_Baud_Rate(gpsdevh* fd, int br)
   if (!GPS_Get_Ack(fd, &tra, &rec)) {
     return gps_errno;
   }
-  
+
   GPS_Util_Put_Int(data, br);
   GPS_Make_Packet(&tra, 0x30, data, 4);
   if (!GPS_Write_Packet(fd,tra)) {
@@ -656,23 +655,23 @@ int32 GPS_Serial_Set_Baud_Rate(gpsdevh* fd, int br)
   }
   GPS_Device_Flush(fd);
   GPS_Device_Wait(fd);
-  
+
   // Sleep for a small amount of time, about 100 milliseconds,
   // to make sure the packet was successfully transmitted to the GPS unit.
-  gb_sleep(100000); 
-  
+    QThread::usleep(100000);
+
   // Change port speed
   posix_serial_data* psd = (posix_serial_data*)fd;
   tty = psd->gps_ttysave;
-  
+
   cfsetospeed(&tty,speed);
   cfsetispeed(&tty,speed);
-  
+
   if (tcsetattr(psd->fd,TCSANOW|TCSAFLUSH,&tty)==-1) {
     GPS_Serial_Error("SERIAL: tcsetattr error");
     return 0;
   }
-  
+
   GPS_Util_Put_Short(data, 0x3a);
   GPS_Make_Packet(&tra, 0x0a, data, 2);
   if (!GPS_Write_Packet(fd,tra)) {
@@ -690,10 +689,10 @@ int32 GPS_Serial_Set_Baud_Rate(gpsdevh* fd, int br)
   if (!GPS_Get_Ack(fd, &tra, &rec)) {
     return gps_errno;
   }
-  
+
   if (global_opts.debug_level >= 1) fprintf(stderr, "Serial port speed set to %d\n", br);
   return 0;
-  
+
 }
 
 #endif /* __WIN32__ */

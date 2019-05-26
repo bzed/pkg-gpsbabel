@@ -29,10 +29,10 @@
 #include "defs.h"
 #include "cet_util.h"
 #include "csv_util.h"
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
+#include <cctype>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
 
 static gbfile* fin, *fout;
 static int curr_rte_num, target_rte_num;
@@ -43,7 +43,7 @@ static char* index_opt;
 
 static
 arglist_t nmn4_args[] = {
-  {"index", &index_opt, "Index of route to write (if more than one in source)", NULL, ARGTYPE_INT, "1", NULL },
+  {"index", &index_opt, "Index of route to write (if more than one in source)", nullptr, ARGTYPE_INT, "1", nullptr , nullptr},
   ARG_TERMINATOR
 };
 
@@ -62,26 +62,21 @@ nmn4_check_line(char* line)
 }
 
 static void
-nmn4_read_data(void)
+nmn4_read_data()
 {
   char* buff;
-  char* str;
-  QString c;
-  int column;
   int line = 0;
 
-  QString zip1, zip2, city, street, number;
-  route_head* route;
-  Waypoint* wpt;
+  QString zip2, city, street, number;
 
-  route = route_head_alloc();
+  route_head* route = route_head_alloc();
   route_add_head(route);
 
   while ((buff = gbfgetstr(fin))) {
     if ((line++ == 0) && fin->unicode) {
       cet_convert_init(CET_CHARSET_UTF8, 1);
     }
-    str = buff = lrtrim(buff);
+    char* str = buff = lrtrim(buff);
     if (*buff == '\0') {
       continue;
     }
@@ -89,13 +84,13 @@ nmn4_read_data(void)
     nmn4_check_line(buff);
 
     /* for a quiet compiler */
-    zip1 = zip2 = city = street = number = QString();
+    QString zip1 = zip2 = city = street = number = QString();
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
-    column = -1;
-    c = csv_lineparse(str, "|", "", column++);
-    while (c != NULL) {
+    int column = -1;
+    QString c = csv_lineparse(str, "|", "", column++);
+    while (!c.isNull()) {
       switch (column) {
       case  0: /* "-" */	/* unknown fields for the moment */
       case  1: /* "-" */
@@ -176,20 +171,20 @@ nmn4_read_data(void)
         break;
 
       }
-      c = QString::fromLatin1(csv_lineparse(NULL, "|", "", column++));
+      c = QString::fromLatin1(csv_lineparse(nullptr, "|", "", column++));
     }
     route_add_wpt(route, wpt);
   }
 }
 
 static void
-nmn4_route_hdr(const route_head* route)
+nmn4_route_hdr(const route_head*)
 {
   curr_rte_num++;
 }
 
 static void
-nmn4_route_tlr(const route_head* rte)
+nmn4_route_tlr(const route_head*)
 {
 }
 
@@ -224,12 +219,12 @@ nmn4_write_waypt(const Waypoint* wpt)
 }
 
 static void
-nmn4_write_data(void)
+nmn4_write_data()
 {
 
   target_rte_num = 1;
 
-  if (index_opt != NULL) {
+  if (index_opt != nullptr) {
     target_rte_num = atoi(index_opt);
     is_fatal(((target_rte_num > (int) route_count()) || (target_rte_num < 1)),
              MYNAME ": invalid route number %d (1..%d))!\n", target_rte_num, route_count());
@@ -249,13 +244,13 @@ nmn4_rd_init(const QString& fname)
 }
 
 static void
-nmn4_rd_deinit(void)
+nmn4_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-nmn4_read(void)
+nmn4_read()
 {
   nmn4_read_data();
 }
@@ -267,13 +262,13 @@ nmn4_wr_init(const QString& fname)
 }
 
 static void
-nmn4_wr_deinit(void)
+nmn4_wr_deinit()
 {
   gbfclose(fout);
 }
 
 static void
-nmn4_write(void)
+nmn4_write()
 {
   nmn4_write_data();
 }
@@ -289,7 +284,9 @@ ff_vecs_t nmn4_vecs = {
   nmn4_wr_deinit,
   nmn4_read,
   nmn4_write,
-  NULL,
+  nullptr,
   nmn4_args,
   CET_CHARSET_MS_ANSI, 1	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

@@ -23,40 +23,40 @@
 #define MYNAME "saroute"
 #include "defs.h"
 #include "grtcirc.h"
-#include <stddef.h>
+#include <cstddef>
 
-gbfile* infile;
+static gbfile* infile;
 
-char* turns_important = NULL;
-char* turns_only = NULL;
-char* controls = NULL;
-char* split = NULL;
-char* timesynth = NULL;
+static char* turns_important = nullptr;
+static char* turns_only = nullptr;
+static char* controls = nullptr;
+static char* split = nullptr;
+static char* timesynth = nullptr;
 
-int control = 0;
+static int control = 0;
 
 static
 arglist_t saroute_args[] = {
   {
     "turns_important", &turns_important,
     "Keep turns if simplify filter is used",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "turns_only", &turns_only, "Only read turns; skip all other points",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "split", &split, "Split into multiple routes at turns",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "controls", &controls, "Read control points as waypoint/route/none",
-    "none", ARGTYPE_STRING, ARG_NOMINMAX
+    "none", ARGTYPE_STRING, ARG_NOMINMAX, nullptr
   },
   {
     "times", &timesynth, "Synthesize track times",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -64,7 +64,7 @@ arglist_t saroute_args[] = {
 #define ReadShort(f) gbfgetint16(f)
 #define ReadLong(f) gbfgetint32(f)
 
-unsigned char*
+static unsigned char*
 ReadRecord(gbfile* f, gbsize_t size)
 {
   unsigned char* result = (unsigned char*) xmalloc(size);
@@ -73,7 +73,7 @@ ReadRecord(gbfile* f, gbsize_t size)
   return result;
 }
 
-void
+static void
 Skip(gbfile* f, gbsize_t distance)
 {
   gbfseek(f, distance, SEEK_CUR);
@@ -107,42 +107,32 @@ rd_init(const QString& fname)
 }
 
 static void
-rd_deinit(void)
+rd_deinit()
 {
   gbfclose(infile);
 }
 
 static void
-my_read(void)
+my_read()
 {
-
-  uint16_t version;
-  uint32_t count;
-  uint32_t outercount;
-  uint32_t recsize;
-  uint16_t stringlen;
-  unsigned char* record;
   static int serial = 0;
   struct ll {
     int32_t lat;
     int32_t lon;
   } *latlon;
   struct ll mylatlon;
-  uint16_t coordcount;
-  route_head* track_head = NULL;
-  route_head* old_track_head = NULL;
+  route_head* track_head = nullptr;
   Waypoint* wpt_tmp;
-  char* routename = NULL;
+  char* routename = nullptr;
   double seglen = 0.0;
   int32_t  starttime = 0;
   int32_t  transittime = 0;
   double totaldist = 0.0;
   double oldlat = 0;
   double oldlon = 0;
-  int first = 0;
 
   ReadShort(infile);		/* magic */
-  version = ReadShort(infile);
+  uint16_t version = ReadShort(infile);
 
   ReadLong(infile);
   if (version >= 6) {
@@ -155,14 +145,14 @@ my_read(void)
    */
 
   ReadShort(infile);
-  recsize = ReadLong(infile);
+  uint32_t recsize = ReadLong(infile);
   /*
    * the first recsize, oddly, doesn't include the filename string
    * but it does include the header.
    */
-  record = ReadRecord(infile, recsize);
+  unsigned char* record = ReadRecord(infile, recsize);
 
-  stringlen = le_read16((uint16_t*)(record + 0x1a));
+  uint16_t stringlen = le_read16((uint16_t*)(record + 0x1a));
   if (stringlen) {
     routename = (char*)xmalloc(stringlen + 1);
     routename[stringlen] = '\0';
@@ -187,28 +177,25 @@ my_read(void)
       track_head->rte_name = routename;
     }
   }
-  count = ReadLong(infile);
+  uint32_t count = ReadLong(infile);
   while (count) {
     ReadShort(infile);
     recsize = ReadLong(infile);
     if (version < 6 || control) {
-      double lat;
-      double lon;
-
       record = ReadRecord(infile, recsize);
       latlon = (struct ll*)(record);
 
       /* These records are backwards for some reason */
-      lat = (0x80000000UL -
-             le_read32(&latlon->lon)) / (double)(0x800000);
-      lon = (0x80000000UL -
-             le_read32(&latlon->lat)) / (double)(0x800000);
+      double lat = (0x80000000UL -
+        le_read32(&latlon->lon)) / (double)(0x800000);
+      double lon = (0x80000000UL -
+        le_read32(&latlon->lat)) / (double)(0x800000);
 
       wpt_tmp = new Waypoint;
       wpt_tmp->latitude = lat;
       wpt_tmp->longitude = -lon;
       if (control) {
-        int obase, addrlen, cmtlen;
+        int obase;
 
         /* Somewhere around TopoUSA 6.0, these moved  */
         /* This block also seems to get miscompiled
@@ -222,8 +209,8 @@ my_read(void)
           obase = 18;
         }
 
-        addrlen = le_read16(&record[obase]);
-        cmtlen = le_read16(&record[obase+2+addrlen]);
+        int addrlen = le_read16(&record[obase]);
+        int cmtlen = le_read16(&record[obase+2+addrlen]);
         (void) cmtlen;
 #if NEW_STRINGS
         // That we've had no bugreports on this strongly indicates this code
@@ -281,7 +268,7 @@ my_read(void)
    * outercount is the number of route segments (start+end+stops+vias-1)
    */
 
-  outercount = ReadLong(infile);
+  uint32_t outercount = ReadLong(infile);
   while (outercount) {
 
     /*
@@ -311,7 +298,7 @@ my_read(void)
       }
     }
     while (count) {
-      old_track_head = NULL;
+      route_head* old_track_head = nullptr;
       ReadShort(infile);
       recsize = ReadLong(infile);
       record = ReadRecord(infile, recsize);
@@ -351,30 +338,27 @@ my_read(void)
         seglen /= 5280*12*2.54/100000; /* to miles */
       }
 
-      coordcount = le_read16((uint16_t*)
-                             (record + 2 + stringlen + 0x3c));
+      uint16_t coordcount = le_read16((uint16_t*)
+        (record + 2 + stringlen + 0x3c));
       latlon = (struct ll*)(record + 2 + stringlen + 0x3c + 2);
       count--;
       if (count) {
         coordcount--;
       }
 
-      first = 1;
+      int first = 1;
 
       while (coordcount) {
-        double lat;
-        double lon;
-
         wpt_tmp = new Waypoint;
 
         // copy to make sure we don't violate alignment restrictions.
         memcpy(&mylatlon,latlon,sizeof(mylatlon));
-        lat = (0x80000000UL -
-               le_read32(&mylatlon.lat)) /
-              (double)(0x800000);
-        lon = (0x80000000UL -
-               le_read32(&mylatlon.lon)) /
-              (double)(0x800000);
+        double lat = (0x80000000UL -
+            le_read32(&mylatlon.lat)) /
+          (double)(0x800000);
+        double lon = (0x80000000UL -
+            le_read32(&mylatlon.lon)) /
+          (double)(0x800000);
 
         wpt_tmp->latitude = lat;
         wpt_tmp->longitude = -lon;
@@ -434,7 +418,7 @@ my_read(void)
               route_add_wpt(old_track_head,
                             new Waypoint(*wpt_tmp));
             }
-            old_track_head = NULL;
+            old_track_head = nullptr;
           }
         }
 
@@ -464,7 +448,7 @@ my_read(void)
 }
 
 static void
-wr_init(const QString& fname)
+wr_init(const QString&)
 {
   fatal(MYNAME ":Not enough information is known about this format to write it.\n");
 }
@@ -475,10 +459,12 @@ ff_vecs_t saroute_vecs = {
   rd_init,
   wr_init,
   rd_deinit,
-  NULL,
+  nullptr,
   my_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   saroute_args,
   CET_CHARSET_UTF8, 1	/* do nothing | CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

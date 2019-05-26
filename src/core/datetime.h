@@ -20,11 +20,14 @@
 
  */
 
+#ifndef DATETIME_H_INCLUDED_
+#define DATETIME_H_INCLUDED_
 
-#include <time.h>
+#include <ctime>
 
 #include <QtCore/QtGlobal>
 #include <QtCore/QDateTime>
+#include <QtCore/QString>
 
 // As this code began in C, we have several hundred places that set and
 // read creation_time as a time_t.  Provide some operator overloads to make
@@ -43,8 +46,8 @@ public:
     setTime_t(0);
   }
 
-  DateTime(QDate date, QTime time) : QDateTime(date, time) {}
-  DateTime(QDateTime dt) : QDateTime(dt) {}
+  DateTime(const QDate& date, const QTime& time) : QDateTime(date, time) {}
+  DateTime(const QDateTime& dt) : QDateTime(dt) {}
 
   // TODO: this should go away in favor of .addSecs().
   // add time_t without losing any existing milliseconds.
@@ -76,43 +79,17 @@ public:
     return date().isValid() && time().isValid() && toTime_t() > 0;
   }
 
-
-  // Qt 4.6 and under doesn't have msecsTo.  Fortunately, it's easy to
-  // provide.  It's a 64-bit because if the times aren't on the same day,
-  // the returned value can be quite large.
-  qint64 msecsTo(const QDateTime &dt) const {
-    QDateTime dtutc = dt.toUTC();
-    QDateTime thisutc = toUTC();
-    qint64 days = thisutc.daysTo(dtutc);
-    qint64 msecs = thisutc.time().msecsTo(dtutc.time());
-    return days * (1000 * 3600 * 24) + msecs;
-  }
-
-  // Qt 4.6 and under doesn't have toMSecsSinceEpoch.
-  qint64 toMSecsSinceEpoch() const {
-    QDateTime epoch = QDateTime(QDate(1970, 1, 1), QTime(0, 0, 0, 0), Qt::UTC);
-    return -msecsTo(epoch);
-  }
-
-  // This was added in Qt 4.7, but it's easy enough to knock out here.
-  void setMSecsSinceEpoch(qint64 msecs) {
-    int ddays = msecs / 86400000;
-    msecs %= 86400000;
-    setDate(QDate(1970, 1, 1).addDays(ddays));
-    setTime(QTime(0,0).addMSecs(msecs));
-  }
-
   // Like toString, but with subsecond time that's included only when
   // the trailing digits aren't .000.  Always UTC.
   QString toPrettyString() const {
-    const char* format;
     if (time().msec()) {
-      format = "yyyy-MM-ddTHH:mm:ss.zzzZ";
+      return toUTC().toString(QStringLiteral("yyyy-MM-ddTHH:mm:ss.zzzZ"));
     } else {
-      format = "yyyy-MM-ddTHH:mm:ssZ";
+      return toUTC().toString(QStringLiteral("yyyy-MM-ddTHH:mm:ssZ"));
     }
-    return toUTC().toString(format);
   }
 };
 
 } // namespace gpsbabel
+
+#endif // DATETIME_H_INCLUDED_

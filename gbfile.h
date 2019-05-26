@@ -46,9 +46,6 @@ typedef gbsize_t (*gbfwrite_cb)(const void* buf, const gbsize_t size, const gbsi
 typedef int (*gbfungetc_cb)(const int c, gbfile* self);
 
 typedef struct gbfile_s {
-#ifdef DEBUG_MEM
-  void*   dummy;	/* ZERO pointer for stdio oop's */
-#endif
   union {
     FILE* std;
     unsigned char* mem;
@@ -86,13 +83,13 @@ typedef struct gbfile_s {
 } gbfile_t;
 
 
-gbfile* gbfopen(const QString filename, const char* mode, const char* module);
-gbfile* gbfopen_be(const QString filename, const char* mode, const char* module);
+gbfile* gbfopen(const QString& filename, const char* mode, const char* module);
+gbfile* gbfopen_be(const QString& filename, const char* mode, const char* module);
 #define gbfopen_le gbfopen
 void gbfclose(gbfile* file);
 
-gbsize_t gbfread(void* buf, const gbsize_t size, const gbsize_t members, gbfile* file);
-gbsize_t gbfread(QString& buf, const gbsize_t size, const gbsize_t members, gbfile* file);
+gbsize_t gbfread(void* buf, gbsize_t size, gbsize_t members, gbfile* file);
+gbsize_t gbfread(QString& buf, gbsize_t size, gbsize_t members, gbfile* file);
 int gbfgetc(gbfile* file);
 QString gbfgets(char* buf, int len, gbfile* file);
 
@@ -100,7 +97,7 @@ int gbvfprintf(gbfile* file, const char* format, va_list ap);
 int gbfprintf(gbfile* file, const char* format, ...);
 int gbfputc(int c, gbfile* file);
 int gbfputs(const QString& s, gbfile* file);
-int gbfwrite(const void* buf, const gbsize_t size, const gbsize_t members, gbfile* file);
+int gbfwrite(const void* buf, gbsize_t size, gbsize_t members, gbfile* file);
 int gbfflush(gbfile* file);
 
 void gbfclearerr(gbfile* file);
@@ -109,7 +106,7 @@ void gbfrewind(gbfile* file);
 int gbfseek(gbfile* file, int32_t offset, int whence);
 gbsize_t gbftell(gbfile* file);
 int gbfeof(gbfile* file);
-int gbfungetc(const int c, gbfile* file);
+int gbfungetc(int c, gbfile* file);
 
 int32_t gbfgetint32(gbfile* file);
 #define gbfgetuint32 (uint32_t)gbfgetint32
@@ -122,13 +119,13 @@ QString gbfgetpstr(gbfile* file);		// read a pascal string
 QString gbfgetcstr(gbfile* file);		// read a null terminated string
 char* gbfgetcstr_old(gbfile* file);		// read a null terminated string
 
-int gbfputint16(const int16_t i, gbfile* file);
+int gbfputint16(int16_t i, gbfile* file);
 #define gbfputuint16(a,b) gbfputint16((uint16_t)(a),(b))
-int gbfputint32(const int32_t i, gbfile* file);
+int gbfputint32(int32_t i, gbfile* file);
 #define gbfputuint32(a,b) gbfputint32((uint32_t)(a),(b))
 
-int gbfputdbl(const double d, gbfile* file);	// write a double value
-int gbfputflt(const float f, gbfile* file);	// write a float value
+int gbfputdbl(double d, gbfile* file);	// write a double value
+int gbfputflt(float f, gbfile* file);	// write a float value
 
 int gbfputcstr(const QString& s, gbfile* file);	// write string including '\0'
 

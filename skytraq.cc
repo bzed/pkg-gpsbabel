@@ -2,7 +2,7 @@
 
     Serial download of track data from GPS loggers with Skytraq chipset.
 
-    Copyright (C) 2008-2012  Mathias Adam, m.adam (at) adamis.de
+    Copyright (C) 2008-2019  Mathias Adam, m.adam (at) adamis.de
 
     2008         J.C Haessig, jean-christophe.haessig (at) dianosis.org
     2009-09-06 | Josef Reisinger | Added "set target location", i.e. -i skytrag,targetlocation=<lat>:<lng>
@@ -25,9 +25,10 @@
 
 #include "defs.h"
 #include "gbser.h"
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <QtCore/QThread>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 #define MYNAME "skytraq"
 
@@ -54,75 +55,93 @@
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
 
 
-static void* serial_handle = 0;		/* IO file descriptor */
+static void* serial_handle = nullptr;		/* IO file descriptor */
 static int skytraq_baud = 0;		/* detected baud rate */
-static gbfile* file_handle = 0;		/* file descriptor (used by skytraq-bin format) */
+static gbfile* file_handle = nullptr;		/* file descriptor (used by skytraq-bin format) */
 
-static char* opt_erase = 0;		/* erase after read? (0/1) */
-static char* opt_initbaud = 0;		/* baud rate used to init device */
-static char* opt_dlbaud = 0;		/* baud rate used for downloading tracks */
-static char* opt_read_at_once = 0;	/* number of sectors to read at once (Venus6 only) */
-static char* opt_first_sector = 0;	/* first sector to be read from the device (default: 0) */
-static char* opt_last_sector = 0;	/* last sector to be read from the device (default: smart read everything) */
-static char* opt_dump_file = 0;		/* dump raw data to this file (optional) */
-static char* opt_no_output = 0;		/* disable output? (0/1) */
-static char* opt_set_location = 0;	/* set if the "targetlocation" options was used */
-static char* opt_configure_logging = 0;
+static char* opt_erase = nullptr;		/* erase after read? (0/1) */
+static char* opt_initbaud = nullptr;		/* baud rate used to init device */
+static char* opt_dlbaud = nullptr;		/* baud rate used for downloading tracks */
+static char* opt_read_at_once = nullptr;	/* number of sectors to read at once (Venus6 only) */
+static char* opt_first_sector = nullptr;	/* first sector to be read from the device (default: 0) */
+static char* opt_last_sector = nullptr;	/* last sector to be read from the device (default: smart read everything) */
+static char* opt_dump_file = nullptr;		/* dump raw data to this file (optional) */
+static char* opt_no_output = nullptr;		/* disable output? (0/1) */
+static char* opt_set_location = nullptr;	/* set if the "targetlocation" options was used */
+static char* opt_configure_logging = nullptr;
+static char* opt_gps_utc_offset = nullptr;
+static char* opt_gps_week_rollover = nullptr;
 
 static
 arglist_t skytraq_args[] = {
   {
     "erase", &opt_erase, "Erase device data after download",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
+    "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   {
     "targetlocation", &opt_set_location, "Set location finder target location as lat,lng",
-    NULL, ARGTYPE_STRING, "", ""
+    nullptr, ARGTYPE_STRING, "", "", nullptr
   },
   {
     "configlog", &opt_configure_logging, "Configure logging parameter as tmin:tmax:dmin:dmax",
-    NULL, ARGTYPE_STRING, "", ""
+    nullptr, ARGTYPE_STRING, "", "", nullptr
   },
   {
     "baud", &opt_dlbaud, "Baud rate used for download",
-    "230400", ARGTYPE_INT, "0", "230400"
+    "230400", ARGTYPE_INT, "0", "230400", nullptr
   },
   {
     "initbaud", &opt_initbaud, "Baud rate used to init device (0=autodetect)",
-    "0", ARGTYPE_INT, "4800", "230400"
+    "0", ARGTYPE_INT, "4800", "230400", nullptr
   },
   {
     "read-at-once", &opt_read_at_once, "Number of sectors to read at once (0=use single sector mode)",
-    "255", ARGTYPE_INT, "0", "255"
+    "255", ARGTYPE_INT, "0", "255", nullptr
   },
   {
     "first-sector", &opt_first_sector, "First sector to be read from the device",
-    "0", ARGTYPE_INT, "0", "65535"
+    "0", ARGTYPE_INT, "0", "65535", nullptr
   },
   {
     "last-sector", &opt_last_sector, "Last sector to be read from the device (-1: smart read everything)",
-    "-1", ARGTYPE_INT, "-1", "65535"
+    "-1", ARGTYPE_INT, "-1", "65535", nullptr
   },
   {
     "dump-file", &opt_dump_file, "Dump raw data to this file",
-    NULL, ARGTYPE_OUTFILE, ARG_NOMINMAX
+    nullptr, ARGTYPE_OUTFILE, ARG_NOMINMAX, nullptr
   },
   {
     "no-output", &opt_no_output, "Disable output (useful with erase)",
-    "0", ARGTYPE_BOOL, ARG_NOMINMAX
+    "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
-  ARG_TERMINATOR
+  {
+    "gps-utc-offset", &opt_gps_utc_offset, "Seconds that GPS time tracks UTC (0: best guess)",
+    "0", ARGTYPE_INT, ARG_NOMINMAX, nullptr
+  },
+  {
+    "gps-week-rollover", &opt_gps_week_rollover, "GPS week rollover period we're in (-1: best guess)",
+    "-1", ARGTYPE_INT, ARG_NOMINMAX, nullptr
+  },
+  ARG_TERMINATOR,
 };
 
 static
 arglist_t skytraq_fargs[] = {
   {
     "first-sector", &opt_first_sector, "First sector to be read from the file",
-    "0", ARGTYPE_INT, "0", "65535"
+    "0", ARGTYPE_INT, "0", "65535", nullptr
   },
   {
     "last-sector", &opt_last_sector, "Last sector to be read from the file (-1: read till empty sector)",
-    "-1", ARGTYPE_INT, "-1", "65535"
+    "-1", ARGTYPE_INT, "-1", "65535", nullptr
+  },
+  {
+    "gps-utc-offset", &opt_gps_utc_offset, "Seconds that GPS time tracks UTC (0: best guess)",
+    "0", ARGTYPE_INT, ARG_NOMINMAX, nullptr
+  },
+  {
+    "gps-week-rollover", &opt_gps_week_rollover, "GPS week rollover period we're in (-1: best guess)",
+    "-1", ARGTYPE_INT, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -139,7 +158,7 @@ db(int l, const char* msg, ...)
 }
 
 static void
-rd_drain(void)
+rd_drain()
 {
   if (gbser_flush(serial_handle)) {
     db(1, MYNAME ": rd_drain(): Comm error\n");
@@ -149,9 +168,8 @@ rd_drain(void)
 static int
 rd_char(int* errors)
 {
-  int c;
   while (*errors > 0) {
-    c = gbser_readc_wait(serial_handle, TIMEOUT);
+    int c = gbser_readc_wait(serial_handle, TIMEOUT);
     if (c < 0) {
       db(1, MYNAME ": rd_char(): Got error: %d\n", c);
       (*errors)--;
@@ -165,20 +183,19 @@ rd_char(int* errors)
 }
 
 static int
-rd_buf(const uint8_t* buf, int len)
+rd_buf(uint8_t* buf, int len)
 {
-  int rc, timeout, i;
   char dump[16*3+16+2];
 
   /* Allow TIMEOUT plus the time needed to actually receive the data bytes:
    * baudrate/10 bytes per second (8 data bits, start and stop bit)
    * TODO: use dlbaud if selected.
    */
-  timeout = TIMEOUT + len;//*1000/(skytraq_baud/10);
+  int timeout = TIMEOUT + len;//*1000/(skytraq_baud/10);
   /*TODO: timeout gets <0 e.g. when len~=250000 --> 32bit signed int is too small.
   	if (skytraq_baud > 0)  timeout = TIMEOUT + (long long int)len*1000*10/(long long int)skytraq_baud;
   printf("len=%i  skytraq_baud=%i  timeout=%i\n", len, skytraq_baud, timeout);*/
-  rc = gbser_read_wait(serial_handle, (void*)buf, len, timeout);
+  int rc = gbser_read_wait(serial_handle, (void*)buf, len, timeout);
   if (rc < 0) {
     db(1, MYNAME ": rd_buf(): Read error (%d)\n", rc);
     return res_ERROR;
@@ -190,7 +207,7 @@ rd_buf(const uint8_t* buf, int len)
   if (global_opts.debug_level >= 4) {
     db(4, "rd_buf():  dump follows:\n");
     dump[sizeof(dump)-1] = 0;
-    for (i = 0; i < (len+15)/16*16; i++) {		// count to next 16-byte boundary
+    for (int i = 0; i < (len+15)/16*16; i++) {		// count to next 16-byte boundary
       if (i < len) {
         snprintf(&dump[(i%16)*3], 4, "%02x ", buf[i]);
         snprintf(&dump[3*16+1+(i%16)], 2, "%c", isprint(buf[i]) ? buf[i] : '.');
@@ -208,14 +225,25 @@ rd_buf(const uint8_t* buf, int len)
   return res_OK;
 }
 
-static unsigned int
-rd_word(void)
+static int
+rd_word()
 {
   int errors = 5;		/* allow this many errors */
+  int c;
   uint8_t buffer[2];
 
-  buffer[0] = rd_char(&errors);
-  buffer[1] = rd_char(&errors);
+  c = rd_char(&errors);
+  if (c < 0) {
+    db(1, MYNAME ": rd_word(): Got error: %d\n", c);
+    return -1;
+  }
+  buffer[0] = c;
+  c = rd_char(&errors);
+  if (c < 0) {
+    db(1, MYNAME ": rd_word(): Got error: %d\n", c);
+    return -1;
+  }
+  buffer[1] = c;
   /*	if (rd_buf(buffer, 2) != res_OK) {
   		db(1, MYNAME ": rd_word(): Read error\n");
   		return res_ERROR;
@@ -237,8 +265,7 @@ wr_char(int c)
 static void
 wr_buf(const unsigned char* str, int len)
 {
-  int i;
-  for (i = 0; i < len; i++) {
+  for (int i = 0; i < len; i++) {
     wr_char(str[i]);
   }
 }
@@ -247,27 +274,26 @@ wr_buf(const unsigned char* str, int len)
 * %%%        SkyTraq protocol implementation                               %%% *
 *******************************************************************************/
 
-uint8_t NL[2] = { 0x0D, 0x0A };
-uint8_t MSG_START[2] = { 0xA0, 0xA1 };
-uint8_t SECTOR_READ_END[13] = { 'E','N','D', 0, 'C','H','E','C','K','S','U','M','=' };
+static uint8_t NL[2] = { 0x0D, 0x0A };
+static uint8_t MSG_START[2] = { 0xA0, 0xA1 };
+static uint8_t SECTOR_READ_END[13] = { 'E','N','D', 0, 'C','H','E','C','K','S','U','M','=' };
 
 static int
 skytraq_calc_checksum(const unsigned char* buf, int len)
 {
-  int i, cs = 0;
-  for (i = 0; i < len; i++) {
+  int cs = 0;
+  for (int i = 0; i < len; i++) {
     cs ^= buf[i];
   }
   return cs;
 }
 
 static int
-skytraq_rd_msg(const void* payload, unsigned int len)
+skytraq_rd_msg(void* payload, unsigned int len)
 {
-  int errors = 5;		/* allow this many errors */
+  int errors = 5;		// Allow this many receiver errors silently.
   unsigned int c, i, state;
-  signed int rcv_len;
-  unsigned int calc_cs, rcv_cs;
+  signed int rcv_len;		// Negative length is read error.
 
   for (i = 0, state = 0; i < RETRIES && state < sizeof(MSG_START); i++) {
     c = rd_char(&errors);
@@ -284,25 +310,26 @@ skytraq_rd_msg(const void* payload, unsigned int len)
     return res_ERROR;
   }
 
-  if ((rcv_len = rd_word()) < len) {
+  if ((rcv_len = rd_word()) < (signed int)len) {
     if (rcv_len >= 0) {	/* negative values indicate receive errors */
-      db(1, MYNAME ": Received message too short (got %i bytes, expected %i)\n",
+      db(1, MYNAME ": Received message too short (got %i bytes, expected %u)\n",
          rcv_len, len);
       return res_PROTOCOL_ERR;
     }
     return res_ERROR;
   }
+  /* at this point, we have rcv_len >= len >= 0 */
 
-  db(2, "Receiving message with %i bytes of payload (expected >=%i)\n", rcv_len, len);
-  rd_buf((const unsigned char*) payload, MIN(rcv_len, len));
+  db(2, "Receiving message with %i bytes of payload (expected >=%u)\n", rcv_len, len);
+  rd_buf((uint8_t*) payload, len);
 
-  calc_cs = skytraq_calc_checksum((const unsigned char*) payload, MIN(rcv_len, len));
+  unsigned int calc_cs = skytraq_calc_checksum((const unsigned char*) payload, len);
   for (i = 0; i < rcv_len-len; i++) {
     c = rd_char(&errors);
     calc_cs ^= c;
   }
 
-  rcv_cs = rd_char(&errors);
+  unsigned int rcv_cs = rd_char(&errors);
   if (rcv_cs != calc_cs) {
     fatal(MYNAME ": Checksum error: got 0x%02x, expected 0x%02x\n", rcv_cs, calc_cs);
   }
@@ -311,15 +338,12 @@ skytraq_rd_msg(const void* payload, unsigned int len)
     fatal(MYNAME ": Didn't get message end tag (CR/LF)\n");
   }
 
-//	return MIN(rcv_len, len);
   return res_OK;
 }
 
 static void
 skytraq_wr_msg(const uint8_t* payload, int len)
 {
-  int cs;
-
   rd_drain();
 
   wr_buf(MSG_START, sizeof(MSG_START));
@@ -327,7 +351,7 @@ skytraq_wr_msg(const uint8_t* payload, int len)
   wr_char(len & 0x0FF);
   wr_buf(payload, len);
 
-  cs = skytraq_calc_checksum(payload, len);
+  int cs = skytraq_calc_checksum(payload, len);
   wr_char(cs);
   wr_buf(NL, sizeof(NL));
 }
@@ -336,9 +360,9 @@ static int
 skytraq_expect_ack(uint8_t id)
 {
   uint8_t ack_msg[2];
-  int i/*, rcv_len*/;
+  //int rcv_len;
 
-  for (i = 0; i < MSG_RETRIES; i++) {
+  for (int i = 0; i < MSG_RETRIES; i++) {
 //		rcv_len = skytraq_rd_msg(ack_msg, sizeof(ack_msg));
 //		if (rcv_len == sizeof(ack_msg)) {
     if (skytraq_rd_msg(ack_msg, sizeof(ack_msg)) == res_OK) {
@@ -372,12 +396,10 @@ skytraq_expect_ack(uint8_t id)
 }
 
 static int
-skytraq_expect_msg(uint8_t id, const uint8_t* payload, int len)
+skytraq_expect_msg(uint8_t id, uint8_t* payload, int len)
 {
-  int i, rc;
-
-  for (i = 0; i < MSG_RETRIES; i++) {
-    rc = skytraq_rd_msg(payload, len);
+  for (int i = 0; i < MSG_RETRIES; i++) {
+    int rc = skytraq_rd_msg(payload, len);
     if (rc < 0) {
       return rc;
     }
@@ -392,14 +414,12 @@ skytraq_expect_msg(uint8_t id, const uint8_t* payload, int len)
 static int
 skytraq_wr_msg_verify(const uint8_t* payload, int len)
 {
-  int i, rc;
-
-  for (i = 0; i < MSG_RETRIES; i++) {
+  for (int i = 0; i < MSG_RETRIES; i++) {
     if (i > 0) {
       db(1, "resending msg (id=0x%02x)...\n", payload[0]);
     }
     skytraq_wr_msg(payload, len);
-    rc = skytraq_expect_ack(payload[0]);
+    int rc = skytraq_expect_ack(payload[0]);
     if (rc == res_OK  ||  rc == res_NACK) {
       return rc;
     }
@@ -411,7 +431,7 @@ skytraq_wr_msg_verify(const uint8_t* payload, int len)
 }
 
 static int
-skytraq_system_restart(void)
+skytraq_system_restart()
 {
   uint8_t MSG_SYSTEM_RESTART[15] =
   { 0x01, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -428,7 +448,6 @@ skytraq_set_baud(int baud)
    */
   uint8_t MSG_CONFIGURE_SERIAL_PORT[4]
     = { 0x05, 0x00, 0x00, 0x02 };
-  int rc;
 
   db(2, "Setting baud rate to %i\n", baud);
 
@@ -458,7 +477,7 @@ skytraq_set_baud(int baud)
     fatal(MYNAME ": Unsupported baud rate: %ibd\n", baud);
   }
 
-  rc = skytraq_wr_msg_verify(MSG_CONFIGURE_SERIAL_PORT, sizeof(MSG_CONFIGURE_SERIAL_PORT));
+  int rc = skytraq_wr_msg_verify(MSG_CONFIGURE_SERIAL_PORT, sizeof(MSG_CONFIGURE_SERIAL_PORT));
   if (rc != res_OK) {
     db(2, "Warning: error setting skytraq device baud rate\n");
     return rc;
@@ -471,18 +490,18 @@ skytraq_set_baud(int baud)
     return res_ERROR;
   }
 
-  gb_sleep(50);		/* allow UART to settle. */
+  QThread::usleep(50);		/* allow UART to settle. */
 
   return res_OK;
 }
 
 static int
-skytraq_configure_logging(void)
+skytraq_configure_logging()
 {
   // an0008-1.4.14: logs if
   // (dt > tmin & dd >= dmin & v >= vmin) | dt > tmax | dd > dmax | v > vmax
-  unsigned int tmin=6, tmax=3600, dmin=0, dmax=10000, nn=0;
-  uint8_t MSG_LOG_CONFIGURE_CONTROL[] = {
+  unsigned int tmin=6, tmax=3600, dmin=0, dmax=10000;
+  static uint8_t MSG_LOG_CONFIGURE_CONTROL[] = {
     0x18,			// message_id
     0x00, 0x00, 0x0e, 0x10,	// max_time: was 0x0000ffff (big endian!)
     0x00, 0x00, 0x00, 0x06,	// min_time: was 0x00000005
@@ -496,7 +515,7 @@ skytraq_configure_logging(void)
 
   if (opt_configure_logging) {
     if (*opt_configure_logging) {
-      nn = sscanf(opt_configure_logging, "%u:%u:%u:%u", &tmin, &tmax, &dmin, &dmax);
+      unsigned int nn = sscanf(opt_configure_logging, "%u:%u:%u:%u", &tmin, &tmax, &dmin, &dmax);
       if (nn>3) {
         db(0, "Reconfiguring logging to: tmin=%u, tmax=%u, dmin=%u, dmax=%u\n", tmin, tmax, dmin, dmax);
         be_write32(MSG_LOG_CONFIGURE_CONTROL+5, tmin);
@@ -542,16 +561,14 @@ skytraq_get_log_buffer_status(uint32_t* log_wr_ptr, uint16_t* sectors_free, uint
   *sectors_free = le_readu16(&MSG_LOG_STATUS_OUTPUT.sectors_free);
   *sectors_total = le_readu16(&MSG_LOG_STATUS_OUTPUT.sectors_total);
 
-  // print logging parameters -- useful, but does this belong here?
-  unsigned int tmax, tmin, dmax, dmin, vmax, vmin;
   // unsigned char log_bool, fifo_mode;
   char* mystatus;
-  tmax = le_readu32(&MSG_LOG_STATUS_OUTPUT.max_time);
-  tmin = le_readu32(&MSG_LOG_STATUS_OUTPUT.min_time);
-  dmax = le_readu32(&MSG_LOG_STATUS_OUTPUT.max_dist);
-  dmin = le_readu32(&MSG_LOG_STATUS_OUTPUT.min_dist);
-  vmax = le_readu32(&MSG_LOG_STATUS_OUTPUT.max_speed);
-  vmin = le_readu32(&MSG_LOG_STATUS_OUTPUT.min_speed);
+  unsigned int tmax = le_readu32(&MSG_LOG_STATUS_OUTPUT.max_time);
+  unsigned int tmin = le_readu32(&MSG_LOG_STATUS_OUTPUT.min_time);
+  unsigned int dmax = le_readu32(&MSG_LOG_STATUS_OUTPUT.max_dist);
+  unsigned int dmin = le_readu32(&MSG_LOG_STATUS_OUTPUT.min_dist);
+  unsigned int vmax = le_readu32(&MSG_LOG_STATUS_OUTPUT.max_speed);
+  unsigned int vmin = le_readu32(&MSG_LOG_STATUS_OUTPUT.min_speed);
   // log_bool = *(MSG_LOG_STATUS_OUTPUT.datalog_enable);
   // fifo_mode = *(MSG_LOG_STATUS_OUTPUT.log_fifo_mode);
   xasprintf(&mystatus, "#logging: tmin=%u, tmax=%u, dmin=%u, dmax=%u, vmin=%u, vmax=%u\n", tmin, tmax, dmin, dmax, vmin, vmax);
@@ -571,12 +588,12 @@ static time_t
 gpstime_to_timet(int week, int sec)
 {
   /* Notes:
-   *   * assumes we're between the 1st and 2nd week rollover
-   *     (i.e. between 22 Aug 1999 and 7 April 2019), so this
-   *     should be taken care of before the next rollover...
+   *   * week rollover period can be specified using option
+   *     gps-week-rollover, otherwise input timestamps are
+   *     assumed to be within previous 1024 weeks from today
    *   * list of leap seconds taken from
    *     <http://maia.usno.navy.mil/ser7/tai-utc.dat>
-   *     as of 2012-10-12. Please update when necessary.
+   *     as of 2019-01-19. Please update when necessary.
    *     Announcement of leap seconds:
    *     <http://hpiers.obspm.fr/iers/bul/bulc/bulletinc.dat>
    *   * leap seconds of 1999 JAN  1 and before are not reflected
@@ -585,19 +602,39 @@ gpstime_to_timet(int week, int sec)
    *     (i.e. sec >= 7*24*3600 = 604800 is allowed)
    */
   time_t gps_timet = 315964800;     /* Jan 06 1980 0:00 UTC */
-  gps_timet += (week+1024)*7*SECONDS_PER_DAY + sec;
+
+  int week_rollover = atoi(opt_gps_week_rollover);
+  if (week_rollover < 0) {
+    int current_week = (time(nullptr)-gps_timet)/(7*SECONDS_PER_DAY);
+    week_rollover = current_week/1024 - (week > current_week%1024 ? 1 : 0);
+  }
+  gps_timet += (week+week_rollover*1024)*7*SECONDS_PER_DAY + sec;
+
+  int override = atoi(opt_gps_utc_offset);
+  if (override) {
+    gps_timet -= override;
+    return gps_timet;
+  }
 
   /* leap second compensation: */
   gps_timet -= 13;  /* diff GPS-UTC=13s (valid from Jan 01 1999 on) */
   if (gps_timet >= 1136073600) {    /* Jan 01 2006 0:00 UTC */
-    gps_timet--;  /*   GPS-UTC = 14s      */
+    gps_timet--;                    /*   GPS-UTC = 14s      */
   }
   if (gps_timet >= 1230768000) {    /* Jan 01 2009 0:00 UTC */
-    gps_timet--;  /*   GPS-UTC = 15s      */
+    gps_timet--;                    /*   GPS-UTC = 15s      */
   }
   if (gps_timet >= 1341100800) {    /* Jul 01 2012 0:00 UTC */
-    gps_timet--;  /*   GPS-UTC = 16s      */
+    gps_timet--;                    /*   GPS-UTC = 16s      */
   }
+  if (gps_timet >= 1435708800) {    /* Jul 01 2015 0:00 UTC */
+    gps_timet--;                    /*   GPS-UTC = 17s      */
+  }
+  if (gps_timet >= 1483228800) {    /* Jan 01 2017 0:00 UTC */
+    gps_timet--;                    /*   GPS-UTC = 18s      */
+  }
+  // Future: Consult http://maia.usno.navy.mil/ser7/tai-utc.dat
+  // use http://www.stevegs.com/utils/jd_calc/ for Julian to UNIX sec
 
   return gps_timet;     /* returns UTC time */
 }
@@ -640,9 +677,7 @@ struct read_state {
 static void
 state_init(struct read_state* pst)
 {
-  route_head* track;
-
-  track = route_head_alloc();
+  route_head* track = route_head_alloc();
   track->rte_name = "SkyTraq tracklog";
   track->rte_desc = "SkyTraq GPS tracklog data";
   track_add_head(track);
@@ -737,13 +772,16 @@ static int
 process_data_item(struct read_state* pst, const item_frame* pitem, int len)
 {
   int res = 0;
-  double lat, lon, alt, spe;
+  double lat;
+  double lon;
+  double alt;
+  double spe;
   unsigned int ts;
   int poi = 0;
   full_item f;
   compact_item c;
   multi_hz_item m;
-  Waypoint* tpt = NULL;
+  Waypoint* tpt = nullptr;
 
   switch (ITEM_TYPE(pitem)) {
 
@@ -861,7 +899,7 @@ process_data_item(struct read_state* pst, const item_frame* pitem, int len)
       waypt_add(new Waypoint(*tpt));
     }
 
-    if (0 == pst->route_head_) {
+    if (nullptr == pst->route_head_) {
       db(1, MYNAME ": New Track\n");
       pst->route_head_ = route_head_alloc();
       track_add_head(pst->route_head_);
@@ -985,8 +1023,7 @@ static int
 skytraq_read_multiple_sectors(int first_sector, unsigned int sector_count, uint8_t* buf)
 {
   uint8_t MSG_LOG_READ_MULTI_SECTORS[5] = { 0x1D };
-  uint8_t* buf_end_tag;
-  unsigned int cs, i, read_result;
+  unsigned int i;
 
   if (first_sector < 0  ||  first_sector > 0xFFFF) {
     fatal(MYNAME ": Invalid sector number (%i)\n", first_sector);
@@ -999,7 +1036,7 @@ skytraq_read_multiple_sectors(int first_sector, unsigned int sector_count, uint8
 
   db(2, "Reading %i sectors beginning from #%i...\n", sector_count, first_sector);
 
-  read_result = skytraq_wr_msg_verify((uint8_t*)&MSG_LOG_READ_MULTI_SECTORS, sizeof(MSG_LOG_READ_MULTI_SECTORS));
+  unsigned int read_result = skytraq_wr_msg_verify((uint8_t*)&MSG_LOG_READ_MULTI_SECTORS, sizeof(MSG_LOG_READ_MULTI_SECTORS));
   if (read_result != res_OK) {
     return read_result;
   }
@@ -1010,7 +1047,7 @@ skytraq_read_multiple_sectors(int first_sector, unsigned int sector_count, uint8
   }
   rd_buf(buf+SECTOR_SIZE*sector_count, sizeof(SECTOR_READ_END)+6);
 
-  buf_end_tag = buf + SECTOR_SIZE*sector_count;
+  uint8_t* buf_end_tag = buf + SECTOR_SIZE*sector_count;
   for (i = 0; i < sizeof(SECTOR_READ_END); i++) {
     if (buf_end_tag[i] != SECTOR_READ_END[i]) {
       db(1, MYNAME ": Wrong end tag: got 0x%02x ('%c'), expected 0x%02x ('%c')\n",
@@ -1020,7 +1057,7 @@ skytraq_read_multiple_sectors(int first_sector, unsigned int sector_count, uint8
     }
   }
 
-  cs = skytraq_calc_checksum(buf, SECTOR_SIZE*sector_count);
+  unsigned int cs = skytraq_calc_checksum(buf, SECTOR_SIZE*sector_count);
   if (cs != buf_end_tag[sizeof(SECTOR_READ_END)]) {
     db(1, MYNAME ": Checksum error while reading sector: got 0x%02x, expected 0x%02x\n",
        buf_end_tag[sizeof(SECTOR_READ_END)], cs);
@@ -1031,18 +1068,17 @@ skytraq_read_multiple_sectors(int first_sector, unsigned int sector_count, uint8
 }
 
 static void
-skytraq_read_tracks(void)
+skytraq_read_tracks()
 {
   struct read_state st;
   uint32_t log_wr_ptr;
   uint16_t sectors_free, sectors_total, /*sectors_used_a, sectors_used_b,*/ sectors_used;
-  int i, t, s, rc, got_sectors, total_sectors_read = 0;
+  int t, rc, got_sectors, total_sectors_read = 0;
   int read_at_once = MAX(atoi(opt_read_at_once), 1);
   int opt_first_sector_val = atoi(opt_first_sector);
   int opt_last_sector_val = atoi(opt_last_sector);
   int multi_read_supported = 1;
-  uint8_t* buffer = NULL;
-  gbfile* dumpfile = NULL;
+  gbfile* dumpfile = nullptr;
 
   state_init(&st);
 
@@ -1081,7 +1117,7 @@ skytraq_read_tracks(void)
     }
   }
 
-  buffer = (uint8_t*) xmalloc(SECTOR_SIZE*read_at_once+sizeof(SECTOR_READ_END)+6);
+  uint8_t* buffer = (uint8_t*) xmalloc(SECTOR_SIZE*read_at_once+sizeof(SECTOR_READ_END)+6);
   // m.ad/090930: removed code that tried reducing read_at_once if necessary since doesn't work with xmalloc
 
   if (opt_dump_file) {
@@ -1091,7 +1127,7 @@ skytraq_read_tracks(void)
   db(1, MYNAME ": Reading log data from device...\n");
   db(1, MYNAME ": start=%d used=%d\n", opt_first_sector_val, sectors_used);
   db(1, MYNAME ": opt_last_sector_val=%d\n", opt_last_sector_val);
-  for (i = opt_first_sector_val; i < sectors_used; i += got_sectors) {
+  for (int i = opt_first_sector_val; i < sectors_used; i += got_sectors) {
     for (t = 0, got_sectors = 0; (t < SECTOR_RETRIES) && (got_sectors <= 0); t++) {
       if (atoi(opt_read_at_once) == 0  ||  multi_read_supported == 0) {
         rc = skytraq_read_single_sector(i, buffer);
@@ -1138,7 +1174,7 @@ skytraq_read_tracks(void)
       continue;		// skip decoding
     }
 
-    for (s = 0; s < got_sectors; s++) {
+    for (int s = 0; s < got_sectors; s++) {
       db(4, MYNAME ": Decoding sector #%i...\n", i+s);
       rc = process_data_sector(&st, buffer+s*SECTOR_SIZE, SECTOR_SIZE);
       if (rc == 0) {
@@ -1162,7 +1198,7 @@ skytraq_read_tracks(void)
 }
 
 static int
-skytraq_probe(void)
+skytraq_probe()
 {
   int baud_rates[] = { 9600, 230400, 115200, 57600, 4800, 19200, 38400 };
   int baud_rates_count = sizeof(baud_rates)/sizeof(baud_rates[0]);
@@ -1175,7 +1211,7 @@ skytraq_probe(void)
     uint8_t odm_ver[4];
     uint8_t revision[4];
   } MSG_SOFTWARE_VERSION;
-  int i, rc;
+  int rc;
 
   // TODO: get current serial port baud rate and try that first
   // (only sensible if init to 4800 can be disabled...)
@@ -1185,7 +1221,7 @@ skytraq_probe(void)
     baud_rates_count = 1;
   }
 
-  for (i = 0; i < baud_rates_count; i++) {
+  for (int i = 0; i < baud_rates_count; i++) {
     db(1, MYNAME ": Probing SkyTraq Venus at %ibaud...\n", baud_rates[i]);
 
     rd_drain();
@@ -1197,7 +1233,7 @@ skytraq_probe(void)
       }
     }
 
-    gb_sleep(50);		/* allow UART to settle. */
+    QThread::usleep(50);		/* allow UART to settle. */
 
     skytraq_wr_msg(MSG_QUERY_SOFTWARE_VERSION,	/* get firmware version */
                    sizeof(MSG_QUERY_SOFTWARE_VERSION));
@@ -1251,10 +1287,9 @@ skytraq_erase()
 }
 
 static void
-skytraq_set_location(void)
+skytraq_set_location()
 {
   double lat, lng;
-  unsigned int i;
   uint8_t MSG_SET_LOCATION[17] = { 0x36, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   uint8_t MSG_GET_LOCATION = 0x35;
 
@@ -1263,8 +1298,8 @@ skytraq_set_location(void)
   sscanf(opt_set_location, "%lf:%lf", &lat, &lng);
   le_write_double(&MSG_SET_LOCATION[1], lat);
   le_write_double(&MSG_SET_LOCATION[9], lng);
-  for (i=0; i<sizeof MSG_SET_LOCATION; i++) {
-    db(3, "%02x ", MSG_SET_LOCATION[i]);
+  for (unsigned char i : MSG_SET_LOCATION) {
+    db(3, "%02x ", i);
   }
   db(3, "\n");
   if (skytraq_wr_msg_verify((uint8_t*)&MSG_SET_LOCATION, sizeof(MSG_SET_LOCATION)) != res_OK) {
@@ -1284,7 +1319,7 @@ skytraq_set_location(void)
 static void
 skytraq_rd_init(const QString& fname)
 {
-  if ((serial_handle = gbser_init(qPrintable(fname))) == NULL) {
+  if ((serial_handle = gbser_init(qPrintable(fname))) == nullptr) {
     fatal(MYNAME ": Can't open port '%s'\n", qPrintable(fname));
   }
   if ((skytraq_baud = skytraq_probe()) <= 0) {
@@ -1293,17 +1328,15 @@ skytraq_rd_init(const QString& fname)
 }
 
 static void
-skytraq_rd_deinit(void)
+skytraq_rd_deinit()
 {
   gbser_deinit(serial_handle);
-  serial_handle = NULL;
+  serial_handle = nullptr;
 }
 
 static void
-skytraq_read(void)
+skytraq_read()
 {
-  int dlbaud;
-
   if (opt_set_location) {
     skytraq_set_location();
     return;
@@ -1314,13 +1347,13 @@ skytraq_read(void)
     return;
   }
 
-  dlbaud = atoi(opt_dlbaud);
+  int dlbaud = atoi(opt_dlbaud);
   if (dlbaud != 0  &&  dlbaud != skytraq_baud) {
     skytraq_set_baud(dlbaud);
   }
 
   // read device unless no-output=1 and dump-file=0 (i.e. no data needed at all)
-  if (*opt_no_output == '0'  ||  opt_dump_file != NULL) {
+  if (*opt_no_output == '0'  ||  opt_dump_file != nullptr) {
     skytraq_read_tracks();
   }
 
@@ -1338,31 +1371,29 @@ static void
 file_init(const QString& fname)
 {
   db(1, "Opening file...\n");
-  if ((file_handle = gbfopen(fname, "rb", MYNAME)) == NULL) {
+  if ((file_handle = gbfopen(fname, "rb", MYNAME)) == nullptr) {
     fatal(MYNAME ": Can't open file '%s'\n", qPrintable(fname));
   }
 }
 
 static void
-file_deinit(void)
+file_deinit()
 {
   db(1, "Closing file...\n");
   gbfclose(file_handle);
-  file_handle = NULL;
+  file_handle = nullptr;
 }
 
 static void
-file_read(void)
+file_read()
 {
   struct read_state st;
-  int rc, got_bytes;
+  int got_bytes;
   int opt_first_sector_val = atoi(opt_first_sector);
   int opt_last_sector_val = atoi(opt_last_sector);
-  int sectors_read;
-  uint8_t* buffer;
 
   state_init(&st);
-  buffer = (uint8_t*) xmalloc(SECTOR_SIZE);
+  uint8_t* buffer = (uint8_t*) xmalloc(SECTOR_SIZE);
 
   if (opt_first_sector_val > 0) {
     db(4, MYNAME ": Seeking to first-sector index %i\n", opt_first_sector_val*SECTOR_SIZE);
@@ -1370,10 +1401,10 @@ file_read(void)
   }
 
   db(1, MYNAME ": Reading log data from file...\n");
-  sectors_read = 0;
+  int sectors_read = 0;
   while ((got_bytes = gbfread(buffer, 1, SECTOR_SIZE, file_handle)) > 0) {
     db(4, MYNAME ": Decoding sector #%i...\n", sectors_read++);
-    rc = process_data_sector(&st, buffer, got_bytes);
+    int rc = process_data_sector(&st, buffer, got_bytes);
     if (opt_last_sector_val < 0) {
       if (rc < (4096-FULL_ITEM_LEN)) {
         db(1, MYNAME ": Empty sector encountered, terminating.\n");
@@ -1400,14 +1431,16 @@ ff_vecs_t skytraq_vecs = {
     ff_cap_none 			/* routes */
   },
   skytraq_rd_init,
-  NULL,
+  nullptr,
   skytraq_rd_deinit,
-  NULL,
+  nullptr,
   skytraq_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   skytraq_args,
   CET_CHARSET_UTF8, 1         /* master process: don't convert anything */
+ , NULL_POS_OPS,
+ nullptr
 };
 
 ff_vecs_t skytraq_fvecs = {
@@ -1418,14 +1451,16 @@ ff_vecs_t skytraq_fvecs = {
     ff_cap_none 			/* routes */
   },
   file_init,
-  NULL,
+  nullptr,
   file_deinit,
-  NULL,
+  nullptr,
   file_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   skytraq_fargs,
   CET_CHARSET_UTF8, 1         /* master process: don't convert anything */
+ , NULL_POS_OPS,
+ nullptr
 };
 /**************************************************************************/
 /*
@@ -1437,25 +1472,25 @@ ff_vecs_t skytraq_fvecs = {
 #undef MYNAME
 #endif
 #define MYNAME "miniHomer"
-static char* opt_set_poi_home = NULL;	/* set if a "poi" option was used */
-static char* opt_set_poi_car = NULL;	/* set if a "poi" option was used */
-static char* opt_set_poi_boat = NULL;	/* set if a "poi" option was used */
-static char* opt_set_poi_heart = NULL;	/* set if a "poi" option was used */
-static char* opt_set_poi_bar = NULL;	/* set if a "poi" option was used */
-arglist_t miniHomer_args[] = {
-  { "baud",         &opt_dlbaud,        "Baud rate used for download", "115200", ARGTYPE_INT, "0", "115200" },
-  { "dump-file",    &opt_dump_file,     "Dump raw data to this file", NULL, ARGTYPE_OUTFILE, ARG_NOMINMAX },
-  { "erase",        &opt_erase,         "Erase device data after download", "0", ARGTYPE_BOOL, ARG_NOMINMAX },
-  { "first-sector", &opt_first_sector,  "First sector to be read from the device", "0", ARGTYPE_INT, "0", "65535" },
-  { "initbaud",     &opt_initbaud,      "Baud rate used to init device (0=autodetect)", "38400", ARGTYPE_INT, "38400", "38400" },
-  { "last-sector",  &opt_last_sector,   "Last sector to be read from the device (-1: smart read everything)", "-1", ARGTYPE_INT, "-1", "65535" },
-  { "no-output",    &opt_no_output,     "Disable output (useful with erase)", "0", ARGTYPE_BOOL, ARG_NOMINMAX },
-  { "read-at-once", &opt_read_at_once,  "Number of sectors to read at once (0=use single sector mode)", "255", ARGTYPE_INT, "0", "255" },
-  { "Home",         &opt_set_poi_home,  "POI for Home Symbol as lat:lng[:alt]", NULL, ARGTYPE_STRING, "", "" },
-  { "Car",          &opt_set_poi_car,   "POI for Car Symbol as lat:lng[:alt]", NULL, ARGTYPE_STRING, "", "" },
-  { "Boat",         &opt_set_poi_boat,  "POI for Boat Symbol as lat:lng[:alt]", NULL, ARGTYPE_STRING, "", "" },
-  { "Heart",        &opt_set_poi_heart, "POI for Heart Symbol as lat:lng[:alt]", NULL, ARGTYPE_STRING, "", "" },
-  { "Bar",          &opt_set_poi_bar,   "POI for Bar Symbol as lat:lng[:alt]", NULL, ARGTYPE_STRING, "", "" },
+static char* opt_set_poi_home = nullptr;	/* set if a "poi" option was used */
+static char* opt_set_poi_car = nullptr;	/* set if a "poi" option was used */
+static char* opt_set_poi_boat = nullptr;	/* set if a "poi" option was used */
+static char* opt_set_poi_heart = nullptr;	/* set if a "poi" option was used */
+static char* opt_set_poi_bar = nullptr;	/* set if a "poi" option was used */
+static arglist_t miniHomer_args[] = {
+  { "baud",         &opt_dlbaud,        "Baud rate used for download", "115200", ARGTYPE_INT, "0", "115200", nullptr },
+  { "dump-file",    &opt_dump_file,     "Dump raw data to this file", nullptr, ARGTYPE_OUTFILE, ARG_NOMINMAX, nullptr },
+  { "erase",        &opt_erase,         "Erase device data after download", "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
+  { "first-sector", &opt_first_sector,  "First sector to be read from the device", "0", ARGTYPE_INT, "0", "65535", nullptr },
+  { "initbaud",     &opt_initbaud,      "Baud rate used to init device (0=autodetect)", "38400", ARGTYPE_INT, "38400", "38400", nullptr },
+  { "last-sector",  &opt_last_sector,   "Last sector to be read from the device (-1: smart read everything)", "-1", ARGTYPE_INT, "-1", "65535", nullptr },
+  { "no-output",    &opt_no_output,     "Disable output (useful with erase)", "0", ARGTYPE_BOOL, ARG_NOMINMAX, nullptr },
+  { "read-at-once", &opt_read_at_once,  "Number of sectors to read at once (0=use single sector mode)", "255", ARGTYPE_INT, "0", "255", nullptr },
+  { "Home",         &opt_set_poi_home,  "POI for Home Symbol as lat:lng[:alt]", nullptr, ARGTYPE_STRING, "", "", nullptr },
+  { "Car",          &opt_set_poi_car,   "POI for Car Symbol as lat:lng[:alt]", nullptr, ARGTYPE_STRING, "", "", nullptr },
+  { "Boat",         &opt_set_poi_boat,  "POI for Boat Symbol as lat:lng[:alt]", nullptr, ARGTYPE_STRING, "", "", nullptr },
+  { "Heart",        &opt_set_poi_heart, "POI for Heart Symbol as lat:lng[:alt]", nullptr, ARGTYPE_STRING, "", "", nullptr },
+  { "Bar",          &opt_set_poi_bar,   "POI for Bar Symbol as lat:lng[:alt]", nullptr, ARGTYPE_STRING, "", "", nullptr },
   ARG_TERMINATOR
 };
 /*
@@ -1465,7 +1500,8 @@ static const char* poinames[] = {
   "Home", "Car", "Boat", "Heart", "Bar"
 };
 #define NUMPOI (sizeof poinames/sizeof poinames[0])
-int getPoiByName(char* name)
+#ifdef DEAD_CODE_IS_REBORN
+static int getPoiByName(char* name)
 {
   unsigned int i;
   for (i=0; i<NUMPOI; i++) {
@@ -1475,25 +1511,23 @@ int getPoiByName(char* name)
   }
   return -1;
 }
+#endif
 // Convert lla (lat, lng, alt) to ECEF
 // Algorith taken from these sources:
 // http://www.mathworks.com/matlabcentral/fileexchange/7942-covert-lat-lon-alt-to-ecef-cartesian
 // http://en.wikipedia.org/wiki/Geodetic_system#From_ECEF_to_geodetic
 // http://earth-info.nga.mil/GandG/publications/tr8350.2/wgs84fin.pdf
-void lla2ecef(double lat, double lng, double alt, double* ecef_x, double* ecef_y, double* ecef_z)
+static void lla2ecef(double lat, double lng, double alt, double* ecef_x, double* ecef_y, double* ecef_z)
 {
-  long double n;
   long double a = 6378137.0;
   long double esqr = 6.69437999014e-3;
-  long double s;
-  long double llat, llng, lalt;
 
-  llat=lat*M_PI/180;
-  llng=lng*M_PI/180;
-  lalt=alt;
+  long double llat = lat*M_PI/180;
+  long double llng = lng*M_PI/180;
+  long double lalt = alt;
 
-  s=sin(llat);
-  n = a / sqrt(1 - esqr * s*s);
+  long double s = sin(llat);
+  long double n = a / sqrt(1 - esqr * s*s);
 
   *ecef_x = (double)((n+lalt) * cos(llat) * cos(llng));
   *ecef_y = (double)((n+lalt) * cos(llat) * sin(llng));
@@ -1503,21 +1537,18 @@ static void miniHomer_get_poi()
 {
   uint8_t MSG_GET_POI[3] = { 0x4D, 0, 0};
   uint8_t buf[32];
-  unsigned int poi;
   double lat, lng, alt;
-  double ecef_x, ecef_y, ecef_z;
-  Waypoint* wpt;
 
-  for (poi=0; poi<NUMPOI; poi++) {
+  for (unsigned int poi = 0; poi<NUMPOI; poi++) {
     MSG_GET_POI[1]=(poi>>8)&0xff;
     MSG_GET_POI[2]=(poi)&0xff;
     if (skytraq_wr_msg_verify((uint8_t*)&MSG_GET_POI, sizeof(MSG_GET_POI)) != res_OK) {
       warning(MYNAME ": cannot read poi %d '%s'\n", poi, poinames[poi]);
     }
     skytraq_rd_msg(buf, 25);
-    ecef_x=be_read_double(buf+1);
-    ecef_y=be_read_double(buf+9);
-    ecef_z=be_read_double(buf+17);
+    double ecef_x = be_read_double(buf+1);
+    double ecef_y = be_read_double(buf+9);
+    double ecef_z = be_read_double(buf+17);
 
     // todo - how to determine not-set POIs ?
     if (ecef_x < 100.0 && ecef_y < 100.0 && ecef_z < 100.0) {
@@ -1525,7 +1556,7 @@ static void miniHomer_get_poi()
     } else {
       ECEF_to_LLA(ecef_x, ecef_y, ecef_z, &lat, &lng, &alt);
 
-      wpt = new Waypoint;
+      Waypoint* wpt = new Waypoint;
       wpt->shortname      = QString().sprintf("POI_%s", poinames[poi]);
       wpt->description    = QString().sprintf("miniHomer points to this coordinates if the %s symbol is on", poinames[poi]);
       wpt->latitude       = lat;
@@ -1554,12 +1585,11 @@ static int miniHomer_set_poi(uint16_t poinum, const char* opt_poi)
     0, 0, 0, 0, 0, 0, 0, 0,	//alt (double ecef)
     0 			// attr (u8, 1-> to flash, 0->ro sram)
   };
-  int n, result;
   double lat, lng, alt;
   double ecef_x, ecef_y, ecef_z;
 
 
-  result=0;		// result will be 0 if opt_poi isn't set
+  int result = 0;		// result will be 0 if opt_poi isn't set
   if (opt_poi) { 	// first check opt_poi
     if (*opt_poi) {
       lat=lng=alt=0.0;
@@ -1567,7 +1597,7 @@ static int miniHomer_set_poi(uint16_t poinum, const char* opt_poi)
        * parse format of <lat>:<lng>[:alt]
        * we assume at least two elements in the value string
        */
-      n = sscanf(opt_poi, "%lf:%lf:%lf", &lat, &lng, &alt);
+      int n = sscanf(opt_poi, "%lf:%lf:%lf", &lat, &lng, &alt);
       if (n >= 2) {
         db(3, "found %d elems '%s':poi=%s@%d, lat=%f, lng=%f, alt=%f over=%s\n", n, opt_poi, poinames[poinum], poinum, lat, lng, alt);
         lla2ecef(lat, lng, alt, &ecef_x, &ecef_y, &ecef_z);
@@ -1595,19 +1625,19 @@ static QString mhport;
 static void
 miniHomer_rd_init(const QString& fname)
 {
-  opt_set_location=NULL;	// otherwise it will lead to bus error
+  opt_set_location=nullptr;	// otherwise it will lead to bus error
   skytraq_rd_init(fname);	// sets global var serial_handle
   mhport=fname;
 }
 static void
-miniHomer_rd_deinit(void)
+miniHomer_rd_deinit()
 {
   skytraq_rd_deinit();
   mhport.clear();
 }
 #define SETPOI(poinum, poiname) if (opt_set_poi_##poiname )  {miniHomer_set_poi(poinum, opt_set_poi_##poiname);}
 static void
-miniHomer_read(void)
+miniHomer_read()
 {
   int npoi=0;
   /*
@@ -1646,13 +1676,14 @@ ff_vecs_t miniHomer_vecs = {
     ff_cap_none 			/* routes */
   },
   miniHomer_rd_init,
-  NULL,
+  nullptr,
   miniHomer_rd_deinit,
-  NULL,
+  nullptr,
   miniHomer_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   miniHomer_args,
-  CET_CHARSET_UTF8, 1         /* master process: don't convert anything */
-
+  CET_CHARSET_UTF8, 1,         /* master process: don't convert anything */
+  NULL_POS_OPS,
+  nullptr
 };

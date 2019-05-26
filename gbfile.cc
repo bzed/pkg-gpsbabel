@@ -24,9 +24,9 @@
 #include "gbfile.h"
 #include "src/core/logging.h"
 
-#include <assert.h>
-#include <stdarg.h> // for va_copy
-#include <stdio.h>
+#include <cassert>
+#include <cstdarg> // for va_copy
+#include <cstdio>
 
 #if __WIN32__
 /* taken from minigzip.c (part of the zlib project) */
@@ -70,7 +70,7 @@ gzapi_open(gbfile* self, const char* mode)
   /* under non-posix systems files MUST be opened in binary mode */
 
   strcpy(openmode, mode);
-  if (strchr(mode, 'b') == NULL) {
+  if (strchr(mode, 'b') == nullptr) {
     strncat(openmode, "b", sizeof(openmode) - strlen(openmode) - 1);
   }
 
@@ -84,10 +84,17 @@ gzapi_open(gbfile* self, const char* mode)
     SET_BINARY_MODE(fd);
     self->handle.gz = gzdopen(fileno(fd), openmode);
   } else {
-    self->handle.gz = gzopen(self->name, openmode);
+#if __WIN32__
+    // On Windows, convert UTF-8 to wchar_t[] and use gzopen_w().
+    QString name(self->name);
+    self->handle.gz = gzopen_w((const wchar_t*) name.utf16(), openmode);
+#else
+    // On other platforms, convert to native locale (UTF-8 or other 8-bit).
+    self->handle.gz = gzopen(qPrintable(QString(self->name)), openmode);
+#endif
   }
 
-  if (self->handle.gz == NULL) {
+  if (self->handle.gz == nullptr) {
     fatal("%s: Cannot %s file '%s'!\n",
           self->module,
           (self->mode == 'r') ? "open" : "create",
@@ -106,14 +113,12 @@ gzapi_close(gbfile* self)
 static int
 gzapi_seek(gbfile* self, int32_t offset, int whence)
 {
-  int result;
-
   assert(whence != SEEK_END);
 
   if ((whence == SEEK_CUR) && (self->back != -1)) {
     offset--;
   }
-  result = gzseek(self->handle.gz, offset, whence);
+  int result = gzseek(self->handle.gz, offset, whence);
   self->back = -1;
 
   if (result < 0) {
@@ -149,9 +154,8 @@ gzapi_read(void* buf, const gbsize_t size, const gbsize_t members, gbfile* self)
 
   if ((result < 0) || ((gbsize_t)result < members)) {
     int errnum;
-    const char* errtxt;
 
-    errtxt = gzerror(self->handle.gz, &errnum);
+    const char* errtxt = gzerror(self->handle.gz, &errnum);
 
     /* Workaround for zlib bug: buffer error on empty files */
     if ((errnum == Z_BUF_ERROR) && (gztell(self->handle.gz) == 0)) {
@@ -179,9 +183,7 @@ gzapi_flush(gbfile* self)
 static gbsize_t
 gzapi_tell(gbfile* self)
 {
-  gbsize_t result;
-
-  result = gztell(self->handle.gz);
+  gbsize_t result = gztell(self->handle.gz);
   if (self->back != -1) {
     result--;
   }
@@ -266,14 +268,13 @@ stdapi_close(gbfile* self)
 static int
 stdapi_seek(gbfile* self, int32_t offset, int whence)
 {
-  int result;
   gbsize_t pos = 0;
 
   if (whence != SEEK_SET) {
     pos = ftell(self->handle.std);
   }
 
-  result = fseek(self->handle.std, offset, whence);
+  int result = fseek(self->handle.std, offset, whence);
   if (result != 0) {
     switch (whence) {
     case SEEK_CUR:
@@ -360,7 +361,7 @@ memapi_open(gbfile* self, const char* mode)
 
   self->mempos = 0;
   self->memsz = 0;
-  self->handle.mem = NULL;
+  self->handle.mem = nullptr;
 
   return self;
 }
@@ -401,13 +402,12 @@ memapi_seek(gbfile* self, int32_t offset, int whence)
 static gbsize_t
 memapi_read(void* buf, const gbsize_t size, const gbsize_t members, gbfile* self)
 {
-  gbsize_t count;
   gbsize_t result = (self->memlen - self->mempos) / size;
 
   if (result > members) {
     result = members;
   }
-  count = result * size;
+  gbsize_t count = result * size;
   if (count) {
     memcpy(buf, self->handle.mem + self->mempos, count);
     self->mempos += count;
@@ -419,14 +419,12 @@ memapi_read(void* buf, const gbsize_t size, const gbsize_t members, gbfile* self
 static gbsize_t
 memapi_write(const void* buf, const gbsize_t size, const gbsize_t members, gbfile* self)
 {
-  gbsize_t count;
-
   if ((size == 0) && (members == 0)) {	/* truncate stream */
     self->memlen = self->mempos;
     return 0;
   }
 
-  count = size * members;
+  gbsize_t count = size * members;
 
   if (self->mempos + count > self->memsz) {
     self->memsz = ((self->mempos + count + 4095) / 4096) * 4096;
@@ -476,7 +474,6 @@ static void
 memapi_clearerr(gbfile* self)
 {
   (void)self;
-  return;
 }
 
 static int
@@ -494,21 +491,17 @@ memapi_error(gbfile* self)
  */
 
 gbfile*
-gbfopen(const QString filename, const char* mode, const char* module)
+gbfopen(const QString& filename, const char* mode, const char* module)
 {
-  gbfile* file;
-  const char* m;
-  int len;
-
-  file = (gbfile*) xcalloc(1, sizeof(*file));
+  gbfile* file = (gbfile*) xcalloc(1, sizeof(*file));
 
   file->module = xstrdup(module);
   file->mode = 'r'; // default
-  file->binary = (strchr(mode, 'b') != NULL);
+  file->binary = (strchr(mode, 'b') != nullptr);
   file->back = -1;
-  file->memapi = (filename == NULL);
+  file->memapi = (filename == nullptr);
 
-  for (m = mode; *m; m++) {
+  for (const char* m = mode; *m; m++) {
     switch (tolower(*m)) {
     case 'r':
       file->mode = 'r';
@@ -538,12 +531,11 @@ gbfopen(const QString filename, const char* mode, const char* module)
     file->fileungetc = memapi_ungetc;
     file->filewrite = memapi_write;
   } else {
-    /* Be careful to convert back to local8Bit for these c based APIS */
-    file->name = xstrdup(qPrintable(filename));
+    file->name = xstrdup(filename);
     file->is_pipe = (filename == "-");
 
     /* Do we have a '.gz' extension in the filename ? */
-    len = strlen(file->name);
+    int len = strlen(file->name);
     if ((len > 3) && (case_ignore_strcmp(&file->name[len-3], ".gz") == 0)) {
 #if !ZLIB_INHIBITED
       /* force gzipped files on output */
@@ -588,11 +580,7 @@ gbfopen(const QString filename, const char* mode, const char* module)
 
   file->fileopen(file, mode);
 
-#ifdef DEBUG_MEM
-  file->buffsz = 1;
-#else
   file->buffsz = 256;
-#endif
   file->buff = (char*) xmalloc(file->buffsz);
 
   return file;
@@ -603,11 +591,9 @@ gbfopen(const QString filename, const char* mode, const char* module)
  */
 
 gbfile*
-gbfopen_be(const QString filename, const char* mode, const char* module)
+gbfopen_be(const QString& filename, const char* mode, const char* module)
 {
-  gbfile* result;
-
-  result = gbfopen(filename, mode, module);
+  gbfile* result = gbfopen(filename, mode, module);
   result->big_endian = 1;
 
   return result;
@@ -761,10 +747,9 @@ int
 gbfprintf(gbfile* file, const char* format, ...)
 {
   va_list args;
-  int result;
 
   va_start(args, format);
-  result = gbvfprintf(file, format, args);
+  int result = gbvfprintf(file, format, args);
   va_end(args);
 
   return result;
@@ -805,9 +790,7 @@ gbfputs(const QString& s, gbfile* file)
 int
 gbfwrite(const void* buf, const gbsize_t size, const gbsize_t members, gbfile* file)
 {
-  unsigned int result;
-
-  result = file->filewrite(buf, size, members, file);
+  unsigned int result = file->filewrite(buf, size, members, file);
   if (result != members) {
     fatal("%s: Could not write %lld bytes to %s (result %d)!\n",
           file->module,
@@ -982,7 +965,6 @@ gbfgetflt(gbfile* file)
 char*
 gbfgetcstr_old(gbfile* file)
 {
-  char* result;
   int len = 0;
   char* str = file->buff;
 
@@ -1001,7 +983,7 @@ gbfgetcstr_old(gbfile* file)
     len++;
   }
 
-  result = (char*) xmalloc(len + 1);
+  char* result = (char*) xmalloc(len + 1);
   if (len > 0) {
     memcpy(result, str, len);
   }
@@ -1043,16 +1025,14 @@ gbfgetucs2str(gbfile* file)
 
   for (;;) {
     char buff[8];
-    int clen;
-    int c0, c1;
 
-    c0 = gbfgetc(file);
+    int c0 = gbfgetc(file);
     if ((c0 == EOF) && (len == 0)) {
-      return NULL;
+      return nullptr;
     }
-    c1 = gbfgetc(file);
+    int c1 = gbfgetc(file);
     if ((c1 == EOF) && (len == 0)) {
-      return NULL;
+      return nullptr;
     }
 
     if (file->big_endian) {
@@ -1065,11 +1045,11 @@ gbfgetucs2str(gbfile* file)
 
       c0 = gbfgetc(file);
       if ((c0 == EOF) && (len == 0)) {
-        return NULL;
+        return nullptr;
       }
       c1 = gbfgetc(file);
       if ((c1 == EOF) && (len == 0)) {
-        return NULL;
+        return nullptr;
       }
 
       if (file->big_endian) {
@@ -1085,10 +1065,10 @@ gbfgetucs2str(gbfile* file)
       break;
     }
 
-    clen = cet_ucs4_to_utf8(buff, sizeof(buff), c0);
+    int clen = cet_ucs4_to_utf8(buff, sizeof(buff), c0);
     if (clen < 1) {
       Warning() << "Malformed UCS character" << c0 << "found.";
-      return NULL;
+      return nullptr;
     }
 
     if (len+clen >= file->buffsz) {
@@ -1123,7 +1103,7 @@ gbfgetstr(gbfile* file)
 
     if ((c == EOF) || (c == 0x1A)) {
       if (len == 0) {
-        return NULL;
+        return nullptr;
       }
       break;
     } else if (c == '\r') {
@@ -1135,10 +1115,9 @@ gbfgetstr(gbfile* file)
     } else if (c == '\n') {
       break;
     } else if (((c == 0xFE) || (c == 0xFF)) && (! file->unicode_checked)) {
-      int cx;
       int c1 = gbfgetc(file);
       if (c1 != EOF) {
-        cx = c | (c1 << 8);
+        int cx = c | (c1 << 8);
         if (cx == 0xFEFF) {
           file->unicode = 1;
           file->big_endian = 0;

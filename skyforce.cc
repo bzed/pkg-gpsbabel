@@ -23,9 +23,9 @@
 
 
 #include "defs.h"
-#include <math.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 #define MYNAME "skyforce"
 
@@ -44,13 +44,11 @@ static const Waypoint* prev_wpt;
 static Waypoint*
 skyforce_parse_coords(const char* str)
 {
-  Waypoint* wpt;
-
   if (strlen(str) < 38) {
     fatal(MYNAME ": Incomplete line!\n");
   }
 
-  wpt = new Waypoint;
+  Waypoint* wpt = new Waypoint;
 
   wpt->latitude = atof(str + 21);
   if (str[20] == 'S') {
@@ -71,11 +69,9 @@ skyforce_parse_coords(const char* str)
 static Waypoint*
 skyforce_parse_wpt(const char* str, int* rte_num)
 {
-  Waypoint* wpt;
-
-  wpt = skyforce_parse_coords(str);
-  if (wpt == NULL) {
-    return NULL;
+  Waypoint* wpt = skyforce_parse_coords(str);
+  if (wpt == nullptr) {
+    return nullptr;
   }
 
   // The line has fixed columns and starts like:
@@ -95,13 +91,10 @@ static Waypoint*
 skyforce_parse_trk(const char* str)
 {
   char buf[15];
-  int len;
 
-  Waypoint* wpt;
-
-  wpt = skyforce_parse_coords(str);
-  if (wpt == NULL) {
-    return NULL;
+  Waypoint* wpt = skyforce_parse_coords(str);
+  if (wpt == nullptr) {
+    return nullptr;
   }
   strncpy(buf, str + 2, sizeof(buf) - 1);
   buf[14] = 0;
@@ -111,7 +104,7 @@ skyforce_parse_trk(const char* str)
   dt = dt.addYears(100);
 
   wpt->SetCreationTime(dt);
-  len = strlen(str);
+  int len = strlen(str);
 
   if (len >= 45) {
     WAYPT_SET(wpt, speed, KNOTS_TO_MPS(atof(str + 39)));
@@ -130,7 +123,7 @@ skyforce_parse_trk(const char* str)
 static void
 skyforce_head_disp_cb(const route_head* head)
 {
-  prev_wpt = NULL;
+  prev_wpt = nullptr;
   if (head->rte_waypt_ct <= 0) {
     return;
   }
@@ -151,7 +144,6 @@ static void
 skyforce_waypt_disp_cb(const Waypoint* wpt)
 {
   char buf[75];	/* long enough for all data types */
-  double lat, lon;
 
 
   memset(buf, ' ', sizeof(buf));
@@ -202,23 +194,23 @@ skyforce_waypt_disp_cb(const Waypoint* wpt)
   }
 
 
-  lat = degrees2ddmm(wpt->latitude);
+  double lat = degrees2ddmm(wpt->latitude);
   buf[20] = (wpt->latitude < 0) ? 'S' : 'N';
   snprintf(&buf[21], sizeof(buf) - 21, "%06.2f ", fabs(lat));
 
-  lon = degrees2ddmm(wpt->longitude);
+  double lon = degrees2ddmm(wpt->longitude);
   buf[29] = (wpt->longitude < 0) ? 'W' : 'E';
   snprintf(&buf[30], sizeof(buf) - 30, "%08.2f ", fabs(lon));
 
   if (global_opts.objective == trkdata) {
-    double alt, speed;
+    double alt;
 
     if (wpt->altitude == unknown_alt) {
       alt = 0;
     } else {
       alt = METERS_TO_FEET(wpt->altitude);
     }
-    speed = MPS_TO_KNOTS(waypt_speed(prev_wpt, wpt));
+    double speed = MPS_TO_KNOTS(waypt_speed(prev_wpt, wpt));
 
     snprintf(&buf[39], sizeof(buf) - 39, "%06.2f 000.00 %c%05d",
              speed,
@@ -243,20 +235,20 @@ skyforce_rd_init(const QString& fname)
 
 
 static void
-skyforce_rd_deinit(void)
+skyforce_rd_deinit()
 {
   gbfclose(fin);
 }
 
 
 static void
-skyforce_read(void)
+skyforce_read()
 {
   char* str;
-  route_head* rte, *trk;
 
   wpt_num = 0;
-  rte = trk = NULL;
+  route_head* rte = nullptr;
+  route_head* trk = nullptr;
   rte_num = -1;
 
   while ((str = gbfgetstr(fin))) {
@@ -272,8 +264,8 @@ skyforce_read(void)
     switch (*str) {
 
     case 'W':
-      wpt = skyforce_parse_wpt(str, NULL);
-      if (wpt == NULL) {
+      wpt = skyforce_parse_wpt(str, nullptr);
+      if (wpt == nullptr) {
         continue;
       }
       waypt_add(wpt);
@@ -281,16 +273,16 @@ skyforce_read(void)
 
     case 'R':
       wpt = skyforce_parse_wpt(str, &i);
-      if (wpt == NULL) {
+      if (wpt == nullptr) {
         continue;
       }
 
       if (i != rte_num) {
         rte_num = i;
-        rte = NULL;
+        rte = nullptr;
       }
 
-      if (rte == NULL) {
+      if (rte == nullptr) {
         rte = route_head_alloc();
         route_add_head(rte);
         rte->rte_num = rte_num;
@@ -300,10 +292,10 @@ skyforce_read(void)
 
     case 'L':
       wpt = skyforce_parse_trk(str);
-      if (wpt == NULL) {
+      if (wpt == nullptr) {
         continue;
       }
-      if (trk == NULL) {
+      if (trk == nullptr) {
         trk = route_head_alloc();
         track_add_head(trk);
       }
@@ -337,7 +329,7 @@ skyforce_wr_init(const QString& fname)
 
 
 static void
-skyforce_wr_deinit(void)
+skyforce_wr_deinit()
 {
   mkshort_del_handle(&short_h);
   gbfclose(fout);
@@ -345,7 +337,7 @@ skyforce_wr_deinit(void)
 
 
 static void
-skyforce_write(void)
+skyforce_write()
 {
   switch (global_opts.objective) {	/* We can only write one data type at a time */
 
@@ -357,11 +349,11 @@ skyforce_write(void)
   case rtedata:
     setshort_defname(short_h, "RTE");
     setshort_mustuniq(short_h, 0);
-    route_disp_all(skyforce_head_disp_cb, NULL, skyforce_waypt_disp_cb);
+    route_disp_all(skyforce_head_disp_cb, nullptr, skyforce_waypt_disp_cb);
     break;
 
   case trkdata:
-    track_disp_all(skyforce_head_disp_cb, NULL, skyforce_waypt_disp_cb);
+    track_disp_all(skyforce_head_disp_cb, nullptr, skyforce_waypt_disp_cb);
     break;
 
   case posndata:
@@ -385,9 +377,11 @@ ff_vecs_t skyforce_vecs = {
   skyforce_wr_deinit,
   skyforce_read,
   skyforce_write,
-  NULL,
+  nullptr,
   skyforce_args,
   CET_CHARSET_ASCII, 1
+  , NULL_POS_OPS,
+  nullptr
 };
 
 /**************************************************************************/

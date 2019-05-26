@@ -20,12 +20,21 @@
 
  */
 
-#include <ctype.h>
-#include <math.h>
-#include <string.h>
-#include <time.h>
+#include <cmath>                // for fabs
+#include <cstring>              // for memset
+
+#include <QtCore/QDate>         // for QDate
+#include <QtCore/QDateTime>     // for QDateTime
+#include <QtCore/QString>       // for QString
+#include <QtCore/QTime>         // for QTime
+#include <QtCore/Qt>            // for UTC
+#include <QtCore/QtGlobal>      // for foreach
+
 #include "defs.h"
-//#include "session.h"
+#include "gbfile.h"             // for gbfclose, gbfeof, gbfgetint32, gbfputint32, gbfread, gbfwrite, gbfile, gbfopen_le
+#include "session.h"            // for curr_session
+#include "src/core/datetime.h"  // for DateTime
+
 
 #define MYNAME "mapasia"
 
@@ -67,30 +76,26 @@ tr7_rd_init(const QString& fname)
 }
 
 static void
-tr7_read(void)
+tr7_read()
 {
-  route_head* trk = NULL;
-  unsigned int magic;
-  Waypoint* prev = NULL;
+  route_head* trk = nullptr;
+  Waypoint* prev = nullptr;
 
-  magic = gbfgetint32(fin);
+  unsigned int magic = gbfgetint32(fin);
   if (magic != TR7_TRACK_MAGIC) {
     fatal(MYNAME ": Invalid magic number in header (%X, but %X expected)!\n", magic, TR7_TRACK_MAGIC);
   }
 
   while (! gbfeof(fin)) {
     unsigned char buff[TR7_S_SIZE];
-    double lat, lon;
-    Waypoint* wpt;
-    float speed, course;
 
     gbfread(buff, 1, sizeof(buff), fin);
 
-    lat = (double)le_read32(&buff[TR7_S_LAT]) / 1000000.0;
-    lon = (double)le_read32(&buff[TR7_S_LON]) / 1000000.0;
+    double lat = (double)le_read32(&buff[TR7_S_LAT]) / 1000000.0;
+    double lon = (double)le_read32(&buff[TR7_S_LON]) / 1000000.0;
 
     if ((fabs(lat) > 90) || (fabs(lon) > 180)) {	/* that really happens */
-      trk = NULL;
+      trk = nullptr;
       continue;
     }
 
@@ -104,13 +109,13 @@ tr7_read(void)
       continue;
     }
 
-    speed = KPH_TO_MPS(le_read16(&buff[TR7_S_SPEED]));
-    course = 360 - le_read16(&buff[TR7_S_COURSE]);
+    float speed = KPH_TO_MPS(le_read16(&buff[TR7_S_SPEED]));
+    float course = 360 - le_read16(&buff[TR7_S_COURSE]);
     if ((speed < 0) || (course > 360) || (course < 0)) {
       continue;
     }
 
-    wpt = new Waypoint;
+    Waypoint* wpt = new Waypoint;
 
     wpt->latitude = lat;
     wpt->longitude = lon;
@@ -134,9 +139,9 @@ tr7_read(void)
 
     if (prev) {	/* other track or bad timestamp */
       if (wpt->creation_time.isValid() && (prev->creation_time.toTime_t() > wpt->creation_time.toTime_t())) {
-        trk = NULL;
+        trk = nullptr;
       } else if (waypt_distance(prev, wpt) > 9999.9) {
-        trk = NULL;
+        trk = nullptr;
       }
     }
 
@@ -171,9 +176,7 @@ tr7_check_after_read_wpt_cb(const Waypoint* wpt)
 static void
 tr7_check_after_read_trailer_cb(const route_head* trk)
 {
-  queue* elem, *tmp;
-  QUEUE_FOR_EACH((queue*)&trk->waypoint_list, elem, tmp) {
-    Waypoint* wpt = (Waypoint*)elem;
+  foreach (Waypoint* wpt, trk->waypoint_list) {
     if (speed_tmp == 0) {
       WAYPT_UNSET(wpt, speed);
     }
@@ -185,7 +188,7 @@ tr7_check_after_read_trailer_cb(const route_head* trk)
 }
 
 static void
-tr7_rd_deinit(void)
+tr7_rd_deinit()
 {
   track_disp_session(curr_session(),
                      tr7_check_after_read_head_cb,
@@ -199,9 +202,9 @@ tr7_rd_deinit(void)
 *******************************************************************************/
 
 static void
-tr7_disp_track_head_cb(const route_head* trk)
+tr7_disp_track_head_cb(const route_head*)
 {
-  wpt_tmp = NULL;
+  wpt_tmp = nullptr;
 }
 
 static void
@@ -217,7 +220,7 @@ tr7_disp_waypt_cb(const Waypoint* wpt)
 
   if WAYPT_HAS(wpt, course) {
     course = wpt->course;
-  } else if (wpt_tmp != NULL) {
+  } else if (wpt_tmp != nullptr) {
     course =  waypt_course(wpt_tmp, wpt);
   } else {
     course = -1;
@@ -241,7 +244,7 @@ tr7_disp_waypt_cb(const Waypoint* wpt)
 
     if WAYPT_HAS(wpt, speed) {
       speed = wpt->speed;
-    } else if (wpt_tmp != NULL) {
+    } else if (wpt_tmp != nullptr) {
       speed = waypt_speed(wpt_tmp, wpt);
     } else {
       speed = -1;
@@ -270,15 +273,15 @@ tr7_wr_init(const QString& fname)
 }
 
 static void
-tr7_wr_deinit(void)
+tr7_wr_deinit()
 {
   gbfclose(fout);
 }
 
 static void
-tr7_write(void)
+tr7_write()
 {
-  track_disp_all(tr7_disp_track_head_cb, NULL, tr7_disp_waypt_cb);
+  track_disp_all(tr7_disp_track_head_cb, nullptr, tr7_disp_waypt_cb);
 }
 
 /**************************************************************************/
@@ -296,9 +299,11 @@ ff_vecs_t mapasia_tr7_vecs = {		/* we can read and write tracks */
   tr7_wr_deinit,
   tr7_read,
   tr7_write,
-  NULL,
+  nullptr,
   tr7_args,
   CET_CHARSET_UTF8, 1	/* FIXED - CET-REVIEW - */
+  , NULL_POS_OPS,
+  nullptr
 
 };
 

@@ -20,8 +20,8 @@
  */
 
 #include "defs.h"
-#include "xmlgeneric.h"
 #include "src/core/file.h"
+#include "xmlgeneric.h"
 
 #include <QtCore/QXmlStreamAttributes>
 #include <QtCore/QXmlStreamWriter>
@@ -57,23 +57,23 @@ static xg_tag_mapping gl_map[] = {
   { gl_trk_long, cb_cdata, "/History/Run/Track/Trackpoint/Position/Longitude" },
   { gl_trk_alt,  cb_cdata, "/History/Run/Track/Trackpoint/Position/Altitude" },
   { gl_trk_utc,  cb_cdata, "/History/Run/Track/Trackpoint/Time" },
-  { NULL,	(xg_cb_type)0,         NULL}
+  { nullptr,	(xg_cb_type)0,         nullptr}
 };
 
 static void
 glogbook_rd_init(const QString& fname)
 {
-  xml_init(fname, gl_map, NULL);
+  xml_init(fname, gl_map, nullptr);
 }
 
 static void
-glogbook_read(void)
+glogbook_read()
 {
   xml_read();
 }
 
 static void
-glogbook_rd_deinit(void)
+glogbook_rd_deinit()
 {
   xml_deinit();
 }
@@ -88,69 +88,69 @@ glogbook_wr_init(const QString& fname)
 }
 
 static void
-glogbook_wr_deinit(void)
+glogbook_wr_deinit()
 {
   writer.writeEndDocument();
   gbfputs(ostring,ofd);
   gbfclose(ofd);
-  ofd = NULL;
+  ofd = nullptr;
 }
 
 static void
 glogbook_waypt_pr(const Waypoint* wpt)
 {
-  writer.writeStartElement("Trackpoint");
+  writer.writeStartElement(QStringLiteral("Trackpoint"));
 
-  writer.writeStartElement("Position");
-  writer.writeTextElement("Latitude", QString::number(wpt->latitude,'f', 5));
-  writer.writeTextElement("Longitude", QString::number(wpt->longitude,'f', 5));
-  writer.writeTextElement("Altitude", QString::number(wpt->altitude,'f', 3));
+  writer.writeStartElement(QStringLiteral("Position"));
+  writer.writeTextElement(QStringLiteral("Latitude"), QString::number(wpt->latitude,'f', 5));
+  writer.writeTextElement(QStringLiteral("Longitude"), QString::number(wpt->longitude,'f', 5));
+  writer.writeTextElement(QStringLiteral("Altitude"), QString::number(wpt->altitude,'f', 3));
   writer.writeEndElement(); // Position
 
-  writer.writeTextElement("Time", wpt->GetCreationTime().toPrettyString());
+  writer.writeTextElement(QStringLiteral("Time"), wpt->GetCreationTime().toPrettyString());
   writer.writeEndElement(); // Trackpoint
 }
 
 static void
-glogbook_hdr(const route_head* rte)
+glogbook_hdr(const route_head*)
 {
-  writer.writeStartElement("Track");
+  writer.writeStartElement(QStringLiteral("Track"));
 }
 
 static void
-glogbook_ftr(const route_head* rte)
+glogbook_ftr(const route_head*)
 {
   writer.writeEndElement();
 }
 
 static void
-glogbook_write(void)
+glogbook_write()
 {
 #if 0
   gbfprintf(ofd, "<?xml version=\"1.0\" ?>\n");
   gbfprintf(ofd, "<History xmlns=\"http://www.garmin.com/xmlschemas/ForerunnerLogbook\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.garmin.com/xmlschemas/ForerunnerLogbook http://www.garmin.com/xmlschemas/ForerunnerLogbookv1.xsd\" version=\"1\">\n");
   gbfprintf(ofd, "    <Run>\n");
 #else
-  writer.writeStartElement("History");
-  writer.writeStartElement("Run");
+  writer.writeStartElement(QStringLiteral("History"));
+  writer.writeStartElement(QStringLiteral("Run"));
 #endif
   track_disp_all(glogbook_hdr, glogbook_ftr, glogbook_waypt_pr);
   writer.writeEndElement(); // Run
   writer.writeEndElement(); // History
 }
 
-void	gl_trk_s(xg_string args, const QXmlStreamAttributes*)
+void	gl_trk_s(xg_string, const QXmlStreamAttributes*)
 {
   trk_head = route_head_alloc();
   track_add_head(trk_head);
 }
 
-void	gl_trk_pnt_s(xg_string args, const QXmlStreamAttributes*)
+void	gl_trk_pnt_s(xg_string, const QXmlStreamAttributes*)
 {
   wpt_tmp = new Waypoint;
 }
 
-void	gl_trk_pnt_e(xg_string args, const QXmlStreamAttributes*)
+void	gl_trk_pnt_e(xg_string, const QXmlStreamAttributes*)
 {
   track_add_wpt(trk_head, wpt_tmp);
 }
@@ -186,7 +186,9 @@ ff_vecs_t glogbook_vecs = {
   glogbook_wr_deinit,
   glogbook_read,
   glogbook_write,
-  NULL,
+  nullptr,
   glogbook_args,
   CET_CHARSET_ASCII, 0	/* CET-REVIEW */
+  , NULL_POS_OPS,
+  nullptr
 };

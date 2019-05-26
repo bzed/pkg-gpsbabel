@@ -32,14 +32,14 @@ static Waypoint* wpt_tmp;
 static int item_count;
 static int waypoints;
 static double version;
-static route_head* route = NULL;
+static route_head* route = nullptr;
 
-static char* routevia = NULL;
+static char* routevia = nullptr;
 
 static arglist_t tef_xml_args[] = {
   {
     "routevia", &routevia, "Include only via stations in route",
-    NULL, ARGTYPE_BOOL, ARG_NOMINMAX
+    nullptr, ARGTYPE_BOOL, ARG_NOMINMAX, nullptr
   },
   ARG_TERMINATOR
 };
@@ -58,7 +58,7 @@ xg_tag_mapping tef_xml_map[] = {
   { tef_point,		cb_start,	"/TEF/WaypointList/Item/Point" },
   { tef_item_end,		cb_end,		"/TEF/WaypointList/Item" },
   { tef_list_end,		cb_end,		"/TEF/WaypointList" },
-  { NULL,	(xg_cb_type)0,		NULL }
+  { nullptr,	(xg_cb_type)0,		nullptr }
 };
 
 
@@ -67,16 +67,16 @@ xg_tag_mapping tef_xml_map[] = {
  */
 
 void
-tef_start(xg_string args, const QXmlStreamAttributes* attrv)
+tef_start(xg_string, const QXmlStreamAttributes* attrv)
 {
   bool valid = false;
 
   foreach(QXmlStreamAttribute attr, *attrv) {
-    if (attr.name().compare("Comment", Qt::CaseInsensitive) == 0) {
-      if (attr.value().compare("TourExchangeFormat", Qt::CaseInsensitive) == 0) {
+    if (attr.name().compare(QLatin1String("Comment"), Qt::CaseInsensitive) == 0) {
+      if (attr.value().compare(QLatin1String("TourExchangeFormat"), Qt::CaseInsensitive) == 0) {
         valid = true;
       }
-    } else if (attr.name().compare("Version", Qt::CaseInsensitive) == 0) {
+    } else if (attr.name().compare(QLatin1String("Version"), Qt::CaseInsensitive) == 0) {
       version = attr.value().toString().toDouble();
     }
   }
@@ -91,13 +91,13 @@ tef_start(xg_string args, const QXmlStreamAttributes* attrv)
  */
 
 static void
-tef_header(xg_string args, const QXmlStreamAttributes* attrv)
+tef_header(xg_string, const QXmlStreamAttributes* attrv)
 {
   route = route_head_alloc();
   foreach(QXmlStreamAttribute attr, *attrv) {
-    if (attr.name().compare("Name", Qt::CaseInsensitive) == 0) {
+    if (attr.name().compare(QLatin1String("Name"), Qt::CaseInsensitive) == 0) {
       route->rte_name = attr.value().toString().trimmed();
-    } else if (attr.name().compare("Software", Qt::CaseInsensitive) == 0) {
+    } else if (attr.name().compare(QLatin1String("Software"), Qt::CaseInsensitive) == 0) {
       route->rte_desc = attr.value().toString().trimmed();
     }
   }
@@ -105,7 +105,7 @@ tef_header(xg_string args, const QXmlStreamAttributes* attrv)
 }
 
 static void
-tef_list_start(xg_string args, const QXmlStreamAttributes* attrv)
+tef_list_start(xg_string, const QXmlStreamAttributes* attrv)
 {
   if (attrv->hasAttribute("ItemCount")) {
     item_count = attrv->value("ItemCount").toString().toUInt();
@@ -178,7 +178,7 @@ Xfix_notes(const QString& name, const QString& notes)
 }
 #else
 static QString 
-fix_notes(const QString& name, const QString& notes){
+fix_notes(const QString&, const QString& notes){
     return notes;
 }
 #endif
@@ -186,12 +186,11 @@ fix_notes(const QString& name, const QString& notes){
 static void
 waypoint_final()
 {
-  int via;
-  if (wpt_tmp == NULL) {
+  if (wpt_tmp == nullptr) {
     return;
   }
 
-  via = wpt_tmp->wpt_flags.fmt_use ;
+  int via = wpt_tmp->wpt_flags.fmt_use;
   wpt_tmp->wpt_flags.fmt_use  = 0;
 
   if (version < 2) {	/* keep the old behaviour */
@@ -205,8 +204,8 @@ waypoint_final()
     waypt_add(wpt_tmp);
   }
 
-  if (route != NULL) {
-    if ((via != 0) || (routevia == NULL)) {
+  if (route != nullptr) {
+    if ((via != 0) || (routevia == nullptr)) {
       Waypoint* wpt = new Waypoint(*wpt_tmp);
       route_add_wpt(route, wpt);
     }
@@ -216,17 +215,17 @@ waypoint_final()
     delete wpt_tmp;
   }
 
-  wpt_tmp = NULL;
+  wpt_tmp = nullptr;
 }
 
 static void
-tef_item_end(xg_string args, const QXmlStreamAttributes*)
+tef_item_end(xg_string, const QXmlStreamAttributes*)
 {
   waypoint_final();
 }
 
 static void
-tef_list_end(xg_string args, const QXmlStreamAttributes*)
+tef_list_end(xg_string, const QXmlStreamAttributes*)
 {
   waypoint_final();
   if (waypoints != item_count)
@@ -235,7 +234,7 @@ tef_list_end(xg_string args, const QXmlStreamAttributes*)
 }
 
 static void
-tef_item_start(xg_string args, const QXmlStreamAttributes* attrv)
+tef_item_start(xg_string, const QXmlStreamAttributes* attrv)
 {
   waypoints++;
 
@@ -246,22 +245,21 @@ tef_item_start(xg_string args, const QXmlStreamAttributes* attrv)
 
   foreach(QXmlStreamAttribute attr, *attrv) {
     QString attrstr = attr.value().toString();
-    QByteArray attrtext = attrstr.toUtf8();
 
-    if (attr.name().compare("SegDescription", Qt::CaseInsensitive) == 0) {
+    if (attr.name().compare(QLatin1String("SegDescription"), Qt::CaseInsensitive) == 0) {
       wpt_tmp->shortname = attrstr.trimmed();
-    } else if (attr.name().compare("PointDescription", Qt::CaseInsensitive) == 0) {
+    } else if (attr.name().compare(QLatin1String("PointDescription"), Qt::CaseInsensitive) == 0) {
       wpt_tmp->description = attrstr.trimmed();
-    } else if (attr.name().compare("ViaStation", Qt::CaseInsensitive) == 0 &&
-               attr.value().compare("true", Qt::CaseInsensitive) == 0) {
+    } else if (attr.name().compare(QLatin1String("ViaStation"), Qt::CaseInsensitive) == 0 &&
+               attr.value().compare(QLatin1String("true"), Qt::CaseInsensitive) == 0) {
       wpt_tmp->wpt_flags.fmt_use = 1;  /* only a flag */
 
       /* new in TEF V2 */
-    } else if (attr.name().compare("Instruction", Qt::CaseInsensitive) == 0) {
+    } else if (attr.name().compare(QLatin1String("Instruction"), Qt::CaseInsensitive) == 0) {
       wpt_tmp->description = attrstr.trimmed();
-    } else if (attr.name().compare("Altitude", Qt::CaseInsensitive) == 0) {
+    } else if (attr.name().compare(QLatin1String("Altitude"), Qt::CaseInsensitive) == 0) {
       wpt_tmp->altitude = attrstr.toDouble();
-    } else if (attr.name().compare("TimeStamp", Qt::CaseInsensitive) == 0) {
+    } else if (attr.name().compare(QLatin1String("TimeStamp"), Qt::CaseInsensitive) == 0) {
       /* nothing for the moment */
     }
   }
@@ -271,9 +269,8 @@ static double
 tef_read_comma_float(const QStringRef& value)
 {
   QString svalue = value.toString();
-  int cidx;
 
-  cidx = svalue.indexOf(',');
+  int cidx = svalue.indexOf(',');
   if (cidx == -1) {
     return svalue.toDouble();
   }
@@ -283,7 +280,7 @@ tef_read_comma_float(const QStringRef& value)
 }
 
 static void
-tef_point(xg_string args, const QXmlStreamAttributes* attrv)
+tef_point(xg_string, const QXmlStreamAttributes* attrv)
 {
   if (!wpt_tmp) {
     return;
@@ -301,22 +298,22 @@ tef_point(xg_string args, const QXmlStreamAttributes* attrv)
 static void
 tef_xml_rd_init(const QString& fname)
 {
-  wpt_tmp = NULL;
+  wpt_tmp = nullptr;
   waypoints = 0;
   item_count = -1;
   version = 1.5;
 
-  xml_init(fname, tef_xml_map, NULL);
+  xml_init(fname, tef_xml_map, nullptr);
 }
 
 static void
-tef_xml_read(void)
+tef_xml_read()
 {
   xml_read();
 }
 
 static void
-tef_xml_rd_deinit(void)
+tef_xml_rd_deinit()
 {
   xml_deinit();
 }
@@ -325,12 +322,14 @@ ff_vecs_t tef_xml_vecs = {
   ff_type_file,
   { ff_cap_none, ff_cap_none, ff_cap_read },
   tef_xml_rd_init,
-  NULL,
+  nullptr,
   tef_xml_rd_deinit,
-  NULL,
+  nullptr,
   tef_xml_read,
-  NULL,
-  NULL,
+  nullptr,
+  nullptr,
   tef_xml_args,
   CET_CHARSET_UTF8, 1
+  , NULL_POS_OPS,
+  nullptr
 };

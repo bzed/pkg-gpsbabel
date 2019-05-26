@@ -52,7 +52,7 @@ static gbfile* fin;
 //           local helper functions
 //***************************************************************************
 static void
-mynav_rd_line(QString line)
+mynav_rd_line(const QString& line)
 {
   QStringList fields = line.split("|");
 
@@ -131,13 +131,13 @@ mynav_rd_init(const QString& fname)
 }
 
 static void
-mynav_rd_deinit(void)
+mynav_rd_deinit()
 {
   gbfclose(fin);
 }
 
 static void
-mynav_rd(void)
+mynav_rd()
 {
   QString buff;
 
@@ -158,13 +158,15 @@ ff_vecs_t mynav_vecs = {
     ff_cap_none   // routes
   },
   mynav_rd_init,    // rd_init
-  NULL,           // wr_init
+  nullptr,           // wr_init
   mynav_rd_deinit,  // rd_deinit
-  NULL,           // wr_deinit
+  nullptr,           // wr_deinit
   mynav_rd,         // read
-  NULL,           // write
-  NULL,           // exit
-  NULL,           //args
+  nullptr,           // write
+  nullptr,           // exit
+  nullptr,           //args
   CET_CHARSET_ASCII, 0  //encode,fixed_encode
   //NULL                //name dynamic/internal?
+  , NULL_POS_OPS,
+  nullptr
 };
