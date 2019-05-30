@@ -18,15 +18,15 @@ Disable version mismatch check.
       </widget>
 --- a/gui/preferences.cc
 +++ b/gui/preferences.cc
-@@ -41,7 +41,6 @@ Preferences::Preferences(QWidget* parent
+@@ -43,7 +43,6 @@ Preferences::Preferences(QWidget* parent, QList<Format>& formatList,
  
    ui_.startupCheck->setChecked(babelData_.startupVersionCheck_);
    ui_.reportStatisticsCheck->setChecked(babelData_.reportStatistics_);
 -  ui_.ignoreVersionMismatchCheck->setChecked(babelData_.ignoreVersionMismatch_);
    // Because of an unfortunate bug in 1.4.0, we turn this off in 1.4.1.
-   if (VERSION == QString("1.4.1"))
+   if (VERSION == QString("1.4.1")) {
      babelData_.ignoreVersionMismatch_ = false;
-@@ -84,7 +83,6 @@ void Preferences::acceptClicked()
+@@ -87,7 +86,6 @@ void Preferences::acceptClicked()
  
    babelData_.startupVersionCheck_ = ui_.startupCheck->isChecked();
    babelData_.reportStatistics_ = ui_.reportStatisticsCheck->isChecked();
@@ -36,7 +36,7 @@ Disable version mismatch check.
  
 --- a/gui/babeldata.h
 +++ b/gui/babeldata.h
-@@ -66,7 +66,7 @@ public:
+@@ -67,7 +67,7 @@ public:
      startupVersionCheck_(true),
      reportStatistics_(true),
      allowBetaUpgrades_(false),

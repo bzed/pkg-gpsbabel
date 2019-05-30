@@ -18,15 +18,15 @@ Disable check for newer versions on start.
             <string>Anonymously report usage data.</string>
 --- a/gui/preferences.cc
 +++ b/gui/preferences.cc
-@@ -39,7 +39,6 @@ Preferences::Preferences(QWidget* parent
+@@ -41,7 +41,6 @@ Preferences::Preferences(QWidget* parent, QList<Format>& formatList,
  {
    ui_.setupUi(this);
  
 -  ui_.startupCheck->setChecked(babelData_.startupVersionCheck_);
    ui_.reportStatisticsCheck->setChecked(babelData_.reportStatistics_);
    // Because of an unfortunate bug in 1.4.0, we turn this off in 1.4.1.
-   if (VERSION == QString("1.4.1"))
-@@ -81,7 +80,6 @@ void Preferences::acceptClicked()
+   if (VERSION == QString("1.4.1")) {
+@@ -84,7 +83,6 @@ void Preferences::acceptClicked()
      formatList_[i].setHidden(item->checkState() == Qt::Unchecked);
    }
  
@@ -36,7 +36,7 @@ Disable check for newer versions on start.
  }
 --- a/gui/babeldata.h
 +++ b/gui/babeldata.h
-@@ -63,7 +63,7 @@ public:
+@@ -64,7 +64,7 @@ public:
      upgradeErrors_(0),
      upgradeOffers_(0),
      runCount_(0),
@@ -69,7 +69,7 @@ Disable check for newer versions on start.
      <string>Visit Website...</string>
 --- a/gui/mainwindow.cc
 +++ b/gui/mainwindow.cc
-@@ -147,7 +147,6 @@ MainWindow::MainWindow(QWidget* parent):
+@@ -174,7 +174,6 @@ MainWindow::MainWindow(QWidget* parent): QMainWindow(parent)
    connect(ui_.actionAbout, SIGNAL(triggered()), this, SLOT(aboutActionX()));
    connect(ui_.actionVisit_Website, SIGNAL(triggered()), this, SLOT(visitWebsiteActionX()));
    connect(ui_.actionMake_a_Donation, SIGNAL(triggered()), this, SLOT(donateActionX()));
@@ -77,7 +77,7 @@ Disable check for newer versions on start.
    connect(ui_.actionPreferences, SIGNAL(triggered()), this, SLOT(preferencesActionX()));
  
    connect(ui_.inputFormatCombo,  SIGNAL(currentIndexChanged(int)),
-@@ -206,19 +205,7 @@ MainWindow::MainWindow(QWidget* parent):
+@@ -234,19 +233,7 @@ MainWindow::MainWindow(QWidget* parent): QMainWindow(parent)
  
    //--- Restore from registry
    restoreSettings();
@@ -89,7 +89,7 @@ Disable check for newer versions on start.
 -  }
 -
 -  if (!babelData_.ignoreVersionMismatch_ && babelVersion_ != VERSION) {
--    VersionMismatch vm(0, babelVersion_, QString(VERSION));
+-    VersionMismatch vm(nullptr, babelVersion_, QString(VERSION));
 -
 -    vm.exec();
 -    babelData_.ignoreVersionMismatch_ = vm.neverAgain();
@@ -97,7 +97,7 @@ Disable check for newer versions on start.
  }
  
  //------------------------------------------------------------------------
-@@ -1021,10 +1008,6 @@ void MainWindow::applyActionX()
+@@ -1072,10 +1059,6 @@ void MainWindow::applyActionX()
  //------------------------------------------------------------------------
  void MainWindow::closeActionX()
  {

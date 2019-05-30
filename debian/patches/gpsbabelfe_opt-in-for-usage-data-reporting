@@ -1,7 +1,7 @@
 Make statistics reporting an opt-in option.
 --- a/gui/babeldata.h
 +++ b/gui/babeldata.h
-@@ -64,7 +64,7 @@ public:
+@@ -65,7 +65,7 @@ public:
      upgradeOffers_(0),
      runCount_(0),
      startupVersionCheck_(true),
