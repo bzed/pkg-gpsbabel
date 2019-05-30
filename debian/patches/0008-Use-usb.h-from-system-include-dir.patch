@@ -1,0 +1,35 @@
+From: Jochen Sprickerhof <git@jochen.sprickerhof.de>
+Date: Thu, 30 May 2019 12:10:47 +0200
+Subject: Use usb.h from system include dir
+
+---
+ Makefile.in        | 2 +-
+ jeeps/gpslibusb.cc | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile.in b/Makefile.in
+index a1bec30..f6c341f 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -680,7 +680,7 @@ jeeps/gpsdevice_usb.o: jeeps/gpsdevice_usb.cc jeeps/gps.h jeeps/../defs.h \
+   jeeps/gpsapp.h jeeps/gpsprot.h jeeps/gpscom.h jeeps/gpsfmt.h \
+   jeeps/gpsmath.h jeeps/gpsmem.h jeeps/gpsrqst.h jeeps/garminusb.h \
+   jeeps/gpsusbcommon.h jeeps/gpsusbint.h
+-jeeps/gpslibusb.o: jeeps/gpslibusb.cc config.h mac/libusb/usb.h \
++jeeps/gpslibusb.o: jeeps/gpslibusb.cc config.h \
+   jeeps/gps.h jeeps/../defs.h cet.h inifile.h \
+   gbfile.h defs.h session.h src/core/datetime.h src/core/optional.h \
+   jeeps/gpsport.h jeeps/gpsdevice.h jeeps/gpssend.h jeeps/gpsread.h \
+diff --git a/jeeps/gpslibusb.cc b/jeeps/gpslibusb.cc
+index 7017969..3f7ff28 100644
+--- a/jeeps/gpslibusb.cc
++++ b/jeeps/gpslibusb.cc
+@@ -31,7 +31,7 @@
+      // We use our own (slightly modified) libusb.
+ #    include "mac/libusb/usb.h"
+ #  else
+-#    include "usb.h"
++#    include <usb.h>
+ #  endif
+ #include "gps.h"
+ #include "garminusb.h"
