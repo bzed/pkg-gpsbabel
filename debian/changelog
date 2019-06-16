@@ -1,3 +1,16 @@
+gpsbabel (1.6.0+ds-1) UNRELEASED; urgency=medium
+
+  * Cleanup upstream sources
+  * New upstream version (Closes: #805355)
+  * Fix debian/source/format
+  * Add watch file
+  * Rebase patches
+  * Add patches to use system libraries
+  * Port to dh 12 (Closes: #912089)
+  * Update copyright
+
+ -- Jochen Sprickerhof <jspricke@debian.org>  Sun, 16 Jun 2019 17:19:02 +0200
+
 gpsbabel (1.5.4-2) unstable; urgency=medium
 
   * [cc58f71] Move git repository to github.
