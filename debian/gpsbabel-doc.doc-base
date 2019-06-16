@@ -6,3 +6,5 @@ Format: HTML
 Files: /usr/share/doc/gpsbabel/gpsbabel.html
 Index: /usr/share/doc/gpsbabel/gpsbabel.html
 
+Format: PDF
+Files: /usr/share/doc/gpsbabel/gpsbabel.pdf.gz

@@ -1,52 +1,27 @@
 #!/usr/bin/make -f
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+%:
+	dh $@
 
-export QT_SELECT=qt5
-
-
-PKG_GPSBABEL=gpsbabel
-PKG_GPSBABEL_GUI=gpsbabel-gui
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DOCTEMP = $(CURDIR)/debian/doctmp
-VERSION := $(shell dpkg-parsechangelog | awk '/^Version/ {print $$2}')
-HOSTARCH := $(strip $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU))
-
-#we use quilt to handle our patches
-include /usr/share/quilt/quilt.make
-
-
-CFLAGS = -Wall -g
-
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CFLAGS += -O0
-else
-	CFLAGS += -O2
-endif
+include /usr/share/dpkg/pkg-info.mk
 
 # Extended precision on i386 results in weird bugs, so we build
 # with -ffloat-store.
-ifeq (i386,$(HOSTARCH))
+ifneq (,$(filter $(DEB_BUILD_ARCH),i386))
 CFLAGS += -ffloat-store
 endif
 
-LDFLAGS +=  -Wl,-z,defs
-CONFENV = LDFLAGS="$(LDFLAGS)" CFLAGS="$(CFLAGS)"
-
-
-configure: configure-stamp gui/Makefile
-configure-stamp: $(QUILT_STAMPFN)
-	dh_testdir
-	dh_autotools-dev_updateconfig
-	mkdir -p xmldoc/autogen
-	$(CONFENV) ./configure \
+override_dh_auto_configure:
+	dh_auto_configure -- \
 		--with-zlib=system \
 		--with-doc=$(DOCTEMP) \
 		--prefix=/usr
+	convert -resize 32x32 gui/images/appicon.png debian/gpsbabel.xpm
 
-	touch $@
 
-debian/gpsbabel.1: build-stamp
+override_dh_installman:
 	export PATH="$(CURDIR)/gpsbabel:$$PATH" ;\
 	help2man 	--manual='gpsbabel documentation' \
 			--section=1 \
@@ -54,138 +29,13 @@ debian/gpsbabel.1: build-stamp
 			--source='http://www.gpsbabel.org' \
 			--locale=C \
 			-N \
-			--version-string=$(VERSION) \
+			--version-string=$(DEB_VERSION) \
 			--opt-include=$(CURDIR)/debian/gpsbabel.help2man \
-			-o $@ \
+			-o debian/gpsbabel.1 \
 			./gpsbabel
+	dh_installman
 
-gui/Makefile: $(QUILT_STAMPFN)
-	set -e; cd gui; if dpkg -s qtwebengine5-dev; then \
-	    qmake; \
-	else \
-	    echo -e '#!/usr/bin/make -f\n\n%:\n\techo $$@' > Makefile ; \
-	fi
-
-debian/gpsbabel.xpm: gui/images/appicon.png
-	convert -resize 32x32 $< $@
-
-BUILD_TARGETS_ARCH = build-stamp build-gui-stamp debian/gpsbabel.1
-BUILD_TARGETS_INDEP = build-doc-stamp
-# indep targets are only built by binary-indep.
-build: $(BUILD_TARGETS_ARCH)
-
-build-stamp: configure-stamp debian/gpsbabel.xpm
-	dh_testdir
-
-	# Add here commands to compile the package.
-	$(MAKE)
-ifeq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
-	chmod u+x testo
-	$(MAKE) check || true
-endif
-
-	touch $@
-
-# We need a gpsbabel binary to build the documentation.
-build-doc-stamp: build-stamp
-	mkdir -p debian/doctmp/htmldoc-devel
-	perl xmldoc/makedoc && cd ..
+override_dh_installdocs:
+	$(MAKE) doc
 	$(MAKE) gpsbabel.html
-	cp gpsbabel.html debian/doctmp
-	cp $(CURDIR)/debian/gpsbabel-doc.doc-base-common $(CURDIR)/debian/gpsbabel-doc.doc-base
-ifneq (mips,$(HOSTARCH))
-	$(MAKE) gpsbabel.pdf WEB=$(DOCTEMP) DOCVERSION=devel
-	cp gpsbabel.pdf $(DOCTEMP)
-	cat $(CURDIR)/debian/gpsbabel-doc.doc-base-pdf >> $(CURDIR)/debian/gpsbabel-doc.doc-base
-endif
-	rm -rf debian/doctmp/htmldoc-devel
-	touch $@
-
-build-gui: build-gui-stamp
-build-gui-stamp: gui/Makefile
-	if dpkg -s qtwebengine5-dev; then $(MAKE) gui; fi
-	touch $@
-
-clean: clean-patched unpatch
-clean-patched:
-	dh_testdir
-	dh_testroot 
-	rm -f *-stamp dep doc/*.ps
-	rm -rf xmldoc/autogen
-	rm -f debian/gpsbabel.xpm
-
-	# Add here commands to clean up after the build process.
-	[ ! -f Makefile ] || $(MAKE) clean
-	[ ! -f gui/Makefile ] || $(MAKE) gui clean
-	rm -rf debian/doctmp xmldoc/autogen/*
-	rm -rf Makefile config.h config.log config.status \
-		gpsbabel.fo tools/mkcapabilities win32/gpsbabel.rc \
-		xmldoc/makedoc \
-		zlib/empty jeeps/Makefile shapelib/Makefile
-	rm -f debian/*.inc
-	rm -rf gui/Makefile gui/objects gui/setup.iss
-	rm -f debian/gpsbabel.1
-	rm -f gpsbabel.pdf
-	rm -f gui/makelinuxdist.sh
-	rm -f   xmldoc/formats/tomtom_itn_places.xml \
-		xmldoc/formats/options/naviguide-reorder.xml \
-		xmldoc/formats/options/naviguide-output.xml \
-		xmldoc/filters/options/track-trk2seg.xml \
-		xmldoc/filters/options/track-seg2trk.xml
-	rm -f gbversion.h
-	rm -f $(CURDIR)/debian/gpsbabel-doc.doc-base
-	dh_autotools-dev_restoreconfig
-	dh_clean
-
-install-prep:
-	dh_testdir
-	dh_testroot
-	dh_prep
-	dh_installdirs
-
-install-arch: $(BUILD_TARGETS_ARCH) install-prep
-
-	# Add here commands to install the package into debian/gpsbabel.
-	$(MAKE) install DESTDIR=$(CURDIR)/debian/gpsbabel
-
-	dh_install -a 
-
-install-indep: $(BUILD_TARGETS_INDEP) install-prep
-	dh_install -i
-
-
-install: install-arch install-indep
-
-# Build architecture-independent files here.
-binary-indep: build-indep install-indep
-	dh_testdir 
-	dh_testroot
-	dh_installchangelogs -i 
-	dh_installdocs -i
-	dh_link -i 
-	dh_compress -i -X.pdf -X.html
-	dh_fixperms -i
-	dh_installdeb -i
-	dh_gencontrol -i
-	dh_md5sums -i
-	dh_builddeb -i
-
-# Build architecture-dependent files here.
-binary-arch: build-arch install-arch
-	dh_testdir
-	dh_testroot
-	dh_installchangelogs -a
-	dh_installdocs -a
-	dh_installman -a
-	dh_installmenu -a
-	dh_strip -a
-	dh_compress -a -X.pdf -X.html
-	dh_fixperms -a
-	dh_installdeb -a
-	dh_shlibdeps -a
-	dh_gencontrol -a
-	dh_md5sums -a
-	dh_builddeb -a
-
-binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install install-prep install-arch install-indep build-arch build-indep configure 
+	dh_installdocs

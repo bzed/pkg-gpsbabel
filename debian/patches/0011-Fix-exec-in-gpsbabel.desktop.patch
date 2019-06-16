@@ -1,0 +1,20 @@
+From: Jochen Sprickerhof <git@jochen.sprickerhof.de>
+Date: Sun, 16 Jun 2019 16:09:18 +0200
+Subject: Fix exec in gpsbabel.desktop
+
+---
+ gui/gpsbabel.desktop | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gui/gpsbabel.desktop b/gui/gpsbabel.desktop
+index 4ae4525..fe956c2 100644
+--- a/gui/gpsbabel.desktop
++++ b/gui/gpsbabel.desktop
+@@ -4,6 +4,6 @@ Name=GPSBabel
+ Comment=Qt GUI interface for GPSBabel
+ GenericName=GPSBabel
+ Icon=gpsbabel
+-Exec=gpsbabelfe-bin
++Exec=gpsbabelfe
+ Terminal=false
+ Categories=Geography;Education;Utility;

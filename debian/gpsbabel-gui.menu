@@ -1,5 +1,0 @@
-?package(gpsbabel-gui): needs="X11"\
-   section="Applications/Science/Geoscience"\
-   title="GPSBabel"\
-   icon="/usr/share/pixmaps/gpsbabel.xpm"\
-   command="/usr/bin/gpsbabelfe"

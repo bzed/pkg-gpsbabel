@@ -1,0 +1,4 @@
+debian/doctmp/
+debian/doctmpcapabilities.inc
+debian/gpsbabel.1
+debian/gpsbabel.xpm

@@ -5,3 +5,4 @@ htmldoc-location
 0006-Use-system-zlib.patch
 0007-Use-system-shapelib.patch
 0008-Use-usb.h-from-system-include-dir.patch
+0011-Fix-exec-in-gpsbabel.desktop.patch

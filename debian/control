@@ -2,19 +2,21 @@ Source: gpsbabel
 Section: utils
 Priority: optional
 Maintainer: Bernd Zeimetz <bzed@debian.org>
-Build-Depends: debhelper (>= 10~), quilt,
- autotools-dev, autoconf,
+Build-Depends: debhelper-compat (= 12),
+ pkg-config,
  libexpat1-dev, expat, help2man,
  libxml2-utils,
  libusb-dev, zlib1g-dev,
- qtbase5-dev,
+ libshp-dev,
+ qt5-default,
  qtwebengine5-dev [amd64 arm64 armhf i386 mipsel],
  qttools5-dev-tools,
  imagemagick,
  locales-all
 Build-Depends-Indep: fop [!mips], xsltproc, docbook-xml,
  docbook-xsl, libpaper-dev 
-Standards-Version: 3.8.4
+Standards-Version: 4.3.0
+Rules-Requires-Root: no
 Homepage: http://www.gpsbabel.org/
 Vcs-Git: https://github.com/bzed/pkg-gpsbabel.git
 Vcs-Browser: https://github.com/bzed/pkg-gpsbabel
@@ -51,10 +53,11 @@ Description: GPS file conversion plus transfer to/from GPS units
 
 Package: gpsbabel-doc
 Architecture: all
+Multi-Arch: foreign
 Section: doc
 Depends: ${misc:Depends}
 Suggests: gpsbabel, pdf-viewer | www-browser
-Description: GPS file conversion plus transfer to/from GPS units
+Description: GPS file conversion plus transfer to/from GPS units - documentation
  GPSBabel converts waypoints, tracks, and routes from one format to
  another, whether that format is a common mapping format like Delorme,
  Streets and Trips, or even a serial upload or download to a GPS unit
