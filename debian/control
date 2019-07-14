@@ -16,8 +16,8 @@ Build-Depends-Indep: fop [!mips], xsltproc, docbook-xml,
  docbook-xsl, libpaper-dev 
 Standards-Version: 3.8.4
 Homepage: http://www.gpsbabel.org/
-Vcs-Git: https://github.com/bzed/pkg-gpsbabel.git
-Vcs-Browser: https://github.com/bzed/pkg-gpsbabel
+Vcs-Git: https://salsa.debian.org/debian-gps-team/pkg-gpsbabel.git
+Vcs-Browser: https://salsa.debian.org/debian-gps-team/pkg-gpsbabel
 
 Package: gpsbabel
 Architecture: any
